@@ -15,6 +15,17 @@ class Settings(BaseSettings):
         default="http://localhost:4200", validation_alias="CORS_ORIGINS"
     )
     backend_port: int = Field(default=8000, validation_alias="BACKEND_PORT")
+    jwt_secret_key: str = Field(default="", validation_alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(
+        default=15, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
+    refresh_token_expire_days: int = Field(
+        default=30, validation_alias="REFRESH_TOKEN_EXPIRE_DAYS"
+    )
+    password_reset_expire_minutes: int = Field(
+        default=30, validation_alias="PASSWORD_RESET_EXPIRE_MINUTES"
+    )
 
     model_config = SettingsConfigDict(
         env_file=(BASE_DIR / ".env", ".env"),
