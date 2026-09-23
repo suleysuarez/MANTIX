@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
-      - run: ruff check app
-      - run: ruff format --check app
+      - run: ruff check app tests
+      - run: ruff format --check app tests
       - run: python -c "from app.main import app; assert app.title"
       - name: Run real tests when present
         shell: bash

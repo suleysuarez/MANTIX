@@ -1,6 +1,6 @@
 # Technology Equipment Maintenance System
 
-This repository provides the production-oriented foundation for a technology equipment maintenance system. The current stage establishes architecture, configuration, migrations, containers, and CI; business functionality is intentionally deferred.
+This repository provides the production-oriented foundation for a technology equipment maintenance system. The current stage includes the approved database foundation, CI, and a complete authentication and authorization slice; business modules remain intentionally separate.
 
 ## Architecture
 
@@ -31,11 +31,12 @@ docker-compose.yml
 ## Environment setup
 
 ```bash
+cd backend
 cp .env.example .env
-# edit .env and set DATABASE_URL and any permitted CORS origins
+# set DATABASE_URL, JWT_SECRET_KEY, and permitted CORS origins
 ```
 
-`DATABASE_URL` is read only by the backend and Alembic. Do not commit `.env`, credentials, tokens, or API keys.
+`DATABASE_URL` is read only by the backend and Alembic. Authentication secrets are read by the backend only. Do not commit `.env`, credentials, tokens, or API keys.
 
 ## Local development
 
@@ -76,7 +77,11 @@ alembic revision --autogenerate -m "describe change"
 alembic upgrade head
 ```
 
-No business tables or migrations are included at this stage.
+The initial migration is already part of the repository and must be reviewed before any future schema change is applied.
+
+## Authentication
+
+Authentication endpoints are documented in [docs/authentication.md](docs/authentication.md). The backend provides login, access-token validation, refresh-token rotation, logout, current-user, and password-reset endpoints. Angular provides the `/auth/login` page, a route guard, session state, and a refresh-aware HTTP interceptor. The reusable RBAC dependency distinguishes unauthenticated `401` responses from authenticated-but-unauthorized `403` responses.
 
 ## Testing, linting, and build
 
@@ -95,4 +100,4 @@ The CI workflow runs these checks without inventing placeholder tests.
 
 ## Next development stage
 
-The next stage should define domain models and contracts for equipment, locations, technicians, users, and maintenance records, then add the first vertical slice with migrations, API tests, and corresponding lazy-loaded Angular UI. Authentication and authorization should be designed before exposing protected business endpoints.
+The next stage can add protected equipment and maintenance vertical slices using `get_authenticated_user` and `require_permission(...)`; it should not duplicate token or role checks in individual route handlers.
