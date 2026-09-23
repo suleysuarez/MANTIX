@@ -1,91 +1,52 @@
-from datetime import datetime
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.auth import (
-    PasswordResetToken,
-    RefreshToken,
-    Role,
-    User,
-)
+from app.core.clerk import ClerkProfile
+from app.models.auth import Role, User, UserRole
 
 
 class AuthRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    @staticmethod
+    def _user_query():
+        return select(User).options(
+            selectinload(User.roles).selectinload(Role.permissions)
+        )
+
+    async def get_user_by_clerk_id(self, clerk_user_id: str) -> User | None:
+        result = await self.session.execute(
+            self._user_query().where(User.clerk_user_id == clerk_user_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_user_by_email(self, email: str) -> User | None:
         result = await self.session.execute(
-            select(User)
-            .where(User.email == email.lower())
-            .options(
-                selectinload(User.credentials),
-                selectinload(User.roles).selectinload(Role.permissions),
-            )
+            self._user_query().where(User.email == email)
         )
         return result.scalar_one_or_none()
 
-    async def get_user_by_id(self, user_id: int) -> User | None:
+    async def get_employee_role(self) -> Role | None:
         result = await self.session.execute(
-            select(User)
-            .where(User.id == user_id)
-            .options(
-                selectinload(User.credentials),
-                selectinload(User.roles).selectinload(Role.permissions),
-            )
+            select(Role).where(Role.code == "EMPLOYEE", Role.is_active.is_(True))
         )
         return result.scalar_one_or_none()
 
-    async def get_refresh_token(self, token_hash: str) -> RefreshToken | None:
-        result = await self.session.execute(
-            select(RefreshToken)
-            .where(RefreshToken.token_hash == token_hash)
-            .options(
-                selectinload(RefreshToken.user)
-                .selectinload(User.roles)
-                .selectinload(Role.permissions)
-            )
+    async def create_user(self, profile: ClerkProfile) -> User:
+        user = User(
+            clerk_user_id=profile.clerk_user_id,
+            email=profile.email,
+            full_name=profile.full_name,
+            is_active=True,
         )
-        return result.scalar_one_or_none()
+        self.session.add(user)
+        await self.session.flush()
+        return user
 
-    async def add_refresh_token(
-        self, user_id: int, token_hash: str, expires_at: datetime
-    ) -> RefreshToken:
-        token = RefreshToken(
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-        )
-        self.session.add(token)
-        return token
-
-    async def get_password_reset_token(
-        self, token_hash: str
-    ) -> PasswordResetToken | None:
-        result = await self.session.execute(
-            select(PasswordResetToken)
-            .where(PasswordResetToken.token_hash == token_hash)
-            .options(
-                selectinload(PasswordResetToken.user).selectinload(User.credentials)
-            )
-        )
-        return result.scalar_one_or_none()
-
-    async def add_password_reset_token(
-        self, user_id: int, token_hash: str, expires_at: datetime
-    ) -> PasswordResetToken:
-        token = PasswordResetToken(
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-        )
-        self.session.add(token)
-        return token
-
-    async def revoke_refresh_token(self, token: RefreshToken, now: datetime) -> None:
-        token.revoked_at = now
+    async def assign_role(self, user: User, role: Role) -> None:
+        self.session.add(UserRole(user_id=user.id, role_id=role.id))
 
     async def commit(self) -> None:
         await self.session.commit()

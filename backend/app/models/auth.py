@@ -33,6 +33,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(
         String(255), unique=True, index=True, nullable=False
     )
+    clerk_user_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, index=True, nullable=True
+    )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     employee_code: Mapped[str | None] = mapped_column(
         String(50), unique=True, index=True, nullable=True
