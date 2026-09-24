@@ -53,18 +53,6 @@ class User(Base):
     )
 
     # Relationships
-    credentials: Mapped["UserCredential"] = relationship(
-        "UserCredential",
-        back_populates="user",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
-        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
-    )
-    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
-        "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
-    )
     user_roles: Mapped[list["UserRole"]] = relationship(
         "UserRole",
         back_populates="user",
@@ -96,86 +84,6 @@ class User(Base):
     notifications: Mapped[list["Notification"]] = relationship(
         "Notification", back_populates="user", cascade="all, delete-orphan"
     )
-
-
-class UserCredential(Base):
-    __tablename__ = "user_credentials"
-
-    id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=False), primary_key=True
-    )
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
-        index=True,
-        nullable=False,
-    )
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    user: Mapped["User"] = relationship("User", back_populates="credentials")
-
-
-class RefreshToken(Base):
-    __tablename__ = "refresh_tokens"
-
-    id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=False), primary_key=True
-    )
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    token_hash: Mapped[str] = mapped_column(
-        String(255), unique=True, index=True, nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    revoked_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
-
-
-class PasswordResetToken(Base):
-    __tablename__ = "password_reset_tokens"
-
-    id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=False), primary_key=True
-    )
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
-    token_hash: Mapped[str] = mapped_column(
-        String(255), unique=True, index=True, nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    user: Mapped["User"] = relationship("User", back_populates="password_reset_tokens")
 
 
 class Role(Base):

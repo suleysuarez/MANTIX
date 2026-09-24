@@ -1,13 +1,10 @@
 from app.models.attachment import Attachment
 from app.models.audit import AuditLog
 from app.models.auth import (
-    PasswordResetToken,
     Permission,
-    RefreshToken,
     Role,
     RolePermission,
     User,
-    UserCredential,
     UserRole,
 )
 from app.models.equipment import (
@@ -39,15 +36,12 @@ __all__ = [
     "MaintenanceRecord",
     "MaintenanceRequest",
     "Notification",
-    "PasswordResetToken",
     "Permission",
-    "RefreshToken",
     "Role",
     "RolePermission",
     "Technician",
     "TicketAssignment",
     "TicketStatusHistory",
     "User",
-    "UserCredential",
     "UserRole",
 ]

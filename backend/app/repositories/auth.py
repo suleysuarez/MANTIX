@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -31,6 +31,20 @@ class AuthRepository:
     async def get_employee_role(self) -> Role | None:
         result = await self.session.execute(
             select(Role).where(Role.code == "EMPLOYEE", Role.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()
+
+    async def lock_admin_bootstrap(self) -> None:
+        """Serialize first-role assignment transactions on PostgreSQL."""
+        await self.session.execute(text("SELECT pg_advisory_xact_lock(85219401)"))
+
+    async def has_assigned_application_role(self) -> bool:
+        result = await self.session.execute(select(UserRole.id).limit(1))
+        return result.scalar_one_or_none() is not None
+
+    async def get_admin_role(self) -> Role | None:
+        result = await self.session.execute(
+            select(Role).where(Role.code == "ADMIN", Role.is_active.is_(True))
         )
         return result.scalar_one_or_none()
 
