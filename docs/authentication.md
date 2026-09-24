@@ -41,13 +41,15 @@ FastAPI uses the official `clerk-backend-api` SDK's `authenticate_request` bound
 
 The local `users` table remains the application profile table. A new nullable, unique, indexed `users.clerk_user_id` column links it to Clerk. The new migration is `b2c7f1a8d4e1_add_clerk_user_id_to_users.py`; it does not edit or replace the already-applied initial migration.
 
-When a verified Clerk user is first encountered, the backend resolves the Clerk email and display name, creates the local profile, and assigns only the existing `EMPLOYEE` role. Existing local roles are preserved. Clerk metadata is not used as a replacement for database RBAC. If a local email is already linked to a different Clerk identity, the request fails with HTTP 409 rather than silently reassigning ownership. Inactive local profiles return HTTP 403.
+When a verified Clerk user is first encountered, the backend resolves the Clerk email and display name and creates the local profile. The first user is assigned the existing `ADMIN` role only when the local database has no `user_roles` records. This is based on local application state, never Clerk creation metadata. The bootstrap check is serialized with a PostgreSQL transaction-scoped advisory lock, so concurrent first logins cannot both receive `ADMIN`.
+
+Every subsequent new user is created without a `user_roles` record. This is the pending-authorization state: the person is authenticated by Clerk and has a local profile, but has no application permissions. A local email already linked to a different Clerk identity fails with HTTP 409 rather than silently reassigning ownership. Inactive local profiles return HTTP 403.
 
 The existing `roles`, `permissions`, `user_roles`, and `role_permissions` tables remain authoritative. `require_permission("module.action")` continues to distinguish authenticated users without a permission (403) from unauthenticated requests (401).
 
-## Retained legacy tables
+## Legacy table cleanup
 
-`user_credentials`, `refresh_tokens`, and `password_reset_tokens` remain in the database model and applied initial migration for data and migration compatibility. They are no longer used by the application authentication flow. They were not dropped because removing applied tables would be destructive and would create unnecessary migration churn. A future cleanup, if required after data-retention review, must use a separate deliberate migration.
+`user_credentials`, `refresh_tokens`, and `password_reset_tokens` are no longer part of the active SQLAlchemy model or any Clerk flow. Migration `c4d8e2f1a9b7_drop_legacy_auth_tables.py` removes those three obsolete tables without editing the applied initial migration. The migration preserves `users`, `roles`, `permissions`, `user_roles`, and `role_permissions`.
 
 ## Validation
 
@@ -61,7 +63,7 @@ cd backend
 .venv/bin/pytest
 ```
 
-The backend tests mock the Clerk verification boundary and cover missing and invalid authentication, valid identity extraction, local linkage, first-time EMPLOYEE provisioning, inactive users, `/auth/me` mapping, and RBAC allow/deny behavior.
+The backend tests mock the Clerk verification boundary and cover missing and invalid authentication, valid identity extraction, first-user ADMIN provisioning, subsequent pending users, concurrent first-login safety, inactive users, `/auth/me` mapping, and RBAC allow/deny behavior.
 
 Frontend checks:
 

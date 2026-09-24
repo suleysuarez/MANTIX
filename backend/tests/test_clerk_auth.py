@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -12,12 +13,13 @@ from app.services.auth import ClerkAuthService, user_response
 
 
 class FakeRepository:
-    def __init__(self, user=None, role=None):
+    def __init__(self, user=None, role=None, shared=None):
         self.user = user
         self.role = role
         self.created = None
         self.assigned_role = None
         self.committed = False
+        self.shared = shared or {"lock": asyncio.Lock(), "assigned": False}
 
     async def get_user_by_clerk_id(self, clerk_user_id):
         if self.user and self.user.clerk_user_id == clerk_user_id:
@@ -29,8 +31,8 @@ class FakeRepository:
             return self.user
         return None
 
-    async def get_employee_role(self):
-        return self.role
+    async def get_admin_role(self):
+        return self.role if self.role and self.role.code == "ADMIN" else None
 
     async def create_user(self, profile):
         self.created = SimpleNamespace(
@@ -45,35 +47,45 @@ class FakeRepository:
         self.user = self.created
         return self.created
 
+    async def lock_admin_bootstrap(self):
+        await self.shared["lock"].acquire()
+
+    async def has_assigned_application_role(self):
+        return self.shared["assigned"]
+
     async def assign_role(self, user, role):
         self.assigned_role = role
+        self.shared["assigned"] = True
         user.roles = [role]
 
     async def commit(self):
         self.committed = True
+        if self.shared["lock"].locked():
+            self.shared["lock"].release()
 
     async def rollback(self):
-        pass
+        if self.shared["lock"].locked():
+            self.shared["lock"].release()
 
 
-def role():
+def role(code="ADMIN"):
     permission = SimpleNamespace(
         code="equipment.read", name="Read equipment", is_active=True
     )
     return SimpleNamespace(
-        code="EMPLOYEE", name="Employee", is_active=True, permissions=[permission]
+        code=code, name=code.title(), is_active=True, permissions=[permission]
     )
 
 
-def identity() -> VerifiedClerkIdentity:
+def identity(clerk_user_id="user_clerk_123", email="employee@example.com"):
     return VerifiedClerkIdentity(
-        user_id="user_clerk_123",
-        claims={"sub": "user_clerk_123", "email": "employee@example.com"},
+        user_id=clerk_user_id,
+        claims={"sub": clerk_user_id, "email": email},
     )
 
 
 @pytest.mark.asyncio
-async def test_first_clerk_user_is_provisioned_as_employee(monkeypatch) -> None:
+async def test_first_clerk_user_is_provisioned_as_admin(monkeypatch) -> None:
     profile = ClerkProfile("user_clerk_123", "employee@example.com", "Example Employee")
 
     async def load_profile(*_):
@@ -87,8 +99,53 @@ async def test_first_clerk_user_is_provisioned_as_employee(monkeypatch) -> None:
     user = await service.resolve_local_user(identity())
 
     assert user.clerk_user_id == "user_clerk_123"
-    assert repository.assigned_role.code == "EMPLOYEE"
+    assert repository.assigned_role.code == "ADMIN"
     assert repository.committed
+
+
+@pytest.mark.asyncio
+async def test_subsequent_clerk_user_is_pending_without_role(monkeypatch) -> None:
+    profile = ClerkProfile("user_clerk_456", "second@example.com", "Second User")
+
+    async def load_profile(*_):
+        return profile
+
+    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    shared = {"lock": asyncio.Lock(), "assigned": True}
+    repository = FakeRepository(role=role(), shared=shared)
+    service = ClerkAuthService(object(), Settings())
+    service.repository = repository
+
+    user = await service.resolve_local_user(
+        identity("user_clerk_456", "second@example.com")
+    )
+
+    assert user.roles == []
+    assert repository.assigned_role is None
+    assert repository.committed
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_logins_assign_admin_only_once(monkeypatch) -> None:
+    async def load_profile(identity, _settings):
+        return ClerkProfile(
+            identity.user_id, f"{identity.user_id}@example.com", identity.user_id
+        )
+
+    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    shared = {"lock": asyncio.Lock(), "assigned": False}
+    repositories = [FakeRepository(role=role(), shared=shared) for _ in range(2)]
+    services = [ClerkAuthService(object(), Settings()) for _ in repositories]
+    for service, repository in zip(services, repositories, strict=True):
+        service.repository = repository
+
+    users = await asyncio.gather(
+        services[0].resolve_local_user(identity("user_one")),
+        services[1].resolve_local_user(identity("user_two")),
+    )
+
+    assert sum(bool(user.roles) for user in users) == 1
+    assert sum(repository.assigned_role is not None for repository in repositories) == 1
 
 
 @pytest.mark.asyncio
@@ -132,9 +189,8 @@ def test_missing_clerk_authentication_returns_401() -> None:
     from starlette.requests import Request
 
     scope = {"type": "http", "method": "GET", "path": "/auth/me", "headers": []}
-    request = Request(scope)
     with pytest.raises(HTTPException) as error:
-        verify_clerk_request(request, Settings(clerk_secret_key="test-secret"))
+        verify_clerk_request(Request(scope), Settings(clerk_secret_key="test-secret"))
     assert error.value.status_code == 401
 
 
@@ -179,19 +235,19 @@ def test_verified_clerk_token_returns_identity(monkeypatch) -> None:
     assert verified.user_id == "user_clerk_123"
 
 
-def test_auth_me_response_contains_local_roles_and_permissions() -> None:
+def test_auth_me_response_contains_empty_pending_collections() -> None:
     user = SimpleNamespace(
         id=17,
         email="employee@example.com",
         full_name="Example Employee",
-        employee_code="E-17",
+        employee_code=None,
         is_active=True,
-        roles=[role()],
+        roles=[],
     )
     response = user_response(user)
     assert isinstance(response, UserResponse)
-    assert response.roles[0].code == "EMPLOYEE"
-    assert response.permissions[0].code == "equipment.read"
+    assert response.roles == []
+    assert response.permissions == []
 
 
 @pytest.mark.asyncio

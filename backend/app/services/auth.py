@@ -17,7 +17,15 @@ class ClerkAuthService:
     async def resolve_local_user(self, identity: VerifiedClerkIdentity) -> User:
         user = await self.repository.get_user_by_clerk_id(identity.user_id)
         if user is not None:
-            return self._require_active(user)
+            user = self._require_active(user)
+            if not user.roles:
+                assigned = await self._assign_bootstrap_admin(user)
+                if assigned:
+                    await self.repository.commit()
+                    return (
+                        await self.repository.get_user_by_clerk_id(identity.user_id)
+                    ) or user
+            return user
 
         profile = await get_clerk_profile(identity, self.settings)
         existing_by_email = await self.repository.get_user_by_email(profile.email)
@@ -29,18 +37,12 @@ class ClerkAuthService:
                 )
             return self._require_active(existing_by_email)
 
-        return await self._provision_employee(profile)
+        return await self._provision_first_or_pending(profile)
 
-    async def _provision_employee(self, profile: ClerkProfile) -> User:
-        employee_role = await self.repository.get_employee_role()
-        if employee_role is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="default EMPLOYEE role is not configured",
-            )
+    async def _provision_first_or_pending(self, profile: ClerkProfile) -> User:
         try:
             user = await self.repository.create_user(profile)
-            await self.repository.assign_role(user, employee_role)
+            await self._assign_bootstrap_admin(user)
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
@@ -58,6 +60,20 @@ class ClerkAuthService:
                 detail="provisioned local user could not be reloaded",
             )
         return provisioned
+
+    async def _assign_bootstrap_admin(self, user: User) -> bool:
+        await self.repository.lock_admin_bootstrap()
+        if await self.repository.has_assigned_application_role():
+            return False
+        admin_role = await self.repository.get_admin_role()
+        if admin_role is None:
+            await self.repository.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="bootstrap ADMIN role is not configured",
+            )
+        await self.repository.assign_role(user, admin_role)
+        return True
 
     @staticmethod
     def _require_active(user: User) -> User:
