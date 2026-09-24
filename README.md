@@ -33,7 +33,7 @@ docker-compose.yml
 ```bash
 cd backend
 cp .env.example .env
-# set DATABASE_URL, JWT_SECRET_KEY, and permitted CORS origins
+# set DATABASE_URL, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, and permitted CORS origins
 ```
 
 `DATABASE_URL` is read only by the backend and Alembic. Authentication secrets are read by the backend only. Do not commit `.env`, credentials, tokens, or API keys.
@@ -81,7 +81,7 @@ The initial migration is already part of the repository and must be reviewed bef
 
 ## Authentication
 
-Authentication endpoints are documented in [docs/authentication.md](docs/authentication.md). The backend provides login, access-token validation, refresh-token rotation, logout, current-user, and password-reset endpoints. Angular provides the `/auth/login` page, a route guard, session state, and a refresh-aware HTTP interceptor. The reusable RBAC dependency distinguishes unauthenticated `401` responses from authenticated-but-unauthorized `403` responses.
+Authentication is documented in [docs/authentication.md](docs/authentication.md). Clerk owns sign-in, sign-up, passwords, password recovery, sessions, and sign-out. FastAPI verifies Clerk session tokens and exposes `/auth/me` as the local application-profile endpoint. Angular provides Clerk's `/auth/login` host, `UserButton`, a Clerk-backed route guard, and a session-token interceptor. Local roles and permissions remain in Neon, and the reusable RBAC dependency distinguishes unauthenticated `401` responses from authenticated-but-unauthorized `403` responses.
 
 ## Testing, linting, and build
 
