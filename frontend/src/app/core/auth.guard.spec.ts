@@ -3,13 +3,20 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
-import { authGuard } from './auth.guard';
+import { authGuard, authorizedGuard } from './auth.guard';
 import { authInterceptor } from './auth.interceptor';
 import { ClerkService } from './clerk.service';
+import { LocalProfileService } from './local-profile.service';
 
 function runGuard(): Promise<unknown> {
   return TestBed.runInInjectionContext(() =>
     authGuard({} as never, {} as never),
+  ) as Promise<unknown>;
+}
+
+function runAuthorizedGuard(): Promise<unknown> {
+  return TestBed.runInInjectionContext(() =>
+    authorizedGuard({} as never, {} as never),
   ) as Promise<unknown>;
 }
 
@@ -34,6 +41,32 @@ describe('Clerk auth guard', () => {
     });
     await runGuard();
     expect(createUrlTree).toHaveBeenCalledWith(['/auth/login']);
+  });
+});
+
+describe('local authorization guard', () => {
+  it('allows a Clerk user with a local application role', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ roles: [{ code: 'ADMIN' }] }) } },
+        { provide: Router, useValue: { createUrlTree: jasmine.createSpy() } },
+      ],
+    });
+    expect(await runAuthorizedGuard()).toBeTrue();
+  });
+
+  it('redirects an authenticated user without roles to pending authorization', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/auth/pending');
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ roles: [] }) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+    await runAuthorizedGuard();
+    expect(createUrlTree).toHaveBeenCalledWith(['/auth/pending']);
   });
 });
 
