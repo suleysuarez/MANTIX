@@ -1,3 +1,12 @@
 import { Routes } from '@angular/router';
 
-export const EQUIPOS_ROUTES: Routes = [];
+import { permissionGuard } from '../../core/auth.guard';
+
+export const EQUIPOS_ROUTES: Routes = [
+  {
+    path: '',
+    canActivate: [permissionGuard('equipment.read')],
+    loadComponent: () =>
+      import('./equipment-list.component').then((m) => m.EquipmentListComponent),
+  },
+];

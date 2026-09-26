@@ -1,42 +1,23 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { Observable, catchError, finalize, shareReplay, switchMap, throwError } from 'rxjs';
-import { AuthService, TokenResponse } from './auth.service';
+import { from } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
+import { ClerkService } from './clerk.service';
 
-let refreshRequest: Observable<TokenResponse> | null = null;
+const apiUrl = 'http://localhost:8000';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
-  const token = auth.accessToken;
-  const isAuthRequest = request.url.includes('/auth/login') || request.url.includes('/auth/refresh');
-  const authorizedRequest = token && !isAuthRequest
-    ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-    : request;
+  if (!request.url.startsWith(apiUrl)) {
+    return next(request);
+  }
 
-  return next(authorizedRequest).pipe(
-    catchError((error: HttpErrorResponse) => {
-      if (error.status !== 401 || isAuthRequest || !auth.refreshToken) {
-        return throwError(() => error);
-      }
-      if (!refreshRequest) {
-        refreshRequest = auth.refresh().pipe(
-          shareReplay(1),
-          finalize(() => (refreshRequest = null)),
-        );
-      }
-      return refreshRequest.pipe(
-        switchMap(() => {
-          const retry = request.clone({ setHeaders: { Authorization: `Bearer ${auth.accessToken}` } });
-          return next(retry);
-        }),
-        catchError((refreshError) => {
-          auth.clearSession();
-          void router.navigate(['/auth/login']);
-          return throwError(() => refreshError);
-        }),
-      );
+  const clerk = inject(ClerkService);
+  return from(clerk.getToken()).pipe(
+    switchMap((token) => {
+      const authorizedRequest = token
+        ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+        : request;
+      return next(authorizedRequest);
     }),
   );
 };

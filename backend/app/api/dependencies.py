@@ -1,29 +1,36 @@
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clerk import verify_clerk_request
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.models.auth import User
-from app.services.auth import get_current_user as resolve_current_user
-from app.services.auth import has_permission
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+from app.services.auth import ClerkAuthService
 
 
 async def get_authenticated_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
     session: AsyncSession = Depends(get_db),  # noqa: B008
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> User:
-    return await resolve_current_user(session, token, settings)
+    identity = verify_clerk_request(request, settings)
+    return await ClerkAuthService(session, settings).resolve_local_user(identity)
 
 
 def require_permission(permission_code: str) -> Callable:
-    async def dependency(user: User = Depends(get_authenticated_user)) -> User:  # noqa: B008
-        if not has_permission(user, permission_code):
+    async def dependency(
+        user: User = Depends(get_authenticated_user),  # noqa: B008
+    ) -> User:
+        if not any(
+            role.is_active
+            and any(
+                permission.is_active and permission.code == permission_code
+                for permission in role.permissions
+            )
+            for role in user.roles
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="insufficient permissions",

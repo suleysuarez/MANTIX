@@ -15,16 +15,12 @@ class Settings(BaseSettings):
         default="http://localhost:4200", validation_alias="CORS_ORIGINS"
     )
     backend_port: int = Field(default=8000, validation_alias="BACKEND_PORT")
-    jwt_secret_key: str = Field(default="", validation_alias="JWT_SECRET_KEY")
-    jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(
-        default=15, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES"
+    clerk_secret_key: str = Field(default="", validation_alias="CLERK_SECRET_KEY")
+    clerk_publishable_key: str = Field(
+        default="", validation_alias="CLERK_PUBLISHABLE_KEY"
     )
-    refresh_token_expire_days: int = Field(
-        default=30, validation_alias="REFRESH_TOKEN_EXPIRE_DAYS"
-    )
-    password_reset_expire_minutes: int = Field(
-        default=30, validation_alias="PASSWORD_RESET_EXPIRE_MINUTES"
+    clerk_authorized_parties: str = Field(
+        default="http://localhost:4200", validation_alias="CLERK_AUTHORIZED_PARTIES"
     )
 
     model_config = SettingsConfigDict(
@@ -65,6 +61,14 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
+
+    @property
+    def clerk_authorized_party_list(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.clerk_authorized_parties.split(",")
+            if origin.strip()
         ]
 
 

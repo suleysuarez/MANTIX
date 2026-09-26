@@ -1,58 +1,104 @@
-# Authentication and authorization
+# Clerk authentication and local authorization
 
-The authentication module uses a layered FastAPI implementation: routes validate DTOs, the service owns authentication and token lifecycle rules, repositories query SQLAlchemy models, and database sessions are supplied through FastAPI dependency injection. Angular stores only the short-lived access token and opaque refresh token in browser storage; the backend stores only a SHA-256 digest of refresh and password-reset tokens.
+The application now uses Clerk as the identity and session authority. Angular loads ClerkJS from the provided CDN snippet, Clerk owns sign-in, sign-up, password recovery, session lifecycle, and sign-out, and FastAPI verifies the Clerk session token before resolving the local application profile.
+
+```text
+Angular + ClerkJS
+        │  Authorization: Bearer <Clerk session token>
+        ▼
+FastAPI + Clerk Python SDK verification
+        ▼
+users.clerk_user_id
+        ▼
+local roles → permissions in Neon
+```
 
 ## Configuration
 
-Set these variables in the backend environment, normally `backend/.env` for local development:
+The backend reads Clerk configuration from `backend/.env`:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://...
-JWT_SECRET_KEY=<random-secret>
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REFRESH_TOKEN_EXPIRE_DAYS=30
-PASSWORD_RESET_EXPIRE_MINUTES=30
+CLERK_SECRET_KEY=<server-only secret>
+CLERK_PUBLISHABLE_KEY=<public key>
+CLERK_AUTHORIZED_PARTIES=http://localhost:4200
 ```
 
-`JWT_SECRET_KEY` is required when issuing tokens and must never be committed or logged. The database foundation and existing Alembic migration are reused; this authentication feature does not create or alter tables.
+`CLERK_SECRET_KEY` must never be copied into Angular, committed, logged, or returned by an endpoint. The provided publishable key is intentionally present in `frontend/src/index.html` because it is public by design. `backend/.env.example` contains placeholders only.
 
-## Endpoints
+## Angular integration
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/auth/login` | Validate credentials and issue access/refresh tokens. |
-| POST | `/auth/refresh` | Rotate a refresh token and issue a new token pair. |
-| POST | `/auth/logout` | Revoke the supplied refresh token. |
-| GET | `/auth/me` | Return safe current-user data, roles, and permissions. |
-| POST | `/auth/password-reset/request` | Create a reset token without revealing account existence. |
-| POST | `/auth/password-reset/confirm` | Consume a valid one-time reset token and update the password hash. |
+The exact Clerk CDN scripts supplied for this project are in `frontend/src/index.html`. `ClerkService` is the only application service that accesses `window.Clerk`. It initializes Clerk once, loads the Clerk UI bundle, exposes the current authentication state, retrieves the active session token, mounts `SignIn` and `UserButton`, and delegates sign-out to Clerk.
 
-Access tokens are JWTs with only `sub`, `type`, `iat`, and `exp` claims. Refresh tokens are cryptographically random opaque values. Rotation revokes the old database record before committing the new record, so a rotated or revoked token cannot be reused.
+The `/auth/login` route is only a host for Clerk's mounted `SignIn` component. It does not collect or submit passwords. The authenticated dashboard mounts Clerk's `UserButton`. `authGuard` waits for Clerk initialization and allows only signed-in sessions. The Angular interceptor attaches a Clerk session token only to requests whose URL starts with the FastAPI API URL; it never stores tokens in `localStorage`, refreshes custom JWTs, or intercepts Clerk's own requests.
 
-## RBAC
+## Backend verification
 
-The reusable `get_authenticated_user` dependency returns HTTP 401 when the request has no valid access token. `require_permission("module.action")` builds authorization on top of it and returns HTTP 403 when an authenticated user lacks the permission. The approved role vocabulary is `ADMIN`, `SUPERVISOR`, `TECHNICIAN`, and `EMPLOYEE` (the Spanish display label `empleado` may be used as the role name, but the stable code remains `EMPLOYEE`). Permissions are resolved through `user_roles` and `role_permissions`; route handlers do not contain role conditionals.
+FastAPI uses the official `clerk-backend-api` SDK's `authenticate_request` boundary with the server-only `CLERK_SECRET_KEY` and the configured authorized parties. The backend does not decode an unverified JWT. Missing, invalid, expired, or unconfigured Clerk authentication produces HTTP 401.
 
-## Angular flow
+`GET /auth/me` is an application-profile endpoint. It does not issue tokens, refresh sessions, manage passwords, or perform password recovery. It verifies the Clerk request, resolves the Clerk `sub` claim, provisions or loads the local profile, and returns local roles and permissions.
 
-The `/auth/login` lazy route validates the form and calls FastAPI. `AuthService` owns the session state. `authGuard` protects the dashboard, and the functional HTTP interceptor attaches the access token. A single shared refresh observable handles concurrent 401 responses; successful refresh retries the original requests, while a failed refresh clears the session and returns the user to `/auth/login`.
+## Clerk-to-local provisioning
 
-## Local verification
+The local `users` table remains the application profile table. A new nullable, unique, indexed `users.clerk_user_id` column links it to Clerk. The new migration is `b2c7f1a8d4e1_add_clerk_user_id_to_users.py`; it does not edit or replace the already-applied initial migration.
 
-Run the backend tests and checks from `backend`:
+When a verified Clerk user is first encountered, the backend resolves the Clerk email and display name and creates the local profile. The first user is assigned the existing `ADMIN` role only when the local database has no `user_roles` records. This is based on local application state, never Clerk creation metadata. The bootstrap check is serialized with a PostgreSQL transaction-scoped advisory lock, so concurrent first logins cannot both receive `ADMIN`.
+
+Every subsequent new user is created without a `user_roles` record. This is the pending-authorization state: the person is authenticated by Clerk and has a local profile, but has no application permissions. A local email already linked to a different Clerk identity fails with HTTP 409 rather than silently reassigning ownership. Inactive local profiles return HTTP 403.
+
+The existing `roles`, `permissions`, `user_roles`, and `role_permissions` tables remain authoritative. `require_permission("module.action")` continues to distinguish authenticated users without a permission (403) from unauthenticated requests (401).
+
+## Pending-user administration
+
+Administrators with the local `users.manage` permission can use:
+
+```text
+GET  /admin/users/pending
+GET  /admin/roles
+POST /admin/users/{user_id}/roles   { "role_ids": [1, 2] }
+```
+
+The pending list includes only active local users without any `user_roles` record. Inactive users are excluded and cannot receive roles through this API. The assignment endpoint returns 403 when the caller lacks `users.manage`, 404 for an inactive or nonexistent user or role, and is idempotent for repeated role assignments. The Angular page is `/admin/pending-users`; it checks `users.manage` in the client and removes the user from the list immediately after a successful assignment.
+
+Migration `d6e7f8a9b0c1_seed_user_management_permission.py` adds `users.manage` if absent and links it to the existing `ADMIN` role without changing the role model or Clerk metadata.
+
+## Equipment vertical slice
+
+The first protected business module uses the same local RBAC boundary:
+
+```text
+GET   /equipment       equipment.read
+GET   /equipment/types equipment.read
+POST  /equipment       equipment.manage
+PATCH /equipment/{id}  equipment.manage
+```
+
+The Angular catalog is available at `/equipos`. It lists equipment, loads active equipment types, and creates new assets with validation for status, non-negative cost, unique asset/serial identifiers, and warranty date ordering. Migration `e7f8a9b0c1d2_seed_equipment_permissions.py` adds `equipment.read` and `equipment.manage` and links both to `ADMIN`.
+
+## Legacy table cleanup
+
+`user_credentials`, `refresh_tokens`, and `password_reset_tokens` are no longer part of the active SQLAlchemy model or any Clerk flow. Migration `c4d8e2f1a9b7_drop_legacy_auth_tables.py` removes those three obsolete tables without editing the applied initial migration. The migration preserves `users`, `roles`, `permissions`, `user_roles`, and `role_permissions`.
+
+## Validation
+
+Backend checks:
 
 ```bash
+cd backend
 .venv/bin/ruff check app tests
 .venv/bin/ruff format --check app tests
+.venv/bin/alembic heads
 .venv/bin/pytest
 ```
 
-Build Angular from `frontend`:
+The backend tests mock the Clerk verification boundary and cover missing and invalid authentication, valid identity extraction, first-user ADMIN provisioning, subsequent pending users, concurrent first-login safety, inactive users, `/auth/me` mapping, and RBAC allow/deny behavior.
+
+Frontend checks:
 
 ```bash
+cd frontend
 npm ci
 npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
 ```
 
-The frontend expects FastAPI at `http://localhost:8000` during local development. CORS remains configured by the backend environment.
+The Angular production build is available in the current environment. Karma unit tests are configured, but execution requires a Chrome/Chromium binary in the environment.

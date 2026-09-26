@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
     env_file:
-      - .env
+      - ./backend/.env
     environment:
       BACKEND_PORT: 8000
     ports:
