@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
-import { authGuard, authorizedGuard } from './auth.guard';
+import { authGuard, authorizedGuard, permissionGuard } from './auth.guard';
 import { authInterceptor } from './auth.interceptor';
 import { ClerkService } from './clerk.service';
 import { LocalProfileService } from './local-profile.service';
@@ -17,6 +17,12 @@ function runGuard(): Promise<unknown> {
 function runAuthorizedGuard(): Promise<unknown> {
   return TestBed.runInInjectionContext(() =>
     authorizedGuard({} as never, {} as never),
+  ) as Promise<unknown>;
+}
+
+function runPermissionGuard(): Promise<unknown> {
+  return TestBed.runInInjectionContext(() =>
+    permissionGuard('users.manage')({} as never, {} as never),
   ) as Promise<unknown>;
 }
 
@@ -66,6 +72,32 @@ describe('local authorization guard', () => {
       ],
     });
     await runAuthorizedGuard();
+    expect(createUrlTree).toHaveBeenCalledWith(['/auth/pending']);
+  });
+});
+
+describe('permission guard', () => {
+  it('allows a user with users.manage permission', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [{ code: 'users.manage' }] }) } },
+        { provide: Router, useValue: { createUrlTree: jasmine.createSpy() } },
+      ],
+    });
+    expect(await runPermissionGuard()).toBeTrue();
+  });
+
+  it('redirects a signed-in user without users.manage permission', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/auth/pending');
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [] }) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+    await runPermissionGuard();
     expect(createUrlTree).toHaveBeenCalledWith(['/auth/pending']);
   });
 });
