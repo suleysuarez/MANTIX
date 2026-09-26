@@ -1,6 +1,6 @@
 # Technology Equipment Maintenance System
 
-This repository provides the production-oriented foundation for a technology equipment maintenance system. The current stage includes the approved database foundation, CI, and a complete authentication and authorization slice; business modules remain intentionally separate.
+This repository provides the production-oriented foundation for a technology equipment maintenance system. The current stage includes the approved database foundation, CI, authentication and authorization, pending-user administration, and the first protected equipment catalog vertical slice.
 
 ## Architecture
 
@@ -100,4 +100,4 @@ The CI workflow runs these checks without inventing placeholder tests.
 
 ## Next development stage
 
-The next stage can add protected equipment and maintenance vertical slices using `get_authenticated_user` and `require_permission(...)`; it should not duplicate token or role checks in individual route handlers.
+The next stage can extend the protected equipment catalog into assignments, status history, and maintenance requests using `get_authenticated_user` and `require_permission(...)`; it should not duplicate token or role checks in individual route handlers.

@@ -61,6 +61,19 @@ The pending list includes only active local users without any `user_roles` recor
 
 Migration `d6e7f8a9b0c1_seed_user_management_permission.py` adds `users.manage` if absent and links it to the existing `ADMIN` role without changing the role model or Clerk metadata.
 
+## Equipment vertical slice
+
+The first protected business module uses the same local RBAC boundary:
+
+```text
+GET   /equipment       equipment.read
+GET   /equipment/types equipment.read
+POST  /equipment       equipment.manage
+PATCH /equipment/{id}  equipment.manage
+```
+
+The Angular catalog is available at `/equipos`. It lists equipment, loads active equipment types, and creates new assets with validation for status, non-negative cost, unique asset/serial identifiers, and warranty date ordering. Migration `e7f8a9b0c1d2_seed_equipment_permissions.py` adds `equipment.read` and `equipment.manage` and links both to `ADMIN`.
+
 ## Legacy table cleanup
 
 `user_credentials`, `refresh_tokens`, and `password_reset_tokens` are no longer part of the active SQLAlchemy model or any Clerk flow. Migration `c4d8e2f1a9b7_drop_legacy_auth_tables.py` removes those three obsolete tables without editing the applied initial migration. The migration preserves `users`, `roles`, `permissions`, `user_roles`, and `role_permissions`.
