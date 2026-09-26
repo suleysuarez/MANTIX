@@ -47,6 +47,20 @@ Every subsequent new user is created without a `user_roles` record. This is the 
 
 The existing `roles`, `permissions`, `user_roles`, and `role_permissions` tables remain authoritative. `require_permission("module.action")` continues to distinguish authenticated users without a permission (403) from unauthenticated requests (401).
 
+## Pending-user administration
+
+Administrators with the local `users.manage` permission can use:
+
+```text
+GET  /admin/users/pending
+GET  /admin/roles
+POST /admin/users/{user_id}/roles   { "role_ids": [1, 2] }
+```
+
+The pending list includes only active local users without any `user_roles` record. Inactive users are excluded and cannot receive roles through this API. The assignment endpoint returns 403 when the caller lacks `users.manage`, 404 for an inactive or nonexistent user or role, and is idempotent for repeated role assignments. The Angular page is `/admin/pending-users`; it checks `users.manage` in the client and removes the user from the list immediately after a successful assignment.
+
+Migration `d6e7f8a9b0c1_seed_user_management_permission.py` adds `users.manage` if absent and links it to the existing `ADMIN` role without changing the role model or Clerk metadata.
+
 ## Legacy table cleanup
 
 `user_credentials`, `refresh_tokens`, and `password_reset_tokens` are no longer part of the active SQLAlchemy model or any Clerk flow. Migration `c4d8e2f1a9b7_drop_legacy_auth_tables.py` removes those three obsolete tables without editing the applied initial migration. The migration preserves `users`, `roles`, `permissions`, `user_roles`, and `role_permissions`.

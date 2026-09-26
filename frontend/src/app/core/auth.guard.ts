@@ -24,3 +24,17 @@ export const authorizedGuard: CanActivateFn = async () => {
     ? true
     : router.createUrlTree(['/auth/pending']);
 };
+
+export const permissionGuard = (permission: string): CanActivateFn => async () => {
+  const clerk = inject(ClerkService);
+  const profileService = inject(LocalProfileService);
+  const router = inject(Router);
+  await clerk.initialize();
+  if (!clerk.isSignedIn) {
+    return router.createUrlTree(['/auth/login']);
+  }
+  const profile = await profileService.getProfile();
+  return profile.permissions.some((item) => item.code === permission)
+    ? true
+    : router.createUrlTree(['/auth/pending']);
+};
