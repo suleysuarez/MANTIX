@@ -48,9 +48,7 @@ import { ClerkService } from '../../core/clerk.service';
 
       <div class="login-layout">
         <section class="brand-content" aria-labelledby="brand-title">
-          <div class="logo-plaque">
-            <img class="brand-logo" src="/assets/images/logo.png" alt="MANTIX" />
-          </div>
+          <img class="brand-logo" src="/assets/images/logo-transparent.png" alt="MANTIX" />
           <p class="brand-kicker">Plataforma de mantenimiento tecnológico</p>
           <h1 id="brand-title">Mantenimiento inteligente para tus equipos tecnológicos.</h1>
           <p class="brand-copy">
@@ -89,22 +87,21 @@ import { ClerkService } from '../../core/clerk.service';
       .equipment-markers { opacity: .42; }
       .login-layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, .82fr); align-items: center; gap: clamp(3rem, 9vw, 9rem); width: min(1180px, calc(100% - 4rem)); min-height: 100vh; margin: 0 auto; padding: 4rem 0; }
       .brand-content { width: min(100%, 560px); }
-      .logo-plaque { display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.7rem; padding: .7rem 1.15rem; border: 1px solid #ced4da99; border-radius: 16px; background: #fff; box-shadow: 0 16px 35px #172f451f; }
-      .brand-logo { display: block; width: clamp(160px, 23vw, 230px); height: auto; }
+      .brand-logo { display: block; width: clamp(160px, 23vw, 230px); height: auto; margin-bottom: 1.7rem; filter: drop-shadow(0 12px 22px #172f4538); }
       .brand-kicker, .eyebrow { margin: 0 0 .75rem; color: #a2d2ff; font-size: .73rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
       .brand-content h1 { max-width: 530px; margin: 0; color: #fff; font-size: clamp(2rem, 4vw, 3.8rem); line-height: 1.06; letter-spacing: -.045em; }
       .brand-copy { max-width: 420px; margin: 1.35rem 0 0; color: #ced4da; font-size: 1rem; line-height: 1.65; }
       .system-status { display: inline-flex; align-items: center; gap: .55rem; margin-top: 2rem; padding: .55rem .8rem; border: 1px solid #add7f62e; border-radius: 99px; color: #add7f6; font-size: .76rem; font-weight: 700; }
       .system-status span { width: .45rem; height: .45rem; border-radius: 50%; background: #a2d2ff; box-shadow: 0 0 0 4px #a2d2ff25; }
       .login-area { display: grid; place-items: center; min-width: 0; }
-      .login-card { width: min(100%, 430px); box-sizing: border-box; padding: clamp(1.7rem, 4vw, 2.75rem); border: 1px solid #ced4da; border-radius: 20px; background: #fff; color: #17324d; box-shadow: 0 24px 70px #172f4530, 0 5px 14px #172f4514; }
+      .login-card { width: min(100%, 430px); box-sizing: border-box; padding: clamp(1.7rem, 4vw, 2.75rem); border: 1px solid #add7f65c; border-radius: 20px; background: linear-gradient(145deg, #3e5c76f5, #778da9f2); color: #fff; box-shadow: 0 24px 70px #172f4552, 0 5px 14px #172f452e; backdrop-filter: blur(12px); }
       .card-heading { margin-bottom: 1.35rem; text-align: center; }
-      .card-heading .eyebrow { color: #778da9; }
-      .card-heading h2 { margin: 0; color: #17324d; font-size: clamp(1.85rem, 4vw, 2.35rem); letter-spacing: -.04em; }
-      .card-heading p:last-child { margin: .55rem 0 0; color: #778da9; line-height: 1.5; }
+      .card-heading .eyebrow { color: #add7f6; }
+      .card-heading h2 { margin: 0; color: #fff; font-size: clamp(1.85rem, 4vw, 2.35rem); letter-spacing: -.04em; }
+      .card-heading p:last-child { margin: .55rem 0 0; color: #ced4da; line-height: 1.5; }
       .clerk-host { min-height: 245px; }
       .loading-status { margin: -1rem 0 1rem; color: #778da9; font-size: .78rem; text-align: center; }
-      .security-note { display: flex; align-items: center; justify-content: center; gap: .45rem; margin: 1.2rem 0 0; color: #778da9; font-size: .72rem; }
+      .security-note { display: flex; align-items: center; justify-content: center; gap: .45rem; margin: 1.2rem 0 0; color: #ced4da; font-size: .72rem; }
       .security-note span { color: #e4b363; font-size: 1rem; }
       .ambient-orbit { position: absolute; border: 1px solid #a2d2ff18; border-radius: 50%; pointer-events: none; z-index: -2; }
       .ambient-orbit-one { width: 40rem; height: 40rem; top: -22rem; right: -15rem; }
@@ -112,7 +109,7 @@ import { ClerkService } from '../../core/clerk.service';
       @keyframes circuit-flow { to { stroke-dashoffset: -420; } }
       @keyframes node-pulse { from { opacity: .35; } to { opacity: .78; } }
       @media (max-width: 900px) { .login-layout { grid-template-columns: minmax(0, .9fr) minmax(360px, 1.1fr); gap: 2.5rem; width: min(100% - 3rem, 800px); } .brand-content h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); } }
-      @media (max-width: 680px) { .login-layout { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 2rem; width: min(100% - 2rem, 450px); min-height: 100vh; padding: 2rem 0; } .brand-content { text-align: center; } .logo-plaque { margin-bottom: 1rem; } .brand-logo { width: 155px; } .brand-kicker { margin-bottom: .5rem; } .brand-content h1 { font-size: 1.75rem; } .brand-copy, .system-status { display: none; } .login-card { padding: 1.5rem; } .network-art { opacity: .42; } }
+      @media (max-width: 680px) { .login-layout { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 2rem; width: min(100% - 2rem, 450px); min-height: 100vh; padding: 2rem 0; } .brand-content { text-align: center; } .brand-logo { width: 155px; margin: 0 auto 1rem; } .brand-kicker { margin-bottom: .5rem; } .brand-content h1 { font-size: 1.75rem; } .brand-copy, .system-status { display: none; } .login-card { padding: 1.5rem; } .network-art { opacity: .42; } }
       @media (prefers-reduced-motion: reduce) { .circuit-lines, .nodes { animation: none; } }
     `,
   ],
