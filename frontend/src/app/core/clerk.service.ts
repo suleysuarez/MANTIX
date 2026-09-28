@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { ClerkInstance, ClerkState } from './clerk.types';
+import { ClerkInstance, ClerkMountOptions, ClerkState } from './clerk.types';
 
 @Injectable({ providedIn: 'root' })
 export class ClerkService {
@@ -36,14 +36,24 @@ export class ClerkService {
     await this.clerk?.signOut();
   }
 
-  async mountSignIn(node: HTMLElement): Promise<void> {
+  async mountSignIn(node: HTMLElement, options?: ClerkMountOptions): Promise<void> {
     await this.initialize();
-    this.clerk?.mountSignIn(node);
+    this.clerk?.mountSignIn(node, options);
   }
 
   async unmountSignIn(node: HTMLElement): Promise<void> {
     await this.initialize();
     this.clerk?.unmountSignIn(node);
+  }
+
+  async mountSignUp(node: HTMLElement, options?: ClerkMountOptions): Promise<void> {
+    await this.initialize();
+    this.clerk?.mountSignUp(node, options);
+  }
+
+  async unmountSignUp(node: HTMLElement): Promise<void> {
+    await this.initialize();
+    this.clerk?.unmountSignUp(node);
   }
 
   async mountUserButton(node: HTMLElement): Promise<void> {

@@ -16,12 +16,27 @@ export interface ClerkState {
   session: ClerkSession | null;
 }
 
+export type ClerkElementStyle = Record<string, string | number | ClerkElementStyle>;
+
+export interface ClerkAppearance {
+  variables?: Record<string, string>;
+  elements?: Record<string, string | ClerkElementStyle>;
+}
+
+export interface ClerkMountOptions {
+  appearance?: ClerkAppearance;
+  signInUrl?: string;
+  signUpUrl?: string;
+}
+
 export interface ClerkInstance extends ClerkState {
   load(options?: { ui?: { ClerkUI?: unknown } }): Promise<void>;
   addListener(listener: (state: ClerkState) => void): () => void;
   signOut(): Promise<void>;
-  mountSignIn(node: HTMLElement): void;
+  mountSignIn(node: HTMLElement, options?: ClerkMountOptions): void;
   unmountSignIn(node: HTMLElement): void;
+  mountSignUp(node: HTMLElement, options?: ClerkMountOptions): void;
+  unmountSignUp(node: HTMLElement): void;
   mountUserButton(node: HTMLElement): void;
   unmountUserButton(node: HTMLElement): void;
 }

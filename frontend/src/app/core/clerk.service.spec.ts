@@ -21,6 +21,8 @@ describe('ClerkService', () => {
       signOut,
       mountSignIn: jasmine.createSpy('mountSignIn'),
       unmountSignIn: jasmine.createSpy('unmountSignIn'),
+      mountSignUp: jasmine.createSpy('mountSignUp'),
+      unmountSignUp: jasmine.createSpy('unmountSignUp'),
       mountUserButton: jasmine.createSpy('mountUserButton'),
       unmountUserButton: jasmine.createSpy('unmountUserButton'),
     };
