@@ -3,6 +3,21 @@ import { AfterViewInit, Directive, ElementRef, OnDestroy, ViewChild } from '@ang
 import { ClerkAppearance } from '../../core/clerk.types';
 
 /**
+ * Color de error/advertencia de los formularios (ámbar): contrasta sobre el
+ * vidrio azul sin chocar con la paleta, a diferencia del rojo por defecto.
+ * Se usa en CSS, en `appearance.elements` y en `variables.colorDanger`.
+ */
+const FORM_ERROR_COLOR = '#f59e0b';
+
+/**
+ * Sobre plateado (degradado metálico) para el campo de email. Se define una
+ * sola vez y se reutiliza en el CSS global y en `appearance`.
+ */
+// SVG (sin codificar): sobre 24x24, trazo blanco -> plata claro (#fff -> #eef2f7 -> #cfd7e1).
+// Se precodifica a mano porque Angular exige `styles` resolubles en compilación.
+const EMAIL_ICON_URL = `url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%3E%3Cdefs%3E%3ClinearGradient%20id%3D'g'%20x1%3D'0'%20y1%3D'0'%20x2%3D'1'%20y2%3D'1'%3E%3Cstop%20offset%3D'0'%20stop-color%3D'%23ffffff'%2F%3E%3Cstop%20offset%3D'.55'%20stop-color%3D'%23eef2f7'%2F%3E%3Cstop%20offset%3D'1'%20stop-color%3D'%23cfd7e1'%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20x%3D'2.5'%20y%3D'5'%20width%3D'19'%20height%3D'14'%20rx%3D'2.5'%20stroke%3D'url(%23g)'%20stroke-width%3D'2'%2F%3E%3Cpath%20d%3D'M3.5%207.5l8.5%206%208.5-6'%20stroke%3D'url(%23g)'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%2F%3E%3C%2Fsvg%3E")`;
+
+/**
  * Fondo/vidrio/humo compartidos entre login y sign-up: mismo `<main>`, mismo
  * `.clerk-host` (Clerk decide qué widget renderiza ahí según qué `mount*` se
  * llame desde la subclase), para que ambas pantallas se vean como una sola
@@ -183,12 +198,13 @@ export const AUTH_SHELL_STYLES = [
         ) !important;
       backdrop-filter: blur(18px) saturate(140%) brightness(0.92) !important;
       -webkit-backdrop-filter: blur(18px) saturate(140%) brightness(0.92) !important;
-      border: 1px solid rgba(150, 210, 255, 0.75) !important;
+      border: 1px solid rgba(190, 230, 255, 0.85) !important;
       border-radius: 28px !important;
       box-shadow:
         0 0 70px 10px rgba(70, 180, 255, 0.35),
         0 25px 60px -15px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.12),
         inset 0 0 50px rgba(255, 255, 255, 0.08) !important;
       overflow: hidden !important;
     }
@@ -263,13 +279,17 @@ export const AUTH_SHELL_STYLES = [
        ========================================================================== */
     .clerk-host .cl-formFieldInput,
     .clerk-host .cl-socialButtonsBlockButton {
-      background: rgba(255, 255, 255, 0.08) !important;
-      border: 1px solid rgba(120, 200, 255, 0.5) !important;
+      background-color: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(170, 220, 255, 0.65) !important;
       border-radius: 14px !important;
       color: #ffffff !important;
       font-weight: 400 !important;
       font-size: 1rem !important;
-      box-shadow: 0 0 18px rgba(41, 182, 255, 0.12) !important;
+      /* Bisel metálico: brillo superior + sombra inferior + halo azul. */
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+        0 0 18px rgba(41, 182, 255, 0.15) !important;
     }
 
     .clerk-host .cl-formFieldInput::placeholder {
@@ -279,7 +299,9 @@ export const AUTH_SHELL_STYLES = [
     .clerk-host .cl-formFieldInput:focus,
     .clerk-host .cl-socialButtonsBlockButton:hover,
     .clerk-host .cl-socialButtonsBlockButton:focus-visible {
-      background: rgba(255, 255, 255, 0.12) !important;
+      /* background-color (no el shorthand): el shorthand borraría el icono
+         de email (background-image) mientras el campo tiene foco/al escribir. */
+      background-color: rgba(255, 255, 255, 0.14) !important;
       border-color: #29b6ff !important;
       box-shadow: 0 0 0 3px rgba(41, 182, 255, 0.35) !important;
     }
@@ -289,15 +311,98 @@ export const AUTH_SHELL_STYLES = [
        no type="email". */
     .clerk-host .cl-formFieldInput__identifier,
     .clerk-host .cl-formFieldInput__emailAddress {
-      padding-left: 2.75rem !important;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.55)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6.5h18v11H3z'/%3E%3Cpath d='M3 7l9 6 9-6'/%3E%3C/svg%3E") !important;
-      background-repeat: no-repeat !important;
-      background-position: 0.9rem center !important;
-      background-size: 18px 18px !important;
+      padding-left: 3.1rem !important;
+    }
+
+    /* El icono NO es un background-image del input: Chrome aplica
+       "background-image: none !important" (hoja UA) a los campos
+       autocompletados y ningún CSS de la página puede pisarlo. Tampoco vive
+       dentro del DOM de Clerk (que puede recortarlo o re-renderizarlo): es un
+       <span> hijo de .clerk-shell (nuestro), que AuthShellBase.syncEmailIcons()
+       posiciona encima de cada input de email con getBoundingClientRect. */
+    .clerk-shell {
+      position: relative;
+    }
+
+    .clerk-shell .auth-email-icon {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      transform: translateY(-50%);
+      background: ${EMAIL_ICON_URL} no-repeat center / contain;
+      pointer-events: none;
+      z-index: 5;
+      filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.45));
+    }
+
+    /* Clerk reserva un hueco para el CAPTCHA aunque no se muestre. */
+    .clerk-host #clerk-captcha:empty {
+      display: none !important;
+    }
+
+    /* Mensajes de error/advertencia (p. ej. requisitos de contraseña) en
+       ámbar, sin altura reservada: el botón queda a la distancia normal. */
+    .clerk-host .cl-formFieldErrorText,
+    .clerk-host .cl-formFieldWarningText {
+      color: ${FORM_ERROR_COLOR} !important;
+      font-size: 0.95rem !important;
+      font-weight: 500 !important;
+      line-height: 1.35 !important;
+      margin: 0.3rem 0 0 !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+    }
+
+    .clerk-host .cl-formFieldErrorText svg,
+    .clerk-host .cl-formFieldWarningText svg {
+      color: ${FORM_ERROR_COLOR} !important;
+      fill: currentColor;
+    }
+
+    /* Borde del input en estado de error (Clerk marca aria-invalid). Va
+       después de :focus para que el aro de foco también sea ámbar. */
+    .clerk-host .cl-formFieldInput[aria-invalid='true'],
+    .clerk-host .cl-formFieldInput[data-invalid] {
+      border-color: ${FORM_ERROR_COLOR} !important;
+    }
+
+    .clerk-host .cl-formFieldInput[aria-invalid='true']:focus,
+    .clerk-host .cl-formFieldInput[data-invalid]:focus {
+      border-color: ${FORM_ERROR_COLOR} !important;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35) !important;
+    }
+
+    /* Ojo de mostrar/ocultar contraseña: más grande y en plata, a juego con
+       el sobre. Clerk lo dibuja con currentColor. */
+    .clerk-host .cl-formFieldInputShowPasswordButton {
+      color: #dfe6ee !important;
+      padding-right: 0.9rem !important;
+    }
+
+    .clerk-host .cl-formFieldInputShowPasswordIcon {
+      width: 1.4rem !important;
+      height: 1.4rem !important;
+      filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
+    }
+
+    .clerk-host .cl-formFieldInputShowPasswordButton:hover {
+      color: #ffffff !important;
+    }
+
+    /* Textos de ayuda del formulario (requisitos de contraseña, etc.) */
+    .clerk-host .cl-formFieldInfoText,
+    .clerk-host .cl-formFieldHintText,
+    .clerk-host .cl-formFieldSuccessText {
+      color: rgba(255, 255, 255, 0.95) !important;
+      font-size: 0.95rem !important;
+      font-weight: 500 !important;
+      line-height: 1.4 !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
     }
 
     /* Botón Continuar: degradado azul marino con flecha */
     .clerk-host .cl-formButtonPrimary {
+      margin-top: 0.25rem !important;
       display: flex !important;
       align-items: center;
       justify-content: center;
@@ -325,7 +430,29 @@ export const AUTH_SHELL_STYLES = [
  * directo al motor de estilos del propio componente. Se comparte entre
  * SignIn y SignUp porque usan exactamente los mismos nombres de elementos.
  */
+const HELP_TEXT_STYLE = {
+  color: 'rgba(255,255,255,0.95)',
+  fontSize: '0.95rem',
+  fontWeight: 500,
+  lineHeight: 1.4,
+  textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+};
+
+const ERROR_TEXT_STYLE = {
+  color: FORM_ERROR_COLOR,
+  fontSize: '0.95rem',
+  fontWeight: 500,
+  lineHeight: 1.35,
+  margin: '0.3rem 0 0',
+  padding: 0,
+  minHeight: 0,
+};
+
 export const CLERK_APPEARANCE: ClerkAppearance = {
+  variables: {
+    colorDanger: FORM_ERROR_COLOR,
+    colorWarning: FORM_ERROR_COLOR,
+  },
   elements: {
     rootBox: {
       background: 'transparent',
@@ -364,15 +491,18 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
     dividerText: { color: 'rgba(255,255,255,0.7)', fontSize: '0.95rem' },
     formFieldLabel: { color: '#ffffff', fontWeight: 700, fontSize: '0.95rem' },
     formFieldInput: {
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(120,200,255,0.5)',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(170,220,255,0.65)',
       borderRadius: '14px',
       color: '#ffffff',
       fontSize: '1rem',
-      boxShadow: '0 0 18px rgba(41,182,255,0.12)',
+      boxShadow:
+        'inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.25), 0 0 18px rgba(41,182,255,0.15)',
       '&::placeholder': { color: 'rgba(255,255,255,0.55)' },
+      // background-color (no el shorthand `background`): el shorthand borra
+      // el background-image del icono de email al enfocar/escribir.
       '&:focus': {
-        background: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.14)',
         borderColor: '#29b6ff',
         boxShadow: '0 0 0 3px rgba(41,182,255,0.35)',
       },
@@ -380,30 +510,32 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
     // El CSS global de más arriba no logra pisar el padding/background por
     // defecto de estos campos específicos (Clerk los protege con reglas
     // propias de mayor prioridad); por eso el icono se define aquí también.
-    formFieldInput__identifier: {
-      paddingLeft: '2.75rem',
-      backgroundImage:
-        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.55)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6.5h18v11H3z'/%3E%3Cpath d='M3 7l9 6 9-6'/%3E%3C/svg%3E\")",
-      backgroundRepeat: 'no-repeat',
-      backgroundPosition: '0.9rem center',
-      backgroundSize: '18px 18px',
+    formFieldInput__identifier: { paddingLeft: '3.1rem' },
+    formFieldInput__emailAddress: { paddingLeft: '3.1rem' },
+    formFieldInputShowPasswordButton: {
+      color: '#dfe6ee',
+      paddingRight: '0.9rem',
+      '&:hover': { color: '#ffffff' },
     },
-    formFieldInput__emailAddress: {
-      paddingLeft: '2.75rem',
-      backgroundImage:
-        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.55)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6.5h18v11H3z'/%3E%3Cpath d='M3 7l9 6 9-6'/%3E%3C/svg%3E\")",
-      backgroundRepeat: 'no-repeat',
-      backgroundPosition: '0.9rem center',
-      backgroundSize: '18px 18px',
+    formFieldInputShowPasswordIcon: {
+      width: '1.4rem',
+      height: '1.4rem',
+      filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.35))',
     },
+    formFieldErrorText: ERROR_TEXT_STYLE,
+    formFieldWarningText: ERROR_TEXT_STYLE,
+    formFieldInfoText: HELP_TEXT_STYLE,
+    formFieldHintText: HELP_TEXT_STYLE,
+    formFieldSuccessText: HELP_TEXT_STYLE,
     socialButtonsBlockButton: {
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(120,200,255,0.5)',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(170,220,255,0.65)',
       borderRadius: '14px',
       color: '#ffffff',
       fontSize: '1rem',
-      boxShadow: '0 0 18px rgba(41,182,255,0.12)',
-      '&:hover': { background: 'rgba(255,255,255,0.12)', borderColor: '#29b6ff' },
+      boxShadow:
+        'inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.25), 0 0 18px rgba(41,182,255,0.15)',
+      '&:hover': { backgroundColor: 'rgba(255,255,255,0.14)', borderColor: '#29b6ff' },
     },
     formButtonPrimary: {
       background: 'linear-gradient(135deg, #0b2545, #050f24)',
@@ -430,6 +562,8 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
   @ViewChild('clerkShell', { static: true }) private readonly clerkShell!: ElementRef<HTMLElement>;
 
   private cardResizeObserver: ResizeObserver | null = null;
+  private readonly emailIcons = new Map<HTMLInputElement, HTMLElement>();
+  private iconSettleTimer: ReturnType<typeof setTimeout> | null = null;
   private devBadgeObserver: MutationObserver | null = null;
   ready = false;
 
@@ -480,6 +614,12 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
       return;
     }
     const patch = () => {
+      this.syncEmailIcons();
+      // Clerk anima la entrada del formulario: reposicionar cuando asiente.
+      if (this.iconSettleTimer) {
+        clearTimeout(this.iconSettleTimer);
+      }
+      this.iconSettleTimer = setTimeout(() => this.syncEmailIcons(), 350);
       root.querySelectorAll<HTMLElement>('p, span, div, a').forEach((el) => {
         if (el.children.length !== 0) {
           return;
@@ -488,14 +628,58 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
         if (text === 'Development mode') {
           el.style.display = 'none';
         } else if (text === 'Secured by') {
-          el.style.fontSize = '0.95rem';
-          el.style.color = 'rgba(255, 255, 255, 0.85)';
+          el.style.fontSize = '1rem';
+          el.style.fontWeight = '500';
+          el.style.color = 'rgba(255, 255, 255, 0.95)';
+          el.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.45)';
         }
       });
     };
     patch();
     this.devBadgeObserver = new MutationObserver(patch);
     this.devBadgeObserver.observe(root, { childList: true, subtree: true });
+  }
+
+  /**
+   * Dibuja un icono de sobre sobre cada input de email/identifier de Clerk.
+   * Los iconos son hijos de `.clerk-shell` (fuera del DOM de Clerk) y se
+   * posicionan con las coordenadas reales del input, así que no los afectan ni
+   * el autocompletado de Chrome ni los re-renders de Clerk. Es idempotente:
+   * se llama en cada mutación, resize y tras el mount.
+   */
+  private syncEmailIcons(): void {
+    const shell = this.clerkShell?.nativeElement;
+    if (!shell) {
+      return;
+    }
+    const inputs = Array.from(
+      shell.querySelectorAll<HTMLInputElement>(
+        'input[name="emailAddress"], input[name="identifier"], input[id^="emailAddress"], input[id^="identifier"]',
+      ),
+    );
+    const shellRect = shell.getBoundingClientRect();
+
+    for (const [input, icon] of this.emailIcons) {
+      if (!inputs.includes(input)) {
+        icon.remove();
+        this.emailIcons.delete(input);
+      }
+    }
+    for (const input of inputs) {
+      let icon = this.emailIcons.get(input);
+      if (!icon) {
+        icon = document.createElement('span');
+        icon.className = 'auth-email-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        shell.appendChild(icon);
+        this.emailIcons.set(input, icon);
+      }
+      const rect = input.getBoundingClientRect();
+      const visible = rect.width > 0 && rect.height > 0;
+      icon.style.display = visible ? '' : 'none';
+      icon.style.left = `${rect.left - shellRect.left + 14}px`;
+      icon.style.top = `${rect.top - shellRect.top + rect.height / 2}px`;
+    }
   }
 
   /**
@@ -543,6 +727,7 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
     const cardBottom = card.getBoundingClientRect().bottom;
     const available = Math.max(window.innerHeight - cardBottom - gap, 0);
     video.style.height = `${available}px`;
+    this.syncEmailIcons();
   };
 
   async ngOnDestroy(): Promise<void> {
@@ -552,6 +737,11 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
     this.smokeVideo?.nativeElement.removeEventListener('pause', this.resumeSmokeVideo);
     this.cardResizeObserver?.disconnect();
     this.devBadgeObserver?.disconnect();
+    if (this.iconSettleTimer) {
+      clearTimeout(this.iconSettleTimer);
+    }
+    this.emailIcons.forEach((icon) => icon.remove());
+    this.emailIcons.clear();
     await this.unmount(this.authHost.nativeElement);
   }
 }
