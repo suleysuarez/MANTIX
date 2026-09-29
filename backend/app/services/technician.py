@@ -1,5 +1,4 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.technician import Technician
@@ -12,8 +11,8 @@ from app.schemas.technician import (
 
 
 class TechnicianService:
-    def __init__(self, session: AsyncSession):
-        self.repository = TechnicianRepository(session)
+    def __init__(self, repository: TechnicianRepository):
+        self.repository = repository
 
     async def list(
         self, *, is_available: bool | None = None

@@ -54,9 +54,7 @@ class FakeTechnicianRepository:
 
 
 def service_with_fakes(users=None):
-    service = TechnicianService(object())
-    service.repository = FakeTechnicianRepository(users=users)
-    return service
+    return TechnicianService(FakeTechnicianRepository(users=users))
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 
 import { LocalProfileService } from './local-profile.service';
 
@@ -29,25 +29,19 @@ export class AdminUsersService {
   private readonly profile = inject(LocalProfileService);
   private readonly apiUrl = 'http://localhost:8000';
 
-  async listPendingUsers(): Promise<PendingUser[]> {
-    return firstValueFrom(
-      this.http.get<PendingUser[]>(`${this.apiUrl}/admin/users/pending`),
-    );
+  listPendingUsers(): Observable<PendingUser[]> {
+    return this.http.get<PendingUser[]>(`${this.apiUrl}/admin/users/pending`);
   }
 
-  async listRoles(): Promise<AdminRole[]> {
-    return firstValueFrom(
-      this.http.get<AdminRole[]>(`${this.apiUrl}/admin/roles`),
-    );
+  listRoles(): Observable<AdminRole[]> {
+    return this.http.get<AdminRole[]>(`${this.apiUrl}/admin/roles`);
   }
 
-  async assignRoles(userId: number, roleIds: number[]): Promise<ManagedUser> {
-    const result = await firstValueFrom(
-      this.http.post<ManagedUser>(`${this.apiUrl}/admin/users/${userId}/roles`, {
+  assignRoles(userId: number, roleIds: number[]): Observable<ManagedUser> {
+    return this.http
+      .post<ManagedUser>(`${this.apiUrl}/admin/users/${userId}/roles`, {
         role_ids: roleIds,
-      }),
-    );
-    this.profile.clear();
-    return result;
+      })
+      .pipe(tap(() => this.profile.clear()));
   }
 }

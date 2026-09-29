@@ -232,11 +232,9 @@ class FakeMaintenanceRepository:
 
 
 def service_with_fakes(**repo_kwargs):
-    service = MaintenanceService(object())
-    service.repository = FakeMaintenanceRepository(**repo_kwargs)
-    service.audit = FakeAudit()
-    service.notifications = FakeNotifications()
-    return service
+    return MaintenanceService(
+        FakeMaintenanceRepository(**repo_kwargs), FakeAudit(), FakeNotifications()
+    )
 
 
 async def create_ticket(service, requester_id=100):

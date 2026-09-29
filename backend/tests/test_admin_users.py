@@ -83,8 +83,7 @@ async def test_pending_list_excludes_inactive_and_assigned_users():
             user(3, "inactive@example.com", active=False),
         ]
     )
-    service = AdminUserService(object())
-    service.repository = repository
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
 
     result = await service.list_pending_users()
 
@@ -96,10 +95,7 @@ async def test_pending_list_excludes_inactive_and_assigned_users():
 async def test_assign_roles_succeeds_and_is_idempotent():
     target = user(10, "pending@example.com")
     repository = FakeAdminRepository(users=[target], roles=[role(20)])
-    service = AdminUserService(object())
-    service.repository = repository
-    service.audit = FakeAudit()
-    service.notifications = FakeNotifications()
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
     admin = user(1, "admin@example.com", roles=[99])
 
     first = await service.assign_roles(10, [20], admin)
@@ -124,8 +120,7 @@ async def test_assign_roles_rejects_missing_user_role_and_inactive_user():
         ],
         roles=[role(20)],
     )
-    service = AdminUserService(object())
-    service.repository = repository
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
     admin = user(1, "admin@example.com")
 
     with pytest.raises(NotFoundError) as missing_user:

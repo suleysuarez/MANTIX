@@ -1,5 +1,4 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.auth import User
@@ -19,9 +18,9 @@ from app.services.audit import AuditService
 
 
 class EquipmentService:
-    def __init__(self, session: AsyncSession):
-        self.repository = EquipmentRepository(session)
-        self.audit = AuditService(session)
+    def __init__(self, repository: EquipmentRepository, audit: AuditService):
+        self.repository = repository
+        self.audit = audit
 
     async def list_equipment(
         self,
