@@ -33,6 +33,15 @@ class MaintenanceRequest(Base):
             "closed_at IS NULL OR resolved_at IS NULL OR closed_at >= resolved_at",
             name="closed_after_resolved",
         ),
+        CheckConstraint(
+            "priority IN ('low', 'medium', 'high', 'critical')",
+            name="priority_allowed",
+        ),
+        CheckConstraint(
+            "status IN ('submitted', 'triaged', 'assigned', 'in_progress', "
+            "'waiting', 'resolved', 'closed', 'cancelled')",
+            name="status_allowed",
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -156,6 +165,13 @@ class TicketAssignment(Base):
 
 class TicketStatusHistory(Base):
     __tablename__ = "ticket_status_history"
+    __table_args__ = (
+        CheckConstraint(
+            "to_status IN ('submitted', 'triaged', 'assigned', 'in_progress', "
+            "'waiting', 'resolved', 'closed', 'cancelled')",
+            name="to_status_allowed",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger, Identity(always=False), primary_key=True
@@ -204,6 +220,11 @@ class MaintenanceRecord(Base):
         CheckConstraint(
             "total_cost IS NULL OR total_cost >= 0",
             name="total_cost_positive",
+        ),
+        CheckConstraint(
+            "work_type IN ('corrective', 'preventive', 'inspection', "
+            "'installation', 'recovery', 'other')",
+            name="work_type_allowed",
         ),
     )
 

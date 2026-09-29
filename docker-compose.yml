@@ -9,7 +9,14 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      # python:3.12-slim has no curl; urllib is part of the stdlib.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
