@@ -64,9 +64,7 @@ async def transition_maintenance_request_status(
     actor: User = Depends(require_permission("maintenance.manage")),  # noqa: B008
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> MaintenanceRequestResponse:
-    return await service.transition_status(
-        request_id, payload, actor
-    )
+    return await service.transition_status(request_id, payload, actor)
 
 
 @router.post("/{request_id}/assignment", response_model=MaintenanceRequestResponse)
@@ -76,9 +74,7 @@ async def assign_technician(
     actor: User = Depends(require_permission("maintenance.manage")),  # noqa: B008
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> MaintenanceRequestResponse:
-    return await service.assign_technician(
-        request_id, payload, actor
-    )
+    return await service.assign_technician(request_id, payload, actor)
 
 
 @router.delete("/{request_id}/assignment", response_model=MaintenanceRequestResponse)
@@ -101,9 +97,7 @@ async def add_maintenance_record(
     actor: User = Depends(require_permission("maintenance.manage")),  # noqa: B008
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> MaintenanceRecordResponse:
-    return await service.add_maintenance_record(
-        request_id, payload, actor
-    )
+    return await service.add_maintenance_record(request_id, payload, actor)
 
 
 @router.get("/{request_id}/records", response_model=list[MaintenanceRecordResponse])

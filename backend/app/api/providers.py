@@ -7,6 +7,8 @@ session. Tests can swap any link with `app.dependency_overrides`, or build a
 service directly from fakes.
 """
 
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,29 +56,29 @@ def get_admin_repository(session: AsyncSession = Session) -> AdminRepository:
 
 
 def get_maintenance_service(
-    repository: MaintenanceRepository = Depends(get_maintenance_repository),
-    audit: AuditService = Depends(get_audit_service),
-    notifications: NotificationService = Depends(get_notification_service),
+    repository: Annotated[MaintenanceRepository, Depends(get_maintenance_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    notifications: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> MaintenanceService:
     return MaintenanceService(repository, audit, notifications)
 
 
 def get_equipment_service(
-    repository: EquipmentRepository = Depends(get_equipment_repository),
-    audit: AuditService = Depends(get_audit_service),
+    repository: Annotated[EquipmentRepository, Depends(get_equipment_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> EquipmentService:
     return EquipmentService(repository, audit)
 
 
 def get_technician_service(
-    repository: TechnicianRepository = Depends(get_technician_repository),
+    repository: Annotated[TechnicianRepository, Depends(get_technician_repository)],
 ) -> TechnicianService:
     return TechnicianService(repository)
 
 
 def get_admin_user_service(
-    repository: AdminRepository = Depends(get_admin_repository),
-    audit: AuditService = Depends(get_audit_service),
-    notifications: NotificationService = Depends(get_notification_service),
+    repository: Annotated[AdminRepository, Depends(get_admin_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    notifications: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> AdminUserService:
     return AdminUserService(repository, audit, notifications)

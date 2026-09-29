@@ -174,9 +174,7 @@ class MaintenanceService:
             assigned_by_user_id=actor.id,
             notes=payload.notes,
         )
-        auto_status = state.assign_technician(
-            request, now=datetime.now(timezone.utc)
-        )
+        auto_status = state.assign_technician(request, now=datetime.now(timezone.utc))
         if auto_status is not None:
             self.repository.append_status_history(
                 request_id=request_id,

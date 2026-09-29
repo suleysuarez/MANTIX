@@ -45,6 +45,4 @@ async def assign_roles(
     admin: User = Depends(require_permission("users.manage")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> ManagedUserResponse:
-    return await service.assign_roles(
-        user_id, payload.role_ids, admin
-    )
+    return await service.assign_roles(user_id, payload.role_ids, admin)

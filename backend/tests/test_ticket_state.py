@@ -74,12 +74,12 @@ def test_only_resolved_and_closed_notify_requester():
 
 
 def test_assignment_auto_advances_only_from_intake_states():
-    advancing = {
-        s: TicketState.of(s).status_after_assignment() for s in ALL_STATUSES
-    }
+    advancing = {s: TicketState.of(s).status_after_assignment() for s in ALL_STATUSES}
     assert advancing["submitted"] == "assigned"
     assert advancing["triaged"] == "assigned"
-    assert all(v is None for s, v in advancing.items() if s not in {"submitted", "triaged"})
+    assert all(
+        v is None for s, v in advancing.items() if s not in {"submitted", "triaged"}
+    )
 
 
 @pytest.mark.parametrize("status", ["closed", "cancelled"])
