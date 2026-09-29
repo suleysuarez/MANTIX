@@ -173,16 +173,16 @@ export const AUTH_SHELL_STYLES = [
       /* Dos brillos radiales (nacarado arriba-izq., frío abajo-der.) sobre el
          degradado azul base, para simular un sutil sheen perlado/iridiscente. */
       background:
-        radial-gradient(120% 55% at 18% 8%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 52%),
-        radial-gradient(80% 50% at 84% 94%, rgba(190, 225, 255, 0.22) 0%, rgba(190, 225, 255, 0) 60%),
+        radial-gradient(120% 55% at 18% 8%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 52%),
+        radial-gradient(80% 50% at 84% 94%, rgba(150, 190, 230, 0.16) 0%, rgba(150, 190, 230, 0) 60%),
         linear-gradient(
           135deg,
-          rgba(210, 230, 255, 0.38) 0%,
-          rgba(90, 155, 215, 0.4) 40%,
-          rgba(30, 75, 135, 0.48) 100%
+          rgba(170, 195, 230, 0.3) 0%,
+          rgba(55, 100, 160, 0.44) 40%,
+          rgba(10, 30, 65, 0.6) 100%
         ) !important;
-      backdrop-filter: blur(18px) saturate(150%) brightness(1.15) !important;
-      -webkit-backdrop-filter: blur(18px) saturate(150%) brightness(1.15) !important;
+      backdrop-filter: blur(18px) saturate(140%) brightness(0.92) !important;
+      -webkit-backdrop-filter: blur(18px) saturate(140%) brightness(0.92) !important;
       border: 1px solid rgba(150, 210, 255, 0.75) !important;
       border-radius: 28px !important;
       box-shadow:
@@ -222,10 +222,16 @@ export const AUTH_SHELL_STYLES = [
     /* ==========================================================================
        3. TEXTOS Y CONTRASTE DE INTERFAZ (TEXTS & LABELS)
        ========================================================================== */
-    .clerk-host .cl-headerTitle,
+    .clerk-host .cl-headerTitle {
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      font-size: 1.6rem !important;
+    }
+
     .clerk-host .cl-formFieldLabel {
       color: #ffffff !important;
       font-weight: 700 !important;
+      font-size: 0.95rem !important;
     }
 
     .clerk-host .cl-headerSubtitle,
@@ -235,6 +241,7 @@ export const AUTH_SHELL_STYLES = [
     .clerk-host .cl-footer p,
     .clerk-host .cl-footer span {
       color: rgba(255, 255, 255, 0.8) !important;
+      font-size: 0.95rem !important;
     }
 
     /* Enlaces del pie de página ("Sign up"/"Sign in" y "Development mode") */
@@ -243,6 +250,7 @@ export const AUTH_SHELL_STYLES = [
       color: #29b6ff !important;
       text-decoration: underline !important;
       font-weight: 600;
+      font-size: 0.95rem !important;
     }
 
     /* Divisor "or" */
@@ -260,6 +268,7 @@ export const AUTH_SHELL_STYLES = [
       border-radius: 14px !important;
       color: #ffffff !important;
       font-weight: 400 !important;
+      font-size: 1rem !important;
       box-shadow: 0 0 18px rgba(41, 182, 255, 0.12) !important;
     }
 
@@ -296,6 +305,7 @@ export const AUTH_SHELL_STYLES = [
       background: linear-gradient(135deg, #0b2545, #050f24) !important;
       color: #ffffff !important;
       font-weight: 700 !important;
+      font-size: 1.05rem !important;
       border: 1px solid rgba(120, 200, 255, 0.5) !important;
       border-radius: 14px !important;
       box-shadow: 0 0 18px rgba(41, 182, 255, 0.3) !important;
@@ -323,9 +333,9 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
     },
     cardBox: {
       background:
-        'radial-gradient(120% 55% at 18% 8%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 52%), radial-gradient(80% 50% at 84% 94%, rgba(190,225,255,0.22) 0%, rgba(190,225,255,0) 60%), linear-gradient(135deg, rgba(210,230,255,0.38) 0%, rgba(90,155,215,0.4) 40%, rgba(30,75,135,0.48) 100%)',
-      backdropFilter: 'blur(18px) saturate(150%) brightness(1.15)',
-      WebkitBackdropFilter: 'blur(18px) saturate(150%) brightness(1.15)',
+        'radial-gradient(120% 55% at 18% 8%, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0) 52%), radial-gradient(80% 50% at 84% 94%, rgba(150,190,230,0.16) 0%, rgba(150,190,230,0) 60%), linear-gradient(135deg, rgba(170,195,230,0.3) 0%, rgba(55,100,160,0.44) 40%, rgba(10,30,65,0.6) 100%)',
+      backdropFilter: 'blur(18px) saturate(140%) brightness(0.92)',
+      WebkitBackdropFilter: 'blur(18px) saturate(140%) brightness(0.92)',
       border: '1px solid rgba(150,210,255,0.75)',
       borderRadius: '28px',
       boxShadow:
@@ -335,24 +345,30 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
     card: { background: 'transparent', boxShadow: 'none', border: 'none' },
     main: { background: 'transparent' },
     header: { background: 'transparent' },
-    headerTitle: { color: '#ffffff', fontWeight: 700 },
-    headerSubtitle: { color: 'rgba(255,255,255,0.8)' },
+    headerTitle: { color: '#ffffff', fontWeight: 700, fontSize: '1.6rem' },
+    headerSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem' },
     footer: {
       background: 'transparent',
       borderTop: '1px solid rgba(255,255,255,0.25)',
     },
     footerAction: { background: 'transparent' },
-    footerActionText: { color: 'rgba(255,255,255,0.8)' },
-    footerActionLink: { color: '#29b6ff', textDecoration: 'underline', fontWeight: 600 },
+    footerActionText: { color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem' },
+    footerActionLink: {
+      color: '#29b6ff',
+      textDecoration: 'underline',
+      fontWeight: 600,
+      fontSize: '0.95rem',
+    },
     dividerRow: { background: 'transparent' },
     dividerLine: { background: 'rgba(255,255,255,0.25)' },
-    dividerText: { color: 'rgba(255,255,255,0.7)' },
-    formFieldLabel: { color: '#ffffff', fontWeight: 700 },
+    dividerText: { color: 'rgba(255,255,255,0.7)', fontSize: '0.95rem' },
+    formFieldLabel: { color: '#ffffff', fontWeight: 700, fontSize: '0.95rem' },
     formFieldInput: {
       background: 'rgba(255,255,255,0.08)',
       border: '1px solid rgba(120,200,255,0.5)',
       borderRadius: '14px',
       color: '#ffffff',
+      fontSize: '1rem',
       boxShadow: '0 0 18px rgba(41,182,255,0.12)',
       '&::placeholder': { color: 'rgba(255,255,255,0.55)' },
       '&:focus': {
@@ -385,6 +401,7 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
       border: '1px solid rgba(120,200,255,0.5)',
       borderRadius: '14px',
       color: '#ffffff',
+      fontSize: '1rem',
       boxShadow: '0 0 18px rgba(41,182,255,0.12)',
       '&:hover': { background: 'rgba(255,255,255,0.12)', borderColor: '#29b6ff' },
     },
@@ -392,6 +409,7 @@ export const CLERK_APPEARANCE: ClerkAppearance = {
       background: 'linear-gradient(135deg, #0b2545, #050f24)',
       color: '#ffffff',
       fontWeight: 700,
+      fontSize: '1.05rem',
       border: '1px solid rgba(120,200,255,0.5)',
       borderRadius: '14px',
       boxShadow: '0 0 18px rgba(41,182,255,0.3)',
@@ -434,7 +452,7 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
     this.cardResizeObserver = new ResizeObserver(() => this.updateSmokeHeight());
     this.cardResizeObserver.observe(this.clerkShell.nativeElement);
 
-    this.hideDevelopmentModeBadge();
+    this.patchClerkBadges();
 
     await this.mount(this.authHost.nativeElement);
     this.ready = true;
@@ -444,29 +462,39 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * El aviso "Development mode" de Clerk (visible mientras se usen claves de
-   * prueba `pk_test_...`) no tiene una clase pública estable ni se puede
-   * quitar vía `appearance` — solo desaparece de verdad usando claves de
-   * producción de Clerk. Como parche visual, lo localizamos por su texto
+   * El texto "Development mode" y "Secured by" del pie de Clerk no tiene una
+   * clase pública estable, y el CSS/`appearance` normal no logra pisarlo
+   * (Clerk lo protege con reglas propias de más prioridad) — por eso, a
+   * diferencia del resto de la tarjeta, aquí lo localizamos por su texto
    * (nunca por la clase hash `cl-internal-*`, que cambia en cada build de
-   * Clerk) y lo ocultamos, sin tocar el aviso "Secured by Clerk" de al lado.
-   * El MutationObserver cubre el caso de que Clerk lo inserte después del
-   * mount inicial.
+   * Clerk) y lo ajustamos directo por JS: ocultamos "Development mode" (solo
+   * desaparece de verdad con claves de producción de Clerk) y agrandamos +
+   * aclaramos "Secured by" (Clerk lo fija en un gris casi negro que, sobre
+   * el vidrio oscuro de la tarjeta, se pierde contra el patrón punteado de
+   * su propio overlay de "dev mode"). El MutationObserver cubre el caso de
+   * que Clerk los inserte después del mount inicial.
    */
-  private hideDevelopmentModeBadge(): void {
+  private patchClerkBadges(): void {
     const root = this.clerkShell?.nativeElement;
     if (!root) {
       return;
     }
-    const hide = () => {
+    const patch = () => {
       root.querySelectorAll<HTMLElement>('p, span, div, a').forEach((el) => {
-        if (el.children.length === 0 && el.textContent?.trim() === 'Development mode') {
+        if (el.children.length !== 0) {
+          return;
+        }
+        const text = el.textContent?.trim();
+        if (text === 'Development mode') {
           el.style.display = 'none';
+        } else if (text === 'Secured by') {
+          el.style.fontSize = '0.95rem';
+          el.style.color = 'rgba(255, 255, 255, 0.85)';
         }
       });
     };
-    hide();
-    this.devBadgeObserver = new MutationObserver(hide);
+    patch();
+    this.devBadgeObserver = new MutationObserver(patch);
     this.devBadgeObserver.observe(root, { childList: true, subtree: true });
   }
 
