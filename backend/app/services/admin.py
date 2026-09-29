@@ -1,5 +1,3 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import NotFoundError
 from app.models.auth import User
 from app.repositories.admin import AdminRepository
@@ -13,10 +11,15 @@ from app.services.notification import NotificationService
 
 
 class AdminUserService:
-    def __init__(self, session: AsyncSession):
-        self.repository = AdminRepository(session)
-        self.audit = AuditService(session)
-        self.notifications = NotificationService(session)
+    def __init__(
+        self,
+        repository: AdminRepository,
+        audit: AuditService,
+        notifications: NotificationService,
+    ):
+        self.repository = repository
+        self.audit = audit
+        self.notifications = notifications
 
     async def list_pending_users(self) -> list[PendingUserResponse]:
         users = await self.repository.list_pending_users()

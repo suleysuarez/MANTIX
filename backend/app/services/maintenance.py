@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
+from app.domain.ticket_state import TicketState
 from app.models.auth import User
 from app.models.maintenance import MaintenanceRequest
 from app.repositories.maintenance import MaintenanceRepository
@@ -23,27 +22,19 @@ from app.schemas.maintenance import (
 from app.services.audit import AuditService
 from app.services.notification import NotificationService
 
-#: Explicit ticket state machine. Keys are the current status, values are the
-#: set of statuses it may move to next. `closed`/`cancelled` are terminal.
-ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "submitted": {"triaged", "cancelled"},
-    "triaged": {"assigned", "cancelled"},
-    "assigned": {"in_progress", "cancelled"},
-    "in_progress": {"waiting", "resolved", "cancelled"},
-    "waiting": {"in_progress", "cancelled"},
-    "resolved": {"closed", "in_progress"},
-    "closed": set(),
-    "cancelled": set(),
-}
-
 _ELEVATED_ROLE_CODES = {"ADMIN", "SUPERVISOR"}
 
 
 class MaintenanceService:
-    def __init__(self, session: AsyncSession):
-        self.repository = MaintenanceRepository(session)
-        self.audit = AuditService(session)
-        self.notifications = NotificationService(session)
+    def __init__(
+        self,
+        repository: MaintenanceRepository,
+        audit: AuditService,
+        notifications: NotificationService,
+    ):
+        self.repository = repository
+        self.audit = audit
+        self.notifications = notifications
 
     # -- Requests --------------------------------------------------------
 
@@ -128,17 +119,12 @@ class MaintenanceService:
         await self._require_can_act(request, actor)
 
         current, target = request.status, payload.status
-        if target not in ALLOWED_TRANSITIONS.get(current, set()):
-            raise BusinessRuleError(f"cannot transition from '{current}' to '{target}'")
-
-        now = datetime.now(timezone.utc)
-        request.status = target
-        if target == "resolved":
-            request.resolved_at = now
-            if payload.resolution_summary:
-                request.resolution_summary = payload.resolution_summary
-        if target == "closed":
-            request.closed_at = now
+        new_state = TicketState.of(current).transition(
+            request,
+            target,
+            now=datetime.now(timezone.utc),
+            resolution_summary=payload.resolution_summary,
+        )
 
         self.repository.append_status_history(
             request_id=request.id,
@@ -155,7 +141,7 @@ class MaintenanceService:
             old_values={"status": current},
             new_values={"status": target},
         )
-        if target in {"resolved", "closed"}:
+        if new_state.notifies_requester:
             self.notifications.notify(
                 user_id=request.requested_by_user_id,
                 title=f"Ticket {request.ticket_number} {target}",
@@ -176,10 +162,8 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
         self._require_elevated(actor)
-        if request.status in {"closed", "cancelled"}:
-            raise BusinessRuleError(
-                f"cannot assign a technician to a '{request.status}' ticket"
-            )
+        state = TicketState.of(request.status)
+        state.ensure_accepts_assignment()  # fail before touching the repository
         technician = await self.repository.get_technician(payload.technician_id)
         if technician is None:
             raise NotFoundError("technician not found")
@@ -190,13 +174,12 @@ class MaintenanceService:
             assigned_by_user_id=actor.id,
             notes=payload.notes,
         )
-        previous_status = request.status
-        if previous_status in {"submitted", "triaged"}:
-            request.status = "assigned"
+        auto_status = state.assign_technician(request, now=datetime.now(timezone.utc))
+        if auto_status is not None:
             self.repository.append_status_history(
                 request_id=request_id,
-                from_status=previous_status,
-                to_status="assigned",
+                from_status=state.status,
+                to_status=auto_status,
                 changed_by_user_id=actor.id,
                 notes="technician assigned",
             )

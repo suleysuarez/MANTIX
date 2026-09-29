@@ -89,10 +89,7 @@ def payload(**overrides):
 
 
 def service_with_fakes():
-    service = EquipmentService(object())
-    service.repository = FakeEquipmentRepository()
-    service.audit = FakeAudit()
-    return service
+    return EquipmentService(FakeEquipmentRepository(), FakeAudit())
 
 
 @pytest.mark.asyncio
