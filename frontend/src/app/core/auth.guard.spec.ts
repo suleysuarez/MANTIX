@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
-import { authGuard, authorizedGuard, permissionGuard } from './auth.guard';
+import { authGuard, authorizedGuard, guestGuard, permissionGuard } from './auth.guard';
 import { authInterceptor } from './auth.interceptor';
 import { ClerkService } from './clerk.service';
 import { LocalProfileService } from './local-profile.service';
@@ -115,5 +115,29 @@ describe('Clerk auth interceptor', () => {
         return of(new HttpResponse({ status: 200, body: {} }));
       }),
     ).subscribe();
+  });
+});
+
+describe('guest guard', () => {
+  it('lets a signed-out user reach /auth/login', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: false } },
+        { provide: Router, useValue: { createUrlTree: jasmine.createSpy() } },
+      ],
+    });
+    expect(await TestBed.runInInjectionContext(() => guestGuard({} as never, {} as never))).toBeTrue();
+  });
+
+  it('redirects a signed-in user away from /auth/login', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/dashboard');
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+    await TestBed.runInInjectionContext(() => guestGuard({} as never, {} as never));
+    expect(createUrlTree).toHaveBeenCalledWith(['/dashboard']);
   });
 });
