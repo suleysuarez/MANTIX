@@ -29,8 +29,19 @@ export interface ClerkMountOptions {
   signUpUrl?: string;
 }
 
+export interface ClerkLoadOptions {
+  ui?: { ClerkUI?: unknown };
+  routerPush?: (to: string) => Promise<unknown> | unknown;
+  routerReplace?: (to: string) => Promise<unknown> | unknown;
+  afterSignOutUrl?: string;
+  signInUrl?: string;
+  signUpUrl?: string;
+  signInFallbackRedirectUrl?: string;
+  signUpFallbackRedirectUrl?: string;
+}
+
 export interface ClerkInstance extends ClerkState {
-  load(options?: { ui?: { ClerkUI?: unknown } }): Promise<void>;
+  load(options?: ClerkLoadOptions): Promise<void>;
   addListener(listener: (state: ClerkState) => void): () => void;
   signOut(): Promise<void>;
   mountSignIn(node: HTMLElement, options?: ClerkMountOptions): void;

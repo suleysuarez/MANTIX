@@ -11,6 +11,14 @@ export const authGuard: CanActivateFn = async () => {
   return clerk.isSignedIn ? true : router.createUrlTree(['/auth/login']);
 };
 
+/** Login/sign-up: solo para invitados; con sesión activa Clerk no monta SignIn. */
+export const guestGuard: CanActivateFn = async () => {
+  const clerk = inject(ClerkService);
+  const router = inject(Router);
+  await clerk.initialize();
+  return clerk.isSignedIn ? router.createUrlTree(['/dashboard']) : true;
+};
+
 export const authorizedGuard: CanActivateFn = async () => {
   const clerk = inject(ClerkService);
   const profileService = inject(LocalProfileService);
