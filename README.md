@@ -89,14 +89,20 @@ Authentication is documented in [docs/authentication.md](docs/authentication.md)
 cd backend && pytest
 cd backend && ruff check app tests
 cd backend && ruff format --check app tests
+cd frontend && npm run lint
 cd frontend && npm run build
+cd frontend && npm test
 ```
 
 The CI workflow runs these checks without inventing placeholder tests.
 
 ## CI workflow
 
-`.github/workflows/ci.yml` installs dependencies, checks backend imports and formatting/linting, runs backend tests only when test files exist, installs frontend dependencies, performs a production Angular build, and validates Docker Compose configuration.
+`.github/workflows/ci.yml` installs dependencies, checks backend imports and formatting/linting, runs backend tests only when test files exist, installs frontend dependencies, runs ESLint, performs a production Angular build, runs the frontend tests, reports dependency audits (informational), and validates Docker Compose configuration.
+
+## Operations
+
+Environment variables, rate limiting, logging, CORS and the release checklist are documented in [docs/deployment.md](docs/deployment.md).
 
 ## Next development stage
 
