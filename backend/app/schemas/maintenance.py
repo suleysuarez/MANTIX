@@ -143,3 +143,5 @@ class MaintenanceRequestResponse(BaseModel):
     updated_at: datetime
     current_assignment: TicketAssignmentResponse | None
     status_history: list[TicketStatusHistoryEntry]
+    #: Estados a los que el ticket puede pasar desde el actual (regla del dominio).
+    allowed_next_statuses: list[str] = []

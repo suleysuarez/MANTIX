@@ -349,4 +349,7 @@ class MaintenanceService:
                 TicketStatusHistoryEntry.model_validate(entry)
                 for entry in sorted(request.status_history, key=lambda h: h.changed_at)
             ],
+            allowed_next_statuses=sorted(
+                TicketState.of(request.status).allowed_targets
+            ),
         )

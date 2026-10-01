@@ -16,12 +16,14 @@ from app.db.session import get_db
 from app.repositories.admin import AdminRepository
 from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
+from app.repositories.notification import NotificationRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.audit import AuditService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
+from app.services.notification_inbox import NotificationInboxService
 from app.services.technician import TechnicianService
 
 Session = Depends(get_db)
@@ -33,6 +35,12 @@ def get_audit_service(session: AsyncSession = Session) -> AuditService:
 
 def get_notification_service(session: AsyncSession = Session) -> NotificationService:
     return NotificationService(session)
+
+
+def get_notification_inbox_service(
+    session: AsyncSession = Session,
+) -> NotificationInboxService:
+    return NotificationInboxService(NotificationRepository(session))
 
 
 def get_maintenance_repository(

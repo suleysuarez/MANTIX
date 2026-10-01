@@ -27,12 +27,14 @@ class EquipmentService:
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        search: str | None = None,
         limit: int = 200,
         offset: int = 0,
     ) -> list[EquipmentResponse]:
         items = await self.repository.list_equipment(
             status=status,
             equipment_type_id=equipment_type_id,
+            search=search,
             limit=min(limit, 500),
             offset=offset,
         )

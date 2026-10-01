@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,7 @@ class EquipmentRepository:
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        search: str | None = None,
         limit: int = 200,
         offset: int = 0,
     ) -> list[Equipment]:
@@ -36,6 +37,23 @@ class EquipmentRepository:
             query = query.where(Equipment.status == status)
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if search:
+            # Los comodines escritos por el usuario se tratan como texto literal.
+            escaped = (
+                search.strip()
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
+            pattern = f"%{escaped}%"
+            query = query.where(
+                or_(
+                    Equipment.asset_tag.ilike(pattern, escape="\\"),
+                    Equipment.serial_number.ilike(pattern, escape="\\"),
+                    Equipment.brand.ilike(pattern, escape="\\"),
+                    Equipment.model.ilike(pattern, escape="\\"),
+                )
+            )
         query = query.order_by(Equipment.asset_tag).limit(limit).offset(offset)
         result = await self.session.execute(query)
         return list(result.scalars().all())

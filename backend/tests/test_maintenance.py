@@ -258,6 +258,18 @@ async def test_create_request_starts_submitted_with_history():
 
 
 @pytest.mark.asyncio
+async def test_response_lists_the_statuses_the_ticket_can_move_to():
+    from app.domain.ticket_state import TicketState
+
+    response = await create_ticket(service_with_fakes())
+
+    assert response.allowed_next_statuses == sorted(
+        TicketState.of("submitted").allowed_targets
+    )
+    assert response.allowed_next_statuses
+
+
+@pytest.mark.asyncio
 async def test_valid_transition_succeeds():
     service = service_with_fakes()
     created = await create_ticket(service)
