@@ -1,6 +1,8 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+
+import { apiBaseUrl } from './api.config';
 
 export interface EquipmentType {
   id: number;
@@ -34,13 +36,33 @@ export interface EquipmentPayload {
   status: string;
 }
 
+export interface EquipmentQuery {
+  search?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EquipmentService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:8000/equipment';
+  private readonly apiUrl = `${apiBaseUrl()}/equipment`;
 
-  list(): Observable<Equipment[]> {
-    return this.http.get<Equipment[]>(this.apiUrl);
+  list(query: EquipmentQuery = {}): Observable<Equipment[]> {
+    let params = new HttpParams();
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+    if (query.status) {
+      params = params.set('status', query.status);
+    }
+    if (query.limit !== undefined) {
+      params = params.set('limit', query.limit);
+    }
+    if (query.offset !== undefined) {
+      params = params.set('offset', query.offset);
+    }
+    return this.http.get<Equipment[]>(this.apiUrl, { params });
   }
 
   listTypes(): Observable<EquipmentType[]> {

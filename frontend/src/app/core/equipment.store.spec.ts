@@ -52,8 +52,8 @@ describe('EquipmentStore', () => {
     expect(latest.error).toContain('could not be loaded');
   });
 
-  it('inserts a created item in asset-tag order and clears saving', () => {
-    api.list.and.returnValue(of([item(1, 'A'), item(3, 'C')]));
+  it('reloads the current page after a creation and clears saving', () => {
+    api.list.and.returnValues(of([item(1, 'A'), item(3, 'C')]), of([item(1, 'A'), item(2, 'B'), item(3, 'C')]));
     api.listTypes.and.returnValue(of([]));
     api.create.and.returnValue(of(item(2, 'B')));
     store.load();
@@ -63,6 +63,45 @@ describe('EquipmentStore', () => {
     expect(latest.equipment.map((e) => e.asset_tag)).toEqual(['A', 'B', 'C']);
     expect(latest.saving).toBeFalse();
     expect(latest.error).toBe('');
+  });
+
+  it('requests one extra row to detect a next page and trims it', () => {
+    const rows = Array.from({ length: 21 }, (_, index) => item(index + 1, `T${index}`));
+    api.list.and.returnValue(of(rows));
+    api.listTypes.and.returnValue(of([]));
+
+    store.load();
+
+    expect(api.list).toHaveBeenCalledWith({ search: '', status: '', limit: 21, offset: 0 });
+    expect(latest.equipment.length).toBe(20);
+    expect(latest.hasNext).toBeTrue();
+  });
+
+  it('changing filters returns to the first page and queries the server', () => {
+    api.list.and.returnValue(of([]));
+    api.listTypes.and.returnValue(of([]));
+    store.load();
+    store.setPage(2);
+
+    store.setFilters('  lap ', 'in_storage');
+
+    expect(latest.page).toBe(0);
+    expect(api.list.calls.mostRecent().args[0]).toEqual({
+      search: 'lap', status: 'in_storage', limit: 21, offset: 0,
+    });
+  });
+
+  it('pages with the matching offset and ignores negative pages', () => {
+    api.list.and.returnValue(of([]));
+    api.listTypes.and.returnValue(of([]));
+    store.load();
+
+    store.setPage(2);
+    expect(api.list.calls.mostRecent().args[0]).toEqual({ search: '', status: '', limit: 21, offset: 40 });
+
+    const calls = api.list.calls.count();
+    store.setPage(-1);
+    expect(api.list.calls.count()).toBe(calls);
   });
 
   it('emits equipmentCreated$ on success only', () => {

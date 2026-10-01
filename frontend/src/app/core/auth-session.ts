@@ -3,6 +3,7 @@ import { distinctUntilChanged, map, pairwise, startWith } from 'rxjs/operators';
 
 import { ClerkService } from './clerk.service';
 import { LocalProfileService } from './local-profile.service';
+import { NotificationsStore } from './notifications.store';
 
 const PUBLIC_AUTH_ROUTES = ['/auth/login', '/auth/sign-up'];
 
@@ -16,13 +17,14 @@ export interface AuthSessionDeps {
   clerk: ClerkService;
   router: Router;
   profile: LocalProfileService;
+  notifications: NotificationsStore;
 }
 
 /**
  * No llama a `inject()`: las dependencias se resuelven en un contexto de
  * inyección válido (ver app.config.ts) y se pasan como argumentos.
  */
-export function watchAuthSession({ clerk, router, profile }: AuthSessionDeps): void {
+export function watchAuthSession({ clerk, router, profile, notifications }: AuthSessionDeps): void {
   clerk.state$
     .pipe(
       map((state) => (state.isSignedIn ? (state.user?.id ?? null) : null)),
@@ -35,6 +37,7 @@ export function watchAuthSession({ clerk, router, profile }: AuthSessionDeps): v
         return;
       }
       profile.clear();
+      notifications.clear();
       const path = router.url.split(/[?#]/)[0];
       if (previous !== null && current === null && !PUBLIC_AUTH_ROUTES.includes(path)) {
         void router.navigateByUrl('/auth/login');

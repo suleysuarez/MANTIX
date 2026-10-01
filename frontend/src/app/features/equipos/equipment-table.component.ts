@@ -10,7 +10,7 @@ import { Equipment } from '../../core/equipment.service';
     @if (loading) {
       <p>Loading equipment…</p>
     } @else if (equipment.length === 0) {
-      <p class="empty">No equipment has been registered yet.</p>
+      <p class="empty">{{ filtered ? 'No equipment matches the current filters.' : 'No equipment has been registered yet.' }}</p>
     } @else {
       <div class="table-wrap">
         <table>
@@ -33,4 +33,5 @@ import { Equipment } from '../../core/equipment.service';
 export class EquipmentTableComponent {
   @Input() equipment: readonly Equipment[] = [];
   @Input() loading = false;
+  @Input() filtered = false;
 }

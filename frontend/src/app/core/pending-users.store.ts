@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable, forkJoin } from 'rxjs';
 
+import { httpErrorMessage } from './http-error';
 import { AdminRole, AdminUsersService, PendingUser } from './admin-users.service';
 
 export interface PendingUsersState {
@@ -31,7 +32,8 @@ export class PendingUsersStore {
     this.patch({ loading: true, error: '' });
     forkJoin({ users: this.api.listPendingUsers(), roles: this.api.listRoles() }).subscribe({
       next: ({ users, roles }) => this.patch({ users, roles, loading: false }),
-      error: () => this.patch({ loading: false, error: 'Pending users could not be loaded.' }),
+      error: (error) =>
+        this.patch({ loading: false, error: httpErrorMessage(error, 'Pending users could not be loaded.') }),
     });
   }
 
@@ -43,10 +45,10 @@ export class PendingUsersStore {
           users: this.subject.value.users.filter((user) => user.id !== userId),
           savingUserId: null,
         }),
-      error: () =>
+      error: (error) =>
         this.patch({
           savingUserId: null,
-          error: 'The roles could not be assigned. Please try again.',
+          error: httpErrorMessage(error, 'The roles could not be assigned. Please try again.'),
         }),
     });
   }

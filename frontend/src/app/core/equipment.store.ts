@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, Subject, forkJoin, tap } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, forkJoin } from 'rxjs';
 
 import {
   Equipment,
@@ -7,6 +7,7 @@ import {
   EquipmentService,
   EquipmentType,
 } from './equipment.service';
+import { httpErrorMessage } from './http-error';
 
 export interface EquipmentState {
   equipment: Equipment[];
@@ -14,6 +15,12 @@ export interface EquipmentState {
   loading: boolean;
   saving: boolean;
   error: string;
+  search: string;
+  status: string;
+  /** Página actual, base 0. */
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
 }
 
 const INITIAL_STATE: EquipmentState = {
@@ -22,12 +29,23 @@ const INITIAL_STATE: EquipmentState = {
   loading: true,
   saving: false,
   error: '',
+  search: '',
+  status: '',
+  page: 0,
+  pageSize: 20,
+  hasNext: false,
 };
+
+const LOAD_ERROR = 'Equipment catalog could not be loaded.';
 
 /**
  * Observer pattern: the single source of truth for the equipment catalog.
  * Consumers subscribe to `state$` (BehaviorSubject-backed, so late
  * subscribers get the current value immediately) and never mutate it.
+ *
+ * Search, status filter and pagination run on the server. The API returns no
+ * total, so each request asks for one extra row to learn whether a next page
+ * exists.
  */
 @Injectable({ providedIn: 'root' })
 export class EquipmentStore {
@@ -42,37 +60,65 @@ export class EquipmentStore {
 
   load(): void {
     this.patch({ loading: true, error: '' });
-    forkJoin({ equipment: this.api.list(), types: this.api.listTypes() }).subscribe({
-      next: ({ equipment, types }) => this.patch({ equipment, types, loading: false }),
-      error: () =>
-        this.patch({ loading: false, error: 'Equipment catalog could not be loaded.' }),
+    forkJoin({ equipment: this.fetchPage(), types: this.api.listTypes() }).subscribe({
+      next: ({ equipment, types }) => this.applyPage(equipment, { types }),
+      error: (error) => this.patch({ loading: false, error: httpErrorMessage(error, LOAD_ERROR) }),
     });
+  }
+
+  setFilters(search: string, status: string): void {
+    this.patch({ search: search.trim(), status, page: 0 });
+    this.reloadList();
+  }
+
+  setPage(page: number): void {
+    if (page < 0) {
+      return;
+    }
+    this.patch({ page });
+    this.reloadList();
   }
 
   create(payload: EquipmentPayload): void {
     this.patch({ saving: true, error: '' });
-    this.api
-      .create(payload)
-      .pipe(
-        tap((created) =>
-          this.patch({
-            equipment: [...this.subject.value.equipment, created].sort((a, b) =>
-              a.asset_tag.localeCompare(b.asset_tag),
-            ),
-          }),
-        ),
-      )
-      .subscribe({
-        next: () => {
-          this.patch({ saving: false });
-          this.equipmentCreatedSource.next();
-        },
-        error: () =>
-          this.patch({
-            saving: false,
-            error: 'Equipment could not be created. Check unique asset and serial values.',
-          }),
-      });
+    this.api.create(payload).subscribe({
+      next: () => {
+        this.patch({ saving: false });
+        this.equipmentCreatedSource.next();
+        this.reloadList();
+      },
+      error: (error) =>
+        this.patch({
+          saving: false,
+          error: httpErrorMessage(
+            error,
+            'Equipment could not be created. Check unique asset and serial values.',
+          ),
+        }),
+    });
+  }
+
+  private reloadList(): void {
+    this.patch({ loading: true, error: '' });
+    this.fetchPage().subscribe({
+      next: (equipment) => this.applyPage(equipment),
+      error: (error) => this.patch({ loading: false, error: httpErrorMessage(error, LOAD_ERROR) }),
+    });
+  }
+
+  private fetchPage(): Observable<Equipment[]> {
+    const { search, status, page, pageSize } = this.subject.value;
+    return this.api.list({ search, status, limit: pageSize + 1, offset: page * pageSize });
+  }
+
+  private applyPage(rows: Equipment[], extra: Partial<EquipmentState> = {}): void {
+    const { pageSize } = this.subject.value;
+    this.patch({
+      ...extra,
+      equipment: rows.slice(0, pageSize),
+      hasNext: rows.length > pageSize,
+      loading: false,
+    });
   }
 
   private patch(partial: Partial<EquipmentState>): void {

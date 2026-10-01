@@ -1,46 +1,52 @@
-import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  OnDestroy,
-  ViewChild,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
-import { ClerkService } from '../../core/clerk.service';
+import { LocalProfile, LocalProfileService } from '../../core/local-profile.service';
+import { NavItem, visibleNavItems } from '../../core/nav-items';
 
 @Component({
   standalone: true,
+  imports: [RouterLink],
   template: `
-    <header class="app-header">
-      <div>
-        <strong>Technology Equipment Maintenance</strong>
-        <span>Maintenance workspace</span>
-      </div>
-      <div #userButtonHost aria-label="Clerk account menu"></div>
-    </header>
     <main>
-      <h1>Technology Equipment Maintenance</h1>
-      <p>Signed-in application workspace.</p>
+      @if (profile(); as current) {
+        <h1>Welcome, {{ current.full_name }}</h1>
+        <p class="roles">
+          @for (role of current.roles; track role.code) {
+            <span class="role">{{ role.name }}</span>
+          }
+        </p>
+      }
+      <section class="shortcuts" aria-label="Shortcuts">
+        @for (item of shortcuts(); track item.path) {
+          <a [routerLink]="item.path">{{ item.label }}</a>
+        }
+      </section>
     </main>
   `,
   styles: [
-    `.app-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; background: #0f172a; color: white; }
-     .app-header div:first-child { display: grid; gap: .2rem; } .app-header span { color: #cbd5e1; font-size: .85rem; }
-     main { max-width: 960px; margin: 4rem auto; padding: 0 1.5rem; }`,
+    `main { max-width: 960px; margin: 3rem auto; padding: 0 1.5rem; }
+     .roles { display: flex; gap: .5rem; flex-wrap: wrap; }
+     .role { background: #e0f2fe; color: #075985; padding: .2rem .6rem; border-radius: 999px; font-size: .85rem; }
+     .shortcuts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 2rem; }
+     .shortcuts a { padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 10px; color: #0f172a; text-decoration: none; font-weight: 600; }
+     .shortcuts a:hover { border-color: #2563eb; }`,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('userButtonHost', { static: true }) private readonly userButtonHost!: ElementRef<HTMLElement>;
-  private readonly clerk = inject(ClerkService);
+export class DashboardComponent implements OnInit {
+  private readonly profileService = inject(LocalProfileService);
 
-  async ngAfterViewInit(): Promise<void> {
-    await this.clerk.mountUserButton(this.userButtonHost.nativeElement);
-  }
+  readonly profile = signal<LocalProfile | null>(null);
+  readonly shortcuts = signal<NavItem[]>([]);
 
-  async ngOnDestroy(): Promise<void> {
-    await this.clerk.unmountUserButton(this.userButtonHost.nativeElement);
+  async ngOnInit(): Promise<void> {
+    const profile = await this.profileService.getProfile();
+    this.profile.set(profile);
+    this.shortcuts.set(
+      visibleNavItems(profile.permissions.map((permission) => permission.code)).filter(
+        (item) => item.path !== '/dashboard',
+      ),
+    );
   }
 }
