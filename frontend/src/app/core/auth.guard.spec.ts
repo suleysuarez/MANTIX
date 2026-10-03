@@ -76,6 +76,32 @@ describe('local authorization guard', () => {
   });
 });
 
+describe('guards when the API is unreachable', () => {
+  function setup(createUrlTree: jasmine.Spy): void {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.rejectWith(new Error('offline')) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+  }
+
+  it('sends authorizedGuard to the unavailable screen', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/auth/unavailable');
+    setup(createUrlTree);
+    await runAuthorizedGuard();
+    expect(createUrlTree).toHaveBeenCalledWith(['/auth/unavailable']);
+  });
+
+  it('sends permissionGuard to the unavailable screen', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/auth/unavailable');
+    setup(createUrlTree);
+    await runPermissionGuard();
+    expect(createUrlTree).toHaveBeenCalledWith(['/auth/unavailable']);
+  });
+});
+
 describe('permission guard', () => {
   it('allows a user with users.manage permission', async () => {
     TestBed.configureTestingModule({

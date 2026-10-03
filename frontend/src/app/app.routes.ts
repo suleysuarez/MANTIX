@@ -1,11 +1,12 @@
 import { Routes } from '@angular/router';
 
-import { authorizedGuard, permissionGuard } from './core/auth.guard';
+import { authGuard, authorizedGuard, permissionGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   { path: 'auth', loadChildren: () => import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES) },
   {
     path: '',
+    canActivate: [authGuard],
     loadComponent: () => import('./layout/app-shell.component').then((m) => m.AppShellComponent),
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },

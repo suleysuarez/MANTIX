@@ -53,4 +53,16 @@ describe('watchAuthSession', () => {
     state$.next(signedIn('user_a'));
     expect(profile.clear).not.toHaveBeenCalled();
   });
+
+  it('goes to the dashboard when a session opens on the sign-up screen', () => {
+    start(signedOut, '/auth/sign-up#/verify-email-address');
+    state$.next(signedIn('user_a'));
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('does not redirect when a session opens away from the public auth screens', () => {
+    start(signedOut, '/dashboard');
+    state$.next(signedIn('user_a'));
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
 });

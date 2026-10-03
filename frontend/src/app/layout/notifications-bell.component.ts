@@ -23,7 +23,7 @@ const POLL_INTERVAL_MS = 60_000;
           aria-label="Notifications"
           [attr.aria-expanded]="open()"
           (click)="open.set(!open())">
-          <span aria-hidden="true">🔔</span>
+          <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
           @if (state.unreadCount > 0) {
             <span class="badge" aria-live="polite">{{ state.unreadCount }}</span>
           }
@@ -62,15 +62,16 @@ const POLL_INTERVAL_MS = 60_000;
   `,
   styles: [
     `.bell { position: relative; }
-     .bell-button { position: relative; background: transparent; border: 0; color: inherit; font-size: 1.2rem; cursor: pointer; padding: .3rem .5rem; }
-     .badge { position: absolute; top: -.1rem; right: -.1rem; min-width: 1.1rem; padding: 0 .25rem; border-radius: 999px; background: #ef4444; color: white; font-size: .7rem; line-height: 1.1rem; text-align: center; }
+     .bell-button { position: relative; display: flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; background: #fff; border: 1px solid #c3c7cd; border-radius: .75rem; color: #161c21; cursor: pointer; }
+     .bell-button:hover { background: #e3e9ef; }
+     .badge { position: absolute; top: -.35rem; right: -.35rem; min-width: 1.1rem; padding: 0 .25rem; border-radius: 999px; background: #febe46; color: #271900; font-weight: 700; font-size: .7rem; line-height: 1.1rem; text-align: center; }
      .panel { position: absolute; right: 0; top: 2.4rem; width: min(92vw, 360px); max-height: 420px; overflow: auto; background: white; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px #0f172a33; z-index: 20; }
      .panel header { display: flex; justify-content: space-between; align-items: center; padding: .75rem 1rem; border-bottom: 1px solid #e2e8f0; }
-     .link { background: none; border: 0; color: #2563eb; cursor: pointer; font-size: .85rem; }
+     .link { background: none; border: 0; color: #3e5c76; cursor: pointer; font-size: .85rem; }
      .link:disabled { color: #94a3b8; cursor: default; }
      ul { list-style: none; margin: 0; padding: 0; }
      li button { display: grid; gap: .15rem; width: 100%; text-align: left; background: white; border: 0; border-bottom: 1px solid #f1f5f9; padding: .75rem 1rem; cursor: pointer; }
-     li.unread button { background: #eff6ff; }
+     li.unread button { background: #eef4fa; }
      .title { font-weight: 600; } .message { color: #475569; font-size: .9rem; } time { color: #94a3b8; font-size: .75rem; }
      .empty, .error { padding: 1rem; margin: 0; } .error { color: #b91c1c; }`,
   ],
