@@ -5,11 +5,12 @@ import { EquipmentPayload } from '../../core/equipment.service';
 import { EquipmentStore } from '../../core/equipment.store';
 import { EquipmentFormComponent } from './equipment-form.component';
 import { EquipmentTableComponent } from './equipment-table.component';
+import { EquipmentToolbarComponent } from './equipment-toolbar.component';
 
 /** Smart (container) component: talks to the store, delegates rendering. */
 @Component({
   standalone: true,
-  imports: [AsyncPipe, EquipmentFormComponent, EquipmentTableComponent],
+  imports: [AsyncPipe, EquipmentFormComponent, EquipmentTableComponent, EquipmentToolbarComponent],
   template: `
     @if (state$ | async; as state) {
       <main class="equipment-page">
@@ -33,7 +34,20 @@ import { EquipmentTableComponent } from './equipment-table.component';
 
         <section>
           <h2>Current catalog</h2>
-          <app-equipment-table [equipment]="state.equipment" [loading]="state.loading" />
+          <app-equipment-toolbar
+            [search]="state.search"
+            [status]="state.status"
+            [statuses]="statuses"
+            [page]="state.page"
+            [hasNext]="state.hasNext"
+            [loading]="state.loading"
+            (searchChange)="setFilters($event, state.status)"
+            (statusChange)="setFilters(state.search, $event)"
+            (pageChange)="setPage($event)" />
+          <app-equipment-table
+            [equipment]="state.equipment"
+            [loading]="state.loading"
+            [filtered]="!!state.search || !!state.status" />
         </section>
       </main>
     }
@@ -54,6 +68,14 @@ export class EquipmentListComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
+  }
+
+  setFilters(search: string, status: string): void {
+    this.store.setFilters(search, status);
+  }
+
+  setPage(page: number): void {
+    this.store.setPage(page);
   }
 
   create(payload: EquipmentPayload): void {

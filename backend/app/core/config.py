@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     cors_origins: str = Field(
         default="http://localhost:4200", validation_alias="CORS_ORIGINS"
     )
+    rate_limit_per_minute: int = Field(
+        default=120, validation_alias="RATE_LIMIT_PER_MINUTE"
+    )
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     backend_port: int = Field(default=8000, validation_alias="BACKEND_PORT")
     clerk_secret_key: str = Field(default="", validation_alias="CLERK_SECRET_KEY")
     clerk_publishable_key: str = Field(
@@ -56,6 +60,10 @@ class Settings(BaseSettings):
                     )
                 )
         return v
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() == "production"
 
     @property
     def cors_origin_list(self) -> list[str]:

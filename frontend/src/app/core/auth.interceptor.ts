@@ -2,12 +2,11 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { apiBaseUrl } from './api.config';
 import { ClerkService } from './clerk.service';
 
-const apiUrl = 'http://localhost:8000';
-
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  if (!request.url.startsWith(apiUrl)) {
+  if (!request.url.startsWith(apiBaseUrl())) {
     return next(request);
   }
 

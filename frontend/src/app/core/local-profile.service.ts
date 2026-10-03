@@ -2,6 +2,8 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
+import { apiBaseUrl } from './api.config';
+
 export interface LocalRole {
   code: string;
   name: string;
@@ -30,10 +32,15 @@ export class LocalProfileService {
   async getProfile(): Promise<LocalProfile> {
     if (!this.profile) {
       this.profile = await firstValueFrom(
-        this.http.get<LocalProfile>('http://localhost:8000/auth/me'),
+        this.http.get<LocalProfile>(`${apiBaseUrl()}/auth/me`),
       );
     }
     return this.profile;
+  }
+
+  async can(permission: string): Promise<boolean> {
+    const profile = await this.getProfile();
+    return profile.permissions.some((item) => item.code === permission);
   }
 
   clear(): void {

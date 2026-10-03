@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
+import { apiBaseUrl } from './api.config';
 import { LocalProfileService } from './local-profile.service';
 
 export interface PendingUser {
@@ -27,7 +28,7 @@ export interface ManagedUser {
 export class AdminUsersService {
   private readonly http = inject(HttpClient);
   private readonly profile = inject(LocalProfileService);
-  private readonly apiUrl = 'http://localhost:8000';
+  private readonly apiUrl = apiBaseUrl();
 
   listPendingUsers(): Observable<PendingUser[]> {
     return this.http.get<PendingUser[]>(`${this.apiUrl}/admin/users/pending`);

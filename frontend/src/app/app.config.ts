@@ -7,6 +7,7 @@ import { authInterceptor } from './core/auth.interceptor';
 import { watchAuthSession } from './core/auth-session';
 import { ClerkService } from './core/clerk.service';
 import { LocalProfileService } from './core/local-profile.service';
+import { NotificationsStore } from './core/notifications.store';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,8 +19,9 @@ export const appConfig: ApplicationConfig = {
       const clerk = inject(ClerkService);
       const router = inject(Router);
       const profile = inject(LocalProfileService);
+      const notifications = inject(NotificationsStore);
       await clerk.initialize();
-      watchAuthSession({ clerk, router, profile });
+      watchAuthSession({ clerk, router, profile, notifications });
     }),
   ],
 };

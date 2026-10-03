@@ -22,6 +22,7 @@ router = APIRouter(prefix="/equipment", tags=["equipment"])
 async def list_equipment(
     status_filter: str | None = Query(default=None, alias="status"),
     equipment_type_id: int | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=200, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     _: User = Depends(require_permission("equipment.read")),  # noqa: B008
@@ -30,6 +31,7 @@ async def list_equipment(
     return await service.list_equipment(
         status=status_filter,
         equipment_type_id=equipment_type_id,
+        search=search,
         limit=limit,
         offset=offset,
     )
