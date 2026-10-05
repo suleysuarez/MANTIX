@@ -1,7 +1,7 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, isDevMode } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { ClerkInstance, ClerkMountOptions, ClerkState } from './clerk.types';
+import { ClerkInstance, ClerkMountOptions, ClerkSession, ClerkState } from './clerk.types';
 
 @Injectable({ providedIn: 'root' })
 export class ClerkService {
@@ -24,13 +24,30 @@ export class ClerkService {
     return this.initialization;
   }
 
+  /**
+   * Lee la instancia de Clerk, no el BehaviorSubject: Clerk fija la sesión y
+   * llama a `routerPush` ANTES de emitir a los listeners, así que al navegar
+   * a /dashboard tras el registro el subject aún dice "sin sesión" y el
+   * authGuard rebotaba a /auth/login.
+   */
   get isSignedIn(): boolean {
-    return this.stateSubject.value.isSignedIn;
+    return this.clerk ? !!this.clerk.isSignedIn : this.stateSubject.value.isSignedIn;
   }
 
   async getToken(): Promise<string | null> {
     await this.initialize();
     return this.clerk?.session?.getToken() ?? null;
+  }
+
+  /** Sesiones activas del usuario (dispositivos donde sigue conectado) y cuál es la actual. */
+  async getActiveSessions(): Promise<{ sessions: ClerkSession[]; currentId: string | null }> {
+    await this.initialize();
+    const sessions = (await this.clerk?.user?.getSessions?.()) ?? [];
+    return { sessions, currentId: this.clerk?.session?.id ?? null };
+  }
+
+  async revokeSession(session: ClerkSession): Promise<void> {
+    await session.revoke?.();
   }
 
   async signOut(): Promise<void> {
@@ -85,7 +102,27 @@ export class ClerkService {
     });
     this.clerk = clerk;
     this.publishState(clerk);
-    this.unsubscribe = clerk.addListener((state) => this.publishState(state));
+    this.unsubscribe = clerk.addListener((state) => {
+      this.debug('CLERK STATE', state);
+      this.publishState(state);
+    });
+    this.debug('CLERK LOADED', clerk);
+  }
+
+  /** Depuración temporal del flujo de registro/login; solo en modo desarrollo. */
+  private debug(label: string, state: ClerkState): void {
+    if (!isDevMode()) {
+      return;
+    }
+    const client = (state as { client?: { signUp?: { status?: string }; signIn?: { status?: string } } }).client;
+    console.log(label, {
+      isSignedIn: state.isSignedIn,
+      user: state.user?.id ?? null,
+      session: state.session ? 'active' : null,
+      signUpStatus: client?.signUp?.status ?? null,
+      signInStatus: client?.signIn?.status ?? null,
+      url: window.location.href,
+    });
   }
 
   /**
@@ -95,6 +132,9 @@ export class ClerkService {
    * dispara, así que los cambios solo de hash se hacen nativamente.
    */
   private navigate(to: string, replace: boolean): Promise<unknown> | void {
+    if (isDevMode()) {
+      console.log('CLERK NAVIGATE', { to, replace, from: window.location.href });
+    }
     const url = new URL(to, window.location.origin);
     if (url.pathname === window.location.pathname && url.hash) {
       if (replace) {

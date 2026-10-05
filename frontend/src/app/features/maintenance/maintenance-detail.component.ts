@@ -8,6 +8,7 @@ import { WORK_TYPES } from '../../core/maintenance.service';
 
 /** Smart component: detalle del ticket, cambios de estado, asignación y registros de trabajo. */
 @Component({
+  selector: 'app-maintenance-detail',
   standalone: true,
   imports: [AsyncPipe, DatePipe, RouterLink],
   template: `
@@ -133,7 +134,7 @@ import { WORK_TYPES } from '../../core/maintenance.service';
     </main>
   `,
   styles: [
-    `.page { max-width: 900px; margin: 2.5rem auto; padding: 0 1.5rem; }
+    `.page { max-width: 900px; margin: .75rem auto 2rem; padding: 0 1.5rem; }
      .back { color: #2563eb; text-decoration: none; }
      .eyebrow { color: #2563eb; font-weight: 700; letter-spacing: .08em; }
      .error { color: #b91c1c; } .muted { color: #64748b; }

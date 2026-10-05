@@ -4,6 +4,7 @@ import { ClerkService } from '../../core/clerk.service';
 import { AUTH_SHELL_STYLES, AUTH_SHELL_TEMPLATE, AuthShellBase, CLERK_APPEARANCE } from './auth-shell';
 
 @Component({
+  selector: 'app-sign-up',
   standalone: true,
   template: AUTH_SHELL_TEMPLATE,
   styles: AUTH_SHELL_STYLES,
@@ -14,7 +15,7 @@ export class SignUpComponent extends AuthShellBase {
   private readonly clerk = inject(ClerkService);
 
   protected mount(host: HTMLElement): Promise<void> {
-    return this.clerk.mountSignUp(host, { appearance: CLERK_APPEARANCE, signInUrl: '/auth/login' });
+    return this.clerk.mountSignUp(host, { appearance: CLERK_APPEARANCE, signInUrl: '/auth/login', forceRedirectUrl: '/dashboard' });
   }
 
   protected unmount(host: HTMLElement): Promise<void> {

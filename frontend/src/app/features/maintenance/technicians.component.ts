@@ -6,6 +6,7 @@ import { TechniciansStore } from '../../core/technicians.store';
 
 /** Smart component: perfiles de técnicos y su disponibilidad. */
 @Component({
+  selector: 'app-technicians',
   standalone: true,
   imports: [AsyncPipe],
   template: `
@@ -62,7 +63,7 @@ import { TechniciansStore } from '../../core/technicians.store';
     }
   `,
   styles: [
-    `.page { max-width: 900px; margin: 3rem auto; padding: 0 1.5rem; }
+    `.page { max-width: 900px; margin: .75rem auto 2rem; padding: 0 1.5rem; }
      .eyebrow { color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
      .error { color: #b91c1c; }
      .card { display: grid; gap: .75rem; padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 10px; margin: 1.25rem 0; }

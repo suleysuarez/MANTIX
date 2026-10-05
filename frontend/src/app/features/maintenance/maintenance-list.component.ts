@@ -9,6 +9,7 @@ import { MaintenanceStore } from '../../core/maintenance.store';
 
 /** Smart component: filtros, paginación y alta de solicitudes de mantenimiento. */
 @Component({
+  selector: 'app-maintenance-list',
   standalone: true,
   imports: [AsyncPipe, DatePipe, RouterLink],
   template: `
@@ -102,7 +103,7 @@ import { MaintenanceStore } from '../../core/maintenance.store';
     }
   `,
   styles: [
-    `.page { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem; }
+    `.page { max-width: 1100px; margin: .75rem auto 2rem; padding: 0 1.5rem; }
      .eyebrow { color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
      .error { color: #b91c1c; }
      .card { display: grid; gap: .75rem; padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 10px; margin: 1.5rem 0; }

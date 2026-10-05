@@ -6,6 +6,7 @@ import { PendingUserCardComponent } from './pending-user-card.component';
 
 /** Smart (container) component: talks to the store, delegates rendering. */
 @Component({
+  selector: 'app-pending-users',
   standalone: true,
   imports: [AsyncPipe, PendingUserCardComponent],
   template: `
@@ -42,7 +43,7 @@ import { PendingUserCardComponent } from './pending-user-card.component';
     }
   `,
   styles: [
-    `.admin-page { max-width: 960px; margin: 3rem auto; padding: 0 1.5rem; }
+    `.admin-page { max-width: 960px; margin: .75rem auto 2rem; padding: 0 1.5rem; }
      .eyebrow { color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
      .user-list { display: grid; gap: 1rem; }
      .empty-card { padding: 1.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 10px; }

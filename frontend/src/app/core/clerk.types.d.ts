@@ -1,5 +1,19 @@
+export interface ClerkSessionActivity {
+  browserName?: string;
+  browserVersion?: string;
+  deviceType?: string;
+  ipAddress?: string;
+  city?: string;
+  country?: string;
+  isMobile?: boolean;
+}
+
 export interface ClerkSession {
+  id: string;
+  lastActiveAt?: Date;
+  latestActivity?: ClerkSessionActivity;
   getToken(): Promise<string | null>;
+  revoke?(): Promise<unknown>;
 }
 
 export interface ClerkUser {
@@ -8,6 +22,7 @@ export interface ClerkUser {
   fullName?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  getSessions?(): Promise<ClerkSession[]>;
 }
 
 export interface ClerkState {
@@ -27,6 +42,7 @@ export interface ClerkMountOptions {
   appearance?: ClerkAppearance;
   signInUrl?: string;
   signUpUrl?: string;
+  forceRedirectUrl?: string;
 }
 
 export interface ClerkLoadOptions {

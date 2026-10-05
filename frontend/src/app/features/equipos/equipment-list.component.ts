@@ -9,6 +9,7 @@ import { EquipmentToolbarComponent } from './equipment-toolbar.component';
 
 /** Smart (container) component: talks to the store, delegates rendering. */
 @Component({
+  selector: 'app-equipment-list',
   standalone: true,
   imports: [AsyncPipe, EquipmentFormComponent, EquipmentTableComponent, EquipmentToolbarComponent],
   template: `
@@ -53,7 +54,7 @@ import { EquipmentToolbarComponent } from './equipment-toolbar.component';
     }
   `,
   styles: [
-    `.equipment-page { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem; }
+    `.equipment-page { max-width: 1100px; margin: .75rem auto 2rem; padding: 0 1.5rem; }
      .eyebrow { color: #2563eb; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
      .error { color: #b91c1c; }`,
   ],

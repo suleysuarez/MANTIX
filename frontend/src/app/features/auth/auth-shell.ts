@@ -1,5 +1,4 @@
 import { AfterViewInit, Directive, ElementRef, OnDestroy, ViewChild } from '@angular/core';
-
 import { ClerkAppearance } from '../../core/clerk.types';
 
 /**
@@ -37,8 +36,7 @@ export const AUTH_SHELL_TEMPLATE = `
       playsinline
       preload="auto"
       aria-hidden="true">
-      <source src="/assets/videos/humo_fondo.webm" type="video/webm" />
-      <source src="/assets/videos/humo_fondo.mp4" type="video/mp4" />
+      <source src="assets/videos/humo_fondo.mp4" type="video/mp4" />
     </video>
 
     <section class="login-area">
@@ -315,6 +313,7 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
   @ViewChild('clerkShell', { static: true }) private readonly clerkShell!: ElementRef<HTMLElement>;
 
   private cardResizeObserver: ResizeObserver | null = null;
+  private badgeObserver: MutationObserver | null = null;
   ready = false;
 
   protected abstract mount(host: HTMLElement): Promise<void>;
@@ -336,11 +335,33 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
     this.cardResizeObserver = new ResizeObserver(() => this.updateSmokeHeight());
     this.cardResizeObserver.observe(this.clerkShell.nativeElement);
 
+    this.patchSecuredBy();
     await this.mount(this.authHost.nativeElement);
     this.ready = true;
     // El contenido de Clerk (Google, footer, banner de dev) llega async y
     // cambia la altura real de la tarjeta después del mount.
     this.updateSmokeHeight();
+  }
+
+  /** "Secured by" lo fija Clerk en gris casi negro; se localiza por texto y se aclara. */
+  private patchSecuredBy(): void {
+    const root = this.clerkShell?.nativeElement;
+    if (!root) {
+      return;
+    }
+    const patch = () => {
+      root.querySelectorAll<HTMLElement>('p, span, div, a').forEach((el) => {
+        if (el.children.length === 0 && el.textContent?.trim() === 'Secured by') {
+          el.style.fontSize = '1rem';
+          el.style.fontWeight = '500';
+          el.style.color = 'rgba(255, 255, 255, 0.95)';
+          el.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.45)';
+        }
+      });
+    };
+    patch();
+    this.badgeObserver = new MutationObserver(patch);
+    this.badgeObserver.observe(root, { childList: true, subtree: true });
   }
 
   /**
@@ -402,6 +423,7 @@ export abstract class AuthShellBase implements AfterViewInit, OnDestroy {
     window.removeEventListener('pageshow', this.resumeSmokeVideo);
     this.smokeVideo?.nativeElement.removeEventListener('pause', this.resumeSmokeVideo);
     this.cardResizeObserver?.disconnect();
+    this.badgeObserver?.disconnect();
     await this.unmount(this.authHost.nativeElement);
   }
 }
