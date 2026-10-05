@@ -13,7 +13,7 @@ describe('ClerkService', () => {
     const fakeClerk: ClerkInstance = {
       isSignedIn: true,
       user: { id: 'user_123' },
-      session: { getToken: jasmine.createSpy('getToken').and.resolveTo('clerk-token') },
+      session: { id: 'sess_1', getToken: jasmine.createSpy('getToken').and.resolveTo('clerk-token') },
       load: jasmine.createSpy('load').and.resolveTo(),
       addListener: jasmine.createSpy('addListener').and.callFake((listener) => {
         stateListener = listener;
