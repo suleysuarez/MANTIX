@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ClerkService } from '../../core/clerk.service';
 
 @Component({
+  selector: 'app-pending',
   standalone: true,
   template: `
     <main class="pending-page">

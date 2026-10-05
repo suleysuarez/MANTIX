@@ -8,11 +8,15 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
-  { label: 'Equipment', icon: 'devices', path: '/equipos', permission: 'equipment.read' },
-  { label: 'Maintenance', icon: 'build', path: '/maintenance', permission: 'maintenance.read' },
-  { label: 'Technicians', icon: 'engineering', path: '/technicians', permission: 'maintenance.read' },
-  { label: 'Pending users', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'users.manage' },
+  { label: 'Dashboard', icon: 'home', path: '/dashboard' },
+  { label: 'Equipos', icon: 'desktop_windows', path: '/equipos', permission: 'equipment.read' },
+  { label: 'Tickets', icon: 'confirmation_number', path: '/tickets', permission: 'maintenance.read' },
+  { label: 'Técnicos', icon: 'engineering', path: '/technicians', permission: 'maintenance.read' },
+  { label: 'Mantenimientos', icon: 'build', path: '/maintenance', permission: 'maintenance.read' },
+  { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'equipment.read' },
+  { label: 'Reportes', icon: 'monitoring', path: '/reportes', permission: 'maintenance.read' },
+  { label: 'Usuarios pendientes', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'users.manage' },
+  { label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'users.manage' },
 ];
 
 /** Solo los enlaces que el usuario puede usar. Las rutas siguen protegidas por sus guards. */
