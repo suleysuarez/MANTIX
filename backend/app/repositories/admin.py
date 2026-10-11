@@ -1,7 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.models.auth import Role, User, UserRole
+from app.models.auth import Permission, Role, User, UserRole
 from app.repositories.base import BaseRepository
 
 
@@ -55,3 +55,40 @@ class AdminRepository(BaseRepository[User]):
 
     async def reload_user(self, user_id: int) -> User | None:
         return await self.get_active_user(user_id)
+
+    async def list_roles_with_permissions(self) -> list[Role]:
+        result = await self.session.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .where(Role.is_active.is_(True))
+            .order_by(Role.code)
+        )
+        return list(result.scalars().all())
+
+    async def list_active_permissions(self) -> list[Permission]:
+        result = await self.session.execute(
+            select(Permission)
+            .where(Permission.is_active.is_(True))
+            .order_by(Permission.module, Permission.code)
+        )
+        return list(result.scalars().all())
+
+    async def get_user_role(self, user_id: int, role_id: int) -> UserRole | None:
+        result = await self.session.execute(
+            select(UserRole)
+            .options(selectinload(UserRole.role))
+            .where(UserRole.user_id == user_id, UserRole.role_id == role_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def count_active_users_with_role(self, role_code: str) -> int:
+        result = await self.session.execute(
+            select(func.count(func.distinct(User.id)))
+            .join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(Role.code == role_code, User.is_active.is_(True))
+        )
+        return int(result.scalar_one())
+
+    async def remove_user_role(self, user_role: UserRole) -> None:
+        await self.delete(user_role)
