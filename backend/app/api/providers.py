@@ -22,16 +22,19 @@ from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
+from app.repositories.report import ReportRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.audit import AuditService
 from app.services.auth import ClerkAuthService
 from app.services.dashboard import DashboardService
+from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
 from app.services.notification_inbox import NotificationInboxService
 from app.services.priority import PriorityService
+from app.services.report import ReportService
 from app.services.technician import TechnicianService
 
 Session = Depends(get_db)
@@ -60,6 +63,10 @@ def get_priority_repository(session: AsyncSession = Session) -> PriorityReposito
 
 def get_dashboard_repository(session: AsyncSession = Session) -> DashboardRepository:
     return DashboardRepository(session)
+
+
+def get_report_repository(session: AsyncSession = Session) -> ReportRepository:
+    return ReportRepository(session)
 
 
 def get_maintenance_repository(
@@ -150,3 +157,17 @@ def get_dashboard_service(
     repository: Annotated[DashboardRepository, Depends(get_dashboard_repository)],
 ) -> DashboardService:
     return DashboardService(repository)
+
+
+def get_report_service(
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    dashboard: Annotated[DashboardService, Depends(get_dashboard_service)],
+) -> ReportService:
+    return ReportService(repository, dashboard)
+
+
+def get_equipment_import_service(
+    repository: Annotated[EquipmentRepository, Depends(get_equipment_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> EquipmentImportService:
+    return EquipmentImportService(repository, audit)

@@ -83,6 +83,34 @@ class EquipmentRepository(BaseRepository[Equipment]):
         )
         return result.scalar_one_or_none()
 
+    async def active_type_ids_by_code(self) -> dict[str, int]:
+        result = await self.session.execute(
+            select(EquipmentType.code, EquipmentType.id).where(
+                EquipmentType.is_active.is_(True)
+            )
+        )
+        return {code.upper(): type_id for code, type_id in result.all()}
+
+    async def find_existing_identifiers(
+        self, asset_tags: set[str], serial_numbers: set[str]
+    ) -> tuple[set[str], set[str]]:
+        """Which of the given asset tags / serial numbers are already registered."""
+        tags: set[str] = set()
+        serials: set[str] = set()
+        if asset_tags:
+            result = await self.session.execute(
+                select(Equipment.asset_tag).where(Equipment.asset_tag.in_(asset_tags))
+            )
+            tags = set(result.scalars().all())
+        if serial_numbers:
+            result = await self.session.execute(
+                select(Equipment.serial_number).where(
+                    Equipment.serial_number.in_(serial_numbers)
+                )
+            )
+            serials = set(result.scalars().all())
+        return tags, serials
+
     async def get_type(self, equipment_type_id: int) -> EquipmentType | None:
         result = await self.session.execute(
             select(EquipmentType).where(
