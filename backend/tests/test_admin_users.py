@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.dependencies import require_permission
+from app.core.authz import AuthContext
 from app.core.exceptions import NotFoundError
 from app.services.admin import AdminUserService
 
@@ -142,6 +143,7 @@ def test_permission_boundary_distinguishes_403_from_authenticated_user():
     allowed = SimpleNamespace(
         roles=[
             SimpleNamespace(
+                code="ADMIN",
                 is_active=True,
                 permissions=[SimpleNamespace(code="users.manage", is_active=True)],
             )
@@ -151,8 +153,9 @@ def test_permission_boundary_distinguishes_403_from_authenticated_user():
     with pytest.raises(HTTPException) as error:
         import asyncio
 
-        asyncio.run(dependency(denied))
+        asyncio.run(dependency(AuthContext.from_user(denied)))
     assert error.value.status_code == 403
     import asyncio
 
-    assert asyncio.run(dependency(allowed)) is allowed
+    context = AuthContext.from_user(allowed)
+    assert asyncio.run(dependency(context)) is context

@@ -1,10 +1,10 @@
 """Composition root: FastAPI `Depends` providers for repositories and services.
 
-Wiring is one chain per request -- `get_db` -> repositories/audit ->
-service -- so every collaborator shares the same `AsyncSession` (and therefore
-one transaction). Routes depend on the service providers only and never see the
-session. Tests can swap any link with `app.dependency_overrides`, or build a
-service directly from fakes.
+Wiring is one chain per request -- `get_db` (session) -> `get_*_repository`
+-> `get_*_service` -- so every collaborator shares the same `AsyncSession` (and
+therefore one transaction). Services never build repositories themselves, and
+routes depend on service providers only. Tests can swap any link with
+`app.dependency_overrides`, or build a service directly from fakes.
 """
 
 from typing import Annotated
@@ -12,14 +12,18 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.repositories.admin import AdminRepository
+from app.repositories.audit import AuditRepository
+from app.repositories.auth import AuthRepository
 from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.audit import AuditService
+from app.services.auth import ClerkAuthService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
@@ -29,18 +33,21 @@ from app.services.technician import TechnicianService
 Session = Depends(get_db)
 
 
-def get_audit_service(session: AsyncSession = Session) -> AuditService:
-    return AuditService(session)
+# -- Repositories ----------------------------------------------------------
 
 
-def get_notification_service(session: AsyncSession = Session) -> NotificationService:
-    return NotificationService(session)
+def get_audit_repository(session: AsyncSession = Session) -> AuditRepository:
+    return AuditRepository(session)
 
 
-def get_notification_inbox_service(
+def get_auth_repository(session: AsyncSession = Session) -> AuthRepository:
+    return AuthRepository(session)
+
+
+def get_notification_repository(
     session: AsyncSession = Session,
-) -> NotificationInboxService:
-    return NotificationInboxService(NotificationRepository(session))
+) -> NotificationRepository:
+    return NotificationRepository(session)
 
 
 def get_maintenance_repository(
@@ -61,6 +68,34 @@ def get_technician_repository(
 
 def get_admin_repository(session: AsyncSession = Session) -> AdminRepository:
     return AdminRepository(session)
+
+
+# -- Services --------------------------------------------------------------
+
+
+def get_audit_service(
+    repository: Annotated[AuditRepository, Depends(get_audit_repository)],
+) -> AuditService:
+    return AuditService(repository)
+
+
+def get_notification_service(
+    repository: Annotated[NotificationRepository, Depends(get_notification_repository)],
+) -> NotificationService:
+    return NotificationService(repository)
+
+
+def get_auth_service(
+    repository: Annotated[AuthRepository, Depends(get_auth_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ClerkAuthService:
+    return ClerkAuthService(repository, settings)
+
+
+def get_notification_inbox_service(
+    repository: Annotated[NotificationRepository, Depends(get_notification_repository)],
+) -> NotificationInboxService:
+    return NotificationInboxService(repository)
 
 
 def get_maintenance_service(

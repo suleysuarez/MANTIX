@@ -1,6 +1,4 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.notification import Notification
+from app.repositories.notification import NotificationRepository
 
 
 class NotificationService:
@@ -11,8 +9,8 @@ class NotificationService:
     Delivery (email/push) is out of scope; the frontend lists/polls these.
     """
 
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, repository: NotificationRepository):
+        self.repository = repository
 
     def notify(
         self,
@@ -23,12 +21,10 @@ class NotificationService:
         notification_type: str,
         link_url: str | None = None,
     ) -> None:
-        self.session.add(
-            Notification(
-                user_id=user_id,
-                title=title,
-                message=message,
-                notification_type=notification_type,
-                link_url=link_url,
-            )
+        self.repository.stage(
+            user_id=user_id,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            link_url=link_url,
         )

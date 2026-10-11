@@ -1,5 +1,5 @@
+from app.core.authz import AuthContext
 from app.core.exceptions import NotFoundError
-from app.models.auth import User
 from app.repositories.admin import AdminRepository
 from app.schemas.admin import (
     AdminRoleResponse,
@@ -30,7 +30,7 @@ class AdminUserService:
         return [AdminRoleResponse.model_validate(role) for role in roles]
 
     async def assign_roles(
-        self, user_id: int, role_ids: list[int], assigned_by: User
+        self, user_id: int, role_ids: list[int], assigned_by: AuthContext
     ) -> ManagedUserResponse:
         user = await self.repository.get_active_user(user_id)
         if user is None:

@@ -9,6 +9,26 @@ from app.repositories.base import BaseRepository
 class NotificationRepository(BaseRepository[Notification]):
     model = Notification
 
+    def stage(
+        self,
+        *,
+        user_id: int,
+        title: str,
+        message: str,
+        notification_type: str,
+        link_url: str | None = None,
+    ) -> None:
+        """Add a notification to the caller's transaction (no commit)."""
+        self.add(
+            Notification(
+                user_id=user_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                link_url=link_url,
+            )
+        )
+
     async def list_for_user(
         self, user_id: int, *, unread_only: bool, limit: int, offset: int
     ) -> list[Notification]:

@@ -1,5 +1,4 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, get_clerk_profile
 from app.core.config import Settings
@@ -10,8 +9,8 @@ from app.schemas.auth import PermissionResponse, RoleResponse, UserResponse
 
 
 class ClerkAuthService:
-    def __init__(self, session: AsyncSession, settings: Settings):
-        self.repository = AuthRepository(session)
+    def __init__(self, repository: AuthRepository, settings: Settings):
+        self.repository = repository
         self.settings = settings
 
     async def resolve_local_user(self, identity: VerifiedClerkIdentity) -> User:

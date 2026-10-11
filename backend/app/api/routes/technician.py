@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.dependencies import require_permission
 from app.api.providers import get_technician_service
-from app.models.auth import User
+from app.core.authz import AuthContext
 from app.schemas.technician import (
     TechnicianCreate,
     TechnicianResponse,
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/technicians", tags=["technicians"])
 @router.get("", response_model=list[TechnicianResponse])
 async def list_technicians(
     is_available: bool | None = Query(default=None),
-    _: User = Depends(require_permission("maintenance.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> list[TechnicianResponse]:
     return await service.list(is_available=is_available)
@@ -25,7 +25,7 @@ async def list_technicians(
 @router.post("", response_model=TechnicianResponse, status_code=status.HTTP_201_CREATED)
 async def create_technician(
     payload: TechnicianCreate,
-    _: User = Depends(require_permission("technicians.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> TechnicianResponse:
     return await service.create(payload)
@@ -35,7 +35,7 @@ async def create_technician(
 async def update_technician(
     technician_id: int,
     payload: TechnicianUpdate,
-    _: User = Depends(require_permission("technicians.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> TechnicianResponse:
     return await service.update(technician_id, payload)
