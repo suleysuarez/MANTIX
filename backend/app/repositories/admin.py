@@ -1,13 +1,12 @@
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.auth import Role, User, UserRole
+from app.repositories.base import BaseRepository
 
 
-class AdminRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class AdminRepository(BaseRepository[User]):
+    model = User
 
     async def list_pending_users(self) -> list[User]:
         result = await self.session.execute(
@@ -53,12 +52,6 @@ class AdminRepository:
                         assigned_by_user_id=assigned_by_user_id,
                     )
                 )
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()
 
     async def reload_user(self, user_id: int) -> User | None:
         return await self.get_active_user(user_id)

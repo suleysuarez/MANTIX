@@ -1,14 +1,13 @@
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.clerk import ClerkProfile
 from app.models.auth import Role, User, UserRole
+from app.repositories.base import BaseRepository
 
 
-class AuthRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class AuthRepository(BaseRepository[User]):
+    model = User
 
     @staticmethod
     def _user_query():
@@ -61,9 +60,3 @@ class AuthRepository:
 
     async def assign_role(self, user: User, role: Role) -> None:
         self.session.add(UserRole(user_id=user.id, role_id=role.id))
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()

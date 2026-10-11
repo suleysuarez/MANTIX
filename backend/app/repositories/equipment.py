@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.equipment import (
@@ -12,12 +11,12 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
+from app.repositories.base import BaseRepository
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, LocationCreate
 
 
-class EquipmentRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class EquipmentRepository(BaseRepository[Equipment]):
+    model = Equipment
 
     @staticmethod
     def _equipment_query():
@@ -37,23 +36,16 @@ class EquipmentRepository:
             query = query.where(Equipment.status == status)
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
-        if search:
-            # Los comodines escritos por el usuario se tratan como texto literal.
-            escaped = (
-                search.strip()
-                .replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_")
-            )
-            pattern = f"%{escaped}%"
-            query = query.where(
-                or_(
-                    Equipment.asset_tag.ilike(pattern, escape="\\"),
-                    Equipment.serial_number.ilike(pattern, escape="\\"),
-                    Equipment.brand.ilike(pattern, escape="\\"),
-                    Equipment.model.ilike(pattern, escape="\\"),
-                )
-            )
+        query = self.apply_search(
+            query,
+            search,
+            [
+                Equipment.asset_tag,
+                Equipment.serial_number,
+                Equipment.brand,
+                Equipment.model,
+            ],
+        )
         query = query.order_by(Equipment.asset_tag).limit(limit).offset(offset)
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -201,9 +193,3 @@ class EquipmentRepository:
         self.session.add(entry)
         await self.session.flush()
         return entry
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()
