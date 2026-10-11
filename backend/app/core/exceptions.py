@@ -13,6 +13,7 @@ class AppError(Exception):
     """Base class for all domain errors. Carries the HTTP status to map to."""
 
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
+    code: str = "internal_error"
 
     def __init__(self, detail: str):
         self.detail = detail
@@ -21,23 +22,28 @@ class AppError(Exception):
 
 class NotFoundError(AppError):
     status_code = status.HTTP_404_NOT_FOUND
+    code = "not_found"
 
 
 class ConflictError(AppError):
     status_code = status.HTTP_409_CONFLICT
+    code = "conflict"
 
 
 class ForbiddenError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
+    code = "forbidden"
 
 
 class BusinessRuleError(AppError):
     """A request is well-formed but violates a domain/workflow rule."""
 
     status_code = status.HTTP_409_CONFLICT
+    code = "business_rule_violation"
 
 
 class InvalidTransitionError(AppError):
     """A ticket status change that the state machine does not allow."""
 
     status_code = status.HTTP_409_CONFLICT
+    code = "invalid_transition"

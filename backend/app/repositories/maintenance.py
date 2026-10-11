@@ -84,6 +84,12 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         )
         return result.scalar_one_or_none()
 
+    async def get_active_priority(self, code: str) -> Priority | None:
+        result = await self.session.execute(
+            select(Priority).where(Priority.code == code, Priority.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()
+
     async def get(self, request_id: int) -> MaintenanceRequest | None:
         result = await self.session.execute(
             self._request_query().where(MaintenanceRequest.id == request_id)

@@ -1,10 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MaintenancePriority = Literal["low", "medium", "high", "critical"]
+#: A `priorities.code` from the managed catalog (validated by the service).
+MaintenancePriority = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,19}$")]
 MaintenanceRequestStatus = Literal[
     "submitted",
     "triaged",
@@ -67,6 +68,17 @@ class TicketStatusHistoryEntry(BaseModel):
 
 
 class MaintenanceRequestCreate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "equipment_id": 12,
+                "title": "Laptop will not boot",
+                "description": "Black screen after the Dell logo since this morning.",
+                "priority": "high",
+            }
+        }
+    )
+
     equipment_id: int
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1)
@@ -74,17 +86,46 @@ class MaintenanceRequestCreate(BaseModel):
 
 
 class MaintenanceStatusTransitionRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "resolved",
+                "notes": "Replaced the faulty SSD",
+                "resolution_summary": "SSD replaced and OS reinstalled.",
+            }
+        }
+    )
+
     status: MaintenanceRequestStatus
     notes: str | None = None
     resolution_summary: str | None = None
 
 
 class TicketAssignmentCreateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"technician_id": 4, "notes": "On-site visit"}}
+    )
+
     technician_id: int
     notes: str | None = None
 
 
 class MaintenanceRecordCreate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "work_type": "corrective",
+                "started_at": "2026-10-11T09:00:00Z",
+                "completed_at": "2026-10-11T10:30:00Z",
+                "diagnosis": "Failing SSD",
+                "actions_taken": "Replaced SSD and reinstalled the OS",
+                "result": "resolved",
+                "labor_cost": "35.00",
+                "parts_cost": "80.00",
+            }
+        }
+    )
+
     work_type: WorkType
     started_at: datetime
     completed_at: datetime | None = None

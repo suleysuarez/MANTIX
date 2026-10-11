@@ -65,6 +65,9 @@ class FakeMaintenanceRepository:
         self._ticket_seq = 0
         self.committed = False
 
+    async def get_active_priority(self, code):
+        return SimpleNamespace(code=code) if code != "unknown" else None
+
     async def get_equipment(self, equipment_id):
         return self.equipment.get(equipment_id)
 

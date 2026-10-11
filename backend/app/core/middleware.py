@@ -34,6 +34,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex
+        request.state.request_id = request_id
         started = time.perf_counter()
         try:
             response = await call_next(request)
@@ -95,7 +96,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             retry_after = max(1, int(self.window - (now - hits[0])))
             return JSONResponse(
                 status_code=429,
-                content={"detail": "too many requests"},
+                content={
+                    "detail": "too many requests",
+                    "code": "rate_limited",
+                    "errors": None,
+                    "request_id": getattr(request.state, "request_id", None),
+                },
                 headers={"Retry-After": str(retry_after)},
             )
         hits.append(now)

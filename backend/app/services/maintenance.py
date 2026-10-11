@@ -43,6 +43,8 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         if await self.repository.get_equipment(payload.equipment_id) is None:
             raise NotFoundError("equipment not found")
+        if await self.repository.get_active_priority(payload.priority) is None:
+            raise NotFoundError(f"priority '{payload.priority}' not found or inactive")
         ticket_number = await self.repository.next_ticket_number()
         request = await self.repository.create_request(
             ticket_number=ticket_number,

@@ -14,6 +14,16 @@ class TechnicianResponse(BaseModel):
 
 
 class TechnicianCreate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "user_id": 7,
+                "specialization": "Networking",
+                "hourly_rate": "25.00",
+            }
+        }
+    )
+
     user_id: int
     specialization: str | None = Field(default=None, max_length=100)
     hourly_rate: Decimal | None = Field(default=None, ge=0, decimal_places=2)

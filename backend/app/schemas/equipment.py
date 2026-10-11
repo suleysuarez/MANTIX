@@ -41,6 +41,22 @@ class EquipmentResponse(BaseModel):
 
 
 class EquipmentCreate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "asset_tag": "LT-0042",
+                "serial_number": "5CG1234XYZ",
+                "equipment_type_id": 1,
+                "brand": "Dell",
+                "model": "Latitude 5440",
+                "status": "in_storage",
+                "purchase_date": "2026-01-15",
+                "purchase_cost": "1250.00",
+                "warranty_end_date": "2029-01-15",
+            }
+        }
+    )
+
     asset_tag: str = Field(min_length=1, max_length=50)
     serial_number: str | None = Field(default=None, max_length=100)
     equipment_type_id: int
