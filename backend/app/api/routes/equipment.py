@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
+from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_equipment_service
 from app.core.authz import AuthContext
+from app.core.pagination import PageParams
 from app.schemas.equipment import (
     EquipmentCreate,
     EquipmentCustodyAssignRequest,
@@ -18,23 +20,40 @@ from app.services.equipment import EquipmentService
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
 
-@router.get("", response_model=list[EquipmentResponse])
+@router.get(
+    "",
+    response_model=list[EquipmentResponse],
+    summary="List equipment",
+    description=(
+        "Paginated, filterable and sortable equipment catalog. "
+        "Sort fields: `asset_tag`, `brand`, `model`, `status`, `purchase_date`, "
+        "`created_at`. Pagination metadata is returned in the `X-Total-Count`, "
+        "`X-Page`, `X-Page-Size` and `X-Total-Pages` headers."
+    ),
+)
 async def list_equipment(
+    response: Response,
     status_filter: str | None = Query(default=None, alias="status"),
     equipment_type_id: int | None = Query(default=None),
-    search: str | None = Query(default=None, max_length=100),
-    limit: int = Query(default=200, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    brand: str | None = Query(default=None, max_length=100),
+    search: str | None = Query(
+        default=None,
+        max_length=100,
+        description="Matches asset tag, serial number, brand or model",
+    ),
+    params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
     _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentResponse]:
-    return await service.list_equipment(
+    page = await service.list_equipment(
         status=status_filter,
         equipment_type_id=equipment_type_id,
+        brand=brand,
         search=search,
-        limit=limit,
-        offset=offset,
+        params=params,
     )
+    set_page_headers(response, page)
+    return page.items
 
 
 @router.get("/types", response_model=list[EquipmentTypeResponse])
@@ -100,12 +119,19 @@ async def assign_equipment_custody(
 location_router = APIRouter(prefix="/locations", tags=["equipment"])
 
 
-@location_router.get("", response_model=list[LocationResponse])
+@location_router.get(
+    "", response_model=list[LocationResponse], summary="List locations"
+)
 async def list_locations(
+    response: Response,
+    search: str | None = Query(default=None, max_length=100),
+    params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
     _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[LocationResponse]:
-    return await service.list_locations()
+    page = await service.list_locations(search=search, params=params)
+    set_page_headers(response, page)
+    return page.items
 
 
 @location_router.post(

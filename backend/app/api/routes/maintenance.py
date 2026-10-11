@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, Query, status
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
+from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_maintenance_service
 from app.core.authz import AuthContext
+from app.core.pagination import PageParams
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRecordResponse,
@@ -28,24 +32,45 @@ async def create_maintenance_request(
     return await service.create_request(payload, actor)
 
 
-@router.get("", response_model=list[MaintenanceRequestListItem])
+@router.get(
+    "",
+    response_model=list[MaintenanceRequestListItem],
+    summary="List maintenance tickets",
+    description=(
+        "Admins and supervisors see every ticket; technicians see the tickets "
+        "assigned to them; everyone else sees only their own. "
+        "Sort fields: `created_at`, `updated_at`, `status`, `priority` "
+        "(by urgency level), `ticket_number`."
+    ),
+)
 async def list_maintenance_requests(
+    response: Response,
     status_filter: str | None = Query(default=None, alias="status"),
     priority: str | None = Query(default=None),
     equipment_id: int | None = Query(default=None),
-    limit: int = Query(default=200, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    search: str | None = Query(
+        default=None,
+        max_length=100,
+        description="Matches ticket number, title or description",
+    ),
+    date_from: datetime | None = Query(default=None, description="Created at or after"),  # noqa: B008
+    date_to: datetime | None = Query(default=None, description="Created at or before"),  # noqa: B008
+    params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
     actor: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> list[MaintenanceRequestListItem]:
-    return await service.list_requests(
+    page = await service.list_requests(
         status=status_filter,
         priority=priority,
         equipment_id=equipment_id,
-        limit=limit,
-        offset=offset,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        params=params,
         actor=actor,
     )
+    set_page_headers(response, page)
+    return page.items
 
 
 @router.get("/{request_id}", response_model=MaintenanceRequestResponse)

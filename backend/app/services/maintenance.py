@@ -2,8 +2,10 @@ from datetime import datetime, timezone
 
 from app.core.authz import AuthContext
 from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.domain.ticket_state import TicketState
 from app.models.maintenance import MaintenanceRequest
+from app.repositories.base import Page
 from app.repositories.maintenance import MaintenanceRepository
 from app.schemas.maintenance import (
     EquipmentSummary,
@@ -77,10 +79,12 @@ class MaintenanceService:
         status: str | None,
         priority: str | None,
         equipment_id: int | None,
-        limit: int,
-        offset: int,
+        search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        params: PageParams = DEFAULT_PAGE,
         actor: AuthContext,
-    ) -> list[MaintenanceRequestListItem]:
+    ) -> Page[MaintenanceRequestListItem]:
         requested_by_user_id = None
         technician_id = None
         if not actor.is_elevated:
@@ -89,16 +93,18 @@ class MaintenanceService:
                 technician_id = technician.id
             else:
                 requested_by_user_id = actor.id
-        items = await self.repository.list_requests(
+        page = await self.repository.list_requests(
             status=status,
             priority=priority,
             equipment_id=equipment_id,
             requested_by_user_id=requested_by_user_id,
             technician_id=technician_id,
-            limit=min(limit, 500),
-            offset=offset,
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
+            params=params,
         )
-        return [MaintenanceRequestListItem.model_validate(item) for item in items]
+        return page.map(MaintenanceRequestListItem.model_validate)
 
     async def get_request(
         self, request_id: int, actor: AuthContext

@@ -1,7 +1,9 @@
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.technician import Technician
+from app.repositories.base import Page
 from app.repositories.technician import TechnicianRepository
 from app.schemas.technician import (
     TechnicianCreate,
@@ -15,12 +17,16 @@ class TechnicianService:
         self.repository = repository
 
     async def list(
-        self, *, is_available: bool | None = None
-    ) -> list[TechnicianResponse]:
-        return [
-            TechnicianResponse.model_validate(item)
-            for item in await self.repository.list(is_available=is_available)
-        ]
+        self,
+        *,
+        is_available: bool | None = None,
+        search: str | None = None,
+        params: PageParams = DEFAULT_PAGE,
+    ) -> Page[TechnicianResponse]:
+        page = await self.repository.list(
+            is_available=is_available, search=search, params=params
+        )
+        return page.map(TechnicianResponse.model_validate)
 
     async def create(self, payload: TechnicianCreate) -> TechnicianResponse:
         if await self.repository.get_active_user(payload.user_id) is None:

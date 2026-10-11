@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.equipment import (
     Equipment,
     EquipmentCustodyHistory,
@@ -11,8 +12,18 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
-from app.repositories.base import BaseRepository
+from app.repositories.base import BaseRepository, Page, escape_like
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, LocationCreate
+
+EQUIPMENT_SORT_FIELDS = {
+    "asset_tag": Equipment.asset_tag,
+    "brand": Equipment.brand,
+    "model": Equipment.model,
+    "status": Equipment.status,
+    "purchase_date": Equipment.purchase_date,
+    "created_at": Equipment.created_at,
+    "id": Equipment.id,
+}
 
 
 class EquipmentRepository(BaseRepository[Equipment]):
@@ -27,15 +38,17 @@ class EquipmentRepository(BaseRepository[Equipment]):
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        brand: str | None = None,
         search: str | None = None,
-        limit: int = 200,
-        offset: int = 0,
-    ) -> list[Equipment]:
+        params: PageParams = DEFAULT_PAGE,
+    ) -> Page[Equipment]:
         query = self._equipment_query()
         if status is not None:
             query = query.where(Equipment.status == status)
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if brand:
+            query = query.where(Equipment.brand.ilike(escape_like(brand), escape="\\"))
         query = self.apply_search(
             query,
             search,
@@ -46,9 +59,15 @@ class EquipmentRepository(BaseRepository[Equipment]):
                 Equipment.model,
             ],
         )
-        query = query.order_by(Equipment.asset_tag).limit(limit).offset(offset)
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
+        query = self.apply_ordering(
+            query,
+            params.sort,
+            EQUIPMENT_SORT_FIELDS,
+            default=(Equipment.asset_tag, Equipment.id),
+        )
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
 
     async def list_types(self) -> list[EquipmentType]:
         result = await self.session.execute(
@@ -106,11 +125,20 @@ class EquipmentRepository(BaseRepository[Equipment]):
 
     # -- Locations -----------------------------------------------------
 
-    async def list_locations(self) -> list[Location]:
-        result = await self.session.execute(
-            select(Location).where(Location.is_active.is_(True)).order_by(Location.name)
+    async def list_locations(
+        self, *, search: str | None = None, params: PageParams = DEFAULT_PAGE
+    ) -> Page[Location]:
+        query = select(Location).where(Location.is_active.is_(True))
+        query = self.apply_search(query, search, [Location.name])
+        query = self.apply_ordering(
+            query,
+            params.sort,
+            {"name": Location.name, "id": Location.id},
+            default=(Location.name, Location.id),
         )
-        return list(result.scalars().all())
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
 
     async def get_location(self, location_id: int) -> Location | None:
         result = await self.session.execute(

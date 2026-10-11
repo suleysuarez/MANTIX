@@ -6,7 +6,7 @@ methods. Transaction control (`commit`/`rollback`) lives here so every
 repository exposes the same unit-of-work surface.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, ClassVar, Generic, TypeVar
 
@@ -17,18 +17,29 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from app.db.base import Base
 
 ModelT = TypeVar("ModelT", bound=Base)
+ItemT = TypeVar("ItemT")
+MappedT = TypeVar("MappedT")
 
-MAX_PAGE_SIZE = 200
+MAX_PAGE_SIZE = 500
 
 
 @dataclass(frozen=True, slots=True)
-class Page(Generic[ModelT]):
+class Page(Generic[ItemT]):
     """One page of results plus the total number of matching rows."""
 
-    items: list[ModelT]
+    items: list[ItemT]
     total: int
     page: int
     size: int
+
+    def map(self, convert: Callable[[ItemT], MappedT]) -> "Page[MappedT]":
+        """Same page metadata with each item converted (e.g. to a schema)."""
+        return Page(
+            items=[convert(item) for item in self.items],
+            total=self.total,
+            page=self.page,
+            size=self.size,
+        )
 
     @property
     def pages(self) -> int:
@@ -90,13 +101,14 @@ class BaseRepository(Generic[ModelT]):
     def apply_ordering(
         query: Select[Any],
         sort: str | None,
-        allowed: Mapping[str, InstrumentedAttribute[Any]],
+        allowed: Mapping[str, Any],
         default: Sequence[Any] = (),
     ) -> Select[Any]:
         """Order by `sort` (`field` or `-field`); unknown fields are ignored.
 
         Only whitelisted columns can be sorted on, so the value never reaches SQL.
-        A trailing `id` tiebreaker (when present in `allowed`) keeps pages stable.
+        `default` is always appended, so it also acts as the tiebreaker that keeps
+        pages stable when the requested column has repeated values.
         """
         clauses: list[Any] = []
         if sort:
@@ -104,8 +116,7 @@ class BaseRepository(Generic[ModelT]):
             column = allowed.get(sort.lstrip("-+"))
             if column is not None:
                 clauses.append(column.desc() if descending else column.asc())
-        if not clauses:
-            clauses.extend(default)
+        clauses.extend(default)
         return query.order_by(*clauses)
 
     async def paginate(
@@ -114,13 +125,19 @@ class BaseRepository(Generic[ModelT]):
         *,
         page: int = 1,
         size: int = 20,
+        offset: int | None = None,
         unique: bool = False,
     ) -> Page[Any]:
-        page = max(page, 1)
         size = min(max(size, 1), MAX_PAGE_SIZE)
+        if offset is not None:
+            offset = max(offset, 0)
+            page = offset // size + 1
+        else:
+            page = max(page, 1)
+            offset = (page - 1) * size
         count_query = select(func.count()).select_from(query.order_by(None).subquery())
         total = int((await self.session.execute(count_query)).scalar_one())
-        result = await self.session.execute(query.limit(size).offset((page - 1) * size))
+        result = await self.session.execute(query.limit(size).offset(offset))
         scalars = result.unique().scalars() if unique else result.scalars()
         return Page(items=list(scalars.all()), total=total, page=page, size=size)
 
