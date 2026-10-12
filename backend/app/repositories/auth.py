@@ -21,13 +21,15 @@ class AuthRepository(BaseRepository[User]):
         result = await self.session.execute(
             self._user_query().where(User.clerk_user_id == clerk_user_id)
         )
-        return result.scalar_one_or_none()
+        user: User | None = result.scalar_one_or_none()
+        return user
 
     async def get_user_by_email(self, email: str) -> User | None:
         result = await self.session.execute(
             self._user_query().where(User.email == email)
         )
-        return result.scalar_one_or_none()
+        user: User | None = result.scalar_one_or_none()
+        return user
 
     async def get_employee_role(self) -> Role | None:
         result = await self.session.execute(

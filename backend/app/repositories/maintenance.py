@@ -75,7 +75,7 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         result = await self.session.execute(
             text("SELECT nextval('maintenance_ticket_number_seq')")
         )
-        sequence_value = result.scalar_one()
+        sequence_value: int = result.scalar_one()
         year = datetime.now(UTC).year
         return f"TCK-{year}-{sequence_value:06d}"
 
@@ -95,7 +95,8 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         result = await self.session.execute(
             self._request_query().where(MaintenanceRequest.id == request_id)
         )
-        return result.scalar_one_or_none()
+        request: MaintenanceRequest | None = result.scalar_one_or_none()
+        return request
 
     async def list_requests(
         self,

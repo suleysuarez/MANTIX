@@ -34,7 +34,8 @@ class ScheduleRepository(BaseRepository[MaintenanceSchedule]):
         result = await self.session.execute(
             self._query().where(MaintenanceSchedule.id == entity_id)
         )
-        return result.scalar_one_or_none()
+        schedule: MaintenanceSchedule | None = result.scalar_one_or_none()
+        return schedule
 
     async def try_acquire_reminder_lock(self) -> bool:
         """Transaction-scoped advisory lock: only one worker runs the job at a time.

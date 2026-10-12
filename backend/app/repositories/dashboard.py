@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, case, func, null, select
+from sqlalchemy import and_, case, func, null, select
 
 from app.models.auth import User
 from app.models.equipment import Equipment
@@ -63,7 +63,7 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
     model = MaintenanceRequest
 
     @staticmethod
-    def _scope(query: Select[Any], technician_id: int | None) -> Select[Any]:
+    def _scope(query: Any, technician_id: int | None) -> Any:
         if technician_id is None:
             return query
         return query.where(
