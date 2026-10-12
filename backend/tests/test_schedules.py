@@ -417,7 +417,7 @@ async def test_changing_the_technician_is_reflected_in_the_response_against_post
     from app.repositories.schedule import ScheduleRepository
     from app.repositories.technician import TechnicianRepository
 
-    user, schedule = await seed_schedule(db_session, due_in_days=5)
+    _, schedule = await seed_schedule(db_session, due_in_days=5)
     other_user = User(
         clerk_user_id="t2", email="t2@x.co", full_name="Tech Two", is_active=True
     )
