@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -30,27 +29,37 @@ def _forbidden(detail: str = "insufficient permissions") -> HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
-def require_permission(permission_code: str) -> Callable[..., AuthContext]:
-    """Dependency factory: the caller must hold `permission_code`."""
+class RequirePermission:
+    """Dependency: the caller must hold `code`. Exposes `code` for introspection."""
 
-    async def dependency(
-        context: Annotated[AuthContext, Depends(get_auth_context)],
+    def __init__(self, code: str):
+        self.code = code
+
+    async def __call__(
+        self, context: Annotated[AuthContext, Depends(get_auth_context)]
     ) -> AuthContext:
-        if not context.has_permission(permission_code):
+        if not context.has_permission(self.code):
             raise _forbidden()
         return context
 
-    return dependency
 
+class RequireRole:
+    """Dependency: the caller must hold at least one of `codes`."""
 
-def require_role(*role_codes: str) -> Callable[..., AuthContext]:
-    """Dependency factory: the caller must hold at least one of `role_codes`."""
+    def __init__(self, *codes: str):
+        self.codes = frozenset(codes)
 
-    async def dependency(
-        context: Annotated[AuthContext, Depends(get_auth_context)],
+    async def __call__(
+        self, context: Annotated[AuthContext, Depends(get_auth_context)]
     ) -> AuthContext:
-        if not context.has_role(*role_codes):
+        if not context.has_role(*self.codes):
             raise _forbidden("insufficient role")
         return context
 
-    return dependency
+
+def require_permission(permission_code: str) -> RequirePermission:
+    return RequirePermission(permission_code)
+
+
+def require_role(*role_codes: str) -> RequireRole:
+    return RequireRole(*role_codes)

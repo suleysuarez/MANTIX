@@ -78,7 +78,7 @@ register_exception_handlers(app)
 #: Documented on every protected endpoint (the body is `ErrorResponse`).
 COMMON_ERRORS = error_responses(401, 403, 422, 429)
 
-for router in (
+API_ROUTERS = (
     auth_router,
     admin_router,
     equipment_router,
@@ -87,7 +87,9 @@ for router in (
     maintenance_router,
     priority_router,
     notification_router,
-):
+)
+
+for router in API_ROUTERS:
     app.include_router(router, responses=COMMON_ERRORS)
 
 

@@ -1,10 +1,12 @@
-from app.core.authz import AuthContext
-from app.core.exceptions import NotFoundError
+from app.core.authz import ADMIN, AuthContext
+from app.core.exceptions import ConflictError, NotFoundError
 from app.repositories.admin import AdminRepository
 from app.schemas.admin import (
     AdminRoleResponse,
     ManagedUserResponse,
     PendingUserResponse,
+    PermissionDetail,
+    RoleDetailResponse,
 )
 from app.services.audit import AuditService
 from app.services.notification import NotificationService
@@ -69,4 +71,64 @@ class AdminUserService:
             email=updated.email,
             full_name=updated.full_name,
             role_ids=sorted(user_role.role_id for user_role in updated.user_roles),
+        )
+
+    async def role_matrix(self) -> list[RoleDetailResponse]:
+        roles = await self.repository.list_roles_with_permissions()
+        return [
+            RoleDetailResponse(
+                id=role.id,
+                code=role.code,
+                name=role.name,
+                description=role.description,
+                permissions=[
+                    PermissionDetail.model_validate(permission)
+                    for permission in sorted(role.permissions, key=lambda p: p.code)
+                    if permission.is_active
+                ],
+            )
+            for role in roles
+        ]
+
+    async def list_permissions(self) -> list[PermissionDetail]:
+        permissions = await self.repository.list_active_permissions()
+        return [PermissionDetail.model_validate(item) for item in permissions]
+
+    async def revoke_role(
+        self, user_id: int, role_id: int, actor: AuthContext
+    ) -> ManagedUserResponse:
+        """Remove one role from a user, never leaving the system without an admin."""
+        user_role = await self.repository.get_user_role(user_id, role_id)
+        if user_role is None:
+            raise NotFoundError("the user does not have that role")
+        role = user_role.role
+        if role.code == ADMIN:
+            if user_id == actor.id:
+                raise ConflictError("you cannot revoke your own ADMIN role")
+            if await self.repository.count_active_users_with_role(ADMIN) <= 1:
+                raise ConflictError("cannot revoke the last active ADMIN")
+
+        await self.repository.remove_user_role(user_role)
+        self.audit.record(
+            user_id=actor.id,
+            action="roles.revoked",
+            entity_type="user",
+            entity_id=user_id,
+            old_values={"role_codes": [role.code]},
+        )
+        self.notifications.notify(
+            user_id=user_id,
+            title="Access changed",
+            message=f"The role {role.name} was removed from your account.",
+            notification_type="role_revoked",
+        )
+        await self.repository.commit()
+        updated = await self.repository.reload_user(user_id)
+        if updated is None:
+            raise NotFoundError("active target user not found")
+        return ManagedUserResponse(
+            id=updated.id,
+            email=updated.email,
+            full_name=updated.full_name,
+            role_ids=sorted(item.role_id for item in updated.user_roles),
         )
