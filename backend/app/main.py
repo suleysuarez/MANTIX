@@ -10,6 +10,8 @@ from app.api.routes.equipment import router as equipment_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
+from app.api.routes.report import import_router
+from app.api.routes.report import router as report_router
 from app.api.routes.technician import router as technician_router
 from app.core.config import get_settings
 from app.core.errors import error_responses, register_exception_handlers
@@ -48,6 +50,14 @@ TAGS_METADATA = [
         "name": "dashboard",
         "description": "Aggregated operational metrics.",
     },
+    {
+        "name": "reports",
+        "description": "Downloadable reports in CSV, Excel and PDF.",
+    },
+    {
+        "name": "data-exchange",
+        "description": "Bulk import of equipment from CSV or Excel.",
+    },
     {"name": "priorities", "description": "Managed catalog of ticket priorities."},
     {"name": "notifications", "description": "In-app notification inbox."},
     {"name": "system", "description": "Health check."},
@@ -71,7 +81,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-    expose_headers=["X-Request-ID", "Retry-After", *PAGINATION_HEADERS],
+    expose_headers=[
+        "X-Request-ID",
+        "Retry-After",
+        "Content-Disposition",
+        *PAGINATION_HEADERS,
+    ],
 )
 # Se añaden después de CORS para quedar por fuera: así incluso los 429 llevan
 # cabeceras CORS y el navegador puede leerlos.
@@ -92,6 +107,8 @@ API_ROUTERS = (
     maintenance_router,
     priority_router,
     dashboard_router,
+    report_router,
+    import_router,
     notification_router,
 )
 
