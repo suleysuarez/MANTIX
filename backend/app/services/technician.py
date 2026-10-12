@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
@@ -16,7 +17,7 @@ from app.schemas.technician import (
 from app.services.audit import AuditService
 
 
-def _jsonable(values: dict) -> dict:
+def _jsonable(values: dict[str, Any]) -> dict[str, Any]:
     """Audit values are stored as JSON: render Decimals as strings."""
     return {
         key: str(value) if isinstance(value, Decimal) else value

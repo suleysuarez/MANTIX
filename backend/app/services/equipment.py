@@ -79,8 +79,7 @@ class EquipmentService:
         except IntegrityError as exc:
             await self.repository.rollback()
             raise ConflictError("asset_tag or serial_number already exists") from exc
-        equipment = await self.repository.get(equipment.id)
-        return self._response(equipment)
+        return self._response(await self.repository.get(equipment.id))
 
     async def update(
         self, equipment_id: int, payload: EquipmentUpdate, actor: AuthContext

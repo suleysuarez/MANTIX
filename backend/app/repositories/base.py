@@ -8,7 +8,7 @@ repository exposes the same unit-of-work surface.
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar, cast
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ class BaseRepository(Generic[ModelT]):
         result = await self.session.execute(
             select(self.model).where(self.model.id == entity_id)  # type: ignore[attr-defined]
         )
-        return result.scalar_one_or_none()
+        return cast(ModelT | None, result.scalar_one_or_none())
 
     def add(self, entity: ModelT) -> ModelT:
         self.session.add(entity)

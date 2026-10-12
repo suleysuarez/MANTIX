@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 
@@ -25,7 +25,7 @@ IMPORT_EXTENSIONS = frozenset({".csv", ".xlsx"})
 router = APIRouter(prefix="/reports", tags=["reports"])
 import_router = APIRouter(prefix="/imports", tags=["data-exchange"])
 
-_FILE_RESPONSE = {
+_FILE_RESPONSE: dict[int | str, dict[str, Any]] = {
     200: {
         "description": "The generated file",
         "content": {

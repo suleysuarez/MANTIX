@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from typing import Any
 
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import Select, and_, func, or_, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
@@ -23,7 +24,7 @@ class ScheduleRepository(BaseRepository[MaintenanceSchedule]):
     model = MaintenanceSchedule
 
     @staticmethod
-    def _query():
+    def _query() -> Select[Any]:
         return select(MaintenanceSchedule).options(
             selectinload(MaintenanceSchedule.equipment),
             selectinload(MaintenanceSchedule.technician).selectinload(Technician.user),

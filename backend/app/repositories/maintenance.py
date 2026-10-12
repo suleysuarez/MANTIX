@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from typing import Any
 
-from sqlalchemy import and_, select, text
+from sqlalchemy import Select, and_, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
@@ -37,7 +38,7 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
     model = MaintenanceRequest
 
     @staticmethod
-    def _request_query():
+    def _request_query() -> Select[Any]:
         return select(MaintenanceRequest).options(
             selectinload(MaintenanceRequest.equipment),
             selectinload(MaintenanceRequest.requested_by_user),

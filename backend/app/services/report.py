@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from app.core.authz import AuthContext
 from app.repositories.report import ReportRepository
@@ -106,7 +107,7 @@ class ReportService:
         summary = await self.dashboard.summary(actor, days=days)
         resolution = await self.dashboard.resolution_times(actor, days=days)
         top = await self.dashboard.top_failing_equipment(days=days, limit=10)
-        rows: list[dict] = []
+        rows: list[dict[str, Any]] = []
 
         def add(section: str, metric: str, value: object) -> None:
             rows.append({"section": section, "metric": metric, "value": value})
@@ -123,8 +124,8 @@ class ReportService:
         add("Resolution", "Resolved tickets", resolution.overall.resolved_count)
         add("Resolution", "Mean hours", resolution.overall.avg_hours)
         add("Resolution", "Median hours", resolution.overall.median_hours)
-        for item in resolution.by_priority:
-            add("Mean hours by priority", item.priority or "-", item.avg_hours)
+        for timing in resolution.by_priority:
+            add("Mean hours by priority", timing.priority or "-", timing.avg_hours)
         for equipment in top.equipment:
             add("Most tickets", equipment.asset_tag, equipment.tickets)
 

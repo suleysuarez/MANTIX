@@ -25,7 +25,7 @@ def _cell_text(value: Any) -> str:
     if value is None:
         return ""
     if hasattr(value, "date") and hasattr(value, "hour"):  # datetime
-        return value.date().isoformat()
+        return str(value.date().isoformat())
     return str(value).strip()
 
 

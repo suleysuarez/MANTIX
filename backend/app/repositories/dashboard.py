@@ -7,6 +7,7 @@ technicians a view scoped to their own work).
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, and_, case, func, null, select
 
@@ -62,7 +63,7 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
     model = MaintenanceRequest
 
     @staticmethod
-    def _scope(query: Select, technician_id: int | None) -> Select:
+    def _scope(query: Select[Any], technician_id: int | None) -> Select[Any]:
         if technician_id is None:
             return query
         return query.where(

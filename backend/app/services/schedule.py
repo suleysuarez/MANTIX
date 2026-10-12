@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from app.core.authz import AuthContext
 from app.core.exceptions import NotFoundError, UnprocessableError
@@ -27,7 +28,7 @@ _AUDITED_FIELDS = (
 )
 
 
-def _jsonable(values: dict) -> dict:
+def _jsonable(values: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value.isoformat() if isinstance(value, datetime) else value
         for key, value in values.items()

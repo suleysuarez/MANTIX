@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
@@ -34,7 +34,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     Authorization tokens and request payloads therefore never reach the logs.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex
         request.state.request_id = request_id
         set_request_info(
@@ -89,7 +91,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         if (
             self.limit <= 0
             or request.method == "OPTIONS"

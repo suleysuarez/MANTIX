@@ -1,4 +1,6 @@
-from sqlalchemy import select, text
+from typing import Any
+
+from sqlalchemy import Select, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.clerk import ClerkProfile
@@ -10,7 +12,7 @@ class AuthRepository(BaseRepository[User]):
     model = User
 
     @staticmethod
-    def _user_query():
+    def _user_query() -> Select[Any]:
         return select(User).options(
             selectinload(User.roles).selectinload(Role.permissions)
         )
