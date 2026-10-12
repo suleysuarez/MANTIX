@@ -49,6 +49,9 @@ class FakeRepository:
         self.user = self.created
         return self.created
 
+    def expire(self, entity, attributes):
+        pass
+
     async def lock_admin_bootstrap(self):
         await self.shared["lock"].acquire()
 
