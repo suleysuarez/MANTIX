@@ -35,3 +35,9 @@ class BusinessRuleError(AppError):
     """A request is well-formed but violates a domain/workflow rule."""
 
     status_code = status.HTTP_409_CONFLICT
+
+
+class InvalidTransitionError(AppError):
+    """A ticket status change that the state machine does not allow."""
+
+    status_code = status.HTTP_409_CONFLICT

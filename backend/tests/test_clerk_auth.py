@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.dependencies import require_permission
+from app.core.authz import AuthContext
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, verify_clerk_request
 from app.core.config import Settings
 from app.core.exceptions import ForbiddenError
@@ -254,10 +255,11 @@ def test_auth_me_response_contains_empty_pending_collections() -> None:
 @pytest.mark.asyncio
 async def test_permission_granted_and_missing_permission_returns_403() -> None:
     user = SimpleNamespace(roles=[role()])
-    allowed = await require_permission("equipment.read")(user)
-    assert allowed is user
+    context = AuthContext.from_user(user)
+    allowed = await require_permission("equipment.read")(context)
+    assert allowed is context
     with pytest.raises(HTTPException) as error:
-        await require_permission("equipment.write")(user)
+        await require_permission("equipment.write")(context)
     assert error.value.status_code == 403
 
 
@@ -290,8 +292,9 @@ async def test_require_permission_and_user_response_against_real_permission_orm(
         roles=[real_role],
     )
 
-    allowed = await require_permission("equipment.read")(user)
-    assert allowed is user
+    context = AuthContext.from_user(user)
+    allowed = await require_permission("equipment.read")(context)
+    assert allowed is context
 
     response = user_response(user)
     assert [item.code for item in response.permissions] == ["equipment.read"]

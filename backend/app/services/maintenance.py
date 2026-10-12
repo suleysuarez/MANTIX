@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 
+from app.core.authz import AuthContext
 from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
 from app.domain.ticket_state import TicketState
-from app.models.auth import User
 from app.models.maintenance import MaintenanceRequest
 from app.repositories.maintenance import MaintenanceRepository
 from app.schemas.maintenance import (
@@ -22,8 +22,6 @@ from app.schemas.maintenance import (
 from app.services.audit import AuditService
 from app.services.notification import NotificationService
 
-_ELEVATED_ROLE_CODES = {"ADMIN", "SUPERVISOR"}
-
 
 class MaintenanceService:
     def __init__(
@@ -39,7 +37,7 @@ class MaintenanceService:
     # -- Requests --------------------------------------------------------
 
     async def create_request(
-        self, payload: MaintenanceRequestCreate, requester: User
+        self, payload: MaintenanceRequestCreate, requester: AuthContext
     ) -> MaintenanceRequestResponse:
         if await self.repository.get_equipment(payload.equipment_id) is None:
             raise NotFoundError("equipment not found")
@@ -81,11 +79,11 @@ class MaintenanceService:
         equipment_id: int | None,
         limit: int,
         offset: int,
-        actor: User,
+        actor: AuthContext,
     ) -> list[MaintenanceRequestListItem]:
         requested_by_user_id = None
         technician_id = None
-        if not self._is_elevated(actor):
+        if not actor.is_elevated:
             technician = await self.repository.get_technician_by_user_id(actor.id)
             if technician is not None:
                 technician_id = technician.id
@@ -103,7 +101,7 @@ class MaintenanceService:
         return [MaintenanceRequestListItem.model_validate(item) for item in items]
 
     async def get_request(
-        self, request_id: int, actor: User
+        self, request_id: int, actor: AuthContext
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
         await self._ensure_visible(request, actor)
@@ -113,17 +111,19 @@ class MaintenanceService:
         self,
         request_id: int,
         payload: MaintenanceStatusTransitionRequest,
-        actor: User,
+        actor: AuthContext,
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
         await self._require_can_act(request, actor)
 
         current, target = request.status, payload.status
+        has_technician = await self.repository.get_active_assignment(request_id)
         new_state = TicketState.of(current).transition(
             request,
             target,
             now=datetime.now(UTC),
             resolution_summary=payload.resolution_summary,
+            has_technician=has_technician is not None,
         )
 
         self.repository.append_status_history(
@@ -158,7 +158,7 @@ class MaintenanceService:
         self,
         request_id: int,
         payload: TicketAssignmentCreateRequest,
-        actor: User,
+        actor: AuthContext,
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
         self._require_elevated(actor)
@@ -174,12 +174,12 @@ class MaintenanceService:
             assigned_by_user_id=actor.id,
             notes=payload.notes,
         )
-        auto_status = state.assign_technician(request, now=datetime.now(UTC))
-        if auto_status is not None:
+        new_state = state.assign_technician(request, now=datetime.now(UTC))
+        if new_state is not state:
             self.repository.append_status_history(
                 request_id=request_id,
                 from_status=state.status,
-                to_status=auto_status,
+                to_status=new_state.status,
                 changed_by_user_id=actor.id,
                 notes="technician assigned",
             )
@@ -201,7 +201,7 @@ class MaintenanceService:
         return self._response(await self._reload(request_id))
 
     async def unassign_technician(
-        self, request_id: int, actor: User
+        self, request_id: int, actor: AuthContext
     ) -> MaintenanceRequestResponse:
         request = await self.repository.get(request_id)
         if request is None:
@@ -227,7 +227,7 @@ class MaintenanceService:
         self,
         request_id: int,
         payload: MaintenanceRecordCreate,
-        actor: User,
+        actor: AuthContext,
     ) -> MaintenanceRecordResponse:
         request = await self._reload(request_id)
         await self._require_can_act(request, actor)
@@ -259,7 +259,7 @@ class MaintenanceService:
         return MaintenanceRecordResponse.model_validate(record)
 
     async def list_records(
-        self, request_id: int, actor: User
+        self, request_id: int, actor: AuthContext
     ) -> list[MaintenanceRecordResponse]:
         request = await self._reload(request_id)
         await self._ensure_visible(request, actor)
@@ -269,15 +269,14 @@ class MaintenanceService:
     # -- Authorization helpers ----------------------------------------------
 
     @staticmethod
-    def _is_elevated(actor: User) -> bool:
-        return any(role.code in _ELEVATED_ROLE_CODES for role in actor.roles)
-
-    def _require_elevated(self, actor: User) -> None:
-        if not self._is_elevated(actor):
+    def _require_elevated(actor: AuthContext) -> None:
+        if not actor.is_elevated:
             raise ForbiddenError("only ADMIN or SUPERVISOR can perform this action")
 
-    async def _ensure_visible(self, request: MaintenanceRequest, actor: User) -> None:
-        if self._is_elevated(actor):
+    async def _ensure_visible(
+        self, request: MaintenanceRequest, actor: AuthContext
+    ) -> None:
+        if actor.is_elevated:
             return
         technician = await self.repository.get_technician_by_user_id(actor.id)
         if technician is not None and any(
@@ -289,8 +288,10 @@ class MaintenanceService:
             return
         raise ForbiddenError("not authorized to view this maintenance request")
 
-    async def _require_can_act(self, request: MaintenanceRequest, actor: User) -> None:
-        if self._is_elevated(actor):
+    async def _require_can_act(
+        self, request: MaintenanceRequest, actor: AuthContext
+    ) -> None:
+        if actor.is_elevated:
             return
         technician = await self.repository.get_technician_by_user_id(actor.id)
         active = await self.repository.get_active_assignment(request.id)

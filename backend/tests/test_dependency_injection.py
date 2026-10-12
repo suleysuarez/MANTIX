@@ -19,6 +19,7 @@ def test_route_uses_injected_service_without_a_database():
         id=1,
         roles=[
             SimpleNamespace(
+                code="EMPLOYEE",
                 is_active=True,
                 permissions=[SimpleNamespace(is_active=True, code="maintenance.read")],
             )
@@ -34,4 +35,5 @@ def test_route_uses_injected_service_without_a_database():
     assert response.status_code == 200
     assert response.json() == []
     assert stub.kwargs["status"] == "resolved"
-    assert stub.kwargs["actor"] is user
+    assert stub.kwargs["actor"].user is user
+    assert stub.kwargs["actor"].has_permission("maintenance.read")

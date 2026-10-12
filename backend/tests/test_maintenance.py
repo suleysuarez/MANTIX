@@ -3,7 +3,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
+from app.core.authz import AuthContext
+from app.core.exceptions import (
+    ForbiddenError,
+    InvalidTransitionError,
+    NotFoundError,
+)
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRequestCreate,
@@ -30,9 +35,7 @@ def make_technician(technician_id, user_id, full_name="Tech"):
 
 
 def make_actor(user_id, role_codes=()):
-    return SimpleNamespace(
-        id=user_id, roles=[SimpleNamespace(code=c) for c in role_codes]
-    )
+    return AuthContext(user=SimpleNamespace(id=user_id), roles=frozenset(role_codes))
 
 
 class FakeAudit:
@@ -292,7 +295,7 @@ async def test_invalid_transition_is_rejected():
     created = await create_ticket(service)
     admin = make_actor(1, role_codes=("ADMIN",))
 
-    with pytest.raises(BusinessRuleError):
+    with pytest.raises(InvalidTransitionError):
         await service.transition_status(
             created.id, MaintenanceStatusTransitionRequest(status="closed"), admin
         )

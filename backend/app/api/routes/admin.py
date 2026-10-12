@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies import require_permission
 from app.api.providers import get_admin_user_service
-from app.models.auth import User
+from app.core.authz import AuthContext
 from app.schemas.admin import (
     AdminRoleResponse,
     AssignRolesRequest,
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/admin", tags=["administration"])
     response_model=list[PendingUserResponse],
 )
 async def list_pending_users(
-    _: User = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[PendingUserResponse]:
     """List active users with no local application role assignment."""
@@ -28,7 +28,7 @@ async def list_pending_users(
 
 @router.get("/roles", response_model=list[AdminRoleResponse])
 async def list_roles(
-    _: User = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[AdminRoleResponse]:
     return await service.list_roles()
@@ -42,7 +42,7 @@ async def list_roles(
 async def assign_roles(
     user_id: int,
     payload: AssignRolesRequest,
-    admin: User = Depends(require_permission("users.manage")),  # noqa: B008
+    admin: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> ManagedUserResponse:
     return await service.assign_roles(user_id, payload.role_ids, admin)

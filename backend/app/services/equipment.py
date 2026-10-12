@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
+from app.core.authz import AuthContext
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models.auth import User
 from app.models.equipment import Equipment
 from app.repositories.equipment import EquipmentRepository
 from app.schemas.equipment import (
@@ -49,7 +49,9 @@ class EquipmentService:
     async def get(self, equipment_id: int) -> EquipmentResponse:
         return self._response(await self.repository.get(equipment_id))
 
-    async def create(self, payload: EquipmentCreate, actor: User) -> EquipmentResponse:
+    async def create(
+        self, payload: EquipmentCreate, actor: AuthContext
+    ) -> EquipmentResponse:
         if await self.repository.get_type(payload.equipment_type_id) is None:
             raise NotFoundError("equipment type not found")
         try:
@@ -79,7 +81,7 @@ class EquipmentService:
         return self._response(equipment)
 
     async def update(
-        self, equipment_id: int, payload: EquipmentUpdate, actor: User
+        self, equipment_id: int, payload: EquipmentUpdate, actor: AuthContext
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
@@ -141,7 +143,10 @@ class EquipmentService:
             raise ConflictError("warranty_end_date cannot precede warranty_start_date")
 
     async def assign_location(
-        self, equipment_id: int, payload: EquipmentLocationAssignRequest, actor: User
+        self,
+        equipment_id: int,
+        payload: EquipmentLocationAssignRequest,
+        actor: AuthContext,
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
@@ -165,7 +170,10 @@ class EquipmentService:
         return self._response(await self.repository.get(equipment_id))
 
     async def assign_custody(
-        self, equipment_id: int, payload: EquipmentCustodyAssignRequest, actor: User
+        self,
+        equipment_id: int,
+        payload: EquipmentCustodyAssignRequest,
+        actor: AuthContext,
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
