@@ -83,7 +83,8 @@ class EquipmentRepository(BaseRepository[Equipment]):
         result = await self.session.execute(
             self._equipment_query().where(Equipment.id == equipment_id)
         )
-        return result.scalar_one_or_none()
+        equipment: Equipment | None = result.scalar_one_or_none()
+        return equipment
 
     async def active_type_ids_by_code(self) -> dict[str, int]:
         result = await self.session.execute(
