@@ -17,6 +17,7 @@ from app.db.session import get_db
 from app.repositories.admin import AdminRepository
 from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
+from app.repositories.dashboard import DashboardRepository
 from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
@@ -25,6 +26,7 @@ from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.audit import AuditService
 from app.services.auth import ClerkAuthService
+from app.services.dashboard import DashboardService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
@@ -54,6 +56,10 @@ def get_notification_repository(
 
 def get_priority_repository(session: AsyncSession = Session) -> PriorityRepository:
     return PriorityRepository(session)
+
+
+def get_dashboard_repository(session: AsyncSession = Session) -> DashboardRepository:
+    return DashboardRepository(session)
 
 
 def get_maintenance_repository(
@@ -138,3 +144,9 @@ def get_priority_service(
     audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> PriorityService:
     return PriorityService(repository, audit)
+
+
+def get_dashboard_service(
+    repository: Annotated[DashboardRepository, Depends(get_dashboard_repository)],
+) -> DashboardService:
+    return DashboardService(repository)

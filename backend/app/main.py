@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.pagination import PAGINATION_HEADERS
 from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
 from app.api.routes.equipment import router as equipment_router
 from app.api.routes.maintenance import router as maintenance_router
@@ -43,6 +44,10 @@ TAGS_METADATA = [
         "description": "Tickets, their state machine, assignments and work records.",
     },
     {"name": "technicians", "description": "Technician profiles."},
+    {
+        "name": "dashboard",
+        "description": "Aggregated operational metrics.",
+    },
     {"name": "priorities", "description": "Managed catalog of ticket priorities."},
     {"name": "notifications", "description": "In-app notification inbox."},
     {"name": "system", "description": "Health check."},
@@ -86,6 +91,7 @@ API_ROUTERS = (
     technician_router,
     maintenance_router,
     priority_router,
+    dashboard_router,
     notification_router,
 )
 
