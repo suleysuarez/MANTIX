@@ -34,13 +34,20 @@ class MaintenanceRequest(Base):
             name="closed_after_resolved",
         ),
         CheckConstraint(
-            "priority IN ('low', 'medium', 'high', 'critical')",
-            name="priority_allowed",
-        ),
-        CheckConstraint(
             "status IN ('submitted', 'triaged', 'assigned', 'in_progress', "
             "'waiting', 'resolved', 'closed', 'cancelled')",
             name="status_allowed",
+        ),
+        Index(
+            "ix_maintenance_requests_status_priority_created",
+            "status",
+            "priority",
+            "created_at",
+        ),
+        Index(
+            "ix_maintenance_requests_equipment_created",
+            "equipment_id",
+            "created_at",
         ),
     )
 
@@ -64,7 +71,12 @@ class MaintenanceRequest(Base):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    priority: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    priority: Mapped[str] = mapped_column(
+        String(20),
+        ForeignKey("priorities.code", onupdate="CASCADE", ondelete="RESTRICT"),
+        default="medium",
+        nullable=False,
+    )
     status: Mapped[str] = mapped_column(String(30), default="submitted", nullable=False)
     resolution_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(

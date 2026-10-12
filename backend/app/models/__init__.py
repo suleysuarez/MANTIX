@@ -22,6 +22,8 @@ from app.models.maintenance import (
     TicketStatusHistory,
 )
 from app.models.notification import Notification
+from app.models.priority import Priority
+from app.models.schedule import MaintenanceSchedule
 from app.models.technician import Technician
 
 __all__ = [
@@ -35,8 +37,10 @@ __all__ = [
     "Location",
     "MaintenanceRecord",
     "MaintenanceRequest",
+    "MaintenanceSchedule",
     "Notification",
     "Permission",
+    "Priority",
     "Role",
     "RolePermission",
     "Technician",
