@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.pagination import PAGINATION_HEADERS
 from app.api.routes.admin import router as admin_router
 from app.api.routes.attachment import router as attachment_router
+from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
@@ -63,6 +64,10 @@ TAGS_METADATA = [
         "name": "attachments",
         "description": "Files attached to tickets and equipment.",
     },
+    {
+        "name": "audit",
+        "description": "Searchable trail of who changed what, with before/after values.",
+    },
     {"name": "priorities", "description": "Managed catalog of ticket priorities."},
     {"name": "notifications", "description": "In-app notification inbox."},
     {"name": "system", "description": "Health check."},
@@ -115,6 +120,7 @@ API_ROUTERS = (
     report_router,
     import_router,
     attachment_router,
+    audit_router,
     notification_router,
 )
 

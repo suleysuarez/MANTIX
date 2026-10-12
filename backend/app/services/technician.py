@@ -1,5 +1,8 @@
+from decimal import Decimal
+
 from sqlalchemy.exc import IntegrityError
 
+from app.core.authz import AuthContext
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.technician import Technician
@@ -10,11 +13,21 @@ from app.schemas.technician import (
     TechnicianResponse,
     TechnicianUpdate,
 )
+from app.services.audit import AuditService
+
+
+def _jsonable(values: dict) -> dict:
+    """Audit values are stored as JSON: render Decimals as strings."""
+    return {
+        key: str(value) if isinstance(value, Decimal) else value
+        for key, value in values.items()
+    }
 
 
 class TechnicianService:
-    def __init__(self, repository: TechnicianRepository):
+    def __init__(self, repository: TechnicianRepository, audit: AuditService):
         self.repository = repository
+        self.audit = audit
 
     async def list(
         self,
@@ -28,13 +41,22 @@ class TechnicianService:
         )
         return page.map(TechnicianResponse.model_validate)
 
-    async def create(self, payload: TechnicianCreate) -> TechnicianResponse:
+    async def create(
+        self, payload: TechnicianCreate, actor: AuthContext
+    ) -> TechnicianResponse:
         if await self.repository.get_active_user(payload.user_id) is None:
             raise NotFoundError("active user not found")
         if await self.repository.get_by_user_id(payload.user_id) is not None:
             raise ConflictError("this user already has a technician profile")
         try:
             technician = await self.repository.create(payload)
+            self.audit.record(
+                user_id=actor.id,
+                action="technician.created",
+                entity_type="technician",
+                entity_id=technician.id,
+                new_values={"user_id": payload.user_id},
+            )
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
@@ -42,12 +64,22 @@ class TechnicianService:
         return self._response(technician)
 
     async def update(
-        self, technician_id: int, payload: TechnicianUpdate
+        self, technician_id: int, payload: TechnicianUpdate, actor: AuthContext
     ) -> TechnicianResponse:
         technician = await self.repository.get(technician_id)
         if technician is None:
             raise NotFoundError("technician not found")
+        changes = payload.model_dump(exclude_unset=True)
+        old_values = {field: getattr(technician, field) for field in changes}
         await self.repository.update(technician, payload)
+        self.audit.record(
+            user_id=actor.id,
+            action="technician.updated",
+            entity_type="technician",
+            entity_id=technician.id,
+            old_values=_jsonable(old_values),
+            new_values=_jsonable(changes),
+        )
         await self.repository.commit()
         return self._response(technician)
 

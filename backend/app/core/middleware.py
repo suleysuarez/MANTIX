@@ -10,6 +10,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from app.core.request_context import RequestInfo, set_request_info
+
 logger = logging.getLogger("mantix.request")
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -35,6 +37,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex
         request.state.request_id = request_id
+        set_request_info(
+            RequestInfo(
+                ip_address=_client_ip(request),
+                user_agent=request.headers.get("user-agent"),
+                request_id=request_id,
+            )
+        )
         started = time.perf_counter()
         try:
             response = await call_next(request)

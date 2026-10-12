@@ -1,6 +1,10 @@
+from datetime import datetime
 from typing import Any
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.repositories.audit import AuditRepository
+from app.repositories.base import Page
+from app.schemas.audit import AuditLogResponse
 
 
 class AuditService:
@@ -32,3 +36,25 @@ class AuditService:
             old_values=old_values,
             new_values=new_values,
         )
+
+    async def search(
+        self,
+        *,
+        user_id: int | None = None,
+        action: str | None = None,
+        entity_type: str | None = None,
+        entity_id: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        params: PageParams = DEFAULT_PAGE,
+    ) -> Page[AuditLogResponse]:
+        page = await self.repository.search(
+            user_id=user_id,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            date_from=date_from,
+            date_to=date_to,
+            params=params,
+        )
+        return page.map(AuditLogResponse.model_validate)

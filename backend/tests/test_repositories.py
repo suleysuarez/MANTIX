@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.pagination import PageParams
 from app.models.audit import AuditLog
 from app.models.auth import User
 from app.models.equipment import Equipment, EquipmentType
@@ -140,7 +141,9 @@ async def test_audit_repository_records_and_filters(db_session):
         entity_id=7,
     )
     await db_session.flush()
-    page = await repo.search(entity_type="equipment", entity_id=7, size=10)
+    page = await repo.search(
+        entity_type="equipment", entity_id=7, params=PageParams(size=10)
+    )
     assert page.total == 2
     assert page.items[0].action == "equipment.updated"  # newest first
     only = await repo.search(action="equipment.created")

@@ -139,7 +139,7 @@ async def list_locations(
 )
 async def create_location(
     payload: LocationCreate,
-    _: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> LocationResponse:
-    return await service.create_location(payload)
+    return await service.create_location(payload, actor)

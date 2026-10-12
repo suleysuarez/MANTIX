@@ -143,8 +143,9 @@ def get_equipment_service(
 
 def get_technician_service(
     repository: Annotated[TechnicianRepository, Depends(get_technician_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> TechnicianService:
-    return TechnicianService(repository)
+    return TechnicianService(repository, audit)
 
 
 def get_admin_user_service(

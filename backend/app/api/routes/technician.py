@@ -41,17 +41,17 @@ async def list_technicians(
 @router.post("", response_model=TechnicianResponse, status_code=status.HTTP_201_CREATED)
 async def create_technician(
     payload: TechnicianCreate,
-    _: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> TechnicianResponse:
-    return await service.create(payload)
+    return await service.create(payload, actor)
 
 
 @router.patch("/{technician_id}", response_model=TechnicianResponse)
 async def update_technician(
     technician_id: int,
     payload: TechnicianUpdate,
-    _: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("technicians.manage")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> TechnicianResponse:
-    return await service.update(technician_id, payload)
+    return await service.update(technician_id, payload, actor)
