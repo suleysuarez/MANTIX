@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 from app.core.exceptions import BusinessRuleError, InvalidTransitionError
 from app.domain.ticket_state import TicketState
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 ALL_STATUSES = [
     "submitted", "triaged", "assigned", "in_progress",
