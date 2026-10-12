@@ -1,14 +1,13 @@
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
 from app.models.technician import Technician
+from app.repositories.base import BaseRepository
 from app.schemas.technician import TechnicianCreate, TechnicianUpdate
 
 
-class TechnicianRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class TechnicianRepository(BaseRepository[Technician]):
+    model = Technician
 
     async def list(self, *, is_available: bool | None = None) -> list[Technician]:
         query = select(Technician)
@@ -36,21 +35,11 @@ class TechnicianRepository:
         return result.scalar_one_or_none()
 
     async def create(self, payload: TechnicianCreate) -> Technician:
-        technician = Technician(**payload.model_dump())
-        self.session.add(technician)
-        await self.session.flush()
-        return technician
+        return await self.add_and_flush(Technician(**payload.model_dump()))
 
     async def update(
         self, technician: Technician, payload: TechnicianUpdate
     ) -> Technician:
-        for field, value in payload.model_dump(exclude_unset=True).items():
-            setattr(technician, field, value)
-        await self.session.flush()
-        return technician
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()
+        return await self.update_fields(
+            technician, payload.model_dump(exclude_unset=True)
+        )

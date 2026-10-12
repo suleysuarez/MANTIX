@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.equipment import Equipment
@@ -12,12 +11,12 @@ from app.models.maintenance import (
     TicketStatusHistory,
 )
 from app.models.technician import Technician
+from app.repositories.base import BaseRepository
 from app.schemas.maintenance import MaintenanceRecordCreate
 
 
-class MaintenanceRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
+    model = MaintenanceRequest
 
     @staticmethod
     def _request_query():
@@ -242,9 +241,3 @@ class MaintenanceRepository:
             .order_by(MaintenanceRecord.started_at.desc())
         )
         return list(result.scalars().all())
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()
