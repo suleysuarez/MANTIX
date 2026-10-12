@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
 from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
@@ -133,7 +133,7 @@ class MaintenanceService:
         new_state = TicketState.of(current).transition(
             request,
             target,
-            now=datetime.now(timezone.utc),
+            now=datetime.now(UTC),
             resolution_summary=payload.resolution_summary,
             has_technician=has_technician is not None,
         )
@@ -186,7 +186,7 @@ class MaintenanceService:
             assigned_by_user_id=actor.id,
             notes=payload.notes,
         )
-        new_state = state.assign_technician(request, now=datetime.now(timezone.utc))
+        new_state = state.assign_technician(request, now=datetime.now(UTC))
         if new_state is not state:
             self.repository.append_status_history(
                 request_id=request_id,
