@@ -108,6 +108,10 @@ class MaintenanceService:
         )
         return page.map(MaintenanceRequestListItem.model_validate)
 
+    async def ensure_can_view(self, request_id: int, actor: AuthContext) -> None:
+        """Raise unless `actor` may see the ticket (404 if it does not exist)."""
+        await self._ensure_visible(await self._reload(request_id), actor)
+
     async def get_request(
         self, request_id: int, actor: AuthContext
     ) -> MaintenanceRequestResponse:

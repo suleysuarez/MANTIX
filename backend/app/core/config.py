@@ -27,6 +27,11 @@ class Settings(BaseSettings):
         default="http://localhost:4200", validation_alias="CLERK_AUTHORIZED_PARTIES"
     )
 
+    upload_dir: str = Field(default="uploads", validation_alias="UPLOAD_DIR")
+    max_upload_mb: int = Field(
+        default=10, ge=1, le=100, validation_alias="MAX_UPLOAD_MB"
+    )
+
     model_config = SettingsConfigDict(
         env_file=(BASE_DIR / ".env", ".env"),
         extra="ignore",
