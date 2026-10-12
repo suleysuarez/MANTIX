@@ -91,4 +91,5 @@ class AdminRepository(BaseRepository[User]):
         return int(result.scalar_one())
 
     async def remove_user_role(self, user_role: UserRole) -> None:
-        await self.delete(user_role)
+        await self.session.delete(user_role)
+        await self.session.flush()

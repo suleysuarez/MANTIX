@@ -10,6 +10,7 @@ deprecated `limit` / `offset` pair.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import Query, Response
 
@@ -50,7 +51,7 @@ def page_params(default_size: int = DEFAULT_SIZE) -> Callable[..., PageParams]:
     return dependency
 
 
-def set_page_headers(response: Response, page: Page) -> None:
+def set_page_headers(response: Response, page: Page[Any]) -> None:
     response.headers["X-Total-Count"] = str(page.total)
     response.headers["X-Page"] = str(page.page)
     response.headers["X-Page-Size"] = str(page.size)

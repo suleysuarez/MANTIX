@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
@@ -31,7 +32,7 @@ class EquipmentRepository(BaseRepository[Equipment]):
     model = Equipment
 
     @staticmethod
-    def _equipment_query():
+    def _equipment_query() -> Select[Any]:
         return select(Equipment).options(selectinload(Equipment.equipment_type))
 
     async def list_equipment(

@@ -16,7 +16,7 @@ adding one class and registering it, without touching `MaintenanceService`.
 """
 
 from datetime import datetime
-from typing import ClassVar, Protocol
+from typing import Any, ClassVar, Protocol
 
 from app.core.exceptions import BusinessRuleError, InvalidTransitionError
 
@@ -40,7 +40,7 @@ class TicketState:
 
     _registry: ClassVar[dict[str, "TicketState"]] = {}
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if getattr(cls, "status", None):
             TicketState._registry[cls.status] = cls()
@@ -141,7 +141,13 @@ class Resolved(TicketState):
     allowed_targets = frozenset({"closed", "in_progress"})
     notifies_requester = True
 
-    def on_enter(self, ticket, *, now, resolution_summary=None) -> None:
+    def on_enter(
+        self,
+        ticket: TicketLike,
+        *,
+        now: datetime,
+        resolution_summary: str | None = None,
+    ) -> None:
         ticket.resolved_at = now
         if resolution_summary:
             ticket.resolution_summary = resolution_summary
@@ -151,7 +157,13 @@ class Closed(TicketState):
     status = "closed"
     notifies_requester = True
 
-    def on_enter(self, ticket, *, now, resolution_summary=None) -> None:
+    def on_enter(
+        self,
+        ticket: TicketLike,
+        *,
+        now: datetime,
+        resolution_summary: str | None = None,
+    ) -> None:
         ticket.closed_at = now
 
 
