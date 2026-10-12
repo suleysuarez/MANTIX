@@ -13,8 +13,10 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.core.storage import FileStorage, LocalFileStorage
 from app.db.session import get_db
 from app.repositories.admin import AdminRepository
+from app.repositories.attachment import AttachmentRepository
 from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.dashboard import DashboardRepository
@@ -25,6 +27,7 @@ from app.repositories.priority import PriorityRepository
 from app.repositories.report import ReportRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
+from app.services.attachment import AttachmentService
 from app.services.audit import AuditService
 from app.services.auth import ClerkAuthService
 from app.services.dashboard import DashboardService
@@ -67,6 +70,12 @@ def get_dashboard_repository(session: AsyncSession = Session) -> DashboardReposi
 
 def get_report_repository(session: AsyncSession = Session) -> ReportRepository:
     return ReportRepository(session)
+
+
+def get_attachment_repository(
+    session: AsyncSession = Session,
+) -> AttachmentRepository:
+    return AttachmentRepository(session)
 
 
 def get_maintenance_repository(
@@ -171,3 +180,27 @@ def get_equipment_import_service(
     audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> EquipmentImportService:
     return EquipmentImportService(repository, audit)
+
+
+def get_file_storage(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileStorage:
+    return LocalFileStorage(settings.upload_dir)
+
+
+def get_attachment_service(
+    repository: Annotated[AttachmentRepository, Depends(get_attachment_repository)],
+    storage: Annotated[FileStorage, Depends(get_file_storage)],
+    maintenance: Annotated[MaintenanceService, Depends(get_maintenance_service)],
+    equipment: Annotated[EquipmentRepository, Depends(get_equipment_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AttachmentService:
+    return AttachmentService(
+        repository,
+        storage,
+        maintenance,
+        equipment,
+        audit,
+        max_bytes=settings.max_upload_mb * 1024 * 1024,
+    )
