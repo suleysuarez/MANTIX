@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
 from app.domain.ticket_state import TicketState
@@ -122,7 +122,7 @@ class MaintenanceService:
         new_state = TicketState.of(current).transition(
             request,
             target,
-            now=datetime.now(timezone.utc),
+            now=datetime.now(UTC),
             resolution_summary=payload.resolution_summary,
         )
 
@@ -174,7 +174,7 @@ class MaintenanceService:
             assigned_by_user_id=actor.id,
             notes=payload.notes,
         )
-        auto_status = state.assign_technician(request, now=datetime.now(timezone.utc))
+        auto_status = state.assign_technician(request, now=datetime.now(UTC))
         if auto_status is not None:
             self.repository.append_status_history(
                 request_id=request_id,
