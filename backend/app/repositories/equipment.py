@@ -61,8 +61,9 @@ class EquipmentRepository(BaseRepository[Equipment]):
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[Equipment]:
         query = self._equipment_query()
-        if status is not None:
-            query = query.where(Equipment.status == status)
+        statuses = [item.strip() for item in (status or "").split(",") if item.strip()]
+        if statuses:
+            query = query.where(Equipment.status.in_(statuses))
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
         if location_id is not None:

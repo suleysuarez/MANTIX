@@ -35,7 +35,11 @@ router = APIRouter(prefix="/equipment", tags=["equipment"])
 )
 async def list_equipment(
     response: Response,
-    status_filter: str | None = Query(default=None, alias="status"),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        description="One status or a comma-separated list (e.g. `assigned,in_storage`)",
+    ),
     equipment_type_id: int | None = Query(default=None),
     location_id: int | None = Query(
         default=None, description="Items currently placed in this location"

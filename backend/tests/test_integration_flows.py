@@ -961,6 +961,13 @@ async def test_equipment_listing_exposes_current_context_summary_and_candidates(
     detail = (await api.get(f"/equipment/{placed['id']}", employee)).json()
     assert detail["current_location"]["code"] == "R-9"
 
+    both = await api.get(
+        "/equipment?search=CTX-&status=in_repair,in_storage&sort=asset_tag", employee
+    )
+    assert [e["asset_tag"] for e in both.json()] == ["CTX-1", "CTX-2"]
+    only_repair = await api.get("/equipment?search=CTX-&status=in_repair", employee)
+    assert [e["asset_tag"] for e in only_repair.json()] == ["CTX-2"]
+
     in_room = await api.get(f"/equipment?location_id={room.json()['id']}", employee)
     assert [e["asset_tag"] for e in in_room.json()] == ["CTX-1"]
     nowhere = await api.get("/equipment?location_id=999999", employee)
