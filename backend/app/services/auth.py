@@ -21,6 +21,8 @@ class ClerkAuthService:
                 assigned = await self._assign_bootstrap_admin(user)
                 if assigned:
                     await self.repository.commit()
+                    # `roles` was already loaded (empty); reload it after the grant.
+                    self.repository.expire(user, ["roles", "user_roles"])
                     return (
                         await self.repository.get_user_by_clerk_id(identity.user_id)
                     ) or user

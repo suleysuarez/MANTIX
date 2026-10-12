@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.models.auth import User
 from app.models.equipment import (
     Equipment,
     EquipmentCustodyHistory,
@@ -110,6 +111,12 @@ class EquipmentRepository(BaseRepository[Equipment]):
             )
             serials = set(result.scalars().all())
         return tags, serials
+
+    async def get_active_user(self, user_id: int) -> User | None:
+        result = await self.session.execute(
+            select(User).where(User.id == user_id, User.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()
 
     async def get_type(self, equipment_type_id: int) -> EquipmentType | None:
         result = await self.session.execute(

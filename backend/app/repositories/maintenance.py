@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
@@ -123,8 +123,10 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         if technician_id is not None:
             query = query.where(
                 MaintenanceRequest.ticket_assignments.any(
-                    TicketAssignment.technician_id == technician_id,
-                    TicketAssignment.unassigned_at.is_(None),
+                    and_(
+                        TicketAssignment.technician_id == technician_id,
+                        TicketAssignment.unassigned_at.is_(None),
+                    )
                 )
             )
         if date_from is not None:

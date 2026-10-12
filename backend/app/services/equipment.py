@@ -180,6 +180,8 @@ class EquipmentService:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
             raise NotFoundError("equipment not found")
+        if await self.repository.get_active_user(payload.assigned_to_user_id) is None:
+            raise NotFoundError("active user not found")
         await self.repository.assign_custody(
             equipment_id=equipment_id,
             assigned_to_user_id=payload.assigned_to_user_id,
