@@ -1,3 +1,7 @@
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,6 +18,7 @@ from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
 from app.api.routes.report import import_router
 from app.api.routes.report import router as report_router
+from app.api.routes.schedule import router as schedule_router
 from app.api.routes.technician import router as technician_router
 from app.core.config import get_settings
 from app.core.errors import error_responses, register_exception_handlers
@@ -22,6 +27,8 @@ from app.core.middleware import (
     RequestLoggingMiddleware,
     configure_logging,
 )
+from app.db.session import async_session_maker
+from app.jobs import build_scheduler
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -68,13 +75,37 @@ TAGS_METADATA = [
         "name": "audit",
         "description": "Searchable trail of who changed what, with before/after values.",
     },
+    {
+        "name": "schedules",
+        "description": "Preventive-maintenance plans and their reminders.",
+    },
     {"name": "priorities", "description": "Managed catalog of ticket priorities."},
     {"name": "notifications", "description": "In-app notification inbox."},
     {"name": "system", "description": "Health check."},
 ]
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Start the background scheduler with the app and stop it on shutdown."""
+    scheduler = None
+    if settings.scheduler_enabled and async_session_maker is not None:
+        scheduler = build_scheduler(settings, async_session_maker)
+        scheduler.start()
+        logging.getLogger("mantix.jobs").info(
+            "scheduler started (reminders every %s min)",
+            settings.reminder_interval_minutes,
+        )
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+
+
 # La documentación interactiva solo se expone fuera de producción.
 app = FastAPI(
+    lifespan=lifespan,
     title="Mantix - Technology Equipment Maintenance API",
     summary="Equipment, tickets, technicians and maintenance history.",
     description=DESCRIPTION,
@@ -121,6 +152,7 @@ API_ROUTERS = (
     import_router,
     attachment_router,
     audit_router,
+    schedule_router,
     notification_router,
 )
 

@@ -32,6 +32,11 @@ class Settings(BaseSettings):
         default=10, ge=1, le=100, validation_alias="MAX_UPLOAD_MB"
     )
 
+    scheduler_enabled: bool = Field(default=True, validation_alias="SCHEDULER_ENABLED")
+    reminder_interval_minutes: int = Field(
+        default=60, ge=1, le=1440, validation_alias="REMINDER_INTERVAL_MINUTES"
+    )
+
     model_config = SettingsConfigDict(
         env_file=(BASE_DIR / ".env", ".env"),
         extra="ignore",
