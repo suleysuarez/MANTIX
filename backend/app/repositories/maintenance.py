@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +58,7 @@ class MaintenanceRepository:
             text("SELECT nextval('maintenance_ticket_number_seq')")
         )
         sequence_value = result.scalar_one()
-        year = datetime.now(timezone.utc).year
+        year = datetime.now(UTC).year
         return f"TCK-{year}-{sequence_value:06d}"
 
     async def get_equipment(self, equipment_id: int) -> Equipment | None:
@@ -187,7 +187,7 @@ class MaintenanceRepository:
     ) -> TicketAssignment:
         active = await self.get_active_assignment(request_id)
         if active is not None:
-            active.unassigned_at = datetime.now(timezone.utc)
+            active.unassigned_at = datetime.now(UTC)
         assignment = TicketAssignment(
             request_id=request_id,
             technician_id=technician_id,
@@ -202,7 +202,7 @@ class MaintenanceRepository:
         active = await self.get_active_assignment(request_id)
         if active is None:
             return None
-        active.unassigned_at = datetime.now(timezone.utc)
+        active.unassigned_at = datetime.now(UTC)
         await self.session.flush()
         return active
 

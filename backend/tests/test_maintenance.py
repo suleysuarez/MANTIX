@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -92,8 +92,8 @@ class FakeMaintenanceRepository:
             resolution_summary=None,
             resolved_at=None,
             closed_at=None,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             ticket_assignments=[],
             status_history=[],
         )
@@ -110,7 +110,7 @@ class FakeMaintenanceRepository:
                 id=len(request.status_history) + 1,
                 from_status=from_status,
                 to_status=to_status,
-                changed_at=datetime.now(timezone.utc),
+                changed_at=datetime.now(UTC),
                 notes=notes,
             )
         )
@@ -178,13 +178,13 @@ class FakeMaintenanceRepository:
         request = self.requests[request_id]
         for assignment in request.ticket_assignments:
             if assignment.unassigned_at is None:
-                assignment.unassigned_at = datetime.now(timezone.utc)
+                assignment.unassigned_at = datetime.now(UTC)
         assignment = SimpleNamespace(
             id=len(request.ticket_assignments) + 1,
             request_id=request_id,
             technician_id=technician_id,
             technician=self.technicians[technician_id],
-            assigned_at=datetime.now(timezone.utc),
+            assigned_at=datetime.now(UTC),
             unassigned_at=None,
             assigned_by_user_id=assigned_by_user_id,
             notes=notes,
@@ -196,7 +196,7 @@ class FakeMaintenanceRepository:
         active = await self.get_active_assignment(request_id)
         if active is None:
             return None
-        active.unassigned_at = datetime.now(timezone.utc)
+        active.unassigned_at = datetime.now(UTC)
         return active
 
     async def create_record(self, *, equipment_id, request_id, technician_id, payload):
@@ -382,7 +382,7 @@ async def test_maintenance_record_total_cost_is_labor_plus_parts():
         created.id,
         MaintenanceRecordCreate(
             work_type="corrective",
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             diagnosis="Screen cracked",
             actions_taken="Replaced panel",
             result="resolved",
