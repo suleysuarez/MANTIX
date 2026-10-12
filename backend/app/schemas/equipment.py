@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -22,6 +22,25 @@ class EquipmentTypeResponse(BaseModel):
     name: str
 
 
+class LocationBrief(BaseModel):
+    id: int
+    code: str
+    name: str
+
+
+class CustodianBrief(BaseModel):
+    id: int
+    full_name: str
+    email: str
+
+
+class LastMaintenance(BaseModel):
+    performed_at: datetime
+    work_type: str
+    result: str
+    technician_name: str
+
+
 class EquipmentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,6 +57,39 @@ class EquipmentResponse(BaseModel):
     purchase_cost: Decimal | None
     warranty_start_date: date | None
     warranty_end_date: date | None
+    #: Where the item is now (open row of the location history), if recorded.
+    current_location: LocationBrief | None = None
+    #: Who holds it now (open row of the custody history), if assigned.
+    current_custodian: CustodianBrief | None = None
+    #: Most recent maintenance record logged against the item.
+    last_maintenance: LastMaintenance | None = None
+
+
+class EquipmentSummaryResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total": 28,
+                "by_status": {
+                    "assigned": 18,
+                    "in_storage": 4,
+                    "in_repair": 4,
+                    "retired": 2,
+                },
+            }
+        }
+    )
+
+    total: int
+    by_status: dict[str, int]
+
+
+class CustodianCandidate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    full_name: str
+    email: str
 
 
 class EquipmentCreate(BaseModel):

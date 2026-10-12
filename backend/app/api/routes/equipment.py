@@ -6,10 +6,12 @@ from app.api.providers import get_equipment_service
 from app.core.authz import AuthContext
 from app.core.pagination import PageParams
 from app.schemas.equipment import (
+    CustodianCandidate,
     EquipmentCreate,
     EquipmentCustodyAssignRequest,
     EquipmentLocationAssignRequest,
     EquipmentResponse,
+    EquipmentSummaryResponse,
     EquipmentTypeResponse,
     EquipmentUpdate,
     LocationCreate,
@@ -35,6 +37,9 @@ async def list_equipment(
     response: Response,
     status_filter: str | None = Query(default=None, alias="status"),
     equipment_type_id: int | None = Query(default=None),
+    location_id: int | None = Query(
+        default=None, description="Items currently placed in this location"
+    ),
     brand: str | None = Query(default=None, max_length=100),
     search: str | None = Query(
         default=None,
@@ -48,12 +53,40 @@ async def list_equipment(
     page = await service.list_equipment(
         status=status_filter,
         equipment_type_id=equipment_type_id,
+        location_id=location_id,
         brand=brand,
         search=search,
         params=params,
     )
     set_page_headers(response, page)
     return page.items
+
+
+@router.get(
+    "/summary",
+    response_model=EquipmentSummaryResponse,
+    summary="Equipment counts by status",
+    description="Total and per-status counts for the whole catalog.",
+)
+async def equipment_summary(
+    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> EquipmentSummaryResponse:
+    return await service.summary()
+
+
+@router.get(
+    "/custodian-candidates",
+    response_model=list[CustodianCandidate],
+    summary="Search users who can hold equipment",
+    description="Active users matching `search` (name or e-mail), at most 20.",
+)
+async def custodian_candidates(
+    search: str | None = Query(default=None, max_length=100),
+    _: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> list[CustodianCandidate]:
+    return await service.custodian_candidates(search)
 
 
 @router.get("/types", response_model=list[EquipmentTypeResponse])
