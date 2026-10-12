@@ -29,7 +29,7 @@ const emptyDraft = (): EquipmentPayload => ({
     <section class="create-card">
       <h2>Add equipment</h2>
       <form #form="ngForm" (ngSubmit)="submitted.emit(draft)">
-        <label>Asset tag 2535 <input name="assetTag" [(ngModel)]="draft.asset_tag" required /></label>
+        <label>Asset tag <input name="assetTag" [(ngModel)]="draft.asset_tag" required /></label>
         <label>Serial number <input name="serialNumber" [(ngModel)]="draft.serial_number" /></label>
         <label>Type
           <select name="type" [(ngModel)]="draft.equipment_type_id" required>

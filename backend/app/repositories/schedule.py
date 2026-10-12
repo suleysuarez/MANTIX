@@ -1,10 +1,15 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import selectinload
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.schedule import MaintenanceSchedule
+from app.models.technician import Technician
 from app.repositories.base import BaseRepository, Page
+
+#: Arbitrary application-wide id for the reminder job's advisory lock.
+REMINDER_LOCK_KEY = 85219402
 
 SORTABLE = {
     "next_due_at": MaintenanceSchedule.next_due_at,
@@ -21,7 +26,7 @@ class ScheduleRepository(BaseRepository[MaintenanceSchedule]):
     def _query():
         return select(MaintenanceSchedule).options(
             selectinload(MaintenanceSchedule.equipment),
-            selectinload(MaintenanceSchedule.technician),
+            selectinload(MaintenanceSchedule.technician).selectinload(Technician.user),
         )
 
     async def get(self, entity_id: int) -> MaintenanceSchedule | None:
@@ -30,15 +35,23 @@ class ScheduleRepository(BaseRepository[MaintenanceSchedule]):
         )
         return result.scalar_one_or_none()
 
+    async def try_acquire_reminder_lock(self) -> bool:
+        """Transaction-scoped advisory lock: only one worker runs the job at a time.
+
+        Released automatically on commit/rollback of the current transaction.
+        """
+        result = await self.session.execute(
+            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": REMINDER_LOCK_KEY}
+        )
+        return bool(result.scalar_one())
+
     async def search(
         self,
         *,
         equipment_id: int | None = None,
         is_active: bool | None = None,
         search: str | None = None,
-        sort: str | None = None,
-        page: int = 1,
-        size: int = 20,
+        params: PageParams = DEFAULT_PAGE,
     ) -> Page[MaintenanceSchedule]:
         query = self._query()
         if equipment_id is not None:
@@ -48,11 +61,13 @@ class ScheduleRepository(BaseRepository[MaintenanceSchedule]):
         query = self.apply_search(query, search, [MaintenanceSchedule.title])
         query = self.apply_ordering(
             query,
-            sort,
+            params.sort,
             SORTABLE,
             default=(MaintenanceSchedule.next_due_at.asc(), MaintenanceSchedule.id),
         )
-        return await self.paginate(query, page=page, size=size)
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
 
     async def list_due_for_reminder(self, now: datetime) -> list[MaintenanceSchedule]:
         """Active plans whose reminder window has opened and not yet been sent.

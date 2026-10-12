@@ -25,6 +25,7 @@ from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
 from app.repositories.report import ReportRepository
+from app.repositories.schedule import ScheduleRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.attachment import AttachmentService
@@ -37,7 +38,9 @@ from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
 from app.services.notification_inbox import NotificationInboxService
 from app.services.priority import PriorityService
+from app.services.reminders import ReminderService
 from app.services.report import ReportService
+from app.services.schedule import ScheduleService
 from app.services.technician import TechnicianService
 
 Session = Depends(get_db)
@@ -76,6 +79,10 @@ def get_attachment_repository(
     session: AsyncSession = Session,
 ) -> AttachmentRepository:
     return AttachmentRepository(session)
+
+
+def get_schedule_repository(session: AsyncSession = Session) -> ScheduleRepository:
+    return ScheduleRepository(session)
 
 
 def get_maintenance_repository(
@@ -205,3 +212,20 @@ def get_attachment_service(
         audit,
         max_bytes=settings.max_upload_mb * 1024 * 1024,
     )
+
+
+def get_schedule_service(
+    repository: Annotated[ScheduleRepository, Depends(get_schedule_repository)],
+    equipment: Annotated[EquipmentRepository, Depends(get_equipment_repository)],
+    technicians: Annotated[TechnicianRepository, Depends(get_technician_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ScheduleService:
+    return ScheduleService(repository, equipment, technicians, audit)
+
+
+def get_reminder_service(
+    repository: Annotated[ScheduleRepository, Depends(get_schedule_repository)],
+    notifications: Annotated[NotificationService, Depends(get_notification_service)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ReminderService:
+    return ReminderService(repository, notifications, audit)

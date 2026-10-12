@@ -143,6 +143,14 @@ class BaseRepository(Generic[ModelT]):
 
     # -- Unit of work ---------------------------------------------------
 
+    def expire(self, entity: ModelT, attributes: Sequence[str]) -> None:
+        """Drop cached attributes so the next read reloads them.
+
+        The session keeps `expire_on_commit=False`, so a relationship that was
+        already loaded stays stale after its foreign key changes.
+        """
+        self.session.expire(entity, list(attributes))
+
     async def flush(self) -> None:
         await self.session.flush()
 
