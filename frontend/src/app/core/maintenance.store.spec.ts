@@ -23,7 +23,7 @@ describe('MaintenanceStore', () => {
 
   beforeEach(() => {
     api = jasmine.createSpyObj('MaintenanceService', ['list', 'create']);
-    equipmentApi = jasmine.createSpyObj('EquipmentService', ['list']);
+    equipmentApi = jasmine.createSpyObj('EquipmentService', ['listAll']);
     TestBed.configureTestingModule({
       providers: [
         MaintenanceStore,
@@ -33,7 +33,7 @@ describe('MaintenanceStore', () => {
     });
     store = TestBed.inject(MaintenanceStore);
     store.state$.subscribe((state) => (latest = state));
-    equipmentApi.list.and.returnValue(of([]));
+    equipmentApi.listAll.and.returnValue(of([]));
   });
 
   it('loads one extra row to detect a next page and trims it', () => {

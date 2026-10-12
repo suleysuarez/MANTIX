@@ -119,7 +119,7 @@ export class DashboardStore {
   load(): void {
     this.subject.next({ ...this.subject.value, loading: true });
     forkJoin({
-      equipment: this.equipmentApi.list({ limit: 500 }).pipe(catchError(() => of([] as Equipment[]))),
+      equipment: this.equipmentApi.listAll().pipe(catchError(() => of([] as Equipment[]))),
       tickets: this.maintenanceApi.list({ limit: 500 }).pipe(catchError(() => of([] as MaintenanceListItem[]))),
       technicians: this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))),
     }).subscribe(({ equipment, tickets, technicians }) =>

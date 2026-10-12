@@ -10,6 +10,7 @@ function equipment(id: number, status: string, type = 'Laptop'): Equipment {
     equipment_type: { id: 1, code: type, name: type }, brand: 'b', model: 'm',
     description: null, status, purchase_date: null, purchase_cost: null,
     warranty_start_date: null, warranty_end_date: null,
+    current_location: null, current_custodian: null, last_maintenance: null,
   };
 }
 

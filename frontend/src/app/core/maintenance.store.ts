@@ -53,7 +53,7 @@ export class MaintenanceStore {
     this.patch({ loading: true, error: '' });
     forkJoin({
       rows: this.fetchPage(),
-      equipment: this.equipmentApi.list({ limit: 500 }),
+      equipment: this.equipmentApi.listAll(),
     }).subscribe({
       next: ({ rows, equipment }) => this.applyPage(rows, { equipment }),
       error: (error) => this.patch({ loading: false, error: httpErrorMessage(error, LOAD_ERROR) }),
