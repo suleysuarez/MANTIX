@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Select, select
@@ -210,7 +210,7 @@ class EquipmentRepository(BaseRepository[Equipment]):
         notes: str | None,
     ) -> EquipmentLocationHistory:
         active = await self.get_active_location(equipment_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if active is not None:
             active.ended_at = now
         entry = EquipmentLocationHistory(
@@ -245,7 +245,7 @@ class EquipmentRepository(BaseRepository[Equipment]):
         notes: str | None,
     ) -> EquipmentCustodyHistory:
         active = await self.get_active_custody(equipment_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if active is not None:
             active.returned_at = now
         entry = EquipmentCustodyHistory(
