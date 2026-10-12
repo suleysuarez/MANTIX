@@ -9,6 +9,7 @@ from app.core.exceptions import (
     InvalidTransitionError,
     NotFoundError,
 )
+from app.repositories.base import Page
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRequestCreate,
@@ -63,6 +64,9 @@ class FakeMaintenanceRepository:
         self._next_request_id = 1
         self._ticket_seq = 0
         self.committed = False
+
+    async def get_active_priority(self, code):
+        return SimpleNamespace(code=code) if code != "unknown" else None
 
     async def get_equipment(self, equipment_id):
         return self.equipment.get(equipment_id)
@@ -134,8 +138,8 @@ class FakeMaintenanceRepository:
         equipment_id=None,
         requested_by_user_id=None,
         technician_id=None,
-        limit=200,
-        offset=0,
+        params=None,
+        **_filters,
     ):
         items = list(self.requests.values())
         if status is not None:
@@ -159,7 +163,7 @@ class FakeMaintenanceRepository:
                     for a in item.ticket_assignments
                 )
             ]
-        return items[offset : offset + limit]
+        return Page(items=items, total=len(items), page=1, size=20)
 
     async def get_technician(self, technician_id):
         return self.technicians.get(technician_id)
@@ -410,10 +414,8 @@ async def test_employee_only_lists_own_tickets():
         status=None,
         priority=None,
         equipment_id=None,
-        limit=200,
-        offset=0,
         actor=employee,
     )
 
-    assert len(result) == 1
-    assert result[0].ticket_number == own_ticket.ticket_number
+    assert result.total == 1
+    assert result.items[0].ticket_number == own_ticket.ticket_number

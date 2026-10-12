@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.repositories.base import Page
 from app.schemas.technician import TechnicianCreate, TechnicianUpdate
 from app.services.technician import TechnicianService
 
@@ -15,10 +16,11 @@ class FakeTechnicianRepository:
         self.items: list[SimpleNamespace] = []
         self.committed = False
 
-    async def list(self, *, is_available=None):
-        if is_available is None:
-            return self.items
-        return [item for item in self.items if item.is_available == is_available]
+    async def list(self, *, is_available=None, **_kwargs):
+        items = self.items
+        if is_available is not None:
+            items = [item for item in items if item.is_available == is_available]
+        return Page(items=items, total=len(items), page=1, size=20)
 
     async def get(self, technician_id):
         return next((item for item in self.items if item.id == technician_id), None)
@@ -100,4 +102,5 @@ async def test_list_filters_by_availability():
 
     available = await service.list(is_available=True)
 
-    assert [item.user_id for item in available] == [1]
+    assert [item.user_id for item in available.items] == [1]
+    assert available.total == 1

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.repositories.base import Page
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate
 from app.services.equipment import EquipmentService
 
@@ -25,7 +26,7 @@ class FakeEquipmentRepository:
         self.committed = False
 
     async def list_equipment(self, **_kwargs):
-        return self.items
+        return Page(items=self.items, total=len(self.items), page=1, size=20)
 
     async def list_types(self):
         return self.types
@@ -96,7 +97,7 @@ def service_with_fakes():
 async def test_equipment_list_and_create():
     service = service_with_fakes()
 
-    assert await service.list_equipment() == []
+    assert (await service.list_equipment()).items == []
     created = await service.create(payload(), actor())
 
     assert created.asset_tag == "LT-001"

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.equipment import Equipment
 from app.models.maintenance import (
     MaintenanceRecord,
@@ -10,9 +11,26 @@ from app.models.maintenance import (
     TicketAssignment,
     TicketStatusHistory,
 )
+from app.models.priority import Priority
 from app.models.technician import Technician
-from app.repositories.base import BaseRepository
+from app.repositories.base import BaseRepository, Page
 from app.schemas.maintenance import MaintenanceRecordCreate
+
+#: Priority is sorted by its catalog `level`, not alphabetically by code.
+_PRIORITY_LEVEL = (
+    select(Priority.level)
+    .where(Priority.code == MaintenanceRequest.priority)
+    .scalar_subquery()
+)
+
+REQUEST_SORT_FIELDS = {
+    "created_at": MaintenanceRequest.created_at,
+    "updated_at": MaintenanceRequest.updated_at,
+    "status": MaintenanceRequest.status,
+    "priority": _PRIORITY_LEVEL,
+    "ticket_number": MaintenanceRequest.ticket_number,
+    "id": MaintenanceRequest.id,
+}
 
 
 class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
@@ -66,6 +84,12 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         )
         return result.scalar_one_or_none()
 
+    async def get_active_priority(self, code: str) -> Priority | None:
+        result = await self.session.execute(
+            select(Priority).where(Priority.code == code, Priority.is_active.is_(True))
+        )
+        return result.scalar_one_or_none()
+
     async def get(self, request_id: int) -> MaintenanceRequest | None:
         result = await self.session.execute(
             self._request_query().where(MaintenanceRequest.id == request_id)
@@ -80,9 +104,11 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         equipment_id: int | None = None,
         requested_by_user_id: int | None = None,
         technician_id: int | None = None,
-        limit: int = 200,
-        offset: int = 0,
-    ) -> list[MaintenanceRequest]:
+        search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        params: PageParams = DEFAULT_PAGE,
+    ) -> Page[MaintenanceRequest]:
         query = select(MaintenanceRequest)
         if status is not None:
             query = query.where(MaintenanceRequest.status == status)
@@ -101,13 +127,31 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
                     TicketAssignment.unassigned_at.is_(None),
                 )
             )
-        query = (
-            query.order_by(MaintenanceRequest.created_at.desc())
-            .limit(limit)
-            .offset(offset)
+        if date_from is not None:
+            query = query.where(MaintenanceRequest.created_at >= date_from)
+        if date_to is not None:
+            query = query.where(MaintenanceRequest.created_at <= date_to)
+        query = self.apply_search(
+            query,
+            search,
+            [
+                MaintenanceRequest.ticket_number,
+                MaintenanceRequest.title,
+                MaintenanceRequest.description,
+            ],
         )
-        result = await self.session.execute(query)
-        return list(result.scalars().all())
+        query = self.apply_ordering(
+            query,
+            params.sort,
+            REQUEST_SORT_FIELDS,
+            default=(
+                MaintenanceRequest.created_at.desc(),
+                MaintenanceRequest.id.desc(),
+            ),
+        )
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
 
     async def create_request(
         self,

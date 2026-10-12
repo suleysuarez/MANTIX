@@ -2,7 +2,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.authz import AuthContext
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.equipment import Equipment
+from app.repositories.base import Page
 from app.repositories.equipment import EquipmentRepository
 from app.schemas.equipment import (
     EquipmentCreate,
@@ -27,18 +29,18 @@ class EquipmentService:
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        brand: str | None = None,
         search: str | None = None,
-        limit: int = 200,
-        offset: int = 0,
-    ) -> list[EquipmentResponse]:
-        items = await self.repository.list_equipment(
+        params: PageParams = DEFAULT_PAGE,
+    ) -> Page[EquipmentResponse]:
+        page = await self.repository.list_equipment(
             status=status,
             equipment_type_id=equipment_type_id,
+            brand=brand,
             search=search,
-            limit=min(limit, 500),
-            offset=offset,
+            params=params,
         )
-        return [EquipmentResponse.model_validate(item) for item in items]
+        return page.map(EquipmentResponse.model_validate)
 
     async def list_types(self) -> list[EquipmentTypeResponse]:
         return [
@@ -194,11 +196,11 @@ class EquipmentService:
         await self.repository.commit()
         return self._response(await self.repository.get(equipment_id))
 
-    async def list_locations(self) -> list[LocationResponse]:
-        return [
-            LocationResponse.model_validate(item)
-            for item in await self.repository.list_locations()
-        ]
+    async def list_locations(
+        self, *, search: str | None = None, params: PageParams = DEFAULT_PAGE
+    ) -> Page[LocationResponse]:
+        page = await self.repository.list_locations(search=search, params=params)
+        return page.map(LocationResponse.model_validate)
 
     async def create_location(self, payload: LocationCreate) -> LocationResponse:
         try:

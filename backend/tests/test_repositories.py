@@ -71,8 +71,10 @@ async def test_equipment_search_treats_wildcards_literally(db_session):
     repo = EquipmentRepository(db_session)
     await _equipment(db_session, tag="AT-1", brand="100%Pure")
     await _equipment(db_session, tag="AT-2", brand="Other")
-    assert [e.asset_tag for e in await repo.list_equipment(search="%")] == ["AT-1"]
-    assert len(await repo.list_equipment(search="at-")) == 2
+    assert [e.asset_tag for e in (await repo.list_equipment(search="%")).items] == [
+        "AT-1"
+    ]
+    assert (await repo.list_equipment(search="at-")).total == 2
 
 
 async def test_priority_fk_rejects_unknown_code(db_session):
