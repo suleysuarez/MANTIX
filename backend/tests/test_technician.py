@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.core.authz import AuthContext
 from app.core.exceptions import ConflictError, NotFoundError
 from app.repositories.base import Page
 from app.schemas.technician import TechnicianCreate, TechnicianUpdate
@@ -55,8 +56,19 @@ class FakeTechnicianRepository:
         pass
 
 
+class FakeAudit:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(kwargs)
+
+
+ACTOR = AuthContext(user=SimpleNamespace(id=9), roles=frozenset({"ADMIN"}))
+
+
 def service_with_fakes(users=None):
-    return TechnicianService(FakeTechnicianRepository(users=users))
+    return TechnicianService(FakeTechnicianRepository(users=users), FakeAudit())
 
 
 @pytest.mark.asyncio
@@ -64,7 +76,7 @@ async def test_create_technician_profile():
     service = service_with_fakes()
 
     created = await service.create(
-        TechnicianCreate(user_id=1, specialization="Networking")
+        TechnicianCreate(user_id=1, specialization="Networking"), ACTOR
     )
 
     assert created.user_id == 1
@@ -77,16 +89,16 @@ async def test_create_rejects_missing_user():
     service = service_with_fakes(users=[])
 
     with pytest.raises(NotFoundError):
-        await service.create(TechnicianCreate(user_id=99))
+        await service.create(TechnicianCreate(user_id=99), ACTOR)
 
 
 @pytest.mark.asyncio
 async def test_create_rejects_duplicate_profile():
     service = service_with_fakes()
-    await service.create(TechnicianCreate(user_id=1))
+    await service.create(TechnicianCreate(user_id=1), ACTOR)
 
     with pytest.raises(ConflictError):
-        await service.create(TechnicianCreate(user_id=1))
+        await service.create(TechnicianCreate(user_id=1), ACTOR)
 
 
 @pytest.mark.asyncio
@@ -96,11 +108,25 @@ async def test_list_filters_by_availability():
         SimpleNamespace(id=2, is_active=True),
     ]
     service = service_with_fakes(users=users)
-    await service.create(TechnicianCreate(user_id=1))
-    second = await service.create(TechnicianCreate(user_id=2))
-    await service.update(second.id, TechnicianUpdate(is_available=False))
+    await service.create(TechnicianCreate(user_id=1), ACTOR)
+    second = await service.create(TechnicianCreate(user_id=2), ACTOR)
+    await service.update(second.id, TechnicianUpdate(is_available=False), ACTOR)
 
     available = await service.list(is_available=True)
 
     assert [item.user_id for item in available.items] == [1]
     assert available.total == 1
+
+
+@pytest.mark.asyncio
+async def test_technician_writes_are_audited_with_before_and_after_values():
+    service = service_with_fakes()
+    created = await service.create(TechnicianCreate(user_id=1), ACTOR)
+    await service.update(created.id, TechnicianUpdate(is_available=False), ACTOR)
+
+    create_record, update_record = service.audit.records
+    assert create_record["action"] == "technician.created"
+    assert create_record["user_id"] == 9
+    assert update_record["action"] == "technician.updated"
+    assert update_record["old_values"] == {"is_available": True}
+    assert update_record["new_values"] == {"is_available": False}

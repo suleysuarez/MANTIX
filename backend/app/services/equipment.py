@@ -202,9 +202,18 @@ class EquipmentService:
         page = await self.repository.list_locations(search=search, params=params)
         return page.map(LocationResponse.model_validate)
 
-    async def create_location(self, payload: LocationCreate) -> LocationResponse:
+    async def create_location(
+        self, payload: LocationCreate, actor: AuthContext
+    ) -> LocationResponse:
         try:
             location = await self.repository.create_location(payload)
+            self.audit.record(
+                user_id=actor.id,
+                action="location.created",
+                entity_type="location",
+                entity_id=location.id,
+                new_values={"code": payload.code, "name": payload.name},
+            )
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()

@@ -4,6 +4,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.core.request_context import get_request_info
 from app.models.audit import AuditLog
 from app.repositories.base import BaseRepository, Page
 
@@ -29,6 +31,7 @@ class AuditRepository(BaseRepository[AuditLog]):
         new_values: dict[str, Any] | None = None,
     ) -> None:
         """Stage an audit row in the caller's transaction (no commit)."""
+        info = get_request_info()
         self.add(
             AuditLog(
                 user_id=user_id,
@@ -37,6 +40,8 @@ class AuditRepository(BaseRepository[AuditLog]):
                 entity_id=entity_id,
                 old_values=old_values,
                 new_values=new_values,
+                ip_address=info.ip_address[:45] if info and info.ip_address else None,
+                user_agent=info.user_agent[:500] if info and info.user_agent else None,
             )
         )
 
@@ -49,9 +54,7 @@ class AuditRepository(BaseRepository[AuditLog]):
         entity_id: int | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
-        sort: str | None = None,
-        page: int = 1,
-        size: int = 20,
+        params: PageParams = DEFAULT_PAGE,
     ) -> Page[AuditLog]:
         query = select(AuditLog).options(selectinload(AuditLog.user))
         if user_id is not None:
@@ -68,8 +71,10 @@ class AuditRepository(BaseRepository[AuditLog]):
             query = query.where(AuditLog.created_at <= date_to)
         query = self.apply_ordering(
             query,
-            sort,
+            params.sort,
             SORTABLE,
             default=(AuditLog.created_at.desc(), AuditLog.id.desc()),
         )
-        return await self.paginate(query, page=page, size=size)
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
