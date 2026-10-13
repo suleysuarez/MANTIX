@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -39,6 +40,10 @@ class FakeTechnicianRepository:
         item = SimpleNamespace(
             id=len(self.items) + 1,
             is_available=True,
+            created_at=datetime(2026, 10, 11, 15, 0, tzinfo=UTC),
+            full_name=f"Tech {payload.user_id}",
+            email=f"tech{payload.user_id}@example.com",
+            employee_code=None,
             **payload.model_dump(),
         )
         self.items.append(item)
@@ -81,6 +86,10 @@ async def test_create_technician_profile():
 
     assert created.user_id == 1
     assert created.is_available is True
+    assert created.full_name == "Tech 1"
+    assert created.email == "tech1@example.com"
+    assert created.employee_code is None
+    assert created.created_at.year == 2026
     assert service.repository.committed
 
 

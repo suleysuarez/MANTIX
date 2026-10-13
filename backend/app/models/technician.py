@@ -55,9 +55,24 @@ class Technician(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="technician")
+
     ticket_assignments: Mapped[list["TicketAssignment"]] = relationship(
         "TicketAssignment", back_populates="technician"
     )
     maintenance_records: Mapped[list["MaintenanceRecord"]] = relationship(
         "MaintenanceRecord", back_populates="technician"
     )
+
+    # Identity of the person behind the profile. `user` must be loaded (the
+    # repository eager-loads it); these only read it, never trigger I/O.
+    @property
+    def full_name(self) -> str:
+        return self.user.full_name
+
+    @property
+    def email(self) -> str:
+        return self.user.email
+
+    @property
+    def employee_code(self) -> str | None:
+        return self.user.employee_code
