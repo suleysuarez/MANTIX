@@ -116,6 +116,10 @@ app = FastAPI(
     openapi_url=None if settings.is_production else "/openapi.json",
 )
 
+app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
+app.add_middleware(RequestLoggingMiddleware)
+# CORS se añade al final para quedar como capa más externa: así incluso los 429 y
+# los 500 llevan cabeceras CORS y el navegador puede leer su cuerpo.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -129,10 +133,6 @@ app.add_middleware(
         *PAGINATION_HEADERS,
     ],
 )
-# Se añaden después de CORS para quedar por fuera: así incluso los 429 llevan
-# cabeceras CORS y el navegador puede leerlos.
-app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
-app.add_middleware(RequestLoggingMiddleware)
 
 register_exception_handlers(app)
 

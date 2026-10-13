@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from app.core.errors import error_body
 from app.core.request_context import RequestInfo, set_request_info
 
 logger = logging.getLogger("mantix.request")
@@ -56,7 +57,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 request.method,
                 request.url.path,
             )
-            raise
+            # Answer here instead of re-raising: an exception that reaches
+            # Starlette's outermost handler skips CORSMiddleware, and the browser
+            # would hide the body of the 500 behind a CORS error.
+            response = JSONResponse(
+                status_code=500,
+                content=error_body(
+                    request, detail="internal server error", code="internal_error"
+                ),
+            )
         elapsed_ms = (time.perf_counter() - started) * 1000
         response.headers[REQUEST_ID_HEADER] = request_id
         logger.info(
