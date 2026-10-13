@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from app.core.middleware import RateLimitMiddleware, RequestLoggingMiddleware
@@ -49,3 +50,49 @@ def test_every_response_carries_a_request_id_and_echoes_a_given_one():
     assert client.get("/ping").headers["X-Request-ID"]
     echoed = client.get("/ping", headers={"X-Request-ID": "abc123"})
     assert echoed.headers["X-Request-ID"] == "abc123"
+
+
+def build_cors_app(limit: int = 0) -> TestClient:
+    """Same layering as `app.main`: CORS is the outermost middleware."""
+    app = FastAPI()
+    app.add_middleware(RateLimitMiddleware, limit_per_minute=limit)
+    app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"]
+    )
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("database exploded")
+
+    @app.get("/ping")
+    def ping() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    return TestClient(app, raise_server_exceptions=False)
+
+
+ORIGIN = {"Origin": "http://localhost:4200"}
+
+
+def test_unhandled_errors_return_a_readable_json_500_with_cors_headers():
+    client = build_cors_app()
+
+    response = client.get("/boom", headers={**ORIGIN, "X-Request-ID": "req-9"})
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://localhost:4200"
+    body = response.json()
+    assert body["code"] == "internal_error"
+    assert body["request_id"] == "req-9"
+    assert "database exploded" not in response.text
+
+
+def test_rate_limited_responses_also_carry_cors_headers():
+    client = build_cors_app(limit=1)
+    client.get("/ping", headers=ORIGIN)
+
+    blocked = client.get("/ping", headers=ORIGIN)
+
+    assert blocked.status_code == 429
+    assert blocked.headers["access-control-allow-origin"] == "http://localhost:4200"
