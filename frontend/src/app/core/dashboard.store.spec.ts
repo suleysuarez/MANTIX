@@ -9,7 +9,7 @@ function equipment(id: number, status: string, type = 'Laptop'): Equipment {
     id, asset_tag: `A${id}`, serial_number: null, equipment_type_id: 1,
     equipment_type: { id: 1, code: type, name: type }, brand: 'b', model: 'm',
     description: null, status, purchase_date: null, purchase_cost: null,
-    warranty_start_date: null, warranty_end_date: null,
+    warranty_start_date: null, warranty_end_date: null, created_at: '2026-01-01T00:00:00Z',
     current_location: null, current_custodian: null, last_maintenance: null,
   };
 }
