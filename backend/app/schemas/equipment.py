@@ -57,6 +57,8 @@ class EquipmentResponse(BaseModel):
     purchase_cost: Decimal | None
     warranty_start_date: date | None
     warranty_end_date: date | None
+    #: When the item was registered: the first event of its history.
+    created_at: datetime
     #: Where the item is now (open row of the location history), if recorded.
     current_location: LocationBrief | None = None
     #: Who holds it now (open row of the custody history), if assigned.
