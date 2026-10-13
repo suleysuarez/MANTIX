@@ -2,19 +2,21 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from 
 
 import { pageWindow } from '../../core/equipment-status';
 
-/** Dumb component: «Mostrando X a Y de N equipos» y páginas numeradas. */
+/** Dumb component: resumen del resultado («3 equipos en el inventario», «Equipos 11–20 de 28») y páginas numeradas. */
 @Component({
   selector: 'app-equipment-pagination',
   standalone: true,
   template: `
     <nav aria-label="Paginación del catálogo"
       class="flex flex-col items-center justify-between gap-4 !border-t !border-slate-100 bg-white px-6 py-4 text-xs text-slate-500 sm:flex-row">
-      <span>
+      <span role="status">
         @if (total === 0) {
           Sin resultados
+        } @else if (pages === 1) {
+          <strong class="text-slate-800">{{ total }}</strong> {{ total === 1 ? 'equipo' : 'equipos' }}{{ filtered ? ' con los filtros aplicados' : ' en el inventario' }}
         } @else {
-          Mostrando <strong class="text-slate-800">{{ from }}</strong> a <strong class="text-slate-800">{{ to }}</strong>
-          de <strong class="text-slate-800">{{ total }}</strong> equipos
+          Equipos <strong class="text-slate-800">{{ from }}</strong>–<strong class="text-slate-800">{{ to }}</strong>
+          de <strong class="text-slate-800">{{ total }}</strong>{{ filtered ? ' con los filtros aplicados' : '' }}
         }
       </span>
       @if (pages > 1) {
@@ -52,6 +54,8 @@ export class EquipmentPaginationComponent {
   @Input() pageSize = 10;
   @Input() total = 0;
   @Input() loading = false;
+  /** Hay filtros activos: el total es el de la búsqueda, no el del inventario. */
+  @Input() filtered = false;
   @Output() readonly pageChange = new EventEmitter<number>();
 
   get pages(): number {

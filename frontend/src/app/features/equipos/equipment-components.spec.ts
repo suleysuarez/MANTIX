@@ -34,6 +34,7 @@ const laptop = (overrides: Partial<Equipment> = {}): Equipment => ({
   purchase_cost: '1250.00',
   warranty_start_date: null,
   warranty_end_date: '2099-01-01',
+  created_at: '2025-01-10T08:00:00Z',
   current_location: { id: 3, code: 'P3', name: 'Piso 3 - Desarrollo' },
   current_custodian: { id: 8, full_name: 'Carlos Rivera', email: 'carlos@example.com' },
   last_maintenance: { performed_at: '2025-02-10T09:00:00Z', work_type: 'preventive', result: 'ok', technician_name: 'Laura Peña' },
@@ -110,9 +111,23 @@ describe('EquipmentPaginationComponent', () => {
 
   it('describes the visible range', () => {
     render(2, 28);
-    expect(text(fixture)).toContain('Mostrando 11 a 20 de 28 equipos');
+    expect(text(fixture)).toContain('Equipos 11–20 de 28');
     render(3, 28);
-    expect(text(fixture)).toContain('Mostrando 21 a 28 de 28 equipos');
+    expect(text(fixture)).toContain('Equipos 21–28 de 28');
+  });
+
+  it('gives a single page a meaningful summary instead of a degenerate range', () => {
+    render(1, 1);
+    expect(text(fixture)).toContain('1 equipo en el inventario');
+    render(1, 3);
+    expect(text(fixture)).toContain('3 equipos en el inventario');
+  });
+
+  it('says when the total comes from active filters', () => {
+    fixture = TestBed.createComponent(EquipmentPaginationComponent);
+    Object.assign(fixture.componentInstance, { page: 1, total: 2, pageSize: 10, filtered: true });
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('2 equipos con los filtros aplicados');
   });
 
   it('says so when there is nothing to show and hides the page buttons', () => {
@@ -211,7 +226,6 @@ describe('EquipmentToolbarComponent', () => {
     Object.assign(fixture.componentInstance, {
       filters: EMPTY_FILTERS,
       types: [{ id: 1, code: 'LAPTOP', name: 'Portátil' }],
-      locations: [{ id: 3, code: 'P3', name: 'Piso 3', kind: 'floor', parent_id: null }],
     });
     fixture.detectChanges();
   });
@@ -241,10 +255,8 @@ describe('EquipmentToolbarComponent', () => {
     selects[0].dispatchEvent(new Event('change'));
     selects[1].value = 'in_repair';
     selects[1].dispatchEvent(new Event('change'));
-    selects[2].value = '';
-    selects[2].dispatchEvent(new Event('change'));
 
-    expect(changes).toEqual([{ typeId: 1 }, { status: 'in_repair' }, { locationId: null }]);
+    expect(changes).toEqual([{ typeId: 1 }, { status: 'in_repair' }]);
   });
 
   it('only offers the export menu with permission and emits the chosen format', () => {
@@ -488,6 +500,18 @@ describe('EquipmentDetailDrawerComponent', () => {
     expect(content).toContain('Sin archivos adjuntos');
     expect(content).toContain('Sin garantía registrada');
     expect(content).toContain('Asignar');
+  });
+
+  it('always lists the creation as the first event of the history and counts it', () => {
+    render(
+      { equipment: laptop(), tickets: [], attachments: [] },
+      { canReadMaintenance: true },
+    );
+
+    const content = text(fixture);
+    expect(content).toContain('Historial (1 evento)');
+    expect(content).toContain('Equipo registrado en el inventario');
+    expect(content).toContain('Creación');
   });
 
   it('shows errors and notices from the store', () => {

@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,9 +9,15 @@ class TechnicianResponse(BaseModel):
 
     id: int
     user_id: int
+    #: Identity of the person behind the profile (read from the linked user).
+    full_name: str
+    email: str
+    employee_code: str | None
     specialization: str | None
     is_available: bool
     hourly_rate: Decimal | None
+    #: When the profile was registered: the first event of its history.
+    created_at: datetime
 
 
 class TechnicianCreate(BaseModel):
