@@ -100,7 +100,11 @@ export interface MaintenanceQuery {
   status?: string;
   priority?: string;
   equipmentId?: number;
-  /** Campo de orden; prefijo `-` para descendente. */
+  search?: string;
+  /** ISO datetimes; the API matches `created_at` between them. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Campo de orden; prefijo `-` para descendente (p. ej. `-created_at`). */
   sort?: string;
   limit?: number;
   offset?: number;
@@ -121,6 +125,15 @@ export class MaintenanceService {
     }
     if (query.equipmentId !== undefined) {
       params = params.set('equipment_id', query.equipmentId);
+    }
+    if (query.search) {
+      params = params.set('search', query.search);
+    }
+    if (query.dateFrom) {
+      params = params.set('date_from', query.dateFrom);
+    }
+    if (query.dateTo) {
+      params = params.set('date_to', query.dateTo);
     }
     if (query.sort) {
       params = params.set('sort', query.sort);
