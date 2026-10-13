@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -55,6 +56,7 @@ class FakeEquipmentRepository:
         item = SimpleNamespace(
             id=len(self.items) + 1,
             equipment_type=self.types[0],
+            created_at=datetime(2026, 10, 11, 15, 0, tzinfo=UTC),
             **payload.model_dump(),
         )
         self.items.append(item)

@@ -11,7 +11,7 @@ import {
 import { Subject, Subscription, debounceTime } from 'rxjs';
 
 import { EQUIPMENT_STATUSES, statusInfo } from '../../core/equipment-status';
-import { EquipmentType, LocationItem, ReportFormat } from '../../core/equipment.service';
+import { EquipmentType, ReportFormat } from '../../core/equipment.service';
 import { EquipmentFilters, EquipmentView } from '../../core/equipment.store';
 
 export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
@@ -56,13 +56,6 @@ export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
           }
         </select>
 
-        <select aria-label="Ubicación" (change)="filtersChange.emit({ locationId: toNumber($any($event.target).value) })"
-          class="hidden rounded-xl !border !border-slate-200 bg-slate-50/70 px-3 py-2.5 text-xs font-medium text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 xl:block">
-          <option value="">Todas las ubicaciones</option>
-          @for (location of locations; track location.id) {
-            <option [value]="location.id" [selected]="location.id === filters.locationId">{{ location.name }}</option>
-          }
-        </select>
 
         <select aria-label="Ordenar por" (change)="sortChange.emit($any($event.target).value)"
           class="hidden rounded-xl !border !border-slate-200 bg-slate-50/70 px-3 py-2.5 text-xs font-medium text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 2xl:block">
@@ -125,7 +118,6 @@ export class EquipmentToolbarComponent implements OnInit, OnDestroy {
   @Input() sort = 'asset_tag';
   @Input() view: EquipmentView = 'table';
   @Input() types: readonly EquipmentType[] = [];
-  @Input() locations: readonly LocationItem[] = [];
   @Input() canExport = false;
   @Input() exporting = false;
 

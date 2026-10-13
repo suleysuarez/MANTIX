@@ -160,7 +160,9 @@ export function warrantyLabel(end: string | null, today = new Date()): { text: s
               }
 
               <section>
-                <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-900">Historial de mantenimientos</h3>
+                <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-900">
+                  Historial ({{ state.tickets.length + 1 }} {{ state.tickets.length === 0 ? 'evento' : 'eventos' }})
+                </h3>
                 @if (item.last_maintenance; as last) {
                   <p class="mb-3 rounded-xl bg-sky-50 px-3 py-2 text-[11px] text-sky-800">
                     Último trabajo: <strong>{{ workType(last.work_type) }}</strong> el {{ date(last.performed_at) }} por {{ last.technician_name }} · {{ last.result }}
@@ -168,8 +170,6 @@ export function warrantyLabel(end: string | null, today = new Date()): { text: s
                 }
                 @if (state.loading) {
                   <div class="h-16 animate-pulse rounded-xl bg-slate-100" aria-hidden="true"></div>
-                } @else if (state.tickets.length === 0) {
-                  <p class="text-slate-400">{{ canReadMaintenance ? 'Este equipo aún no tiene tickets.' : 'No tienes permiso para ver el historial.' }}</p>
                 } @else {
                   <ol class="ml-2 space-y-4 !border-l-2 !border-slate-200 pl-3">
                     @for (ticket of state.tickets; track ticket.id; let first = $first) {
@@ -180,7 +180,16 @@ export function warrantyLabel(end: string | null, today = new Date()): { text: s
                         <span class="text-[11px] text-slate-500">{{ ticket.ticket_number }}</span>
                       </li>
                     }
+                    <li class="relative">
+                      <span class="absolute -left-[19px] top-1 h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-white"></span>
+                      <span class="block text-[10px] font-bold text-slate-400">{{ date(item.created_at) }} · Creación</span>
+                      <span class="mt-0.5 block font-semibold text-slate-800">Equipo registrado en el inventario</span>
+                      <span class="text-[11px] text-slate-500">{{ item.asset_tag }}</span>
+                    </li>
                   </ol>
+                  @if (state.tickets.length === 0) {
+                    <p class="mt-3 text-slate-400">{{ canReadMaintenance ? 'Este equipo aún no tiene tickets.' : 'No tienes permiso para ver los tickets de este equipo.' }}</p>
+                  }
                 }
               </section>
 

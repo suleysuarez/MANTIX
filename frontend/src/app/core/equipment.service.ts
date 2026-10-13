@@ -51,6 +51,8 @@ export interface Equipment {
   purchase_cost: string | null;
   warranty_start_date: string | null;
   warranty_end_date: string | null;
+  /** Alta del equipo en el inventario: el primer evento de su historial. */
+  created_at: string;
   current_location: LocationBrief | null;
   current_custodian: CustodianBrief | null;
   last_maintenance: LastMaintenance | null;

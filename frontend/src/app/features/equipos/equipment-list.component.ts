@@ -1,7 +1,6 @@
 import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { distinctUntilChanged, filter, map } from 'rxjs';
 
 import { EquipmentDetailStore } from '../../core/equipment-detail.store';
 import { Attachment, Equipment, ReportFormat } from '../../core/equipment.service';
@@ -57,17 +56,12 @@ const NO_ABILITIES: Abilities = {
       <div class="space-y-6 py-2">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div class="flex items-center gap-2">
-              <span class="inline-block h-2 w-2 rounded-full bg-sky-500" aria-hidden="true"></span>
-              <span class="text-[11px] font-extrabold uppercase tracking-wider text-sky-700">Sistema inteligente de mantenimiento</span>
-            </div>
             <h1 class="text-2xl font-bold leading-tight text-slate-900">Gestión de equipos</h1>
             <p class="mt-1 max-w-2xl text-sm text-slate-500">
               Administra los equipos tecnológicos, consulta sus especificaciones y realiza seguimiento a su ciclo de vida y mantenimiento.
             </p>
           </div>
           <div class="flex items-center gap-3">
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">Actualizado: {{ updatedAt() }}</span>
             @if (abilities().manage) {
               <button type="button" (click)="openCreate()"
                 class="flex items-center gap-2 rounded-xl !border !border-slate-700/60 bg-brand-sidebar px-4 py-2.5 !text-xs !font-bold !uppercase tracking-wider !text-white shadow-md transition-all hover:bg-slate-900 active:scale-95">
@@ -97,7 +91,6 @@ const NO_ABILITIES: Abilities = {
           [sort]="state.sort"
           [view]="state.view"
           [types]="state.types"
-          [locations]="state.locations"
           [canExport]="abilities().exportReports"
           [exporting]="state.exporting"
           (filtersChange)="setFilters($event)"
@@ -114,7 +107,7 @@ const NO_ABILITIES: Abilities = {
             <app-equipment-grid [equipment]="state.items" [loading]="state.loading" [filtered]="isFiltered(state.filters)"
               [canManage]="abilities().manage" (view)="view($event)" (edit)="openEdit($event)" />
           }
-          <app-equipment-pagination [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
+          <app-equipment-pagination [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
         </section>
 
         <footer class="flex items-center justify-between !border-t !border-slate-200/80 pb-2 pt-4 text-[11px] text-slate-400">
@@ -171,21 +164,10 @@ export class EquipmentListComponent implements OnInit {
   readonly abilities = signal<Abilities>(NO_ABILITIES);
   readonly formOpen = signal(false);
   readonly editing = signal<Equipment | null>(null);
-  readonly updatedAt = signal(this.clock());
 
   async ngOnInit(): Promise<void> {
     this.store.saved$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.closeForm());
     this.detailStore.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.store.refresh());
-    // Hora de la última carga completada (la pantalla no se refresca sola).
-    this.store.state$
-      .pipe(
-        map((state) => state.loading),
-        distinctUntilChanged(),
-        filter((loading) => !loading),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(() => this.updatedAt.set(this.clock()));
-
     this.store.load();
     const can = (code: string) => this.profile.can(code).catch(() => false);
     const [manage, exportReports, attach, schedule, createTicket, readMaintenance] = await Promise.all([
@@ -278,9 +260,5 @@ export class EquipmentListComponent implements OnInit {
 
   schedule(payload: SchedulePayload): void {
     this.detailStore.schedule(payload);
-  }
-
-  private clock(): string {
-    return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   }
 }
