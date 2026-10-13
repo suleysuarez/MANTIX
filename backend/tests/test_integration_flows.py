@@ -896,3 +896,90 @@ async def test_validation_errors_use_the_uniform_error_body(api):
         e["field"] for e in body["errors"]
     }
     assert body["request_id"]
+
+
+async def test_equipment_listing_exposes_current_context_summary_and_candidates(api):
+    admin = await api.user("ADMIN")
+    employee = await api.user("EMPLOYEE", name="Eva Employee")
+    holder = await api.user("EMPLOYEE", name="Hugo Holder")
+    tech, profile = await make_technician(api, admin, "Tina Tech")
+    placed = await make_equipment(api, admin, tag="CTX-1")
+    loose = await make_equipment(api, admin, tag="CTX-2", status="in_repair")
+
+    room = await api.post(
+        "/locations", admin, json={"code": "R-9", "name": "Room 9", "kind": "room"}
+    )
+    await api.post(
+        f"/equipment/{placed['id']}/location",
+        admin,
+        json={"location_id": room.json()["id"]},
+    )
+    await api.post(
+        f"/equipment/{placed['id']}/custody",
+        admin,
+        json={"assigned_to_user_id": await api.id_of(holder)},
+    )
+    ticket = (
+        await api.post(
+            "/maintenance/requests",
+            employee,
+            json={"equipment_id": placed["id"], "title": "t", "description": "d"},
+        )
+    ).json()
+    await api.post(
+        f"/maintenance/requests/{ticket['id']}/assignment",
+        admin,
+        json={"technician_id": profile["id"]},
+    )
+    await api.post(
+        f"/maintenance/requests/{ticket['id']}/records",
+        tech,
+        json={
+            "work_type": "preventive",
+            "started_at": "2026-10-01T09:00:00Z",
+            "diagnosis": "d",
+            "actions_taken": "cleaned",
+            "result": "ok",
+        },
+    )
+
+    items = (await api.get("/equipment?search=CTX-&sort=asset_tag", employee)).json()
+    first, second = items
+    assert first["current_location"]["name"] == "Room 9"
+    assert first["current_custodian"]["full_name"] == "Hugo Holder"
+    assert first["last_maintenance"]["technician_name"] == "Tina Tech"
+    assert first["last_maintenance"]["work_type"] == "preventive"
+    assert (
+        second["current_location"],
+        second["current_custodian"],
+        second["last_maintenance"],
+    ) == (
+        None,
+        None,
+        None,
+    )
+    detail = (await api.get(f"/equipment/{placed['id']}", employee)).json()
+    assert detail["current_location"]["code"] == "R-9"
+
+    both = await api.get(
+        "/equipment?search=CTX-&status=in_repair,in_storage&sort=asset_tag", employee
+    )
+    assert [e["asset_tag"] for e in both.json()] == ["CTX-1", "CTX-2"]
+    only_repair = await api.get("/equipment?search=CTX-&status=in_repair", employee)
+    assert [e["asset_tag"] for e in only_repair.json()] == ["CTX-2"]
+
+    in_room = await api.get(f"/equipment?location_id={room.json()['id']}", employee)
+    assert [e["asset_tag"] for e in in_room.json()] == ["CTX-1"]
+    nowhere = await api.get("/equipment?location_id=999999", employee)
+    assert nowhere.json() == []
+
+    summary = (await api.get("/equipment/summary", employee)).json()
+    assert summary["total"] == sum(summary["by_status"].values()) >= 2
+    assert summary["by_status"]["in_repair"] >= 1
+
+    found = await api.get("/equipment/custodian-candidates?search=hugo", admin)
+    assert [u["full_name"] for u in found.json()] == ["Hugo Holder"]
+    assert (
+        await api.get("/equipment/custodian-candidates", employee)
+    ).status_code == 403
+    assert loose["id"] != placed["id"]

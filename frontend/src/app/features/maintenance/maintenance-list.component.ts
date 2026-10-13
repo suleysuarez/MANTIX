@@ -1,7 +1,7 @@
 import { AsyncPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { LocalProfileService } from '../../core/local-profile.service';
 import { PRIORITIES, REQUEST_STATUSES } from '../../core/maintenance.service';
@@ -30,9 +30,9 @@ import { MaintenanceStore } from '../../core/maintenance.store';
             <h2>New request</h2>
             <label>Equipment
               <select #equipment required>
-                <option value="" disabled selected>Select equipment</option>
+                <option value="" disabled [selected]="!preselectedEquipmentId">Select equipment</option>
                 @for (item of state.equipment; track item.id) {
-                  <option [value]="item.id">{{ item.asset_tag }} — {{ item.brand }} {{ item.model }}</option>
+                  <option [value]="item.id" [selected]="item.id === preselectedEquipmentId">{{ item.asset_tag }} — {{ item.brand }} {{ item.model }}</option>
                 }
               </select>
             </label>
@@ -126,6 +126,10 @@ export class MaintenanceListComponent implements OnInit {
   private readonly store = inject(MaintenanceStore);
   private readonly profile = inject(LocalProfileService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+
+  /** Llega desde «Crear ticket» en el detalle de un equipo (`?equipmentId=`). */
+  readonly preselectedEquipmentId = Number(this.route.snapshot.queryParamMap.get('equipmentId')) || null;
 
   readonly state$ = this.store.state$;
   readonly priorities = PRIORITIES;

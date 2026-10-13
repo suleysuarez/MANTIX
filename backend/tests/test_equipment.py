@@ -31,6 +31,9 @@ class FakeEquipmentRepository:
     async def list_types(self):
         return self.types
 
+    async def current_context(self, equipment_ids):
+        return {}
+
     async def get(self, equipment_id):
         return next((item for item in self.items if item.id == equipment_id), None)
 

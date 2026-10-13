@@ -99,6 +99,9 @@ export interface MaintenanceRecord {
 export interface MaintenanceQuery {
   status?: string;
   priority?: string;
+  equipmentId?: number;
+  /** Campo de orden; prefijo `-` para descendente. */
+  sort?: string;
   limit?: number;
   offset?: number;
 }
@@ -115,6 +118,12 @@ export class MaintenanceService {
     }
     if (query.priority) {
       params = params.set('priority', query.priority);
+    }
+    if (query.equipmentId !== undefined) {
+      params = params.set('equipment_id', query.equipmentId);
+    }
+    if (query.sort) {
+      params = params.set('sort', query.sort);
     }
     if (query.limit !== undefined) {
       params = params.set('limit', query.limit);

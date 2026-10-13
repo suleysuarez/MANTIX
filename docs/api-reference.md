@@ -60,6 +60,8 @@
 | --- | --- | --- | --- |
 | GET | `/equipment` | List equipment | `equipment.read` |
 | POST | `/equipment` | Create equipment | `equipment.manage` |
+| GET | `/equipment/custodian-candidates` | Search users who can hold equipment | `equipment.manage` |
+| GET | `/equipment/summary` | Equipment counts by status | `equipment.read` |
 | GET | `/equipment/types` | List equipment types | `equipment.read` |
 | GET | `/equipment/{equipment_id}` | Get equipment | `equipment.read` |
 | PATCH | `/equipment/{equipment_id}` | Update equipment | `equipment.manage` |
@@ -130,7 +132,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **55** endpoints.
+Total: **57** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

@@ -1,8 +1,10 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import aliased, selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.auth import User
@@ -14,8 +16,21 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
+from app.models.maintenance import MaintenanceRecord
+from app.models.technician import Technician
 from app.repositories.base import BaseRepository, Page, escape_like
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, LocationCreate
+
+
+@dataclass
+class EquipmentContext:
+    """Plain tuples (not ORM rows) describing an item's current situation."""
+
+    location: tuple[int, str, str] | None = None  # id, code, name
+    custodian: tuple[int, str, str] | None = None  # id, full_name, email
+    last_maintenance: tuple[datetime, str, str, str] | None = None
+    # (started_at, work_type, result, technician name)
+
 
 EQUIPMENT_SORT_FIELDS = {
     "asset_tag": Equipment.asset_tag,
@@ -40,15 +55,26 @@ class EquipmentRepository(BaseRepository[Equipment]):
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[Equipment]:
         query = self._equipment_query()
-        if status is not None:
-            query = query.where(Equipment.status == status)
+        statuses = [item.strip() for item in (status or "").split(",") if item.strip()]
+        if statuses:
+            query = query.where(Equipment.status.in_(statuses))
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if location_id is not None:
+            query = query.where(
+                Equipment.id.in_(
+                    select(EquipmentLocationHistory.equipment_id).where(
+                        EquipmentLocationHistory.location_id == location_id,
+                        EquipmentLocationHistory.ended_at.is_(None),
+                    )
+                )
+            )
         if brand:
             query = query.where(Equipment.brand.ilike(escape_like(brand), escape="\\"))
         query = self.apply_search(
@@ -70,6 +96,93 @@ class EquipmentRepository(BaseRepository[Equipment]):
         return await self.paginate(
             query, page=params.page, size=params.size, offset=params.offset
         )
+
+    async def status_counts(self) -> dict[str, int]:
+        rows = await self.session.execute(
+            select(Equipment.status, func.count()).group_by(Equipment.status)
+        )
+        return {status: count for status, count in rows.all()}
+
+    async def current_context(
+        self, equipment_ids: Sequence[int]
+    ) -> dict[int, EquipmentContext]:
+        """Current location, custodian and last maintenance for a batch of items.
+
+        Three queries for the whole batch (never one per item), so a page of
+        equipment costs the same however large it is.
+        """
+        ids = list(equipment_ids)
+        if not ids:
+            return {}
+        contexts = {item_id: EquipmentContext() for item_id in ids}
+
+        locations = await self.session.execute(
+            select(
+                EquipmentLocationHistory.equipment_id,
+                Location.id,
+                Location.code,
+                Location.name,
+            )
+            .join(Location, Location.id == EquipmentLocationHistory.location_id)
+            .where(
+                EquipmentLocationHistory.equipment_id.in_(ids),
+                EquipmentLocationHistory.ended_at.is_(None),
+            )
+        )
+        for equipment_id, location_id, code, name in locations.all():
+            contexts[equipment_id].location = (location_id, code, name)
+
+        custodians = await self.session.execute(
+            select(
+                EquipmentCustodyHistory.equipment_id,
+                User.id,
+                User.full_name,
+                User.email,
+            )
+            .join(User, User.id == EquipmentCustodyHistory.assigned_to_user_id)
+            .where(
+                EquipmentCustodyHistory.equipment_id.in_(ids),
+                EquipmentCustodyHistory.returned_at.is_(None),
+            )
+        )
+        for equipment_id, user_id, full_name, email in custodians.all():
+            contexts[equipment_id].custodian = (user_id, full_name, email)
+
+        technician_user = aliased(User)
+        latest = await self.session.execute(
+            select(
+                MaintenanceRecord.equipment_id,
+                MaintenanceRecord.started_at,
+                MaintenanceRecord.work_type,
+                MaintenanceRecord.result,
+                technician_user.full_name,
+            )
+            .join(Technician, Technician.id == MaintenanceRecord.technician_id)
+            .join(technician_user, technician_user.id == Technician.user_id)
+            .where(MaintenanceRecord.equipment_id.in_(ids))
+            .order_by(
+                MaintenanceRecord.equipment_id, MaintenanceRecord.started_at.desc()
+            )
+            .distinct(MaintenanceRecord.equipment_id)
+        )
+        for equipment_id, started_at, work_type, result, technician in latest.all():
+            contexts[equipment_id].last_maintenance = (
+                started_at,
+                work_type,
+                result,
+                technician,
+            )
+        return contexts
+
+    async def search_active_users(
+        self, search: str | None, limit: int = 20
+    ) -> list[User]:
+        query = select(User).where(User.is_active.is_(True))
+        query = self.apply_search(query, search, [User.full_name, User.email])
+        result = await self.session.execute(
+            query.order_by(User.full_name, User.id).limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def list_types(self) -> list[EquipmentType]:
         result = await self.session.execute(
