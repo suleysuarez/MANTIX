@@ -2,387 +2,306 @@ import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import {
-  DashboardMetrics,
-  DashboardStore,
-  DayBar,
-  SeriesPeriod,
-  buildSeries,
-} from '../../core/dashboard.store';
+import { Period, TrendPoint, TrendsResponse } from '../../core/dashboard-kpis.service';
+import { DashboardState, DashboardStore } from '../../core/dashboard.store';
 import { formatDate } from '../../core/equipment-status';
 import { LocalProfileService } from '../../core/local-profile.service';
+import { changeTone, formatDowntime, formatHours, formatPct, reasonLabel } from './dashboard-format';
+import { KpiCardComponent } from './kpi-card.component';
 
-const CARD =
-  'rounded-[18px] bg-white p-3 shadow-[0_8px_25px_rgba(15,23,42,0.05)] transition-all duration-200 motion-reduce:transition-none';
-const CARD_LINK = `${CARD} hover:-translate-y-[3px] hover:shadow-[0_12px_28px_rgba(37,99,235,0.12)] motion-reduce:hover:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]`;
-const ICON = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full';
-const DONUT_RADIUS = 52;
-const DONUT_LENGTH = 2 * Math.PI * DONUT_RADIUS;
+const CARD = 'rounded-[18px] bg-white p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)]';
+const LINK_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]';
+const PERIODS: { id: Period; label: string; caption: string }[] = [
+  { id: '7d', label: '7 días', caption: 'últimos 7 días' },
+  { id: '30d', label: '30 días', caption: 'últimos 30 días' },
+  { id: '12m', label: '12 meses', caption: 'últimos 12 meses' },
+];
+const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const CHART_W = 600;
+const CHART_H = 150;
 
-export interface DonutSegment {
-  key: string;
-  name: string;
-  count: number;
-  color: string;
-  dash: string;
-  offset: number;
+export interface ChartBar {
+  x: number;
+  width: number;
+  createdH: number;
+  resolvedH: number;
+  label: string;
+  created: number;
+  resolved: number;
+  showLabel: boolean;
 }
 
-const HEALTH_META = [
-  { key: 'operational', name: 'Operativos', color: '#10B981' },
-  { key: 'maintenance', name: 'En mantenimiento', color: '#F59E0B' },
-  { key: 'offline', name: 'Fuera de servicio', color: '#EF4444' },
-  { key: 'other', name: 'Otros estados', color: '#94A3B8' },
-] as const;
-
-const PERIODS: { id: SeriesPeriod; label: string; caption: string }[] = [
-  { id: '7d', label: '7 días', caption: 'Solicitudes creadas en los últimos 7 días' },
-  { id: '30d', label: '30 días', caption: 'Solicitudes creadas en los últimos 30 días' },
-  { id: '12m', label: '12 meses', caption: 'Solicitudes creadas por mes en el último año' },
-];
-
-/** Smart component: carga los indicadores desde el store y los presenta en el panel principal. */
+/** Smart component: pide los KPI del periodo global al store y los presenta. */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [AsyncPipe, RouterLink],
+  imports: [AsyncPipe, RouterLink, KpiCardComponent],
   template: `
     @if (state$ | async; as state) {
-      @let m = state.metrics;
       <div class="tw-reset flex w-full flex-col gap-3 font-sans text-[#1E293B]" [attr.aria-busy]="state.loading">
-        <!-- Hero: texto + visual sobre un único fondo -->
+        <!-- Hero: saludo + visual sobre un único fondo -->
         <section class="hero relative overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_100%)] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)] lg:p-5">
           <div class="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-[#2563EB]/[0.07]"></div>
           <div class="pointer-events-none absolute bottom-[-6rem] left-[38%] h-64 w-64 rotate-45 rounded-[40px] bg-[#3B82F6]/[0.06]"></div>
-          <div class="pointer-events-none absolute left-[-3rem] top-1/2 h-40 w-40 rounded-full bg-[#2563EB]/[0.05]"></div>
 
           <div class="hero-visual absolute inset-y-2 right-2 hidden w-[42%] lg:block"
             (mouseenter)="showKpis.set(true)" (mouseleave)="showKpis.set(false)">
-            <video
-              class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
-              src="assets/videos/dashboard1.mp4"
-              autoplay
-              muted
-              loop
-              playsinline
-              preload="auto"
-              aria-hidden="true"></video>
+            <video class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
+              src="assets/videos/dashboard1.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
             <div class="holo absolute inset-x-6 bottom-4 flex items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] transition-all duration-300 ease-out"
               [class]="showKpis() ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'">
               <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-[26px]">desktop_windows</span>
                 <div>
-                  <span class="block text-[22px] font-bold leading-6">{{ m.equipmentTotal ? m.operationalPct + '%' : '—' }}</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Equipos operativos</span>
+                  <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.availability?.value ?? null) }}</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Disponibilidad</span>
                 </div>
               </div>
               <span class="h-8 w-[2px] rounded-full bg-[#D4A017]"></span>
               <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-[26px]">settings</span>
+                <span class="material-symbols-outlined text-[26px]">verified</span>
                 <div>
-                  <span class="block text-[22px] font-bold leading-6">{{ m.monthTickets ? m.resolutionPct + '%' : '—' }}</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Resolución</span>
+                  <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.sla_compliance_pct?.value ?? null) }}</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Cumplimiento SLA</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="relative z-10 flex flex-col gap-3 lg:min-h-[170px] lg:justify-between">
-            <div class="flex flex-col gap-2 lg:max-w-[52%]">
-              <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1E293B]">
-                <span class="h-2 w-2 rounded-full bg-[#2563EB]"></span>
-                {{ userName() ? 'Hola, ' + userName() : 'Plataforma central' }}
-              </span>
-              <h1 class="text-[22px] font-extrabold uppercase leading-[1.1] tracking-tight text-[#0b1f3a] md:text-[28px]">
-                Sistema inteligente <br />de mantenimiento
-              </h1>
-              <p class="max-w-md text-[12px] leading-4 text-[#64748B]">
-                Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.
-              </p>
-            </div>
-
-            <!-- Indicadores complementarios a las tarjetas KPI -->
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-[50%]">
-              <div class="flex flex-col gap-2 rounded-[12px] bg-white p-2.5 shadow-[0_8px_25px_rgba(15,23,42,0.06)]">
-                <div class="flex items-center gap-3">
-                  <span [class]="icon + ' bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">build</span></span>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="truncate text-[13px] font-semibold">Mantenimientos activos</span>
-                      @if (m.urgentTickets > 0) {
-                        <span class="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#B45309]">{{ m.urgentTickets }} urgentes</span>
-                      }
-                    </div>
-                    <div class="flex items-baseline gap-2">
-                      <span class="text-[20px] font-bold leading-6">{{ m.activeTickets }}</span>
-                      <span class="text-[12px] text-[#64748B]">en ejecución</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]" role="img" [attr.aria-label]="'Resolución del mes ' + m.resolutionPct + '%'">
-                  <div class="h-full rounded-full bg-[#2563EB] transition-all duration-700 motion-reduce:transition-none" [style.width.%]="m.resolutionPct"></div>
-                </div>
-              </div>
-
-              <div class="flex flex-col gap-2 rounded-[12px] bg-white p-2.5 shadow-[0_8px_25px_rgba(15,23,42,0.06)]">
-                <div class="flex items-center gap-3">
-                  <span [class]="icon + ' bg-[#EDE9FE] text-[#7C3AED]'"><span class="material-symbols-outlined text-[20px]">event_upcoming</span></span>
-                  <div class="min-w-0">
-                    <span class="block truncate text-[13px] font-semibold">Próximo mantenimiento</span>
-                    @if (m.upcoming[0]; as next) {
-                      <span class="block truncate text-[20px] font-bold leading-6">{{ fmt(next.dueAt) }}</span>
-                      <span class="block truncate text-[12px] text-[#64748B]">{{ next.equipment }}</span>
-                    } @else {
-                      <span class="block text-[20px] font-bold leading-6">—</span>
-                      <span class="block text-[12px] text-[#64748B]">Sin planes programados</span>
-                    }
-                  </div>
-                </div>
-                <div class="flex justify-between text-[11px] text-[#64748B]">
-                  <span>Técnicos disponibles</span>
-                  <span class="font-bold text-[#1E293B]">{{ m.techniciansAvailable }}/{{ m.techniciansTotal }}</span>
-                </div>
-              </div>
-            </div>
+          <div class="relative z-10 flex flex-col gap-2 lg:max-w-[52%]">
+            <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1E293B]">
+              <span class="h-2 w-2 rounded-full bg-[#D4A017]"></span>
+              {{ userName() ? 'Hola, ' + userName() : 'Plataforma central' }}
+            </span>
+            <h1 class="text-[22px] font-extrabold uppercase leading-[1.1] tracking-tight text-[#0b1f3a] md:text-[28px]">
+              Sistema inteligente <br />de mantenimiento
+            </h1>
+            <p class="max-w-md text-[12px] leading-4 text-[#64748B]">
+              Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.
+            </p>
           </div>
         </section>
 
-        <!-- KPIs -->
-        <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores clave">
-          @for (kpi of kpis(m); track kpi.label) {
-            <a [routerLink]="kpi.link" [class]="cardLink + ' group flex min-h-[116px] flex-col gap-2'" [attr.aria-label]="kpi.label + ': ' + kpi.value">
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-3">
-                  <span [class]="icon + ' ' + kpi.tone"><span class="material-symbols-outlined text-[20px]">{{ kpi.icon }}</span></span>
-                  <span class="text-[12px] font-bold uppercase tracking-wider text-[#64748B]">{{ kpi.label }}</span>
+        <!-- Selector de periodo global -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-[15px] font-bold text-[#0b1f3a]">
+            Indicadores · {{ periodCaption(state.period) }}
+            @if (state.loading) {
+              <span class="ml-2 inline-block h-2 w-2 animate-pulse rounded-full bg-[#2563EB] motion-reduce:animate-none" role="status" aria-label="Actualizando"></span>
+            }
+          </h2>
+          <div class="flex rounded-full bg-white p-0.5 shadow-[0_4px_12px_rgba(15,23,42,0.06)]" role="group" aria-label="Periodo de los indicadores">
+            @for (p of periods; track p.id) {
+              <button type="button" (click)="setPeriod(p.id)" [attr.aria-pressed]="state.period === p.id"
+                class="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors active:scale-95"
+                [class]="focus + (state.period === p.id ? ' bg-[#0b1f3a] text-white' : ' text-[#64748B] hover:text-[#1E293B]')">
+                {{ p.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (!state.loading && !state.kpis) {
+          <p role="alert" class="rounded-xl bg-[#FEF3C7] px-4 py-3 text-[13px] font-medium text-[#92400E]">
+            No se pudieron cargar los indicadores. Revisa tu conexión o tus permisos e inténtalo de nuevo.
+            <button type="button" (click)="reload()" class="ml-2 font-bold underline">Reintentar</button>
+          </p>
+        }
+
+        <!-- 4 KPI -->
+        <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores clave">
+          @let k = state.kpis;
+          <app-kpi-card label="MTTR" icon="timer" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+            [value]="k && k.mttr_hours.value !== null ? hours(k.mttr_hours.value) : null"
+            [caption]="k ? mttrCaption(k.first_assignment_hours.value) : ''"
+            emptyText="Aún no hay tickets resueltos en este periodo"
+            [changePct]="k?.mttr_hours?.change_pct ?? null" [tone]="tone(k?.mttr_hours?.change_pct ?? null, 'lower')"
+            [series]="series(state.trends, 'mttr_hours')" />
+
+          <app-kpi-card label="Cumplimiento SLA" icon="verified" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+            [value]="k && k.sla_compliance_pct.value !== null ? pct(k.sla_compliance_pct.value) : null"
+            [caption]="k ? slaCaption(k) : ''"
+            [emptyText]="k && k.sla_compliance_pct.excluded_no_sla ? k.sla_compliance_pct.excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Aún no hay tickets resueltos con SLA'"
+            [changePct]="k?.sla_compliance_pct?.change_pct ?? null" [tone]="tone(k?.sla_compliance_pct?.change_pct ?? null, 'higher')"
+            [series]="series(state.trends, 'sla_compliance_pct')" />
+
+          <app-kpi-card label="Disponibilidad" icon="monitor_heart" link="/equipos"
+            [value]="k && k.availability.value !== null ? pct(k.availability.value) : null"
+            [caption]="k ? k.availability.operational + ' de ' + k.availability.total + ' equipos operativos' : ''"
+            emptyText="Sin equipos registrados" />
+
+          <app-kpi-card label="Backlog" icon="inbox" link="/maintenance"
+            [value]="k ? '' + k.backlog.open : null" [caption]="k && k.backlog.open ? 'tickets abiertos' : 'Sin tickets abiertos'">
+            @if (k && k.backlog.open > 0) {
+              <div class="mt-1">
+                <div class="flex h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]" role="img"
+                  [attr.aria-label]="k.backlog.age_0_2_days + ' de 0 a 2 días, ' + k.backlog.age_3_7_days + ' de 3 a 7 días, ' + k.backlog.age_over_7_days + ' de más de 7 días'">
+                  <div class="h-full bg-[#93C5FD]" [style.width.%]="share(k.backlog.age_0_2_days, k.backlog.open)"></div>
+                  <div class="h-full bg-[#2563EB]" [style.width.%]="share(k.backlog.age_3_7_days, k.backlog.open)"></div>
+                  <div class="h-full bg-[#D4A017]" [style.width.%]="share(k.backlog.age_over_7_days, k.backlog.open)"></div>
                 </div>
-                <span class="material-symbols-outlined text-[18px] text-[#94A3B8] transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none">arrow_forward</span>
+                <p class="mt-1 text-[11px] text-[#64748B]">0-2 d: {{ k.backlog.age_0_2_days }} · 3-7 d: {{ k.backlog.age_3_7_days }} · +7 d: <strong class="text-[#92400E]">{{ k.backlog.age_over_7_days }}</strong></p>
               </div>
-              <div class="flex items-end justify-between gap-2">
-                <div>
-                  <span class="text-[22px] font-bold leading-7">{{ kpi.value }}</span>
-                  <p class="text-[12px] text-[#64748B]">{{ kpi.caption }}</p>
-                </div>
-                @if (kpi.badge; as badge) {
-                  <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold" [class]="badge.cls">{{ badge.text }}</span>
-                }
-              </div>
-            </a>
-          }
+            }
+          </app-kpi-card>
         </section>
 
         <!-- Gráficos -->
-        <section class="grid grid-cols-1 gap-3 lg:grid-cols-6">
-          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
+        <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
             <div class="flex flex-wrap items-start justify-between gap-2">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">event_note</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Mantenimientos por periodo</h2>
-                  <p class="text-[11px] text-[#64748B]">{{ periodCaption() }}</p>
-                </div>
+              <div>
+                <h2 class="text-[15px] font-bold">Tickets creados y resueltos</h2>
+                <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }}</p>
               </div>
-              <div class="flex rounded-full bg-[#F1F5F9] p-0.5" role="group" aria-label="Periodo del gráfico">
-                @for (p of periods; track p.id) {
-                  <button type="button" (click)="period.set(p.id)" [attr.aria-pressed]="period() === p.id"
-                    class="rounded-full px-3 py-1 text-[11px] font-semibold transition-colors active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]"
-                    [class]="period() === p.id ? 'bg-white text-[#2563EB] shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'">
-                    {{ p.label }}
-                  </button>
+              <div class="flex items-center gap-3 text-[11px] text-[#64748B]">
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-[#93C5FD]"></span>Creados</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-[#2563EB]"></span>Resueltos</span>
+                @if (state.kpis?.resolution_rate_pct?.value !== null && state.kpis) {
+                  <span class="rounded-full bg-[#FEF3C7] px-2 py-0.5 font-bold text-[#92400E]">Resolución {{ pct(state.kpis.resolution_rate_pct.value) }}</span>
                 }
               </div>
             </div>
-
-            @let bars = series(m);
-            @if (total(bars) > 0) {
-              <div class="flex h-36 items-end gap-1" role="img" [attr.aria-label]="periodCaption() + ': ' + total(bars) + ' en total'">
+            @let bars = chart(state.trends);
+            @if (bars.length) {
+              <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + (chartH + 18)" class="h-44 w-full" role="img"
+                [attr.aria-label]="'Tickets creados y resueltos, ' + periodCaption(state.period)">
+                <line x1="0" [attr.x2]="chartW" [attr.y1]="chartH" [attr.y2]="chartH" stroke="#E2E8F0" />
                 @for (bar of bars; track $index) {
-                  <div class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" [attr.title]="bar.label + ': ' + bar.count">
-                    <span class="text-[10px] font-semibold leading-3" [class]="bar.isPeak ? 'text-[#2563EB]' : 'text-[#64748B]'">
-                      {{ showValue(bar, bars.length) ? bar.count : '' }}
-                    </span>
-                    <div class="w-full max-w-[28px] rounded-t-md transition-all duration-500 motion-reduce:transition-none"
-                      [class]="bar.isPeak ? 'bg-[#2563EB]' : 'bg-[#BFDBFE]'"
-                      [style.height.%]="barHeight(bar, bars)"></div>
-                    <span class="h-3 text-[10px] leading-3" [class]="bar.isPeak ? 'font-bold text-[#2563EB]' : 'text-[#64748B]'">
-                      {{ showLabel($index, bars.length) ? bar.label : '' }}
-                    </span>
-                  </div>
+                  <g>
+                    <title>{{ bar.label }}: {{ bar.created }} creados, {{ bar.resolved }} resueltos</title>
+                    <rect [attr.x]="bar.x" [attr.y]="chartH - bar.createdH" [attr.width]="bar.width" [attr.height]="bar.createdH" rx="2" fill="#93C5FD" />
+                    <rect [attr.x]="bar.x + bar.width + 1" [attr.y]="chartH - bar.resolvedH" [attr.width]="bar.width" [attr.height]="bar.resolvedH" rx="2" fill="#2563EB" />
+                    @if (bar.showLabel) {
+                      <text [attr.x]="bar.x + bar.width" [attr.y]="chartH + 13" text-anchor="middle" font-size="10" fill="#64748B">{{ bar.label }}</text>
+                    }
+                  </g>
                 }
-              </div>
-              <div class="flex items-center justify-between border-t border-[#F1F5F9] pt-2 text-[11px] text-[#64748B]">
-                <span>Valor máximo destacado en azul</span>
-                <span class="font-bold uppercase tracking-wider">Total: {{ total(bars) }} sol.</span>
-              </div>
+              </svg>
             } @else {
-              <div class="flex h-36 flex-col items-center justify-center gap-1 rounded-[14px] bg-[#F8FAFC] text-center">
+              <div class="flex h-44 flex-col items-center justify-center gap-1 rounded-[14px] bg-[#F8FAFC] text-center">
                 <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">bar_chart</span>
-                <p class="text-[12px] text-[#64748B]">No hay solicitudes en este periodo.</p>
+                <p class="text-[12px] text-[#64748B]">{{ state.trends ? 'No hay tickets en este periodo.' : 'Gráfico no disponible.' }}</p>
               </div>
             }
           </div>
 
-          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">monitor_heart</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Salud de equipos</h2>
-                  <p class="text-[11px] text-[#64748B]">Cada equipo en un único estado</p>
-                </div>
-              </div>
-              <a routerLink="/equipos" aria-label="Ir a inventario" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] transition-colors hover:bg-[#E2E8F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
+          <div [class]="card + ' flex flex-col gap-3'">
+            <div>
+              <h2 class="text-[15px] font-bold">Equipos con más incidencias</h2>
+              <p class="text-[11px] text-[#64748B]">Candidatos a revisar o reemplazar</p>
             </div>
-            @let segments = donut(m);
-            @if (m.equipmentTotal > 0) {
-              <div class="flex flex-1 flex-wrap items-center gap-5">
-                <div class="relative h-[120px] w-[120px] shrink-0">
-                  <svg viewBox="0 0 130 130" class="h-full w-full -rotate-90" role="img" aria-label="Equipos por estado">
-                    <circle cx="65" cy="65" [attr.r]="radius" fill="none" stroke="#E2E8F0" stroke-width="14" />
-                    @for (seg of segments; track seg.key) {
-                      <circle cx="65" cy="65" [attr.r]="radius" fill="none" [attr.stroke]="seg.color" stroke-width="14"
-                        [attr.stroke-dasharray]="seg.dash" [attr.stroke-dashoffset]="seg.offset">
-                        <title>{{ seg.name }}: {{ seg.count }}</title>
-                      </circle>
-                    }
-                  </svg>
-                  <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <span class="text-[22px] font-bold leading-6">{{ m.equipmentTotal }}</span>
-                    <span class="text-[11px] text-[#64748B]">equipos</span>
-                  </div>
-                </div>
-                <ul class="flex min-w-0 flex-1 flex-col gap-1 text-[12px]">
-                  @for (seg of segments; track seg.key) {
-                    <li>
-                      <a routerLink="/equipos" class="flex items-center gap-2 rounded-lg px-2 py-1 !text-inherit transition-colors hover:bg-[#F1F5F9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]">
-                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="seg.color"></span>
-                        <span class="min-w-0 flex-1 truncate text-[#64748B]">{{ seg.name }}</span>
-                        <span class="font-semibold">{{ seg.count }}</span>
-                      </a>
-                    </li>
-                  }
-                </ul>
-              </div>
+            @if (state.topEquipment?.length) {
+              <ul class="flex flex-col gap-2">
+                @for (item of state.topEquipment; track item.equipment_id) {
+                  <li>
+                    <a routerLink="/maintenance" [queryParams]="{ equipmentId: item.equipment_id }"
+                      [class]="'block rounded-lg px-1 py-0.5 !text-inherit transition-colors hover:bg-[#F1F5F9] ' + focus">
+                      <div class="flex items-baseline justify-between gap-2 text-[12px]">
+                        <span class="min-w-0 truncate font-semibold">{{ item.asset_tag }} <span class="font-normal text-[#64748B]">{{ item.brand }} {{ item.model }}</span></span>
+                        <span class="shrink-0 font-bold">{{ item.tickets }}</span>
+                      </div>
+                      <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
+                        <div class="h-full rounded-full bg-[#2563EB]" [style.width.%]="share(item.tickets, state.topEquipment![0].tickets)"></div>
+                      </div>
+                    </a>
+                  </li>
+                }
+              </ul>
             } @else {
-              <div class="flex flex-1 flex-col items-center justify-center gap-1 rounded-[14px] bg-[#F8FAFC] py-6 text-center">
-                <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">devices_other</span>
-                <p class="text-[12px] text-[#64748B]">Sin equipos registrados.</p>
-              </div>
+              <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
+                {{ state.topEquipment ? 'Ningún equipo con incidencias en este periodo.' : 'Dato no disponible.' }}
+              </p>
             }
           </div>
         </section>
 
-        <!-- Atención, mantenimientos y técnicos -->
         <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-center gap-3">
-              <span [class]="icon + ' rounded-xl bg-[#FEF3C7] text-[#F59E0B]'"><span class="material-symbols-outlined text-[20px]">priority_high</span></span>
+          <div [class]="card + ' flex flex-col gap-3'">
+            <div class="flex items-start justify-between gap-2">
               <div>
-                <h2 class="text-[15px] font-bold">Atención prioritaria</h2>
-                <p class="text-[11px] text-[#64748B]">Lo que requiere acción</p>
+                <h2 class="text-[15px] font-bold">Carga por técnico</h2>
+                <p class="text-[11px] text-[#64748B]">Tickets abiertos, para balancear el trabajo</p>
               </div>
+              <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
             </div>
-            <ul class="flex flex-col gap-2">
-              @for (item of m.attention; track $index) {
-                <li>
-                  <a [routerLink]="item.link" class="flex items-start gap-3 rounded-xl bg-[#F8FAFC] p-2.5 !text-inherit transition-colors hover:bg-[#EFF6FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]">
-                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full" [class]="item.critical ? 'bg-[#EF4444]' : 'bg-[#F59E0B]'"></span>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-[13px] font-semibold">{{ item.title }}</p>
-                      <p class="truncate text-[11px] text-[#64748B]">{{ item.equipment }}</p>
-                      <p class="text-[11px] text-[#64748B]">{{ item.detail }}@if (item.date) { · {{ fmt(item.date) }} }</p>
+            @let techs = state.workload;
+            @if (techs?.length) {
+              <ul class="flex flex-col gap-2">
+                @for (t of techs; track t.technician_id) {
+                  <li>
+                    <div class="flex items-baseline justify-between gap-2 text-[12px]">
+                      <span class="min-w-0 truncate font-semibold">{{ t.full_name }}</span>
+                      <span class="shrink-0 text-[#64748B]"><strong class="text-[#1E293B]">{{ t.open_tickets }}</strong> abiertos</span>
                     </div>
-                  </a>
-                </li>
-              } @empty {
-                <li class="flex flex-col items-center gap-1 rounded-xl bg-[#F0FDF4] py-5 text-center">
-                  <span class="material-symbols-outlined text-[28px] text-[#10B981]">check_circle</span>
-                  <p class="px-3 text-[12px] text-[#047857]">Todo al día. No hay incidencias prioritarias registradas.</p>
-                </li>
-              }
-            </ul>
+                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
+                      <div class="h-full rounded-full" [class]="t.is_available ? 'bg-[#2563EB]' : 'bg-[#D4A017]'" [style.width.%]="share(t.open_tickets, maxOpen(techs!))"></div>
+                    </div>
+                  </li>
+                }
+              </ul>
+              <p class="text-[11px] text-[#94A3B8]">Barra relativa al técnico más cargado; en mostaza, no disponible.</p>
+            } @else {
+              <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
+                {{ techs ? 'Aún no hay técnicos registrados.' : 'Dato no disponible.' }}
+              </p>
+            }
           </div>
 
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">event_upcoming</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Próximos mantenimientos</h2>
-                  <p class="text-[11px] text-[#64748B]">Planes preventivos programados</p>
-                </div>
-              </div>
-              <a routerLink="/maintenance" class="shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]">Ver todos</a>
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
+            <div>
+              <h2 class="text-[15px] font-bold">Atención inmediata</h2>
+              <p class="text-[11px] text-[#64748B]">Lo que necesita acción ahora, sin importar el periodo</p>
             </div>
-            <ul class="flex flex-col gap-2">
-              @for (item of m.upcoming; track item.id) {
-                <li class="flex items-center gap-3 rounded-xl bg-[#F8FAFC] p-2.5">
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-[13px] font-semibold">{{ item.title }}</p>
-                    <p class="truncate text-[11px] text-[#64748B]">{{ item.equipment }}</p>
-                    <p class="truncate text-[11px] text-[#64748B]">{{ item.technician ?? 'Sin técnico asignado' }}</p>
-                  </div>
-                  <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
-                    [class]="item.overdue ? 'bg-[#FEE2E2] text-[#B91C1C]' : 'bg-[#DBEAFE] text-[#1D4ED8]'">
-                    {{ item.overdue ? 'Vencido' : 'Programado' }} · {{ fmt(item.dueAt) }}
-                  </span>
-                </li>
-              } @empty {
-                <li class="flex flex-col items-center gap-2 rounded-xl bg-[#F8FAFC] py-5 text-center">
-                  <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">event_available</span>
-                  <p class="px-3 text-[12px] text-[#64748B]">No hay mantenimientos programados.</p>
-                  <a routerLink="/equipos" class="inline-flex h-8 items-center gap-2 rounded-full bg-[#DBEAFE] px-4 text-[12px] font-medium !text-[#2563EB] hover:bg-[#BFDBFE]">
-                    Programar desde un equipo
-                  </a>
-                </li>
-              }
-            </ul>
-          </div>
-
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">groups</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Equipo técnico</h2>
-                  <p class="text-[11px] text-[#64748B]">Disponibilidad y carga</p>
-                </div>
-              </div>
-              <a routerLink="/technicians" class="shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]">Ver todos</a>
-            </div>
-            <ul class="flex flex-col gap-2">
-              @for (tech of m.technicianRows; track tech.id) {
-                <li class="flex items-center gap-3 rounded-xl bg-[#F8FAFC] p-2.5">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-[12px] font-bold text-white" aria-hidden="true">{{ initialsOf(tech.name) }}</span>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-[13px] font-semibold">{{ tech.name }}</p>
-                    <p class="truncate text-[11px] text-[#64748B]">{{ tech.specialization || 'General' }}</p>
-                    @if (tech.openTickets !== null) {
-                      <div class="mt-1 flex items-center gap-2">
-                        <div class="h-1 flex-1 overflow-hidden rounded-full bg-[#E2E8F0]">
-                          <div class="h-full rounded-full bg-[#2563EB]" [style.width.%]="loadPct(tech.openTickets, m)"></div>
-                        </div>
-                        <span class="text-[10px] text-[#64748B]">{{ tech.openTickets }} abiertos</span>
+            @let alerts = state.alerts;
+            @if (alerts && (alerts.tickets.length || alerts.down_equipment.length || alerts.schedules.length)) {
+              <ul class="flex flex-col gap-2">
+                @for (a of alerts.tickets; track a.id) {
+                  <li>
+                    <a [routerLink]="['/maintenance', a.id]" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px]" [class]="a.reason === 'sla_at_risk' ? 'text-[#D4A017]' : 'text-[#B45309]'" aria-hidden="true">confirmation_number</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ a.ticket_number }} · {{ a.title }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ a.asset_tag }} · {{ a.priority }} · {{ a.assigned ? 'asignado' : 'sin asignar' }}@if (a.sla_deadline) { · vence {{ date(a.sla_deadline) }} }</p>
                       </div>
-                    }
-                  </div>
-                  <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
-                    [class]="tech.isAvailable ? 'bg-[#D1FAE5] text-[#047857]' : 'bg-[#FEF3C7] text-[#B45309]'">
-                    {{ tech.isAvailable ? 'LIBRE' : 'OCUPADO' }}
-                  </span>
-                </li>
-              } @empty {
-                <li class="flex flex-col items-center gap-2 rounded-xl bg-[#F8FAFC] py-5 text-center">
-                  <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">groups</span>
-                  <p class="text-[12px] text-[#64748B]">Aún no hay técnicos registrados.</p>
-                  <a routerLink="/technicians" class="inline-flex h-8 items-center gap-2 rounded-full bg-[#DBEAFE] px-4 text-[12px] font-medium !text-[#2563EB] hover:bg-[#BFDBFE]">
-                    Gestionar técnicos
-                  </a>
-                </li>
-              }
-            </ul>
+                      <span class="shrink-0 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#92400E]">{{ reason(a.reason) }}</span>
+                    </a>
+                  </li>
+                }
+                @for (e of alerts.down_equipment; track e.equipment_id) {
+                  <li>
+                    <a routerLink="/equipos" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#B45309]" aria-hidden="true">report</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ e.asset_tag }} · {{ e.brand }} {{ e.model }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ e.status === 'lost' ? 'Extraviado' : 'En mantenimiento' }}</p>
+                      </div>
+                      <span class="shrink-0 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#92400E]">Caído {{ downtime(e.down_hours) }}</span>
+                    </a>
+                  </li>
+                }
+                @for (s of alerts.schedules; track s.id) {
+                  <li>
+                    <a routerLink="/maintenance" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#2563EB]" aria-hidden="true">event_busy</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ s.title }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ s.asset_tag }} · preventivo</p>
+                      </div>
+                      <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        [class]="s.overdue ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#DBEAFE] text-[#1D4ED8]'">{{ s.overdue ? 'Vencido' : 'Vence' }} {{ date(s.next_due_at) }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            } @else if (alerts) {
+              <div class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-[#F0FDF4] py-6 text-center">
+                <span class="material-symbols-outlined text-[28px] text-[#10B981]" aria-hidden="true">check_circle</span>
+                <p class="px-3 text-[12px] text-[#047857]">Todo al día. No hay incidencias prioritarias registradas.</p>
+              </div>
+            } @else {
+              <p class="rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">Alertas no disponibles.</p>
+            }
           </div>
         </section>
 
@@ -428,127 +347,89 @@ export class DashboardComponent implements OnInit {
 
   readonly state$ = this.store.state$;
   readonly card = CARD;
-  readonly cardLink = CARD_LINK;
-  readonly icon = ICON;
-  readonly radius = DONUT_RADIUS;
+  readonly focus = LINK_FOCUS;
+  readonly rowClass = `flex items-start gap-3 rounded-xl bg-[#F8FAFC] p-2.5 !text-inherit transition-colors hover:bg-[#EFF6FF]`;
   readonly periods = PERIODS;
+  readonly chartW = CHART_W;
+  readonly chartH = CHART_H;
   readonly userName = signal('');
   readonly showKpis = signal(false);
-  readonly period = signal<SeriesPeriod>('7d');
 
-  readonly fmt = formatDate;
+  readonly pct = formatPct;
+  readonly hours = formatHours;
+  readonly tone = changeTone;
+  readonly reason = reasonLabel;
+  readonly downtime = formatDowntime;
+  readonly date = formatDate;
 
   async ngOnInit(): Promise<void> {
     this.store.load();
     this.userName.set((await this.profileService.getProfile()).full_name);
   }
 
-  periodCaption(): string {
-    return PERIODS.find((p) => p.id === this.period())?.caption ?? '';
+  setPeriod(period: Period): void {
+    this.store.load(period);
   }
 
-  series(m: DashboardMetrics): DayBar[] {
-    return buildSeries(m.tickets, this.period());
+  reload(): void {
+    this.store.load();
   }
 
-  total(bars: DayBar[]): number {
-    return bars.reduce((sum, bar) => sum + bar.count, 0);
+  periodCaption(period: Period): string {
+    return PERIODS.find((p) => p.id === period)?.caption ?? '';
   }
 
-  /** Altura relativa a la barra más alta; mínimo visible para los valores en cero. */
-  barHeight(bar: DayBar, bars: DayBar[]): number {
-    const max = Math.max(...bars.map((b) => b.count), 1);
-    return Math.max((bar.count / max) * 80, 3);
+  mttrCaption(firstAssignmentHours: number | null): string {
+    return firstAssignmentHours === null
+      ? 'Tiempo medio de resolución'
+      : `Resolución · 1.ª asignación en ${formatHours(firstAssignmentHours)}`;
   }
 
-  /** Con 30 barras solo se rotula el valor máximo y cada 5.º día, para que siga legible. */
-  showValue(bar: DayBar, size: number): boolean {
-    return size <= 12 || bar.isPeak;
+  slaCaption(kpis: NonNullable<DashboardState['kpis']>): string {
+    const sla = kpis.sla_compliance_pct;
+    const base = `${sla.met} de ${sla.met + sla.missed} a tiempo`;
+    return sla.excluded_no_sla ? `${base} · ${sla.excluded_no_sla} sin SLA excluidos` : base;
   }
 
-  showLabel(index: number, size: number): boolean {
-    return size <= 12 || index % 5 === 0 || index === size - 1;
+  /** Serie del sparkline: un valor por punto de la tendencia (`null` = sin datos ese día). */
+  series(trends: TrendsResponse | null, key: 'mttr_hours' | 'sla_compliance_pct'): (number | null)[] {
+    return trends ? trends.points.map((point) => point[key]) : [];
   }
 
-  initialsOf(name: string): string {
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0].toUpperCase())
-      .join('');
+  share(value: number, max: number): number {
+    return max > 0 ? Math.max((value / max) * 100, value > 0 ? 4 : 0) : 0;
   }
 
-  /** Carga relativa al técnico con más tickets abiertos. */
-  loadPct(open: number, m: DashboardMetrics): number {
-    const max = Math.max(...m.technicianRows.map((t) => t.openTickets ?? 0), 1);
-    return Math.max((open / max) * 100, open > 0 ? 6 : 0);
+  maxOpen(technicians: { open_tickets: number }[]): number {
+    return Math.max(...technicians.map((t) => t.open_tickets), 1);
   }
 
-  /** Arcos del donut: categorías excluyentes; las vacías no se dibujan. */
-  donut(m: DashboardMetrics): DonutSegment[] {
-    const items = HEALTH_META.map((meta) => ({ ...meta, count: m.health[meta.key] })).filter((i) => i.count > 0);
-    const total = items.reduce((sum, item) => sum + item.count, 0);
-    let consumed = 0;
-    return items.map((item) => {
-      const length = total ? (item.count / total) * DONUT_LENGTH : 0;
-      const segment: DonutSegment = {
-        key: item.key,
-        name: item.name,
-        count: item.count,
-        color: item.color,
-        dash: `${length} ${DONUT_LENGTH - length}`,
-        offset: -consumed,
-      };
-      consumed += length;
-      return segment;
-    });
+  /** Barras agrupadas (creados / resueltos) escaladas al máximo de la serie. */
+  chart(trends: TrendsResponse | null): ChartBar[] {
+    if (!trends || trends.points.every((p) => p.created === 0 && p.resolved === 0)) {
+      return [];
+    }
+    const max = Math.max(...trends.points.flatMap((p) => [p.created, p.resolved]), 1);
+    const slot = CHART_W / trends.points.length;
+    const width = Math.min(slot * 0.4, 18);
+    return trends.points.map((point, index) => ({
+      x: index * slot + (slot - width * 2 - 1) / 2,
+      width,
+      createdH: this.barHeight(point.created, max),
+      resolvedH: this.barHeight(point.resolved, max),
+      label: this.bucketLabel(point, trends.granularity),
+      created: point.created,
+      resolved: point.resolved,
+      showLabel: trends.points.length <= 12 || index % 5 === 0 || index === trends.points.length - 1,
+    }));
   }
 
-  kpis(m: DashboardMetrics): Kpi[] {
-    const trend = m.monthTrendPct;
-    return [
-      {
-        label: 'Equipos totales', icon: 'desktop_windows', tone: 'bg-[#DBEAFE] text-[#2563EB]',
-        value: String(m.equipmentTotal), caption: `${m.operationalPct}% operativos`, link: '/equipos', badge: null,
-      },
-      {
-        label: 'Mantenimientos del mes', icon: 'calendar_month', tone: 'bg-[#D1FAE5] text-[#10B981]',
-        value: String(m.monthTickets), caption: `${m.monthDone} resueltos / ${m.monthTickets - m.monthDone} abiertos`,
-        link: '/maintenance',
-        badge: trend === null ? null : {
-          text: `${trend > 0 ? '+' : ''}${trend}% vs mes anterior`,
-          cls: trend > 0 ? 'bg-[#FEF3C7] text-[#B45309]' : 'bg-[#D1FAE5] text-[#047857]',
-        },
-      },
-      {
-        label: 'Técnicos activos', icon: 'build', tone: 'bg-[#DBEAFE] text-[#2563EB]',
-        value: String(m.techniciansTotal), caption: `${m.techniciansAvailable} disponibles ahora`, link: '/technicians', badge: null,
-      },
-      {
-        label: 'Fuera de servicio', icon: 'report', tone: m.health.offline ? 'bg-[#FEE2E2] text-[#EF4444]' : 'bg-[#D1FAE5] text-[#10B981]',
-        value: String(m.health.offline), caption: m.health.offline ? 'Extraviados, retirados o de baja' : 'Ningún equipo fuera de servicio',
-        link: '/equipos', badge: null,
-      },
-      {
-        label: 'Mantenimientos vencidos', icon: 'event_busy', tone: m.overdueSchedules ? 'bg-[#FEF3C7] text-[#F59E0B]' : 'bg-[#D1FAE5] text-[#10B981]',
-        value: String(m.overdueSchedules), caption: m.overdueSchedules ? 'Planes preventivos atrasados' : 'Planes preventivos al día',
-        link: '/maintenance', badge: null,
-      },
-      {
-        label: 'Solicitudes pendientes', icon: 'pending_actions', tone: 'bg-[#EDE9FE] text-[#7C3AED]',
-        value: String(m.pendingTickets), caption: 'En cola de triaje y asignación', link: '/tickets', badge: null,
-      },
-    ];
+  private barHeight(count: number, max: number): number {
+    return count ? Math.max((count / max) * (CHART_H - 6), 3) : 0;
   }
-}
 
-interface Kpi {
-  label: string;
-  icon: string;
-  tone: string;
-  value: string;
-  caption: string;
-  link: string;
-  badge: { text: string; cls: string } | null;
+  private bucketLabel(point: TrendPoint, granularity: 'day' | 'month'): string {
+    const bucket = new Date(point.bucket);
+    return granularity === 'month' ? MONTHS[bucket.getUTCMonth()] : String(bucket.getUTCDate());
+  }
 }

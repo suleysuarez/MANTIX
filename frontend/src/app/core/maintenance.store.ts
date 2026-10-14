@@ -49,8 +49,9 @@ export class MaintenanceStore {
   /** Emits once per successful creation so the form can reset itself. */
   readonly requestCreated$ = this.createdSource.asObservable();
 
-  load(): void {
-    this.patch({ loading: true, error: '' });
+  /** `initial` aplica filtros recibidos por URL (p. ej. desde el dashboard) en la primera carga. */
+  load(initial: { status?: string; priority?: string } = {}): void {
+    this.patch({ loading: true, error: '', ...initial });
     forkJoin({
       rows: this.fetchPage(),
       equipment: this.equipmentApi.listAll(),
