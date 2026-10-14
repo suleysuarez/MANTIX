@@ -48,21 +48,19 @@ export interface ChartBar {
     @if (state$ | async; as state) {
       <div class="tw-reset flex w-full flex-col gap-3 font-sans text-[#1E293B]" [attr.aria-busy]="state.loading">
         <!-- Hero: saludo + visual sobre un único fondo -->
-        <section class="hero relative overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_100%)] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)] lg:p-5">
+        <section class="hero group relative overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_100%)] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)] lg:min-h-[250px] lg:p-5">
           <div class="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-[#2563EB]/[0.07]"></div>
           <div class="pointer-events-none absolute bottom-[-6rem] left-[38%] h-64 w-64 rotate-45 rounded-[40px] bg-[#3B82F6]/[0.06]"></div>
 
-          <div class="hero-visual absolute inset-y-2 right-2 hidden w-[42%] lg:block"
-            (mouseenter)="showKpis.set(true)" (mouseleave)="showKpis.set(false)">
+          <div class="hero-visual absolute inset-y-0 right-0 hidden w-[60%] lg:block">
             <video class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
               src="assets/videos/dashboard1.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
-            <div class="holo absolute inset-x-6 bottom-4 flex items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] transition-all duration-300 ease-out"
-              [class]="showKpis() ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'">
+            <div class="holo pointer-events-none absolute inset-x-8 bottom-5 flex translate-y-2 items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
               <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-[26px]">desktop_windows</span>
                 <div>
                   <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.availability?.value ?? null) }}</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Disponibilidad</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#3E5C76]">Disponibilidad</span>
                 </div>
               </div>
               <span class="h-8 w-[2px] rounded-full bg-[#D4A017]"></span>
@@ -70,13 +68,13 @@ export interface ChartBar {
                 <span class="material-symbols-outlined text-[26px]">verified</span>
                 <div>
                   <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.sla_compliance_pct?.value ?? null) }}</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Cumplimiento SLA</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#3E5C76]">Cumplimiento SLA</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="relative z-10 flex flex-col gap-2 lg:max-w-[52%]">
+          <div class="relative z-10 flex flex-col gap-2 lg:max-w-[40%]">
             <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1E293B]">
               <span class="h-2 w-2 rounded-full bg-[#D4A017]"></span>
               {{ userName() ? 'Hola, ' + userName() : 'Plataforma central' }}
@@ -240,30 +238,77 @@ export interface ChartBar {
         </section>
 
         <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div [class]="card + ' flex flex-col gap-3'">
-            <div class="flex items-start justify-between gap-2">
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
+            <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h2 class="text-[15px] font-bold">Carga por técnico</h2>
-                <p class="text-[11px] text-[#64748B]">Tickets abiertos, para balancear el trabajo</p>
+                <h2 class="text-[15px] font-bold">Rendimiento del equipo técnico</h2>
+                <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }} · ordenado por tickets abiertos (carga), no por desempeño</p>
               </div>
               <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
             </div>
-            @let techs = state.workload;
+            @let techs = state.technicians;
             @if (techs?.length) {
-              <ul class="flex flex-col gap-2">
-                @for (t of techs; track t.technician_id) {
-                  <li>
-                    <div class="flex items-baseline justify-between gap-2 text-[12px]">
-                      <span class="min-w-0 truncate font-semibold">{{ t.full_name }}</span>
-                      <span class="shrink-0 text-[#64748B]"><strong class="text-[#1E293B]">{{ t.open_tickets }}</strong> abiertos</span>
-                    </div>
-                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
-                      <div class="h-full rounded-full" [class]="t.is_available ? 'bg-[#2563EB]' : 'bg-[#A16207]'" [style.width.%]="share(t.open_tickets, maxOpen(techs!))"></div>
-                    </div>
-                  </li>
-                }
-              </ul>
-              <p class="text-[11px] text-[#64748B]">Barra relativa al técnico más cargado; en mostaza, no disponible.</p>
+              <div class="overflow-x-auto">
+                <table class="w-full min-w-[680px] border-collapse text-left text-[12px]">
+                  <caption class="sr-only">Rendimiento por técnico en {{ periodCaption(state.period) }}</caption>
+                  <thead>
+                    <tr class="border-b border-[#E2E8F0] text-[11px] uppercase tracking-wider text-[#64748B]">
+                      <th scope="col" class="py-2 pr-3 font-bold">Técnico</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">Abiertos</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">Resueltos</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">MTTR (mediana)</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">SLA</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">n</th>
+                      <th scope="col" class="py-2 pl-3 text-right font-bold">Reabiertos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (t of techs; track t.technician_id) {
+                      <tr class="border-b border-[#F1F5F9] last:border-0">
+                        <th scope="row" class="py-2 pr-3 font-normal">
+                          <span class="flex items-center gap-2">
+                            <span class="h-2 w-2 shrink-0 rounded-full" [class]="t.is_available ? 'bg-[#047857]' : 'bg-[#A16207]'"
+                              [attr.title]="t.is_available ? 'Disponible' : 'No disponible'"></span>
+                            <span class="min-w-0">
+                              <span class="block truncate font-semibold text-[#1E293B]">{{ t.full_name }}</span>
+                              <span class="block truncate text-[11px] text-[#64748B]">{{ t.specialization || 'General' }}</span>
+                            </span>
+                          </span>
+                        </th>
+                        <td class="px-3 py-2 text-right text-[14px] font-bold text-[#0b1f3a]">{{ t.open_tickets }}</td>
+                        <td class="px-3 py-2 text-right">{{ t.resolved }}</td>
+                        <td class="px-3 py-2 text-right">
+                          @if (t.mttr_median_hours !== null) {
+                            <span class="font-semibold">{{ hours(t.mttr_median_hours) }}</span>
+                            @if (t.low_sample) {
+                              <span class="ml-1 rounded-full bg-[#FEF3C7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400E]">pocos datos</span>
+                            }
+                          } @else {
+                            <span class="text-[#64748B]" title="Sin tickets resueltos en el periodo">—</span>
+                          }
+                        </td>
+                        <td class="px-3 py-2 text-right">
+                          @if (t.sla_compliance_pct !== null) {
+                            <span class="font-semibold">{{ pct(t.sla_compliance_pct) }}</span>
+                            <span class="text-[11px] text-[#64748B]"> (n = {{ t.sla_sample_size }})</span>
+                            @if (t.sla_low_sample) {
+                              <span class="ml-1 rounded-full bg-[#FEF3C7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400E]">pocos datos</span>
+                            }
+                          } @else {
+                            <span class="text-[#64748B]" [attr.title]="t.sla_excluded_no_sla ? t.sla_excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Sin tickets resueltos con SLA'">—</span>
+                          }
+                          @if (t.sla_excluded_no_sla) {
+                            <span class="block text-[10px] text-[#64748B]">{{ t.sla_excluded_no_sla }} sin SLA excluidos</span>
+                          }
+                        </td>
+                        <td class="px-3 py-2 text-right text-[#475569]">{{ t.sample_size }}</td>
+                        <td class="py-2 pl-3 text-right" [class]="t.reopened ? 'font-bold text-[#92400E]' : 'text-[#475569]'">{{ t.reopened }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[11px] text-[#64748B]">n = tickets resueltos en el periodo. Las prioridades sin SLA no entran en el cumplimiento. Reabiertos: pasaron de resuelto a en curso.</p>
             } @else {
               <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
                 {{ techs ? 'Aún no hay técnicos registrados.' : 'Dato no disponible.' }}
@@ -271,7 +316,7 @@ export interface ChartBar {
             }
           </div>
 
-          <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
             <div>
               <h2 class="text-[15px] font-bold">Atención inmediata</h2>
               <p class="text-[11px] text-[#64748B]">Lo que necesita acción ahora, sin importar el periodo</p>
@@ -350,10 +395,10 @@ export interface ChartBar {
       }
       /* Capa holográfica: vidrio translúcido que flota sobre la animación. */
       .holo {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.62);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.55);
         box-shadow: 0 8px 24px rgba(62, 92, 118, 0.12);
       }
       .hero-gif {
@@ -376,7 +421,6 @@ export class DashboardComponent implements OnInit {
   readonly chartW = CHART_W;
   readonly chartH = CHART_H;
   readonly userName = signal('');
-  readonly showKpis = signal(false);
 
   readonly pct = formatPct;
   readonly hours = formatHours;
@@ -425,9 +469,6 @@ export class DashboardComponent implements OnInit {
     return max > 0 ? Math.max((value / max) * 100, value > 0 ? 4 : 0) : 0;
   }
 
-  maxOpen(technicians: { open_tickets: number }[]): number {
-    return Math.max(...technicians.map((t) => t.open_tickets), 1);
-  }
 
   /** Barras agrupadas (creados / resueltos) escaladas al máximo de la serie. */
   chart(trends: TrendsResponse | null): ChartBar[] {

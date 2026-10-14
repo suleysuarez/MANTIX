@@ -6,11 +6,10 @@ import {
   DashboardKpisService,
   FailingEquipment,
   KpisResponse,
-  PERIOD_DAYS,
   Period,
+  TechnicianPerformance,
   TrendsResponse,
 } from './dashboard-kpis.service';
-import { TechniciansService, TechnicianWorkload } from './technicians.service';
 
 export interface DashboardState {
   loading: boolean;
@@ -20,7 +19,7 @@ export interface DashboardState {
   trends: TrendsResponse | null;
   alerts: AlertsResponse | null;
   topEquipment: FailingEquipment[] | null;
-  workload: TechnicianWorkload[] | null;
+  technicians: TechnicianPerformance[] | null;
 }
 
 const INITIAL: DashboardState = {
@@ -30,7 +29,7 @@ const INITIAL: DashboardState = {
   trends: null,
   alerts: null,
   topEquipment: null,
-  workload: null,
+  technicians: null,
 };
 
 /**
@@ -40,7 +39,6 @@ const INITIAL: DashboardState = {
 @Injectable({ providedIn: 'root' })
 export class DashboardStore {
   private readonly api = inject(DashboardKpisService);
-  private readonly techniciansApi = inject(TechniciansService);
   private readonly subject = new BehaviorSubject<DashboardState>(INITIAL);
 
   readonly state$: Observable<DashboardState> = this.subject.asObservable();
@@ -56,7 +54,7 @@ export class DashboardStore {
         map((response) => response.equipment),
         catchError(() => of(null)),
       ),
-      workload: this.techniciansApi.workload(PERIOD_DAYS[period]).pipe(
+      technicians: this.api.technicians(period).pipe(
         map((response) => response.technicians),
         catchError(() => of(null)),
       ),

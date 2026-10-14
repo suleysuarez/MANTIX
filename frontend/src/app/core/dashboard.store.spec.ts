@@ -1,9 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
-import { AlertsResponse, DashboardKpisService, KpisResponse, TrendsResponse } from './dashboard-kpis.service';
+import {
+  AlertsResponse,
+  DashboardKpisService,
+  KpisResponse,
+  TechniciansPerformanceResponse,
+  TrendsResponse,
+} from './dashboard-kpis.service';
 import { DashboardState, DashboardStore } from './dashboard.store';
-import { TechniciansService } from './technicians.service';
 
 const kpi = { value: 1, previous: null, change_pct: null, sample_size: 1 };
 const kpis = {
@@ -17,23 +22,20 @@ const alerts = { tickets: [], down_equipment: [], schedules: [] } as unknown as 
 
 describe('DashboardStore', () => {
   let api: jasmine.SpyObj<DashboardKpisService>;
-  let technicians: jasmine.SpyObj<TechniciansService>;
   let store: DashboardStore;
   let latest: DashboardState;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj('DashboardKpisService', ['kpis', 'trends', 'alerts', 'topFailingEquipment']);
-    technicians = jasmine.createSpyObj('TechniciansService', ['workload']);
+    api = jasmine.createSpyObj('DashboardKpisService', ['kpis', 'trends', 'alerts', 'topFailingEquipment', 'technicians']);
     api.kpis.and.returnValue(of(kpis));
     api.trends.and.returnValue(of(trends));
     api.alerts.and.returnValue(of(alerts));
     api.topFailingEquipment.and.returnValue(of({ window_days: 30, equipment: [] }));
-    technicians.workload.and.returnValue(of({ window_days: 30, scope: 'all', technicians: [] }));
+    api.technicians.and.returnValue(of({ period: '30d', technicians: [] } as unknown as TechniciansPerformanceResponse));
     TestBed.configureTestingModule({
       providers: [
         DashboardStore,
         { provide: DashboardKpisService, useValue: api },
-        { provide: TechniciansService, useValue: technicians },
       ],
     });
     store = TestBed.inject(DashboardStore);
@@ -53,7 +55,7 @@ describe('DashboardStore', () => {
     store.load('12m');
     expect(api.trends).toHaveBeenCalledWith('12m');
     expect(api.topFailingEquipment).toHaveBeenCalledWith('12m');
-    expect(technicians.workload).toHaveBeenCalledWith(365);
+    expect(api.technicians).toHaveBeenCalledWith('12m');
     store.load();
     expect(api.kpis).toHaveBeenCalledTimes(2);
     expect(api.kpis.calls.mostRecent().args).toEqual(['12m']);

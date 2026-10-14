@@ -125,6 +125,36 @@ export interface AlertsResponse {
   schedules: ScheduleAlert[];
 }
 
+/** Rendimiento de un técnico en el periodo (`/dashboard/technicians`). */
+export interface TechnicianPerformance {
+  technician_id: number;
+  full_name: string;
+  specialization: string | null;
+  is_available: boolean;
+  open_tickets: number;
+  resolved: number;
+  mttr_median_hours: number | null;
+  /** n del MTTR: tickets que resolvió en el periodo. */
+  sample_size: number;
+  low_sample: boolean;
+  sla_compliance_pct: number | null;
+  sla_sample_size: number;
+  sla_low_sample: boolean;
+  /** Resueltos cuya prioridad no tiene SLA: no cuentan como cumplidos ni incumplidos. */
+  sla_excluded_no_sla: number;
+  reopened: number;
+}
+
+export interface TechniciansPerformanceResponse {
+  generated_at: string;
+  scope: 'all' | 'own';
+  period: Period;
+  window_start: string;
+  window_end: string;
+  /** Ordenados por tickets abiertos (carga), nunca por desempeño. */
+  technicians: TechnicianPerformance[];
+}
+
 export interface FailingEquipment {
   equipment_id: number;
   asset_tag: string;
@@ -151,6 +181,12 @@ export class DashboardKpisService {
 
   trends(period: Period): Observable<TrendsResponse> {
     return this.http.get<TrendsResponse>(`${this.url}/trends`, { params: new HttpParams().set('period', period) });
+  }
+
+  technicians(period: Period): Observable<TechniciansPerformanceResponse> {
+    return this.http.get<TechniciansPerformanceResponse>(`${this.url}/technicians`, {
+      params: new HttpParams().set('period', period),
+    });
   }
 
   alerts(): Observable<AlertsResponse> {
