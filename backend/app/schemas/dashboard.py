@@ -244,3 +244,37 @@ class AlertsResponse(BaseModel):
     tickets: list[TicketAlert]
     down_equipment: list[DownEquipmentAlert]
     schedules: list[ScheduleAlert]
+
+
+class TechnicianPerformance(BaseModel):
+    technician_id: int
+    full_name: str
+    specialization: str | None
+    is_available: bool
+    open_tickets: int = Field(description="Assigned and still open, right now")
+    resolved: int = Field(description="Tickets they resolved inside the period")
+    mttr_median_hours: float | None = Field(
+        description="Median creation-to-resolution time of those tickets"
+    )
+    sample_size: int = Field(description="n behind the MTTR: tickets resolved")
+    low_sample: bool = Field(description="True when 0 < n < 5")
+    sla_compliance_pct: float | None
+    sla_sample_size: int = Field(
+        description="Resolved tickets whose priority has an SLA"
+    )
+    sla_low_sample: bool
+    sla_excluded_no_sla: int = Field(
+        description="Resolved tickets left out of the SLA: their priority has no sla_hours"
+    )
+    reopened: int = Field(description="Tickets moved from resolved back to in progress")
+
+
+class TechniciansPerformanceResponse(BaseModel):
+    generated_at: datetime
+    scope: Scope
+    period: Period
+    window_start: datetime
+    window_end: datetime
+    technicians: list[TechnicianPerformance] = Field(
+        description="Busiest first (open tickets), never ranked by performance"
+    )

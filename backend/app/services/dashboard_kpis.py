@@ -19,6 +19,8 @@ from app.schemas.dashboard import (
     ResolutionTimeKpi,
     ScheduleAlert,
     SlaKpi,
+    TechnicianPerformance,
+    TechniciansPerformanceResponse,
     TicketAlert,
     TrendPoint,
     TrendsResponse,
@@ -283,5 +285,41 @@ class DashboardKpiService(DashboardService):
                     overdue=s.next_due_at < now,
                 )
                 for s in schedules
+            ],
+        )
+
+    async def technicians(
+        self, actor: AuthContext, *, period: Period, now: datetime | None = None
+    ) -> TechniciansPerformanceResponse:
+        now = now or datetime.now(UTC)
+        technician_id, scope = await self._scope(actor)
+        start, end = period_window(period, now)
+        rows = await self.repository.technician_performance(
+            start=start, end=end, technician_id=technician_id
+        )
+        return TechniciansPerformanceResponse(
+            generated_at=now,
+            scope=scope,
+            period=period,
+            window_start=start,
+            window_end=end,
+            technicians=[
+                TechnicianPerformance(
+                    technician_id=row.technician_id,
+                    full_name=row.full_name,
+                    specialization=row.specialization,
+                    is_available=row.is_available,
+                    open_tickets=row.open_tickets,
+                    resolved=row.resolved,
+                    mttr_median_hours=_round(row.median_resolution_hours),
+                    sample_size=row.resolved,
+                    low_sample=0 < row.resolved < MIN_SAMPLE,
+                    sla_compliance_pct=_pct(row.sla_met, row.sla_met + row.sla_missed),
+                    sla_sample_size=row.sla_met + row.sla_missed,
+                    sla_low_sample=0 < row.sla_met + row.sla_missed < MIN_SAMPLE,
+                    sla_excluded_no_sla=row.sla_excluded,
+                    reopened=row.reopened,
+                )
+                for row in rows
             ],
         )

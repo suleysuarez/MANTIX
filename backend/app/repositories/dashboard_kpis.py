@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import and_, case, func, literal, or_, select
 
+from app.models.auth import User
 from app.models.equipment import Equipment, EquipmentStatusHistory
 from app.models.maintenance import (
     MaintenanceRequest,
@@ -19,6 +20,7 @@ from app.models.maintenance import (
 )
 from app.models.priority import Priority
 from app.models.schedule import MaintenanceSchedule
+from app.models.technician import Technician
 from app.repositories.dashboard import OPEN_STATUSES, DashboardRepository
 
 #: A ticket is "at risk" once this share of its SLA time is left.
@@ -105,6 +107,24 @@ class ScheduleAlertRow:
     asset_tag: str
     title: str
     next_due_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class TechnicianPerformanceRow:
+    """One technician: load now, plus resolution figures for the tickets they
+    resolved in the window (the assignment active at resolution time counts)."""
+
+    technician_id: int
+    full_name: str
+    specialization: str | None
+    is_available: bool
+    open_tickets: int
+    resolved: int
+    median_resolution_hours: float | None
+    sla_met: int
+    sla_missed: int
+    sla_excluded: int
+    reopened: int
 
 
 def _resolved_in(start: datetime, end: datetime) -> Any:
@@ -457,3 +477,90 @@ class DashboardKpiRepository(DashboardRepository):
             query = query.where(MaintenanceSchedule.technician_id == technician_id)
         rows = (await self.session.execute(query)).all()
         return [ScheduleAlertRow(*row) for row in rows]
+
+    async def technician_performance(
+        self, *, start: datetime, end: datetime, technician_id: int | None = None
+    ) -> list[TechnicianPerformanceRow]:
+        """Per technician: open tickets, tickets resolved in `[start, end)`, their
+        median resolution time, SLA outcome and reopened tickets. Busiest first."""
+        mr = MaintenanceRequest
+        ta = TicketAssignment
+        history = TicketStatusHistory
+        mine = and_(
+            _resolved_in(start, end),
+            ta.assigned_at <= mr.resolved_at,
+            or_(ta.unassigned_at.is_(None), ta.unassigned_at > mr.resolved_at),
+        )
+        allowed = Priority.sla_hours * 3600
+        has_sla = Priority.sla_hours.is_not(None)
+        open_count = func.count(
+            func.distinct(
+                case(
+                    (
+                        and_(ta.unassigned_at.is_(None), mr.status.in_(OPEN_STATUSES)),
+                        mr.id,
+                    )
+                )
+            )
+        )
+        query = (
+            select(
+                Technician.id,
+                User.full_name,
+                Technician.specialization,
+                Technician.is_available,
+                open_count,
+                func.count().filter(mine),
+                func.percentile_cont(0.5).within_group(_RESOLUTION_SECONDS).filter(mine)
+                / 3600,
+                func.count().filter(
+                    and_(mine, has_sla, _RESOLUTION_SECONDS <= allowed)
+                ),
+                func.count().filter(and_(mine, has_sla, _RESOLUTION_SECONDS > allowed)),
+                func.count().filter(and_(mine, Priority.sla_hours.is_(None))),
+            )
+            .select_from(Technician)
+            .join(User, User.id == Technician.user_id)
+            .outerjoin(ta, ta.technician_id == Technician.id)
+            .outerjoin(mr, mr.id == ta.request_id)
+            .outerjoin(Priority, Priority.code == mr.priority)
+            .group_by(Technician.id, User.full_name)
+            .order_by(open_count.desc(), User.full_name)
+        )
+        reopened_query = (
+            select(ta.technician_id, func.count())
+            .select_from(history)
+            .join(ta, ta.request_id == history.request_id)
+            .where(
+                history.from_status == "resolved",
+                history.to_status == "in_progress",
+                history.changed_at >= start,
+                history.changed_at < end,
+                ta.assigned_at <= history.changed_at,
+                or_(ta.unassigned_at.is_(None), ta.unassigned_at > history.changed_at),
+            )
+            .group_by(ta.technician_id)
+        )
+        if technician_id is not None:
+            query = query.where(Technician.id == technician_id)
+            reopened_query = reopened_query.where(ta.technician_id == technician_id)
+        rows = (await self.session.execute(query)).all()
+        reopened = {
+            r[0]: r[1] for r in (await self.session.execute(reopened_query)).all()
+        }
+        return [
+            TechnicianPerformanceRow(
+                technician_id=r[0],
+                full_name=r[1],
+                specialization=r[2],
+                is_available=r[3],
+                open_tickets=r[4],
+                resolved=r[5],
+                median_resolution_hours=_hours(r[6]),
+                sla_met=r[7],
+                sla_missed=r[8],
+                sla_excluded=r[9],
+                reopened=reopened.get(r[0], 0),
+            )
+            for r in rows
+        ]

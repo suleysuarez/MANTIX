@@ -20,6 +20,7 @@ from app.repositories.dashboard_kpis import (
     DashboardKpiRepository,
     DownEquipmentRow,
     ScheduleAlertRow,
+    TechnicianPerformanceRow,
     TicketAlertRow,
     WindowStats,
 )
@@ -119,6 +120,14 @@ class FakeKpiRepository:
             CountRow("assigned", 6),
             CountRow("in_storage", 2),
             CountRow("in_repair", 2),
+        ]
+
+    async def technician_performance(self, *, start, end, technician_id=None):
+        self.scopes.append(technician_id)
+        return [
+            TechnicianPerformanceRow(1, "Ana", "Redes", True, 5, 12, 6.0, 9, 1, 2, 1),
+            TechnicianPerformanceRow(2, "Luis", None, False, 2, 3, 30.0, 2, 1, 0, 0),
+            TechnicianPerformanceRow(3, "Marta", None, True, 0, 0, None, 0, 0, 0, 0),
         ]
 
     async def open_tickets_at(self, at, *, technician_id=None):
@@ -310,6 +319,40 @@ async def test_alerts_label_each_ticket_with_its_reason():
     assert [s.overdue for s in alerts.schedules] == [True, False]
 
 
+async def test_technician_rows_keep_the_load_order_and_flag_small_samples():
+    service = DashboardKpiService(FakeKpiRepository())
+    result = await service.technicians(actor("SUPERVISOR"), period="30d", now=NOW)
+    assert [t.full_name for t in result.technicians] == [
+        "Ana",
+        "Luis",
+        "Marta",
+    ]  # as returned: by load
+    ana, luis, _ = result.technicians
+    assert (ana.open_tickets, ana.resolved, ana.mttr_median_hours) == (5, 12, 6.0)
+    assert ana.sample_size == 12 and ana.low_sample is False
+    assert ana.sla_compliance_pct == 90.0 and ana.sla_sample_size == 10
+    assert ana.sla_excluded_no_sla == 2 and ana.reopened == 1
+    assert luis.low_sample is True and luis.sla_low_sample is True  # n = 3
+    assert luis.sla_compliance_pct == pytest.approx(66.7)
+
+
+async def test_technician_without_resolved_tickets_has_no_values_not_zeros():
+    result = await DashboardKpiService(FakeKpiRepository()).technicians(
+        actor("ADMIN"), period="7d", now=NOW
+    )
+    marta = result.technicians[2]
+    assert marta.mttr_median_hours is None and marta.sla_compliance_pct is None
+    assert marta.low_sample is False and marta.sample_size == 0
+
+
+async def test_technician_performance_is_scoped_for_technicians():
+    repo = FakeKpiRepository(technician_id=42)
+    result = await DashboardKpiService(repo).technicians(
+        actor("TECHNICIAN"), period="7d", now=NOW
+    )
+    assert result.scope == "own" and repo.scopes == [42]
+
+
 # -- HTTP ---------------------------------------------------------------------------
 
 
@@ -326,6 +369,12 @@ class StubKpiService:
     async def trends(self, actor, *, period):
         self.calls.append(("trends", period))
         return await DashboardKpiService(FakeKpiRepository()).trends(
+            actor, period=period, now=NOW
+        )
+
+    async def technicians(self, actor, *, period):
+        self.calls.append(("technicians", period))
+        return await DashboardKpiService(FakeKpiRepository()).technicians(
             actor, period=period, now=NOW
         )
 
@@ -414,13 +463,44 @@ def test_trends_and_alerts_endpoints(client):
     }
 
 
-@pytest.mark.parametrize("path", ["kpis", "trends"])
+def test_technicians_endpoint_returns_the_documented_shape(client):
+    response = client.get("/dashboard/technicians?period=7d")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {
+        "generated_at",
+        "scope",
+        "period",
+        "window_start",
+        "window_end",
+        "technicians",
+    }
+    assert set(body["technicians"][0]) == {
+        "technician_id",
+        "full_name",
+        "specialization",
+        "is_available",
+        "open_tickets",
+        "resolved",
+        "mttr_median_hours",
+        "sample_size",
+        "low_sample",
+        "sla_compliance_pct",
+        "sla_sample_size",
+        "sla_low_sample",
+        "sla_excluded_no_sla",
+        "reopened",
+    }
+    assert client.stub.calls == [("technicians", "7d")]
+
+
+@pytest.mark.parametrize("path", ["kpis", "trends", "technicians"])
 @pytest.mark.parametrize("period", ["1d", "90d", "year", ""])
 def test_unknown_periods_are_rejected(client, path, period):
     assert client.get(f"/dashboard/{path}?period={period}").status_code == 422
 
 
-@pytest.mark.parametrize("path", ["kpis", "trends", "alerts"])
+@pytest.mark.parametrize("path", ["kpis", "trends", "alerts", "technicians"])
 def test_endpoints_require_the_dashboard_permission(forbidden_client, path):
     assert forbidden_client.get(f"/dashboard/{path}").status_code == 403
 
@@ -588,3 +668,74 @@ async def test_schedule_alerts_include_overdue_plans(db_session):
     await seed(db_session)
     rows = await DashboardKpiRepository(db_session).schedule_alerts(NOW)
     assert [r.title for r in rows] == ["Limpieza"]
+
+
+async def test_technician_performance_attributes_by_assignment_and_excludes_no_sla(
+    db_session,
+):
+    from app.models.maintenance import TicketAssignment, TicketStatusHistory
+    from app.models.technician import Technician
+
+    data = await seed(db_session)
+    users = [
+        User(
+            clerk_user_id=f"t{i}",
+            email=f"t{i}@x.co",
+            full_name=f"Tech {i}",
+            is_active=True,
+        )
+        for i in range(2)
+    ]
+    db_session.add_all(users)
+    await db_session.flush()
+    techs = [Technician(user_id=u.id, is_available=True) for u in users]
+    db_session.add_all(techs)
+    await db_session.flush()
+    rows = (
+        await db_session.execute(
+            MaintenanceRequest.__table__.select().order_by(
+                MaintenanceRequest.ticket_number
+            )
+        )
+    ).all()
+    by_number = {r.ticket_number: r.id for r in rows}
+    start = NOW - timedelta(days=30)
+
+    def assign(number, tech, *, unassigned=None):
+        return TicketAssignment(
+            request_id=by_number[number],
+            technician_id=tech.id,
+            assigned_at=start,
+            unassigned_at=unassigned,
+        )
+
+    db_session.add_all(
+        [
+            assign("T-1", techs[0]),  # resolved in 10h, SLA 24h: met
+            assign("T-2", techs[0]),  # resolved in 30h: missed
+            assign("T-3", techs[0]),  # low priority, no SLA: excluded
+            assign("T-4", techs[1]),  # open critical
+            assign("T-5", techs[1]),  # open
+            TicketStatusHistory(
+                request_id=by_number["T-1"],
+                from_status="resolved",
+                to_status="in_progress",
+                changed_at=NOW - timedelta(hours=3),
+            ),
+        ]
+    )
+    await db_session.flush()
+    result = await DashboardKpiRepository(db_session).technician_performance(
+        start=start, end=NOW + timedelta(hours=1)
+    )
+    first, second = result  # busiest (open) first: Tech 1 has 2 open, Tech 0 none
+    assert (first.full_name, first.open_tickets, first.resolved) == ("Tech 1", 2, 0)
+    assert (second.full_name, second.open_tickets, second.resolved) == ("Tech 0", 0, 3)
+    assert second.median_resolution_hours == pytest.approx(10)
+    assert (second.sla_met, second.sla_missed, second.sla_excluded) == (1, 1, 1)
+    assert second.reopened == 1 and first.reopened == 0
+    only = await DashboardKpiRepository(db_session).technician_performance(
+        start=start, end=NOW + timedelta(hours=1), technician_id=techs[0].id
+    )
+    assert [r.full_name for r in only] == ["Tech 0"]
+    assert data.laptop.id

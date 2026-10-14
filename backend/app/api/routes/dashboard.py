@@ -10,6 +10,7 @@ from app.schemas.dashboard import (
     KpisResponse,
     Period,
     ResolutionTimesResponse,
+    TechniciansPerformanceResponse,
     TrendsResponse,
     WorkloadResponse,
 )
@@ -135,3 +136,23 @@ async def alerts(
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> AlertsResponse:
     return await service.alerts(actor)
+
+
+@router.get(
+    "/technicians",
+    response_model=TechniciansPerformanceResponse,
+    summary="Technician performance for the period",
+    description=(
+        "Per technician: open tickets now, tickets resolved in the period, median "
+        "resolution time, SLA compliance (priorities without `sla_hours` are left "
+        "out and counted in `sla_excluded_no_sla`), sample sizes with a `low_sample` "
+        "flag (n < 5) and reopened tickets. Ordered by open tickets (load), not by "
+        "performance. Technicians only see their own row (`scope=own`)."
+    ),
+)
+async def technicians_performance(
+    period: Period = PERIOD,
+    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
+) -> TechniciansPerformanceResponse:
+    return await service.technicians(actor, period=period)
