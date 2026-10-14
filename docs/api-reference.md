@@ -74,6 +74,20 @@
 | GET | `/locations` | List locations | `equipment.read` |
 | POST | `/locations` | Create location | `equipment.manage` |
 
+### inventory
+
+| Method | Path | Summary | Access |
+| --- | --- | --- | --- |
+| POST | `/inventory/import` | Bulk-import stock items from CSV or Excel | `inventory.manage` |
+| GET | `/inventory/items` | List stock items | `inventory.read` |
+| POST | `/inventory/items` | Create a stock item | `inventory.manage` |
+| DELETE | `/inventory/items/{item_id}` | Delete a stock item | `inventory.manage` |
+| GET | `/inventory/items/{item_id}` | Get a stock item | `inventory.read` |
+| PATCH | `/inventory/items/{item_id}` | Update a stock item | `inventory.manage` |
+| GET | `/inventory/items/{item_id}/movements` | Movement history of an item, newest first | `inventory.read` |
+| POST | `/inventory/items/{item_id}/movements` | Register a stock movement | `inventory.consume` |
+| GET | `/inventory/overview` | Inventory metrics for the period | `inventory.read` |
+
 ### maintenance
 
 | Method | Path | Summary | Access |
@@ -142,7 +156,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **67** endpoints.
+Total: **76** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 
@@ -155,6 +169,9 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 | `dashboard.read` | yes | yes | yes | - |
 | `equipment.manage` | yes | yes | - | - |
 | `equipment.read` | yes | yes | yes | yes |
+| `inventory.consume` | yes | yes | yes | - |
+| `inventory.manage` | yes | yes | - | - |
+| `inventory.read` | yes | yes | yes | - |
 | `maintenance.create` | yes | yes | - | yes |
 | `maintenance.manage` | yes | yes | yes | - |
 | `maintenance.read` | yes | yes | yes | yes |

@@ -13,6 +13,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
 from app.api.routes.equipment import router as equipment_router
+from app.api.routes.inventory import router as inventory_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.maintenance_overview import router as maintenance_overview_router
 from app.api.routes.notification import router as notification_router
@@ -150,6 +151,7 @@ API_ROUTERS = (
     maintenance_router,
     queue_router,
     maintenance_overview_router,
+    inventory_router,
     priority_router,
     dashboard_router,
     report_router,

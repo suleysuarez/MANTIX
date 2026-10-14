@@ -21,6 +21,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.dashboard_kpis import DashboardKpiRepository
 from app.repositories.equipment import EquipmentRepository
+from app.repositories.inventory import InventoryRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.maintenance_overview import MaintenanceOverviewRepository
 from app.repositories.notification import NotificationRepository
@@ -36,6 +37,7 @@ from app.services.auth import ClerkAuthService
 from app.services.dashboard_kpis import DashboardKpiService
 from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
+from app.services.inventory import InventoryService
 from app.services.maintenance import MaintenanceService
 from app.services.maintenance_overview import MaintenanceOverviewService
 from app.services.notification import NotificationService
@@ -101,6 +103,10 @@ def get_maintenance_overview_repository(
     return MaintenanceOverviewRepository(session)
 
 
+def get_inventory_repository(session: AsyncSession = Session) -> InventoryRepository:
+    return InventoryRepository(session)
+
+
 def get_queue_repository(session: AsyncSession = Session) -> QueueRepository:
     return QueueRepository(session)
 
@@ -161,6 +167,13 @@ def get_maintenance_overview_service(
     ],
 ) -> MaintenanceOverviewService:
     return MaintenanceOverviewService(repository)
+
+
+def get_inventory_service(
+    repository: Annotated[InventoryRepository, Depends(get_inventory_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> InventoryService:
+    return InventoryService(repository, audit)
 
 
 def get_queue_service(
