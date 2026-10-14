@@ -14,7 +14,20 @@ export interface KpiValue {
   value: number | null;
   previous: number | null;
   change_pct: number | null;
+  /** Tamaño de muestra (n): tickets que respaldan el valor. */
   sample_size: number;
+  /** `true` con 0 < n < 5: se muestra el valor con la nota «pocos datos». */
+  low_sample: boolean;
+}
+
+/** Tiempo de resolución en horas: `value` es la mediana, con el resto de la distribución. */
+export interface ResolutionTimeKpi extends KpiValue {
+  average_hours: number | null;
+  p90_hours: number | null;
+  min_hours: number | null;
+  max_hours: number | null;
+  /** Desviación estándar muestral; `null` con menos de 2 tickets. */
+  stddev_hours: number | null;
 }
 
 export interface SlaKpi extends KpiValue {
@@ -25,6 +38,8 @@ export interface SlaKpi extends KpiValue {
 
 export interface BacklogKpi {
   open: number;
+  previous_open: number | null;
+  change_pct: number | null;
   age_0_2_days: number;
   age_3_7_days: number;
   age_over_7_days: number;
@@ -32,6 +47,8 @@ export interface BacklogKpi {
 
 export interface AvailabilityKpi {
   value: number | null;
+  previous: number | null;
+  change_pct: number | null;
   operational: number;
   total: number;
 }
@@ -42,7 +59,7 @@ export interface KpisResponse {
   period: Period;
   window_start: string;
   window_end: string;
-  mttr_hours: KpiValue;
+  mttr_hours: ResolutionTimeKpi;
   first_assignment_hours: KpiValue;
   sla_compliance_pct: SlaKpi;
   resolution_rate_pct: KpiValue;

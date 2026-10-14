@@ -2,11 +2,20 @@ import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { Period, TrendPoint, TrendsResponse } from '../../core/dashboard-kpis.service';
+import { Period, TrendsResponse } from '../../core/dashboard-kpis.service';
 import { DashboardState, DashboardStore } from '../../core/dashboard.store';
 import { formatDate } from '../../core/equipment-status';
 import { LocalProfileService } from '../../core/local-profile.service';
-import { changeTone, formatDowntime, formatHours, formatPct, reasonLabel } from './dashboard-format';
+import {
+  bucketLabel,
+  changeTone,
+  formatCentral,
+  formatDowntime,
+  formatHours,
+  formatPct,
+  formatSpread,
+  reasonLabel,
+} from './dashboard-format';
 import { KpiCardComponent } from './kpi-card.component';
 
 const CARD = 'rounded-[18px] bg-white p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)]';
@@ -16,7 +25,6 @@ const PERIODS: { id: Period; label: string; caption: string }[] = [
   { id: '30d', label: '30 días', caption: 'últimos 30 días' },
   { id: '12m', label: '12 meses', caption: 'últimos 12 meses' },
 ];
-const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const CHART_W = 600;
 const CHART_H = 150;
 
@@ -94,7 +102,7 @@ export interface ChartBar {
             @for (p of periods; track p.id) {
               <button type="button" (click)="setPeriod(p.id)" [attr.aria-pressed]="state.period === p.id"
                 class="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors active:scale-95"
-                [class]="focus + (state.period === p.id ? ' bg-[#0b1f3a] text-white' : ' text-[#64748B] hover:text-[#1E293B]')">
+                [class]="focus + (state.period === p.id ? ' bg-[#0b1f3a] !text-white' : ' bg-transparent !text-[#64748B] hover:bg-[#F1F5F9] hover:!text-[#1E293B]')">
                 {{ p.label }}
               </button>
             }
@@ -104,18 +112,22 @@ export interface ChartBar {
         @if (!state.loading && !state.kpis) {
           <p role="alert" class="rounded-xl bg-[#FEF3C7] px-4 py-3 text-[13px] font-medium text-[#92400E]">
             No se pudieron cargar los indicadores. Revisa tu conexión o tus permisos e inténtalo de nuevo.
-            <button type="button" (click)="reload()" class="ml-2 font-bold underline">Reintentar</button>
+            <button type="button" (click)="reload()" class="ml-2 bg-transparent p-0 font-bold underline">Reintentar</button>
           </p>
         }
 
         <!-- 4 KPI -->
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores clave">
           @let k = state.kpis;
-          <app-kpi-card label="MTTR" icon="timer" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+          <app-kpi-card label="MTTR · mediana" icon="timer" link="/maintenance" [queryParams]="{ status: 'resolved' }"
             [value]="k && k.mttr_hours.value !== null ? hours(k.mttr_hours.value) : null"
             [caption]="k ? mttrCaption(k.first_assignment_hours.value) : ''"
+            [detail]="k && k.mttr_hours.value !== null ? central(k.mttr_hours) : ''"
+            [spread]="k && k.mttr_hours.value !== null ? spread(k.mttr_hours) : ''"
             emptyText="Aún no hay tickets resueltos en este periodo"
             [changePct]="k?.mttr_hours?.change_pct ?? null" [tone]="tone(k?.mttr_hours?.change_pct ?? null, 'lower')"
+            changeHint="mediana vs. periodo anterior"
+            [n]="k ? k.mttr_hours.sample_size : null" [lowSample]="k?.mttr_hours?.low_sample ?? false"
             [series]="series(state.trends, 'mttr_hours')" />
 
           <app-kpi-card label="Cumplimiento SLA" icon="verified" link="/maintenance" [queryParams]="{ status: 'resolved' }"
@@ -123,22 +135,27 @@ export interface ChartBar {
             [caption]="k ? slaCaption(k) : ''"
             [emptyText]="k && k.sla_compliance_pct.excluded_no_sla ? k.sla_compliance_pct.excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Aún no hay tickets resueltos con SLA'"
             [changePct]="k?.sla_compliance_pct?.change_pct ?? null" [tone]="tone(k?.sla_compliance_pct?.change_pct ?? null, 'higher')"
+            [n]="k ? k.sla_compliance_pct.sample_size : null" [lowSample]="k?.sla_compliance_pct?.low_sample ?? false"
             [series]="series(state.trends, 'sla_compliance_pct')" />
 
           <app-kpi-card label="Disponibilidad" icon="monitor_heart" link="/equipos"
             [value]="k && k.availability.value !== null ? pct(k.availability.value) : null"
             [caption]="k ? k.availability.operational + ' de ' + k.availability.total + ' equipos operativos' : ''"
-            emptyText="Sin equipos registrados" />
+            emptyText="Sin equipos registrados"
+            [changePct]="k?.availability?.change_pct ?? null" [tone]="tone(k?.availability?.change_pct ?? null, 'higher')"
+            changeHint="vs. inicio del periodo" />
 
           <app-kpi-card label="Backlog" icon="inbox" link="/maintenance"
-            [value]="k ? '' + k.backlog.open : null" [caption]="k && k.backlog.open ? 'tickets abiertos' : 'Sin tickets abiertos'">
+            [value]="k ? '' + k.backlog.open : null" [caption]="k && k.backlog.open ? 'tickets abiertos' : 'Sin tickets abiertos'"
+            [changePct]="k?.backlog?.change_pct ?? null" [tone]="tone(k?.backlog?.change_pct ?? null, 'lower')"
+            changeHint="vs. inicio del periodo">
             @if (k && k.backlog.open > 0) {
               <div class="mt-1">
                 <div class="flex h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]" role="img"
                   [attr.aria-label]="k.backlog.age_0_2_days + ' de 0 a 2 días, ' + k.backlog.age_3_7_days + ' de 3 a 7 días, ' + k.backlog.age_over_7_days + ' de más de 7 días'">
                   <div class="h-full bg-[#93C5FD]" [style.width.%]="share(k.backlog.age_0_2_days, k.backlog.open)"></div>
                   <div class="h-full bg-[#2563EB]" [style.width.%]="share(k.backlog.age_3_7_days, k.backlog.open)"></div>
-                  <div class="h-full bg-[#D4A017]" [style.width.%]="share(k.backlog.age_over_7_days, k.backlog.open)"></div>
+                  <div class="h-full bg-[#A16207]" [style.width.%]="share(k.backlog.age_over_7_days, k.backlog.open)"></div>
                 </div>
                 <p class="mt-1 text-[11px] text-[#64748B]">0-2 d: {{ k.backlog.age_0_2_days }} · 3-7 d: {{ k.backlog.age_3_7_days }} · +7 d: <strong class="text-[#92400E]">{{ k.backlog.age_over_7_days }}</strong></p>
               </div>
@@ -164,7 +181,7 @@ export interface ChartBar {
             </div>
             @let bars = chart(state.trends);
             @if (bars.length) {
-              <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + (chartH + 18)" class="h-44 w-full" role="img"
+              <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + (chartH + 20)" class="h-48 w-full" role="img"
                 [attr.aria-label]="'Tickets creados y resueltos, ' + periodCaption(state.period)">
                 <line x1="0" [attr.x2]="chartW" [attr.y1]="chartH" [attr.y2]="chartH" stroke="#E2E8F0" />
                 @for (bar of bars; track $index) {
@@ -172,8 +189,14 @@ export interface ChartBar {
                     <title>{{ bar.label }}: {{ bar.created }} creados, {{ bar.resolved }} resueltos</title>
                     <rect [attr.x]="bar.x" [attr.y]="chartH - bar.createdH" [attr.width]="bar.width" [attr.height]="bar.createdH" rx="2" fill="#93C5FD" />
                     <rect [attr.x]="bar.x + bar.width + 1" [attr.y]="chartH - bar.resolvedH" [attr.width]="bar.width" [attr.height]="bar.resolvedH" rx="2" fill="#2563EB" />
+                    @if (bar.created) {
+                      <text [attr.x]="bar.x + bar.width / 2" [attr.y]="chartH - bar.createdH - 3" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 8 : 10" font-weight="600" fill="#475569">{{ bar.created }}</text>
+                    }
+                    @if (bar.resolved) {
+                      <text [attr.x]="bar.x + bar.width * 1.5 + 1" [attr.y]="chartH - bar.resolvedH - 3" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 8 : 10" font-weight="700" fill="#1D4ED8">{{ bar.resolved }}</text>
+                    }
                     @if (bar.showLabel) {
-                      <text [attr.x]="bar.x + bar.width" [attr.y]="chartH + 13" text-anchor="middle" font-size="10" fill="#64748B">{{ bar.label }}</text>
+                      <text [attr.x]="bar.x + bar.width" [attr.y]="chartH + 14" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 9 : 11" fill="#475569">{{ bar.label }}</text>
                     }
                   </g>
                 }
@@ -235,12 +258,12 @@ export interface ChartBar {
                       <span class="shrink-0 text-[#64748B]"><strong class="text-[#1E293B]">{{ t.open_tickets }}</strong> abiertos</span>
                     </div>
                     <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
-                      <div class="h-full rounded-full" [class]="t.is_available ? 'bg-[#2563EB]' : 'bg-[#D4A017]'" [style.width.%]="share(t.open_tickets, maxOpen(techs!))"></div>
+                      <div class="h-full rounded-full" [class]="t.is_available ? 'bg-[#2563EB]' : 'bg-[#A16207]'" [style.width.%]="share(t.open_tickets, maxOpen(techs!))"></div>
                     </div>
                   </li>
                 }
               </ul>
-              <p class="text-[11px] text-[#94A3B8]">Barra relativa al técnico más cargado; en mostaza, no disponible.</p>
+              <p class="text-[11px] text-[#64748B]">Barra relativa al técnico más cargado; en mostaza, no disponible.</p>
             } @else {
               <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
                 {{ techs ? 'Aún no hay técnicos registrados.' : 'Dato no disponible.' }}
@@ -259,7 +282,7 @@ export interface ChartBar {
                 @for (a of alerts.tickets; track a.id) {
                   <li>
                     <a [routerLink]="['/maintenance', a.id]" [class]="rowClass + ' ' + focus">
-                      <span class="material-symbols-outlined mt-0.5 text-[18px]" [class]="a.reason === 'sla_at_risk' ? 'text-[#D4A017]' : 'text-[#B45309]'" aria-hidden="true">confirmation_number</span>
+                      <span class="material-symbols-outlined mt-0.5 text-[18px]" [class]="a.reason === 'sla_at_risk' ? 'text-[#A16207]' : 'text-[#B45309]'" aria-hidden="true">confirmation_number</span>
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-[13px] font-semibold">{{ a.ticket_number }} · {{ a.title }}</p>
                         <p class="truncate text-[11px] text-[#64748B]">{{ a.asset_tag }} · {{ a.priority }} · {{ a.assigned ? 'asignado' : 'sin asignar' }}@if (a.sla_deadline) { · vence {{ date(a.sla_deadline) }} }</p>
@@ -305,10 +328,10 @@ export interface ChartBar {
           </div>
         </section>
 
-        <footer class="flex items-center justify-between gap-3 text-[11px] text-[#94A3B8]">
+        <footer class="flex items-center justify-between gap-3 text-[11px] text-[#64748B]">
           <span class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[18px]">shield</span>
-            <strong class="text-[#64748B]">Mantix</strong> · Tecnología que mantiene tu productividad
+            <strong class="text-[#475569]">Mantix</strong> · Tecnología que mantiene tu productividad
           </span>
           <span>v1.0.0</span>
         </footer>
@@ -357,6 +380,8 @@ export class DashboardComponent implements OnInit {
 
   readonly pct = formatPct;
   readonly hours = formatHours;
+  readonly central = formatCentral;
+  readonly spread = formatSpread;
   readonly tone = changeTone;
   readonly reason = reasonLabel;
   readonly downtime = formatDowntime;
@@ -417,19 +442,14 @@ export class DashboardComponent implements OnInit {
       width,
       createdH: this.barHeight(point.created, max),
       resolvedH: this.barHeight(point.resolved, max),
-      label: this.bucketLabel(point, trends.granularity),
+      label: bucketLabel(point.bucket, trends.granularity, index === 0),
       created: point.created,
       resolved: point.resolved,
-      showLabel: trends.points.length <= 12 || index % 5 === 0 || index === trends.points.length - 1,
+      showLabel: trends.points.length <= 12 || (trends.points.length - 1 - index) % 3 === 0,
     }));
   }
 
   private barHeight(count: number, max: number): number {
-    return count ? Math.max((count / max) * (CHART_H - 6), 3) : 0;
-  }
-
-  private bucketLabel(point: TrendPoint, granularity: 'day' | 'month'): string {
-    const bucket = new Date(point.bucket);
-    return granularity === 'month' ? MONTHS[bucket.getUTCMonth()] : String(bucket.getUTCDate());
+    return count ? Math.max((count / max) * (CHART_H - 22), 3) : 0;
   }
 }

@@ -1,6 +1,6 @@
 /** Formato y semántica de los KPI del dashboard. Funciones puras, sin Angular. */
 
-import { AlertReason } from '../../core/dashboard-kpis.service';
+import { AlertReason, ResolutionTimeKpi } from '../../core/dashboard-kpis.service';
 
 export type Tone = 'good' | 'bad' | 'neutral';
 
@@ -86,4 +86,31 @@ export function formatDowntime(hours: number | null): string {
   const days = Math.floor(hours / 24);
   const rest = Math.round(hours - days * 24);
   return rest ? `${days} d ${rest} h` : `${days} d`;
+}
+
+/** «Prom. 5,2 h · P90 18 h»: la cola larga que la mediana por sí sola esconde. */
+export function formatCentral(kpi: ResolutionTimeKpi): string {
+  return `Prom. ${formatHours(kpi.average_hours)} · P90 ${formatHours(kpi.p90_hours)}`;
+}
+
+/** «Mín 1 h · Máx 40 h · σ 11,5 h»; la desviación se omite si no puede calcularse. */
+export function formatSpread(kpi: ResolutionTimeKpi): string {
+  const parts = [`Mín ${formatHours(kpi.min_hours)}`, `Máx ${formatHours(kpi.max_hours)}`];
+  if (kpi.stddev_hours !== null) {
+    parts.push(`σ ${formatHours(kpi.stddev_hours)}`);
+  }
+  return parts.join(' · ');
+}
+
+const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** Etiqueta del eje X: «Lun 13» por día; «Oct» por mes, con año en el primero y en enero. */
+export function bucketLabel(iso: string, granularity: 'day' | 'month', first = false): string {
+  const date = new Date(iso);
+  if (granularity === 'day') {
+    return `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()}`;
+  }
+  const month = MONTHS[date.getUTCMonth()];
+  return first || date.getUTCMonth() === 0 ? `${month} ${String(date.getUTCFullYear()).slice(2)}` : month;
 }

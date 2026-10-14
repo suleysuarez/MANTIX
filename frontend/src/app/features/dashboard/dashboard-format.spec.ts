@@ -1,4 +1,4 @@
-import { changeTone, formatChange, formatDowntime, formatHours, formatPct, reasonLabel, sparkline } from './dashboard-format';
+import { bucketLabel, changeTone, formatCentral, formatChange, formatDowntime, formatHours, formatPct, formatSpread, reasonLabel, sparkline } from './dashboard-format';
 
 describe('dashboard-format', () => {
   it('formats hours in the unit that reads best and shows a dash without data', () => {
@@ -42,5 +42,26 @@ describe('dashboard-format', () => {
     expect(formatDowntime(5)).toBe('5 h');
     expect(formatDowntime(30)).toBe('1 d 6 h');
     expect(formatDowntime(48)).toBe('2 d');
+  });
+});
+
+describe('descriptive statistics and chart labels', () => {
+  const mttr = {
+    value: 9, previous: null, change_pct: null, sample_size: 8, low_sample: false,
+    average_hours: 5.2, p90_hours: 18, min_hours: 0.5, max_hours: 40, stddev_hours: 11.5,
+  };
+
+  it('formats the mean and P90 line and the spread detail', () => {
+    expect(formatCentral(mttr)).toBe('Prom. 5,2 h · P90 18 h');
+    expect(formatSpread(mttr)).toBe('Mín 30 min · Máx 40 h · σ 11,5 h');
+    expect(formatSpread({ ...mttr, stddev_hours: null })).toBe('Mín 30 min · Máx 40 h');
+  });
+
+  it('labels days as weekday and date and months by name', () => {
+    expect(bucketLabel('2026-10-12T00:00:00Z', 'day')).toBe('Lun 12');
+    expect(bucketLabel('2026-10-13T00:00:00Z', 'day')).toBe('Mar 13');
+    expect(bucketLabel('2026-10-01T00:00:00Z', 'month')).toBe('Oct');
+    expect(bucketLabel('2025-11-01T00:00:00Z', 'month', true)).toBe('Nov 25');
+    expect(bucketLabel('2026-01-01T00:00:00Z', 'month')).toBe('Ene 26');
   });
 });
