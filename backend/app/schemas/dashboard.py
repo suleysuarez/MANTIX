@@ -110,7 +110,26 @@ class KpiValue(BaseModel):
     change_pct: float | None = Field(
         description="Relative change vs the previous period; null when not comparable"
     )
-    sample_size: int = Field(description="Tickets behind the current value")
+    sample_size: int = Field(description="Tickets behind the current value (n)")
+    low_sample: bool = Field(
+        description="True when 0 < n < 5: show the value with a 'few data' note"
+    )
+
+
+class ResolutionTimeKpi(KpiValue):
+    """Resolution time: `value` is the median, with the rest of the distribution.
+
+    All figures are hours over the tickets resolved in the period; `previous` and
+    `change_pct` compare the median against the previous period.
+    """
+
+    average_hours: float | None
+    p90_hours: float | None
+    min_hours: float | None
+    max_hours: float | None
+    stddev_hours: float | None = Field(
+        description="Sample standard deviation; null with fewer than 2 tickets"
+    )
 
 
 class SlaKpi(KpiValue):
@@ -123,15 +142,25 @@ class SlaKpi(KpiValue):
 
 class BacklogKpi(BaseModel):
     open: int
+    previous_open: int | None = Field(description="Open tickets at the period start")
+    change_pct: float | None = Field(
+        description="Open tickets now vs at the period start; null when not comparable"
+    )
     age_0_2_days: int
     age_3_7_days: int
     age_over_7_days: int
 
 
 class AvailabilityKpi(BaseModel):
-    """Current snapshot: operational (assigned or in storage) over all equipment."""
+    """Operational (assigned or in storage) over all equipment, now.
+
+    `previous` is the same share at the start of the period, rebuilt from the
+    equipment status history, so `change_pct` is the change over the period.
+    """
 
     value: float | None
+    previous: float | None
+    change_pct: float | None
     operational: int
     total: int
 
@@ -142,7 +171,9 @@ class KpisResponse(BaseModel):
     period: Period
     window_start: datetime
     window_end: datetime
-    mttr_hours: KpiValue = Field(description="Mean creation-to-resolution time")
+    mttr_hours: ResolutionTimeKpi = Field(
+        description="Creation-to-resolution time: median, mean, P90, min, max and stddev"
+    )
     first_assignment_hours: KpiValue = Field(
         description="Mean creation-to-first-assignment time"
     )

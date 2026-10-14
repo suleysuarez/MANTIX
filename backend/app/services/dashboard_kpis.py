@@ -16,6 +16,7 @@ from app.schemas.dashboard import (
     KpisResponse,
     KpiValue,
     Period,
+    ResolutionTimeKpi,
     ScheduleAlert,
     SlaKpi,
     TicketAlert,
@@ -26,6 +27,8 @@ from app.services.dashboard import DashboardService
 
 #: Equipment counted as operational for the fleet availability figure.
 _OPERATIONAL = ("assigned", "in_storage")
+#: Below this many tickets a figure is shown with a "few data" note.
+MIN_SAMPLE = 5
 
 
 def _day_start(moment: datetime) -> datetime:
@@ -75,6 +78,24 @@ def _kpi(current: float | None, previous: float | None, sample_size: int) -> Kpi
         previous=_round(previous),
         change_pct=change_pct(current if sample_size else None, previous),
         sample_size=sample_size,
+        low_sample=0 < sample_size < MIN_SAMPLE,
+    )
+
+
+def _mttr(current: WindowStats, previous: WindowStats) -> ResolutionTimeKpi:
+    base = _kpi(
+        current.median_resolution_hours,
+        previous.median_resolution_hours,
+        current.resolved,
+    )
+    has = current.resolved > 0
+    return ResolutionTimeKpi(
+        **base.model_dump(),
+        average_hours=_round(current.avg_resolution_hours) if has else None,
+        p90_hours=_round(current.p90_resolution_hours) if has else None,
+        min_hours=_round(current.min_resolution_hours) if has else None,
+        max_hours=_round(current.max_resolution_hours) if has else None,
+        stddev_hours=_round(current.stddev_resolution_hours) if has else None,
     )
 
 
@@ -112,10 +133,16 @@ class DashboardKpiService(DashboardService):
             start=prev_start, end=prev_end, technician_id=technician_id
         )
         backlog = await self.repository.backlog(now, technician_id=technician_id)
+        backlog_before = await self.repository.open_tickets_at(
+            start, technician_id=technician_id
+        )
         equipment = await self.repository.equipment_by_status()
+        operational_before, total_before = await self.repository.availability_at(start)
 
         total = sum(row.count for row in equipment)
         operational = sum(row.count for row in equipment if row.key in _OPERATIONAL)
+        availability = _pct(operational, total)
+        availability_before = _pct(operational_before, total_before)
         sla_current, sla_previous = _sla_pct(current), _sla_pct(previous)
         return KpisResponse(
             generated_at=now,
@@ -123,11 +150,7 @@ class DashboardKpiService(DashboardService):
             period=period,
             window_start=start,
             window_end=end,
-            mttr_hours=_kpi(
-                current.avg_resolution_hours,
-                previous.avg_resolution_hours,
-                current.resolved,
-            ),
+            mttr_hours=_mttr(current, previous),
             first_assignment_hours=_kpi(
                 current.avg_first_assignment_hours,
                 previous.avg_first_assignment_hours,
@@ -138,6 +161,7 @@ class DashboardKpiService(DashboardService):
                 previous=sla_previous,
                 change_pct=change_pct(sla_current, sla_previous),
                 sample_size=current.sla_met + current.sla_missed,
+                low_sample=0 < current.sla_met + current.sla_missed < MIN_SAMPLE,
                 met=current.sla_met,
                 missed=current.sla_missed,
                 excluded_no_sla=current.sla_excluded,
@@ -149,12 +173,18 @@ class DashboardKpiService(DashboardService):
             ),
             backlog=BacklogKpi(
                 open=backlog.open,
+                previous_open=backlog_before,
+                change_pct=change_pct(float(backlog.open), float(backlog_before)),
                 age_0_2_days=backlog.age_0_2,
                 age_3_7_days=backlog.age_3_7,
                 age_over_7_days=backlog.age_over_7,
             ),
             availability=AvailabilityKpi(
-                value=_pct(operational, total), operational=operational, total=total
+                value=availability,
+                previous=availability_before,
+                change_pct=change_pct(availability, availability_before),
+                operational=operational,
+                total=total,
             ),
         )
 

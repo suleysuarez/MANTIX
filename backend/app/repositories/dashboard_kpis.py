@@ -12,7 +12,11 @@ from typing import Any
 from sqlalchemy import and_, case, func, literal, or_, select
 
 from app.models.equipment import Equipment, EquipmentStatusHistory
-from app.models.maintenance import MaintenanceRequest, TicketAssignment
+from app.models.maintenance import (
+    MaintenanceRequest,
+    TicketAssignment,
+    TicketStatusHistory,
+)
 from app.models.priority import Priority
 from app.models.schedule import MaintenanceSchedule
 from app.repositories.dashboard import OPEN_STATUSES, DashboardRepository
@@ -21,6 +25,8 @@ from app.repositories.dashboard import OPEN_STATUSES, DashboardRepository
 SLA_AT_RISK_SHARE = 0.2
 #: Statuses that mean a piece of equipment is down (not just retired on purpose).
 DOWN_STATUSES = ("in_repair", "lost")
+#: Equipment counted as operational for the fleet availability figure.
+OPERATIONAL_STATUSES = ("assigned", "in_storage")
 
 _RESOLUTION_SECONDS = func.extract(
     "epoch", MaintenanceRequest.resolved_at - MaintenanceRequest.created_at
@@ -39,6 +45,11 @@ class WindowStats:
     resolved_of_created: int
     resolved: int
     avg_resolution_hours: float | None
+    median_resolution_hours: float | None
+    p90_resolution_hours: float | None
+    min_resolution_hours: float | None
+    max_resolution_hours: float | None
+    stddev_resolution_hours: float | None
     sla_met: int
     sla_missed: int
     sla_excluded: int
@@ -151,6 +162,17 @@ class DashboardKpiRepository(DashboardRepository):
                 func.count().filter(and_(created, mr.resolved_at.is_not(None))),
                 func.count().filter(resolved),
                 func.avg(_RESOLUTION_SECONDS).filter(resolved) / 3600,
+                func.percentile_cont(0.5)
+                .within_group(_RESOLUTION_SECONDS)
+                .filter(resolved)
+                / 3600,
+                func.percentile_cont(0.9)
+                .within_group(_RESOLUTION_SECONDS)
+                .filter(resolved)
+                / 3600,
+                func.min(_RESOLUTION_SECONDS).filter(resolved) / 3600,
+                func.max(_RESOLUTION_SECONDS).filter(resolved) / 3600,
+                func.stddev_samp(_RESOLUTION_SECONDS).filter(resolved) / 3600,
                 func.count().filter(met),
                 func.count().filter(missed),
                 func.count().filter(excluded),
@@ -168,12 +190,79 @@ class DashboardKpiRepository(DashboardRepository):
             resolved_of_created=row[1],
             resolved=row[2],
             avg_resolution_hours=_hours(row[3]),
-            sla_met=row[4],
-            sla_missed=row[5],
-            sla_excluded=row[6],
-            avg_first_assignment_hours=_hours(row[7]),
-            first_assignment_count=row[8],
+            median_resolution_hours=_hours(row[4]),
+            p90_resolution_hours=_hours(row[5]),
+            min_resolution_hours=_hours(row[6]),
+            max_resolution_hours=_hours(row[7]),
+            stddev_resolution_hours=_hours(row[8]),
+            sla_met=row[9],
+            sla_missed=row[10],
+            sla_excluded=row[11],
+            avg_first_assignment_hours=_hours(row[12]),
+            first_assignment_count=row[13],
         )
+
+    async def open_tickets_at(
+        self, at: datetime, *, technician_id: int | None = None
+    ) -> int:
+        """Tickets that were open at `at`: created by then, not yet resolved and not
+        cancelled (a cancellation is read from the status history)."""
+        mr = MaintenanceRequest
+        cancelled = (
+            select(literal(1))
+            .where(
+                TicketStatusHistory.request_id == mr.id,
+                TicketStatusHistory.to_status == "cancelled",
+                TicketStatusHistory.changed_at <= at,
+            )
+            .exists()
+        )
+        query = (
+            select(func.count())
+            .select_from(mr)
+            .where(
+                mr.created_at <= at,
+                or_(mr.resolved_at.is_(None), mr.resolved_at > at),
+                mr.status != "cancelled",
+                ~cancelled,
+            )
+        )
+        return int(
+            (await self.session.execute(self._scope(query, technician_id))).scalar_one()
+        )
+
+    async def availability_at(self, at: datetime) -> tuple[int, int]:
+        """(operational, total) equipment as of `at`, rebuilt from the status history.
+
+        Status at `at` is the last change at or before it; with none, the status the
+        first later change moved away from; with no history at all, the current one.
+        Equipment created after `at` is left out.
+        """
+        history = EquipmentStatusHistory
+        before = (
+            select(history.to_status)
+            .where(history.equipment_id == Equipment.id, history.changed_at <= at)
+            .order_by(history.changed_at.desc(), history.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        after = (
+            select(history.from_status)
+            .where(history.equipment_id == Equipment.id, history.changed_at > at)
+            .order_by(history.changed_at.asc(), history.id.asc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        status = func.coalesce(before, after, Equipment.status)
+        row = (
+            await self.session.execute(
+                select(
+                    func.count().filter(status.in_(OPERATIONAL_STATUSES)),
+                    func.count(),
+                ).where(Equipment.created_at <= at)
+            )
+        ).one()
+        return int(row[0]), int(row[1])
 
     async def backlog(
         self, now: datetime, *, technician_id: int | None = None

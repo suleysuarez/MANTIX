@@ -77,6 +77,11 @@ def stats(**overrides):
         "resolved_of_created": 5,
         "resolved": 8,
         "avg_resolution_hours": 12.0,
+        "median_resolution_hours": 9.0,
+        "p90_resolution_hours": 30.0,
+        "min_resolution_hours": 1.0,
+        "max_resolution_hours": 40.0,
+        "stddev_resolution_hours": 11.5,
         "sla_met": 6,
         "sla_missed": 2,
         "sla_excluded": 3,
@@ -87,14 +92,14 @@ def stats(**overrides):
     return WindowStats(**values)
 
 
-EMPTY = WindowStats(0, 0, 0, None, 0, 0, 0, None, 0)
+EMPTY = WindowStats(0, 0, 0, None, None, None, None, None, None, 0, 0, 0, None, 0)
 
 
 class FakeKpiRepository:
     def __init__(self, current=None, previous=None, technician_id=None):
         self.windows = [
             current or stats(),
-            previous or stats(avg_resolution_hours=24.0),
+            previous or stats(median_resolution_hours=18.0),
         ]
         self.technician_id = technician_id
         self.scopes = []
@@ -115,6 +120,12 @@ class FakeKpiRepository:
             CountRow("in_storage", 2),
             CountRow("in_repair", 2),
         ]
+
+    async def open_tickets_at(self, at, *, technician_id=None):
+        return 6
+
+    async def availability_at(self, at):
+        return 5, 10
 
     async def trend_buckets(self, *, start, end, unit, technician_id=None):
         self.unit = unit
@@ -189,12 +200,46 @@ async def test_kpis_compare_against_the_previous_period():
     service = DashboardKpiService(FakeKpiRepository())
     kpis = await service.kpis(actor("SUPERVISOR"), period="7d", now=NOW)
     assert kpis.scope == "all" and kpis.period == "7d"
-    assert (kpis.mttr_hours.value, kpis.mttr_hours.previous) == (12.0, 24.0)
+    assert (kpis.mttr_hours.value, kpis.mttr_hours.previous) == (9.0, 18.0)  # medians
     assert kpis.mttr_hours.change_pct == -50.0  # lower is better; the UI colours it
     assert kpis.sla_compliance_pct.value == 75.0  # 6 / (6 + 2)
     assert kpis.resolution_rate_pct.value == 50.0
     assert kpis.backlog.open == 9
+    assert (kpis.backlog.previous_open, kpis.backlog.change_pct) == (6, 50.0)
     assert kpis.availability.value == 80.0 and kpis.availability.total == 10
+    assert (kpis.availability.previous, kpis.availability.change_pct) == (50.0, 60.0)
+
+
+async def test_mttr_carries_the_whole_distribution_and_the_sample_size():
+    service = DashboardKpiService(FakeKpiRepository())
+    mttr = (await service.kpis(actor("ADMIN"), period="7d", now=NOW)).mttr_hours
+    assert mttr.value == 9.0  # the median is the headline, not the mean
+    assert (mttr.average_hours, mttr.p90_hours) == (12.0, 30.0)
+    assert (mttr.min_hours, mttr.max_hours, mttr.stddev_hours) == (1.0, 40.0, 11.5)
+    assert mttr.sample_size == 8 and mttr.low_sample is False
+
+
+@pytest.mark.parametrize(("n", "low"), [(0, False), (1, True), (4, True), (5, False)])
+async def test_figures_under_five_tickets_are_flagged_as_low_sample(n, low):
+    few = stats(
+        resolved=n, sla_met=n, sla_missed=0, created=n, first_assignment_count=n
+    )
+    kpis = await DashboardKpiService(FakeKpiRepository(current=few)).kpis(
+        actor("ADMIN"), period="7d", now=NOW
+    )
+    assert kpis.mttr_hours.low_sample is low
+    assert kpis.sla_compliance_pct.low_sample is low
+    assert kpis.resolution_rate_pct.low_sample is low
+
+
+async def test_single_ticket_has_no_standard_deviation():
+    one = stats(resolved=1, stddev_resolution_hours=None)
+    mttr = (
+        await DashboardKpiService(FakeKpiRepository(current=one)).kpis(
+            actor("ADMIN"), period="7d", now=NOW
+        )
+    ).mttr_hours
+    assert mttr.stddev_hours is None and mttr.value == 9.0
 
 
 async def test_sla_leaves_out_priorities_without_sla_and_reports_how_many():
@@ -208,6 +253,7 @@ async def test_kpis_are_null_instead_of_zero_when_there_is_no_data():
     service = DashboardKpiService(FakeKpiRepository(current=EMPTY, previous=EMPTY))
     kpis = await service.kpis(actor("ADMIN"), period="7d", now=NOW)
     assert kpis.mttr_hours.value is None and kpis.mttr_hours.sample_size == 0
+    assert kpis.mttr_hours.p90_hours is None and kpis.mttr_hours.average_hours is None
     assert kpis.sla_compliance_pct.value is None
     assert kpis.sla_compliance_pct.change_pct is None
     assert kpis.resolution_rate_pct.value is None
@@ -469,6 +515,10 @@ async def test_window_stats_excludes_priorities_without_sla_and_cancelled(db_ses
     assert result.resolved == 3  # cancelled ticket 6 does not count
     assert (result.sla_met, result.sla_missed, result.sla_excluded) == (1, 1, 1)
     assert result.avg_resolution_hours == pytest.approx((10 + 30 + 5) / 3)
+    assert result.median_resolution_hours == pytest.approx(10)
+    assert result.p90_resolution_hours == pytest.approx(26)  # 10 + 0.8 * (30 - 10)
+    assert (result.min_resolution_hours, result.max_resolution_hours) == (5, 30)
+    assert result.stddev_resolution_hours == pytest.approx(12.58, abs=0.01)
     assert result.created == 6
 
 
@@ -477,7 +527,26 @@ async def test_window_stats_of_an_empty_window_are_zero_and_null(db_session):
     result = await DashboardKpiRepository(db_session).window_stats(
         start=NOW - timedelta(days=400), end=NOW - timedelta(days=399)
     )
-    assert result == WindowStats(0, 0, 0, None, 0, 0, 0, None, 0)
+    assert result == EMPTY
+
+
+async def test_open_tickets_at_a_past_moment_ignore_later_resolutions(db_session):
+    await seed(db_session)
+    repo = DashboardKpiRepository(db_session)
+    # 3 are open now; at NOW - 60h only T-7 (created 240h ago) exists and is open
+    assert await repo.open_tickets_at(NOW) == 3
+    assert await repo.open_tickets_at(NOW - timedelta(hours=60)) == 1
+    # at NOW - 40h: T-1, T-2, T-3 (created 48h ago) are open too, T-6 is cancelled
+    assert await repo.open_tickets_at(NOW - timedelta(hours=46)) == 4
+
+
+async def test_availability_at_rebuilds_the_past_from_the_status_history(db_session):
+    await seed(db_session)
+    repo = DashboardKpiRepository(db_session)
+    # LT-1 went in_repair 12h ago; LT-2 never changed
+    assert await repo.availability_at(NOW) == (1, 2)
+    before_repair = await repo.availability_at(NOW - timedelta(hours=24))
+    assert before_repair == (2, 2)
 
 
 async def test_backlog_buckets_open_tickets_by_age(db_session):
