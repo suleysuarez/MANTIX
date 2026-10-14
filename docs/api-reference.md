@@ -43,9 +43,12 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
+| GET | `/dashboard/alerts` | What needs attention now | `dashboard.read` |
+| GET | `/dashboard/kpis` | Headline KPIs with period-over-period comparison | `dashboard.read` |
 | GET | `/dashboard/resolution-times` | Mean and median resolution time | `dashboard.read` |
 | GET | `/dashboard/summary` | Operational summary | `dashboard.read` |
 | GET | `/dashboard/top-failing-equipment` | Equipment with the most tickets | `dashboard.read` |
+| GET | `/dashboard/trends` | Time series behind the KPI sparklines | `dashboard.read` |
 | GET | `/dashboard/workload` | Workload per technician | `dashboard.read` |
 
 ### data-exchange
@@ -132,7 +135,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **57** endpoints.
+Total: **60** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

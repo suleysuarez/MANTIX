@@ -19,7 +19,7 @@ from app.repositories.admin import AdminRepository
 from app.repositories.attachment import AttachmentRepository
 from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
-from app.repositories.dashboard import DashboardRepository
+from app.repositories.dashboard_kpis import DashboardKpiRepository
 from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
@@ -31,7 +31,7 @@ from app.services.admin import AdminUserService
 from app.services.attachment import AttachmentService
 from app.services.audit import AuditService
 from app.services.auth import ClerkAuthService
-from app.services.dashboard import DashboardService
+from app.services.dashboard_kpis import DashboardKpiService
 from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
@@ -67,8 +67,8 @@ def get_priority_repository(session: AsyncSession = Session) -> PriorityReposito
     return PriorityRepository(session)
 
 
-def get_dashboard_repository(session: AsyncSession = Session) -> DashboardRepository:
-    return DashboardRepository(session)
+def get_dashboard_repository(session: AsyncSession = Session) -> DashboardKpiRepository:
+    return DashboardKpiRepository(session)
 
 
 def get_report_repository(session: AsyncSession = Session) -> ReportRepository:
@@ -171,14 +171,14 @@ def get_priority_service(
 
 
 def get_dashboard_service(
-    repository: Annotated[DashboardRepository, Depends(get_dashboard_repository)],
-) -> DashboardService:
-    return DashboardService(repository)
+    repository: Annotated[DashboardKpiRepository, Depends(get_dashboard_repository)],
+) -> DashboardKpiService:
+    return DashboardKpiService(repository)
 
 
 def get_report_service(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
-    dashboard: Annotated[DashboardService, Depends(get_dashboard_service)],
+    dashboard: Annotated[DashboardKpiService, Depends(get_dashboard_service)],
 ) -> ReportService:
     return ReportService(repository, dashboard)
 
