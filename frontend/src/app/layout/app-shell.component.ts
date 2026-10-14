@@ -180,7 +180,12 @@ export class AppShellComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     const profile = await this.profile.getProfile();
-    this.navItems.set(visibleNavItems(profile.permissions.map((permission) => permission.code)));
+    this.navItems.set(
+      visibleNavItems(
+        profile.permissions.map((permission) => permission.code),
+        profile.roles.map((role) => role.code),
+      ),
+    );
     this.userName.set(profile.full_name);
     this.userEmail.set(profile.email);
     this.userRole.set(profile.roles[0]?.name ?? '');

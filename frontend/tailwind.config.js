@@ -12,7 +12,7 @@ module.exports = {
         // Paleta de las pantallas de equipos (referencia de diseño Mantix).
         brand: {
           navy: '#0b172a', sidebar: '#0d1f38', accentLight: '#ADD7F6', accentSky: '#A2D2FF',
-          accentDeep: '#3E5C76', slate: '#778DA9', mustard: '#E4B363', mustardHover: '#d4a250',
+          accentDeep: '#3E5C76', slate: '#778DA9', grey: '#CED4DA', mustard: '#E4B363', mustardHover: '#d4a250',
         },
         'on-tertiary-fixed-variant': '#104a70', 'surface-tint': '#43617c', secondary: '#7d5700',
         'primary-fixed-dim': '#abcae8', 'error-container': '#ffdad6', 'on-error-container': '#93000a',

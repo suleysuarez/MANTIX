@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 
 import { ClerkService } from './clerk.service';
 import { LocalProfile, LocalProfileService } from './local-profile.service';
@@ -61,3 +61,15 @@ export const permissionGuard = (permission: string): CanActivateFn => async () =
     ? true
     : router.createUrlTree(['/auth/pending']);
 };
+
+/** Como `permissionGuard`, pero exige además alguno de los roles indicados. */
+export const roleGuard =
+  (permission: string, ...roles: string[]): CanActivateFn =>
+  async (route, state) => {
+    const allowed = await (permissionGuard(permission)(route, state) as unknown as Promise<boolean | UrlTree>);
+    if (allowed !== true) {
+      return allowed;
+    }
+    const profile = await tryProfile(inject(LocalProfileService));
+    return profile?.roles.some((role) => roles.includes(role.code)) ? true : inject(Router).createUrlTree(['/dashboard']);
+  };
