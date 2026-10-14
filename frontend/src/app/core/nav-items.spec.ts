@@ -6,7 +6,8 @@ describe('visibleNavItems', () => {
   });
 
   it('adds only the sections the user has permission for', () => {
-    expect(visibleNavItems(['equipment.read']).map((item) => item.path)).toEqual(['/dashboard', '/equipos', '/inventario']);
+    expect(visibleNavItems(['equipment.read']).map((item) => item.path)).toEqual(['/dashboard', '/equipos']);
+    expect(visibleNavItems(['inventory.read']).map((item) => item.path)).toEqual(['/dashboard', '/inventario']);
   });
 
   it('shows administration only with users.manage', () => {

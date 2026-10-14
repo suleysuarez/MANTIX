@@ -1,20 +1,11 @@
+import { csvCell } from '../../core/csv';
 import { MaintenanceSchedule } from '../../core/schedules.service';
+
+export { csvCell };
 
 /** Exportación CSV de planes preventivos. Funciones puras. */
 
 const HEADERS = ['Plan', 'Equipo', 'Técnico', 'Intervalo (días)', 'Horas estimadas', 'Próximo servicio', 'Estado'];
-
-/**
- * Escapa una celda. Un texto que empieza por `=`, `+`, `-` o `@` lo interpretaría una hoja de
- * cálculo como fórmula (inyección CSV): se antepone un apóstrofo para que se lea como texto.
- */
-export function csvCell(value: unknown): string {
-  let text = String(value ?? '');
-  if (/^[=+\-@\t\r]/.test(text)) {
-    text = `'${text}`;
-  }
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
 export function planStatus(plan: MaintenanceSchedule, now: Date = new Date()): string {
   if (!plan.is_active) {
