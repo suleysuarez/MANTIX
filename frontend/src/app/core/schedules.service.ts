@@ -43,6 +43,12 @@ export class SchedulesService {
     return this.http.get<MaintenanceSchedule[]>(this.url, { params });
   }
 
+  /** Planes activos de todo el parque, el más próximo primero (para el dashboard). */
+  listUpcoming(size = 50): Observable<MaintenanceSchedule[]> {
+    const params = new HttpParams().set('is_active', true).set('sort', 'next_due_at').set('size', size);
+    return this.http.get<MaintenanceSchedule[]>(this.url, { params });
+  }
+
   create(payload: SchedulePayload): Observable<MaintenanceSchedule> {
     return this.http.post<MaintenanceSchedule>(this.url, payload);
   }
