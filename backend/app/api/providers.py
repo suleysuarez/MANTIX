@@ -24,6 +24,7 @@ from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
+from app.repositories.queue import QueueRepository
 from app.repositories.report import ReportRepository
 from app.repositories.schedule import ScheduleRepository
 from app.repositories.technician import TechnicianRepository
@@ -38,6 +39,7 @@ from app.services.maintenance import MaintenanceService
 from app.services.notification import NotificationService
 from app.services.notification_inbox import NotificationInboxService
 from app.services.priority import PriorityService
+from app.services.queue import QueueService
 from app.services.reminders import ReminderService
 from app.services.report import ReportService
 from app.services.schedule import ScheduleService
@@ -91,6 +93,10 @@ def get_maintenance_repository(
     return MaintenanceRepository(session)
 
 
+def get_queue_repository(session: AsyncSession = Session) -> QueueRepository:
+    return QueueRepository(session)
+
+
 def get_equipment_repository(session: AsyncSession = Session) -> EquipmentRepository:
     return EquipmentRepository(session)
 
@@ -139,6 +145,12 @@ def get_maintenance_service(
     notifications: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> MaintenanceService:
     return MaintenanceService(repository, audit, notifications)
+
+
+def get_queue_service(
+    repository: Annotated[QueueRepository, Depends(get_queue_repository)],
+) -> QueueService:
+    return QueueService(repository)
 
 
 def get_equipment_service(

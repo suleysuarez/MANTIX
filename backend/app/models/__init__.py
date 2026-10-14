@@ -7,6 +7,7 @@ from app.models.auth import (
     User,
     UserRole,
 )
+from app.models.category import RequestCategory
 from app.models.equipment import (
     Equipment,
     EquipmentCustodyHistory,
@@ -41,6 +42,7 @@ __all__ = [
     "Notification",
     "Permission",
     "Priority",
+    "RequestCategory",
     "Role",
     "RolePermission",
     "Technician",

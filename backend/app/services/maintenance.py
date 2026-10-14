@@ -24,6 +24,9 @@ from app.schemas.maintenance import (
 from app.services.audit import AuditService
 from app.services.notification import NotificationService
 
+#: Statuses from which a request can still be rejected (work has not started).
+REJECTABLE_STATUSES = ("submitted", "triaged", "assigned")
+
 
 class MaintenanceService:
     def __init__(
@@ -45,6 +48,11 @@ class MaintenanceService:
             raise NotFoundError("equipment not found")
         if await self.repository.get_active_priority(payload.priority) is None:
             raise NotFoundError(f"priority '{payload.priority}' not found or inactive")
+        if (
+            payload.category is not None
+            and await self.repository.get_active_category(payload.category) is None
+        ):
+            raise NotFoundError(f"category '{payload.category}' not found or inactive")
         ticket_number = await self.repository.next_ticket_number()
         request = await self.repository.create_request(
             ticket_number=ticket_number,
@@ -53,6 +61,7 @@ class MaintenanceService:
             title=payload.title,
             description=payload.description,
             priority=payload.priority,
+            category=payload.category,
         )
         self.repository.append_status_history(
             request_id=request.id,
@@ -81,6 +90,8 @@ class MaintenanceService:
         status: str | None,
         priority: str | None,
         equipment_id: int | None,
+        category: str | None = None,
+        unassigned: bool | None = None,
         search: str | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
@@ -98,6 +109,8 @@ class MaintenanceService:
         page = await self.repository.list_requests(
             status=status,
             priority=priority,
+            category=category,
+            unassigned=unassigned,
             equipment_id=equipment_id,
             requested_by_user_id=requested_by_user_id,
             technician_id=technician_id,
@@ -164,6 +177,25 @@ class MaintenanceService:
         self.repository.expire_mutable_collections(request)
         return self._response(await self._reload(request_id))
 
+    async def reject_request(
+        self, request_id: int, reason: str, actor: AuthContext
+    ) -> MaintenanceRequestResponse:
+        """Cancel a request that has not been started, recording why."""
+        request = await self._reload(request_id)
+        self._require_elevated(actor)
+        if request.status not in REJECTABLE_STATUSES:
+            raise BusinessRuleError(
+                "only requests that have not started can be rejected "
+                f"(current status: {request.status})"
+            )
+        return await self.transition_status(
+            request_id,
+            MaintenanceStatusTransitionRequest(
+                status="cancelled", notes=f"Rechazada: {reason}"
+            ),
+            actor,
+        )
+
     # -- Assignment --------------------------------------------------------
 
     async def assign_technician(
@@ -179,6 +211,8 @@ class MaintenanceService:
         technician = await self.repository.get_technician(payload.technician_id)
         if technician is None:
             raise NotFoundError("technician not found")
+        if not technician.user.is_active:
+            raise BusinessRuleError("cannot assign a ticket to an inactive technician")
 
         await self.repository.assign_technician(
             request_id=request_id,
@@ -351,6 +385,7 @@ class MaintenanceService:
             title=request.title,
             description=request.description,
             priority=request.priority,
+            category=request.category,
             status=request.status,
             resolution_summary=request.resolution_summary,
             resolved_at=request.resolved_at,

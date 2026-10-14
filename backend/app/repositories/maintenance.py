@@ -5,6 +5,7 @@ from sqlalchemy import Select, and_, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.models.category import RequestCategory
 from app.models.equipment import Equipment
 from app.models.maintenance import (
     MaintenanceRecord,
@@ -91,6 +92,14 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         )
         return result.scalar_one_or_none()
 
+    async def get_active_category(self, code: str) -> RequestCategory | None:
+        result = await self.session.execute(
+            select(RequestCategory).where(
+                RequestCategory.code == code, RequestCategory.is_active.is_(True)
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get(self, request_id: int) -> MaintenanceRequest | None:
         result = await self.session.execute(
             self._request_query().where(MaintenanceRequest.id == request_id)
@@ -103,6 +112,8 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         *,
         status: str | None = None,
         priority: str | None = None,
+        category: str | None = None,
+        unassigned: bool | None = None,
         equipment_id: int | None = None,
         requested_by_user_id: int | None = None,
         technician_id: int | None = None,
@@ -113,9 +124,18 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
     ) -> Page[MaintenanceRequest]:
         query = select(MaintenanceRequest)
         if status is not None:
-            query = query.where(MaintenanceRequest.status == status)
+            # Comma-separated list: `submitted,triaged,assigned` for the pending queue.
+            statuses = [item.strip() for item in status.split(",") if item.strip()]
+            query = query.where(MaintenanceRequest.status.in_(statuses))
         if priority is not None:
             query = query.where(MaintenanceRequest.priority == priority)
+        if category is not None:
+            query = query.where(MaintenanceRequest.category == category)
+        if unassigned is not None:
+            has_technician = MaintenanceRequest.ticket_assignments.any(
+                TicketAssignment.unassigned_at.is_(None)
+            )
+            query = query.where(~has_technician if unassigned else has_technician)
         if equipment_id is not None:
             query = query.where(MaintenanceRequest.equipment_id == equipment_id)
         if requested_by_user_id is not None:
@@ -166,6 +186,7 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         title: str,
         description: str,
         priority: str,
+        category: str | None = None,
     ) -> MaintenanceRequest:
         request = MaintenanceRequest(
             ticket_number=ticket_number,
@@ -174,6 +195,7 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
             title=title,
             description=description,
             priority=priority,
+            category=category,
             status="submitted",
         )
         self.session.add(request)

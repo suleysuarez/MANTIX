@@ -16,6 +16,7 @@ from app.api.routes.equipment import router as equipment_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
+from app.api.routes.queue import router as queue_router
 from app.api.routes.report import import_router
 from app.api.routes.report import router as report_router
 from app.api.routes.schedule import router as schedule_router
@@ -146,6 +147,7 @@ API_ROUTERS = (
     location_router,
     technician_router,
     maintenance_router,
+    queue_router,
     priority_router,
     dashboard_router,
     report_router,
