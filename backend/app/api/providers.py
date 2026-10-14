@@ -28,6 +28,7 @@ from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
 from app.repositories.queue import QueueRepository
 from app.repositories.report import ReportRepository
+from app.repositories.report_builder import ReportBuilderRepository
 from app.repositories.schedule import ScheduleRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
@@ -46,6 +47,7 @@ from app.services.priority import PriorityService
 from app.services.queue import QueueService
 from app.services.reminders import ReminderService
 from app.services.report import ReportService
+from app.services.report_builder import ReportBuilderService
 from app.services.schedule import ScheduleService
 from app.services.technician import TechnicianService
 
@@ -105,6 +107,12 @@ def get_maintenance_overview_repository(
 
 def get_inventory_repository(session: AsyncSession = Session) -> InventoryRepository:
     return InventoryRepository(session)
+
+
+def get_report_builder_repository(
+    session: AsyncSession = Session,
+) -> ReportBuilderRepository:
+    return ReportBuilderRepository(session)
 
 
 def get_queue_repository(session: AsyncSession = Session) -> QueueRepository:
@@ -222,6 +230,16 @@ def get_report_service(
     dashboard: Annotated[DashboardKpiService, Depends(get_dashboard_service)],
 ) -> ReportService:
     return ReportService(repository, dashboard)
+
+
+def get_report_builder_service(
+    repository: Annotated[
+        ReportBuilderRepository, Depends(get_report_builder_repository)
+    ],
+    dashboard: Annotated[DashboardKpiService, Depends(get_dashboard_service)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ReportBuilderService:
+    return ReportBuilderService(repository, dashboard, audit)
 
 
 def get_equipment_import_service(

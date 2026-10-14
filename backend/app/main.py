@@ -21,6 +21,7 @@ from app.api.routes.priority import router as priority_router
 from app.api.routes.queue import router as queue_router
 from app.api.routes.report import import_router
 from app.api.routes.report import router as report_router
+from app.api.routes.report_builder import router as report_builder_router
 from app.api.routes.schedule import router as schedule_router
 from app.api.routes.technician import router as technician_router
 from app.core.config import get_settings
@@ -152,6 +153,7 @@ API_ROUTERS = (
     queue_router,
     maintenance_overview_router,
     inventory_router,
+    report_builder_router,
     priority_router,
     dashboard_router,
     report_router,

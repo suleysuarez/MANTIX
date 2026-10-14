@@ -126,7 +126,12 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
+| GET | `/reports/catalog` | Report gallery | `reports.read` |
 | GET | `/reports/equipment` | Export the equipment inventory | `reports.read` |
+| POST | `/reports/generate` | Generate and download a report | `reports.read` |
+| GET | `/reports/history` | Recent exports, newest first | `reports.read` |
+| GET | `/reports/overview` | Report activity for the period | `reports.read` |
+| POST | `/reports/preview` | Preview a report with its filters | `reports.read` |
 | GET | `/reports/summary` | Export the operational summary | `reports.read` |
 | GET | `/reports/tickets` | Export maintenance tickets | `reports.read` |
 
@@ -156,7 +161,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **76** endpoints.
+Total: **81** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 
