@@ -23,6 +23,7 @@ from app.api.routes.report import import_router
 from app.api.routes.report import router as report_router
 from app.api.routes.report_builder import router as report_builder_router
 from app.api.routes.schedule import router as schedule_router
+from app.api.routes.settings import router as settings_router
 from app.api.routes.technician import router as technician_router
 from app.core.config import get_settings
 from app.core.errors import error_responses, register_exception_handlers
@@ -90,12 +91,14 @@ TAGS_METADATA = [
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Start the background scheduler with the app and stop it on shutdown."""
     scheduler = None
+    application.state.scheduler = None
     if settings.scheduler_enabled and async_session_maker is not None:
         scheduler = build_scheduler(settings, async_session_maker)
         scheduler.start()
+        application.state.scheduler = scheduler
         logging.getLogger("mantix.jobs").info(
             "scheduler started (reminders every %s min)",
             settings.reminder_interval_minutes,
@@ -154,6 +157,7 @@ API_ROUTERS = (
     maintenance_overview_router,
     inventory_router,
     report_builder_router,
+    settings_router,
     priority_router,
     dashboard_router,
     report_router,

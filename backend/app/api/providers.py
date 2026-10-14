@@ -30,6 +30,7 @@ from app.repositories.queue import QueueRepository
 from app.repositories.report import ReportRepository
 from app.repositories.report_builder import ReportBuilderRepository
 from app.repositories.schedule import ScheduleRepository
+from app.repositories.settings import SettingsRepository
 from app.repositories.technician import TechnicianRepository
 from app.services.admin import AdminUserService
 from app.services.attachment import AttachmentService
@@ -49,6 +50,7 @@ from app.services.reminders import ReminderService
 from app.services.report import ReportService
 from app.services.report_builder import ReportBuilderService
 from app.services.schedule import ScheduleService
+from app.services.settings import SystemSettingsService
 from app.services.technician import TechnicianService
 
 Session = Depends(get_db)
@@ -113,6 +115,10 @@ def get_report_builder_repository(
     session: AsyncSession = Session,
 ) -> ReportBuilderRepository:
     return ReportBuilderRepository(session)
+
+
+def get_settings_repository(session: AsyncSession = Session) -> SettingsRepository:
+    return SettingsRepository(session)
 
 
 def get_queue_repository(session: AsyncSession = Session) -> QueueRepository:
@@ -182,6 +188,14 @@ def get_inventory_service(
     audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> InventoryService:
     return InventoryService(repository, audit)
+
+
+def get_system_settings_service(
+    repository: Annotated[SettingsRepository, Depends(get_settings_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SystemSettingsService:
+    return SystemSettingsService(repository, audit, settings)
 
 
 def get_queue_service(

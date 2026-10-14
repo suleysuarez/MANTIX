@@ -147,6 +147,16 @@
 | POST | `/maintenance/schedules/{schedule_id}/complete` | Mark the service as done | `schedules.manage` |
 | GET | `/maintenance/schedules/{schedule_id}/history` | Completions and reschedules of a plan | `maintenance.read` |
 
+### settings
+
+| Method | Path | Summary | Access |
+| --- | --- | --- | --- |
+| GET | `/settings/categories` | Request categories, with how many requests use each | `priorities.manage` |
+| POST | `/settings/categories` | Create a request category | `priorities.manage` |
+| DELETE | `/settings/categories/{category_id}` | Delete an unused category | `priorities.manage` |
+| PATCH | `/settings/categories/{category_id}` | Rename or (de)activate a category | `priorities.manage` |
+| GET | `/settings/health` | System health | `users.manage` |
+
 ### system
 
 | Method | Path | Summary | Access |
@@ -161,7 +171,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **81** endpoints.
+Total: **86** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 
