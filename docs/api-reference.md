@@ -78,7 +78,9 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
+| GET | `/maintenance/calendar` | Preventive services in a date range | `maintenance.read` |
 | GET | `/maintenance/categories` | Active request categories | `maintenance.read` |
+| GET | `/maintenance/overview` | Maintenance metrics for the period | `maintenance.read` |
 | GET | `/maintenance/queue/summary` | Pending-requests queue metrics | role `ADMIN`, `SUPERVISOR` |
 | GET | `/maintenance/requests` | List maintenance tickets | `maintenance.read` |
 | POST | `/maintenance/requests` | Create maintenance request | `maintenance.create` |
@@ -124,6 +126,7 @@
 | GET | `/maintenance/schedules/{schedule_id}` | Get a plan | `maintenance.read` |
 | PATCH | `/maintenance/schedules/{schedule_id}` | Update a plan | `schedules.manage` |
 | POST | `/maintenance/schedules/{schedule_id}/complete` | Mark the service as done | `schedules.manage` |
+| GET | `/maintenance/schedules/{schedule_id}/history` | Completions and reschedules of a plan | `maintenance.read` |
 
 ### system
 
@@ -139,7 +142,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **64** endpoints.
+Total: **67** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

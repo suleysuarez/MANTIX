@@ -22,6 +22,7 @@ from app.repositories.auth import AuthRepository
 from app.repositories.dashboard_kpis import DashboardKpiRepository
 from app.repositories.equipment import EquipmentRepository
 from app.repositories.maintenance import MaintenanceRepository
+from app.repositories.maintenance_overview import MaintenanceOverviewRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
 from app.repositories.queue import QueueRepository
@@ -36,6 +37,7 @@ from app.services.dashboard_kpis import DashboardKpiService
 from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
 from app.services.maintenance import MaintenanceService
+from app.services.maintenance_overview import MaintenanceOverviewService
 from app.services.notification import NotificationService
 from app.services.notification_inbox import NotificationInboxService
 from app.services.priority import PriorityService
@@ -93,6 +95,12 @@ def get_maintenance_repository(
     return MaintenanceRepository(session)
 
 
+def get_maintenance_overview_repository(
+    session: AsyncSession = Session,
+) -> MaintenanceOverviewRepository:
+    return MaintenanceOverviewRepository(session)
+
+
 def get_queue_repository(session: AsyncSession = Session) -> QueueRepository:
     return QueueRepository(session)
 
@@ -145,6 +153,14 @@ def get_maintenance_service(
     notifications: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> MaintenanceService:
     return MaintenanceService(repository, audit, notifications)
+
+
+def get_maintenance_overview_service(
+    repository: Annotated[
+        MaintenanceOverviewRepository, Depends(get_maintenance_overview_repository)
+    ],
+) -> MaintenanceOverviewService:
+    return MaintenanceOverviewService(repository)
 
 
 def get_queue_service(
