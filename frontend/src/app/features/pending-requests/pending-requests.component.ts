@@ -201,8 +201,7 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
           <section class="min-w-0" aria-label="Tablero de solicitudes">
             @if (isEmpty(vm)) {
               <div class="glass flex flex-col items-center gap-3 rounded-2xl px-6 py-16 text-center">
-                <!-- PLACEHOLDER: se reemplaza por assets/images/cola-vacia.svg -->
-                <div class="flex h-28 w-44 items-center justify-center rounded-2xl border-2 border-dashed border-brand-slate text-[11px] font-semibold uppercase tracking-wider text-brand-accentDeep" data-placeholder="cola-vacia.svg">[Placeholder] cola-vacia.svg · 320×200</div>
+                <img src="assets/images/cola-vacia.svg" alt="" width="256" height="223" class="h-auto w-48 mix-blend-multiply sm:w-64" />
                 <h2 class="text-[16px] font-bold text-on-surface">{{ hasFilters(vm) ? 'Ninguna solicitud coincide con los filtros' : 'La bandeja está al día' }}</h2>
                 <p class="max-w-sm text-[13px] text-on-surface-variant">{{ hasFilters(vm) ? 'Prueba con otra búsqueda o limpia los filtros.' : 'No hay solicitudes esperando trabajo.' }}</p>
                 @if (hasFilters(vm)) {
@@ -231,10 +230,9 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
                     } @else if (c.failed && c.items.length === 0) {
                       <p role="alert" class="m-2 rounded-lg bg-error-container px-3 py-3 text-[12px] text-on-error-container">No se pudo cargar esta columna.</p>
                     } @else if (c.items.length === 0) {
-                      <div class="m-2 flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-grey px-3 py-6 text-center" data-placeholder="columna-vacia.svg">
-                        <span class="material-symbols-outlined text-[28px] text-brand-slate" aria-hidden="true">{{ col.icon }}</span>
+                      <div class="m-2 flex flex-1 flex-col items-center justify-center gap-1 px-3 py-6 text-center">
+                        <img src="assets/images/columna-vacia.svg" alt="" width="160" height="88" class="h-auto w-36 mix-blend-multiply" />
                         <p class="text-[12px] text-on-surface-variant">Nada en «{{ col.title }}».</p>
-                        <span class="text-[10px] uppercase tracking-wider text-on-surface-variant">[Placeholder] columna-vacia.svg · 160×120</span>
                       </div>
                     } @else {
                       @for (item of c.items; track item.id) {

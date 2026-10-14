@@ -97,11 +97,18 @@ describe('PendingRequestsComponent', () => {
     expect(store.select).toHaveBeenCalledWith(1);
   });
 
-  it('shows a marked illustration placeholder and a positive message when the queue is empty', () => {
+  it('shows the empty-queue illustration and a positive message when nothing is pending', () => {
     const empty = { items: [], total: 0, page: 1, loading: false, failed: false };
     render(state({ columns: { submitted: empty, triaged: empty, assigned: empty } }));
     expect(host().textContent).toContain('La bandeja está al día');
-    expect(host().querySelector('[data-placeholder="cola-vacia.svg"]')).not.toBeNull();
+    const image = host().querySelector('img[src$="cola-vacia.svg"]') as HTMLImageElement;
+    expect(image).not.toBeNull();
+    expect(image.getAttribute('alt')).toBe(''); // decorativa: el título ya dice lo mismo
+  });
+
+  it('shows the small illustration in a single empty column and keeps the others as cards', () => {
+    expect(host().querySelectorAll('img[src$="columna-vacia.svg"]').length).toBe(2); // triaged + assigned
+    expect(host().querySelectorAll('[aria-label="Tablero de solicitudes"] button[aria-pressed]').length).toBe(2);
   });
 
   it('offers to clear the filters when they leave nothing to show', () => {
