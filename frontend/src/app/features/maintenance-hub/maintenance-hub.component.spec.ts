@@ -166,8 +166,11 @@ describe('MaintenanceHubComponent', () => {
       expect(host().querySelector('[role="alert"]')!.textContent).toContain('No se pudo cargar el calendario.');
     });
 
-    it('keeps the hero illustration as a clearly marked placeholder', () => {
-      expect(host().querySelector('[data-placeholder="mantenimiento-hero.svg"]')).not.toBeNull();
+    it('shows the hero illustration, decorative and without the placeholder', () => {
+      const image = host().querySelector('header img[src$="mantenimiento-hero.svg"]') as HTMLImageElement;
+      expect(image).not.toBeNull();
+      expect(image.getAttribute('alt')).toBe('');
+      expect(host().querySelector('[data-placeholder="mantenimiento-hero.svg"]')).toBeNull();
     });
   });
 
