@@ -4,7 +4,25 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.dependencies import require_permission
+from app.core.authz import AuthContext
+from app.core.exceptions import NotFoundError
 from app.services.admin import AdminUserService
+
+
+class FakeAudit:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(kwargs)
+
+
+class FakeNotifications:
+    def __init__(self):
+        self.sent = []
+
+    def notify(self, **kwargs):
+        self.sent.append(kwargs)
 
 
 class FakeAdminRepository:
@@ -66,8 +84,7 @@ async def test_pending_list_excludes_inactive_and_assigned_users():
             user(3, "inactive@example.com", active=False),
         ]
     )
-    service = AdminUserService(object())
-    service.repository = repository
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
 
     result = await service.list_pending_users()
 
@@ -79,8 +96,7 @@ async def test_pending_list_excludes_inactive_and_assigned_users():
 async def test_assign_roles_succeeds_and_is_idempotent():
     target = user(10, "pending@example.com")
     repository = FakeAdminRepository(users=[target], roles=[role(20)])
-    service = AdminUserService(object())
-    service.repository = repository
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
     admin = user(1, "admin@example.com", roles=[99])
 
     first = await service.assign_roles(10, [20], admin)
@@ -90,6 +106,10 @@ async def test_assign_roles_succeeds_and_is_idempotent():
     assert second.role_ids == [20]
     assert repository.assignment_count == 1
     assert repository.committed
+    # Only the first call actually grants a new role; the second is a no-op
+    # (already assigned), so audit/notification fire exactly once.
+    assert len(service.audit.records) == 1
+    assert len(service.notifications.sent) == 1
 
 
 @pytest.mark.asyncio
@@ -101,19 +121,18 @@ async def test_assign_roles_rejects_missing_user_role_and_inactive_user():
         ],
         roles=[role(20)],
     )
-    service = AdminUserService(object())
-    service.repository = repository
+    service = AdminUserService(repository, FakeAudit(), FakeNotifications())
     admin = user(1, "admin@example.com")
 
-    with pytest.raises(HTTPException) as missing_user:
+    with pytest.raises(NotFoundError) as missing_user:
         await service.assign_roles(99, [20], admin)
     assert missing_user.value.status_code == 404
 
-    with pytest.raises(HTTPException) as inactive:
+    with pytest.raises(NotFoundError) as inactive:
         await service.assign_roles(3, [20], admin)
     assert inactive.value.status_code == 404
 
-    with pytest.raises(HTTPException) as missing_role:
+    with pytest.raises(NotFoundError) as missing_role:
         await service.assign_roles(4, [999], admin)
     assert missing_role.value.status_code == 404
 
@@ -124,6 +143,7 @@ def test_permission_boundary_distinguishes_403_from_authenticated_user():
     allowed = SimpleNamespace(
         roles=[
             SimpleNamespace(
+                code="ADMIN",
                 is_active=True,
                 permissions=[SimpleNamespace(code="users.manage", is_active=True)],
             )
@@ -133,8 +153,9 @@ def test_permission_boundary_distinguishes_403_from_authenticated_user():
     with pytest.raises(HTTPException) as error:
         import asyncio
 
-        asyncio.run(dependency(denied))
+        asyncio.run(dependency(AuthContext.from_user(denied)))
     assert error.value.status_code == 403
     import asyncio
 
-    assert asyncio.run(dependency(allowed)) is allowed
+    context = AuthContext.from_user(allowed)
+    assert asyncio.run(dependency(context)) is context

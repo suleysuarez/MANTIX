@@ -1,17 +1,16 @@
-from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, get_clerk_profile
 from app.core.config import Settings
+from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import User
 from app.repositories.auth import AuthRepository
 from app.schemas.auth import PermissionResponse, RoleResponse, UserResponse
 
 
 class ClerkAuthService:
-    def __init__(self, session: AsyncSession, settings: Settings):
-        self.repository = AuthRepository(session)
+    def __init__(self, repository: AuthRepository, settings: Settings):
+        self.repository = repository
         self.settings = settings
 
     async def resolve_local_user(self, identity: VerifiedClerkIdentity) -> User:
@@ -22,6 +21,8 @@ class ClerkAuthService:
                 assigned = await self._assign_bootstrap_admin(user)
                 if assigned:
                     await self.repository.commit()
+                    # `roles` was already loaded (empty); reload it after the grant.
+                    self.repository.expire(user, ["roles", "user_roles"])
                     return (
                         await self.repository.get_user_by_clerk_id(identity.user_id)
                     ) or user
@@ -31,9 +32,8 @@ class ClerkAuthService:
         existing_by_email = await self.repository.get_user_by_email(profile.email)
         if existing_by_email is not None:
             if existing_by_email.clerk_user_id != identity.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="local email is already linked to another Clerk user",
+                raise ConflictError(
+                    "local email is already linked to another Clerk user"
                 )
             return self._require_active(existing_by_email)
 
@@ -49,16 +49,12 @@ class ClerkAuthService:
             existing = await self.repository.get_user_by_clerk_id(profile.clerk_user_id)
             if existing is not None:
                 return self._require_active(existing)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Clerk user could not be linked to a local profile",
+            raise ConflictError(
+                "Clerk user could not be linked to a local profile"
             ) from exc
         provisioned = await self.repository.get_user_by_clerk_id(profile.clerk_user_id)
         if provisioned is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="provisioned local user could not be reloaded",
-            )
+            raise AppError("provisioned local user could not be reloaded")
         return provisioned
 
     async def _assign_bootstrap_admin(self, user: User) -> bool:
@@ -68,20 +64,14 @@ class ClerkAuthService:
         admin_role = await self.repository.get_admin_role()
         if admin_role is None:
             await self.repository.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="bootstrap ADMIN role is not configured",
-            )
+            raise AppError("bootstrap ADMIN role is not configured")
         await self.repository.assign_role(user, admin_role)
         return True
 
     @staticmethod
     def _require_active(user: User) -> User:
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="local user is inactive",
-            )
+            raise ForbiddenError("local user is inactive")
         return user
 
 

@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     cors_origins: str = Field(
         default="http://localhost:4200", validation_alias="CORS_ORIGINS"
     )
+    rate_limit_per_minute: int = Field(
+        default=120, validation_alias="RATE_LIMIT_PER_MINUTE"
+    )
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     backend_port: int = Field(default=8000, validation_alias="BACKEND_PORT")
     clerk_secret_key: str = Field(default="", validation_alias="CLERK_SECRET_KEY")
     clerk_publishable_key: str = Field(
@@ -21,6 +25,16 @@ class Settings(BaseSettings):
     )
     clerk_authorized_parties: str = Field(
         default="http://localhost:4200", validation_alias="CLERK_AUTHORIZED_PARTIES"
+    )
+
+    upload_dir: str = Field(default="uploads", validation_alias="UPLOAD_DIR")
+    max_upload_mb: int = Field(
+        default=10, ge=1, le=100, validation_alias="MAX_UPLOAD_MB"
+    )
+
+    scheduler_enabled: bool = Field(default=True, validation_alias="SCHEDULER_ENABLED")
+    reminder_interval_minutes: int = Field(
+        default=60, ge=1, le=1440, validation_alias="REMINDER_INTERVAL_MINUTES"
     )
 
     model_config = SettingsConfigDict(
@@ -56,6 +70,10 @@ class Settings(BaseSettings):
                     )
                 )
         return v
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() == "production"
 
     @property
     def cors_origin_list(self) -> list[str]:

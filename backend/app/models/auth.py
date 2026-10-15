@@ -60,7 +60,15 @@ class User(Base):
         cascade="all, delete-orphan",
     )
     roles: Mapped[list["Role"]] = relationship(
-        "Role", secondary="user_roles", back_populates="users", viewonly=True
+        "Role",
+        secondary="user_roles",
+        # UserRole has two FKs to users (user_id, assigned_by_user_id);
+        # without an explicit join, SQLAlchemy can't tell which one this
+        # membership relationship should use.
+        primaryjoin="User.id == UserRole.user_id",
+        secondaryjoin="Role.id == UserRole.role_id",
+        back_populates="users",
+        viewonly=True,
     )
     technician: Mapped["Technician | None"] = relationship(
         "Technician",
@@ -106,7 +114,12 @@ class Role(Base):
         "UserRole", back_populates="role", cascade="all, delete-orphan"
     )
     users: Mapped[list["User"]] = relationship(
-        "User", secondary="user_roles", back_populates="roles", viewonly=True
+        "User",
+        secondary="user_roles",
+        primaryjoin="Role.id == UserRole.role_id",
+        secondaryjoin="User.id == UserRole.user_id",
+        back_populates="roles",
+        viewonly=True,
     )
     role_permissions: Mapped[list["RolePermission"]] = relationship(
         "RolePermission", back_populates="role", cascade="all, delete-orphan"
@@ -131,6 +144,7 @@ class Permission(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     module: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

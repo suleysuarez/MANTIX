@@ -1,3 +1,51 @@
-:root { font-family: Arial, sans-serif; color: #1f2937; background: #f8fafc; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: 'Plus Jakarta Sans', Arial, sans-serif; color: #1f2937; background: #f8fafc; }
 body { margin: 0; }
 main { max-width: 960px; margin: 4rem auto; padding: 0 1.5rem; }
+
+/* Reset acotado para el shell y el dashboard (Tailwind corre sin preflight para no tocar el resto). */
+.tw-reset, .tw-reset *, .tw-reset ::before, .tw-reset ::after { box-sizing: border-box; border: 0 solid; }
+.tw-reset img { display: block; max-width: 100%; }
+.tw-reset h1, .tw-reset h2, .tw-reset h3, .tw-reset p { margin: 0; }
+.tw-reset button { font: inherit; color: inherit; cursor: pointer; }
+.tw-reset a { color: inherit; text-decoration: none; }
+.material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; white-space: nowrap; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; user-select: none; }
+
+/*
+ * Glassmorphism puntual (botones primarios, barras de filtros, paneles de detalle,
+ * encabezados con ilustración). Siempre con un respaldo sólido declarado primero:
+ * si el navegador no soporta backdrop-filter, el texto sigue en contraste AA.
+ */
+.glass {
+  background: theme('colors.surface-container-lowest');
+  border: 1px solid theme('colors.outline-variant');
+  box-shadow: 0 8px 24px rgb(11 31 58 / 0.08);
+}
+/* `.tw-reset button { color: inherit }` pesa más que una clase sola: se iguala con su prefijo. */
+.glass-btn, .tw-reset .glass-btn {
+  background: theme('colors.brand.accentDeep');
+  color: theme('colors.on-primary');
+  border: 1px solid rgb(255 255 255 / 0.35);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: color-mix(in srgb, theme('colors.surface-container-lowest') 74%, transparent);
+    border-color: rgb(255 255 255 / 0.6);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+  }
+  /* 88 % de azul pizarra sobre claro u oscuro mantiene el texto blanco >= 4.5:1. */
+  .glass-btn {
+    background: color-mix(in srgb, theme('colors.brand.accentDeep') 88%, transparent);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+}
+.glass-btn:hover { background: theme('colors.primary'); }
+.glass-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .glass, .glass-btn { transition: none; }
+}

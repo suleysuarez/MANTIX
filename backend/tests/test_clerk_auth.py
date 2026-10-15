@@ -6,8 +6,10 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.dependencies import require_permission
+from app.core.authz import AuthContext
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, verify_clerk_request
 from app.core.config import Settings
+from app.core.exceptions import ForbiddenError
 from app.schemas.auth import UserResponse
 from app.services.auth import ClerkAuthService, user_response
 
@@ -46,6 +48,9 @@ class FakeRepository:
         )
         self.user = self.created
         return self.created
+
+    def expire(self, entity, attributes):
+        pass
 
     async def lock_admin_bootstrap(self):
         await self.shared["lock"].acquire()
@@ -180,7 +185,7 @@ async def test_inactive_local_user_is_denied() -> None:
     service = ClerkAuthService(object(), Settings())
     service.repository = FakeRepository(user=existing)
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(ForbiddenError) as error:
         await service.resolve_local_user(identity())
     assert error.value.status_code == 403
 
@@ -253,8 +258,46 @@ def test_auth_me_response_contains_empty_pending_collections() -> None:
 @pytest.mark.asyncio
 async def test_permission_granted_and_missing_permission_returns_403() -> None:
     user = SimpleNamespace(roles=[role()])
-    allowed = await require_permission("equipment.read")(user)
-    assert allowed is user
+    context = AuthContext.from_user(user)
+    allowed = await require_permission("equipment.read")(context)
+    assert allowed is context
     with pytest.raises(HTTPException) as error:
-        await require_permission("equipment.write")(user)
+        await require_permission("equipment.write")(context)
     assert error.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_require_permission_and_user_response_against_real_permission_orm() -> (
+    None
+):
+    """Regression test for the `Permission.is_active` bug: the column didn't
+    exist on the model but was read in `require_permission` and
+    `user_response`, raising AttributeError for any user with an assigned
+    permission. Every other test in this file uses `SimpleNamespace` fakes
+    with `is_active` baked in, so none of them caught it - this one builds
+    real mapped `Role`/`Permission` instances instead."""
+    from app.models.auth import Permission, Role
+
+    permission = Permission(
+        code="equipment.read",
+        name="Read equipment",
+        module="equipment",
+        is_active=True,
+    )
+    real_role = Role(code="ADMIN", name="Administrator", is_active=True)
+    real_role.permissions = [permission]
+    user = SimpleNamespace(
+        id=1,
+        email="admin@example.com",
+        full_name="Admin",
+        employee_code=None,
+        is_active=True,
+        roles=[real_role],
+    )
+
+    context = AuthContext.from_user(user)
+    allowed = await require_permission("equipment.read")(context)
+    assert allowed is context
+
+    response = user_response(user)
+    assert [item.code for item in response.permissions] == ["equipment.read"]

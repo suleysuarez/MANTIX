@@ -1,17 +1,18 @@
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
+
+from sqlalchemy import Select, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.clerk import ClerkProfile
 from app.models.auth import Role, User, UserRole
+from app.repositories.base import BaseRepository
 
 
-class AuthRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class AuthRepository(BaseRepository[User]):
+    model = User
 
     @staticmethod
-    def _user_query():
+    def _user_query() -> Select[Any]:
         return select(User).options(
             selectinload(User.roles).selectinload(Role.permissions)
         )
@@ -20,13 +21,15 @@ class AuthRepository:
         result = await self.session.execute(
             self._user_query().where(User.clerk_user_id == clerk_user_id)
         )
-        return result.scalar_one_or_none()
+        user: User | None = result.scalar_one_or_none()
+        return user
 
     async def get_user_by_email(self, email: str) -> User | None:
         result = await self.session.execute(
             self._user_query().where(User.email == email)
         )
-        return result.scalar_one_or_none()
+        user: User | None = result.scalar_one_or_none()
+        return user
 
     async def get_employee_role(self) -> Role | None:
         result = await self.session.execute(
@@ -61,9 +64,3 @@ class AuthRepository:
 
     async def assign_role(self, user: User, role: Role) -> None:
         self.session.add(UserRole(user_id=user.id, role_id=role.id))
-
-    async def commit(self) -> None:
-        await self.session.commit()
-
-    async def rollback(self) -> None:
-        await self.session.rollback()

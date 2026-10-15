@@ -7,6 +7,7 @@ from app.models.auth import (
     User,
     UserRole,
 )
+from app.models.category import RequestCategory
 from app.models.equipment import (
     Equipment,
     EquipmentCustodyHistory,
@@ -15,6 +16,7 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
+from app.models.inventory import InventoryItem, InventoryMovement
 from app.models.maintenance import (
     MaintenanceRecord,
     MaintenanceRequest,
@@ -22,6 +24,9 @@ from app.models.maintenance import (
     TicketStatusHistory,
 )
 from app.models.notification import Notification
+from app.models.priority import Priority
+from app.models.report_run import ReportRun
+from app.models.schedule import MaintenanceSchedule, ScheduleReschedule, ScheduleRun
 from app.models.technician import Technician
 
 __all__ = [
@@ -32,13 +37,21 @@ __all__ = [
     "EquipmentLocationHistory",
     "EquipmentStatusHistory",
     "EquipmentType",
+    "InventoryItem",
+    "InventoryMovement",
     "Location",
     "MaintenanceRecord",
     "MaintenanceRequest",
+    "MaintenanceSchedule",
     "Notification",
     "Permission",
+    "Priority",
+    "ReportRun",
+    "RequestCategory",
     "Role",
     "RolePermission",
+    "ScheduleReschedule",
+    "ScheduleRun",
     "Technician",
     "TicketAssignment",
     "TicketStatusHistory",

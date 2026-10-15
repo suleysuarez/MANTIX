@@ -1,14 +1,33 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 
 import { ClerkService } from './clerk.service';
-import { LocalProfileService } from './local-profile.service';
+import { LocalProfile, LocalProfileService } from './local-profile.service';
+
+const UNAVAILABLE_ROUTE = ['/auth/unavailable'];
+
+/** Perfil local, o `null` si la API no responde (así el guard redirige en vez de cancelar la navegación). */
+async function tryProfile(profileService: LocalProfileService): Promise<LocalProfile | null> {
+  try {
+    return await profileService.getProfile();
+  } catch {
+    return null;
+  }
+}
 
 export const authGuard: CanActivateFn = async () => {
   const clerk = inject(ClerkService);
   const router = inject(Router);
   await clerk.initialize();
   return clerk.isSignedIn ? true : router.createUrlTree(['/auth/login']);
+};
+
+/** Login/sign-up: solo para invitados; con sesión activa Clerk no monta SignIn. */
+export const guestGuard: CanActivateFn = async () => {
+  const clerk = inject(ClerkService);
+  const router = inject(Router);
+  await clerk.initialize();
+  return clerk.isSignedIn ? router.createUrlTree(['/dashboard']) : true;
 };
 
 export const authorizedGuard: CanActivateFn = async () => {
@@ -19,10 +38,11 @@ export const authorizedGuard: CanActivateFn = async () => {
   if (!clerk.isSignedIn) {
     return router.createUrlTree(['/auth/login']);
   }
-  const profile = await profileService.getProfile();
-  return profile.roles.length > 0
-    ? true
-    : router.createUrlTree(['/auth/pending']);
+  const profile = await tryProfile(profileService);
+  if (!profile) {
+    return router.createUrlTree(UNAVAILABLE_ROUTE);
+  }
+  return profile.roles.length > 0 ? true : router.createUrlTree(['/auth/pending']);
 };
 
 export const permissionGuard = (permission: string): CanActivateFn => async () => {
@@ -33,8 +53,23 @@ export const permissionGuard = (permission: string): CanActivateFn => async () =
   if (!clerk.isSignedIn) {
     return router.createUrlTree(['/auth/login']);
   }
-  const profile = await profileService.getProfile();
+  const profile = await tryProfile(profileService);
+  if (!profile) {
+    return router.createUrlTree(UNAVAILABLE_ROUTE);
+  }
   return profile.permissions.some((item) => item.code === permission)
     ? true
     : router.createUrlTree(['/auth/pending']);
 };
+
+/** Como `permissionGuard`, pero exige además alguno de los roles indicados. */
+export const roleGuard =
+  (permission: string, ...roles: string[]): CanActivateFn =>
+  async (route, state) => {
+    const allowed = await (permissionGuard(permission)(route, state) as unknown as Promise<boolean | UrlTree>);
+    if (allowed !== true) {
+      return allowed;
+    }
+    const profile = await tryProfile(inject(LocalProfileService));
+    return profile?.roles.some((role) => roles.includes(role.code)) ? true : inject(Router).createUrlTree(['/dashboard']);
+  };
