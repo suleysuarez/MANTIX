@@ -186,25 +186,27 @@ class FakeDashboardRepository:
     def __init__(self, technician_id=None):
         self.technician_id = technician_id
         self.scopes = []
+        self.requesters = []
 
     async def get_technician_id_for_user(self, user_id):
         return self.technician_id
 
-    async def tickets_by_status(self, *, technician_id=None):
+    async def tickets_by_status(self, *, technician_id=None, requester_id=None):
         self.scopes.append(technician_id)
+        self.requesters.append(requester_id)
         return [CountRow("submitted", 2), CountRow("closed", 3), CountRow("waiting", 1)]
 
-    async def tickets_by_priority(self, *, technician_id=None):
+    async def tickets_by_priority(self, *, technician_id=None, requester_id=None):
         return [CountRow("high", 1)]
 
-    async def count_overdue(self, now, *, technician_id=None):
+    async def count_overdue(self, now, *, technician_id=None, requester_id=None):
         return 1
 
     async def equipment_by_status(self):
         return [CountRow("assigned", 5)]
 
     async def resolution_stats(
-        self, *, date_from, by_priority=False, technician_id=None
+        self, *, date_from, by_priority=False, technician_id=None, requester_id=None
     ):
         if by_priority:
             return [ResolutionStats("high", 2, 4.0, 3.0)]
@@ -326,3 +328,21 @@ def test_top_failing_equipment_endpoint_passes_filters(client):
 def test_dashboard_rejects_out_of_range_params(client, query):
     path = "top-failing-equipment" if "limit" in query else "summary"
     assert client.get(f"/dashboard/{path}?{query}").status_code == 422
+
+
+async def test_a_requester_sees_the_state_of_what_they_asked_for_not_the_operation():
+    repo = FakeDashboardRepository()
+    summary = await DashboardService(repo).summary(actor("EMPLOYEE"), days=30, now=NOW)
+    assert summary.scope == "own"
+    assert repo.requesters == [7]  # their own user id: only their requests are counted
+    assert repo.scopes == [None]  # and not through a technician profile
+    assert summary.tickets.total == 6
+
+
+async def test_a_technician_is_still_scoped_by_assignment_not_by_request():
+    repo = FakeDashboardRepository(technician_id=5)
+    summary = await DashboardService(repo).summary(
+        actor("TECHNICIAN"), days=30, now=NOW
+    )
+    assert summary.scope == "own"
+    assert repo.scopes == [5] and repo.requesters == [None]

@@ -138,6 +138,21 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         )
         return or_(mine, assigned)
 
+    async def assigned_among(
+        self, technician_id: int, request_ids: list[int]
+    ) -> set[int]:
+        """Which of `request_ids` are currently assigned to the technician."""
+        if not request_ids:
+            return set()
+        result = await self.session.execute(
+            select(TicketAssignment.request_id).where(
+                TicketAssignment.technician_id == technician_id,
+                TicketAssignment.unassigned_at.is_(None),
+                TicketAssignment.request_id.in_(request_ids),
+            )
+        )
+        return set(result.scalars().all())
+
     @staticmethod
     def visible_to(request: MaintenanceRequest, scope: DataScope) -> bool:
         """The same rule as `_scope_clause`, for a ticket already loaded."""

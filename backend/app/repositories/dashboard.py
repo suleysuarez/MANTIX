@@ -63,7 +63,12 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
     model = MaintenanceRequest
 
     @staticmethod
-    def _scope(query: Any, technician_id: int | None) -> Any:
+    def _scope(
+        query: Any, technician_id: int | None, requester_id: int | None = None
+    ) -> Any:
+        """Only the tickets assigned to a technician, or only those a person requested."""
+        if requester_id is not None:
+            query = query.where(MaintenanceRequest.requested_by_user_id == requester_id)
         if technician_id is None:
             return query
         return query.where(
@@ -73,19 +78,20 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
         )
 
     async def tickets_by_status(
-        self, *, technician_id: int | None = None
+        self, *, technician_id: int | None = None, requester_id: int | None = None
     ) -> list[CountRow]:
         query = self._scope(
             select(MaintenanceRequest.status, func.count()).group_by(
                 MaintenanceRequest.status
             ),
             technician_id,
+            requester_id,
         ).order_by(MaintenanceRequest.status)
         rows = (await self.session.execute(query)).all()
         return [CountRow(key=row[0], count=row[1]) for row in rows]
 
     async def tickets_by_priority(
-        self, *, technician_id: int | None = None
+        self, *, technician_id: int | None = None, requester_id: int | None = None
     ) -> list[CountRow]:
         """Open tickets per priority, most urgent first."""
         query = self._scope(
@@ -95,12 +101,17 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
             .group_by(MaintenanceRequest.priority, Priority.level)
             .order_by(Priority.level.desc()),
             technician_id,
+            requester_id,
         )
         rows = (await self.session.execute(query)).all()
         return [CountRow(key=row[0], count=row[1]) for row in rows]
 
     async def count_overdue(
-        self, now: datetime, *, technician_id: int | None = None
+        self,
+        now: datetime,
+        *,
+        technician_id: int | None = None,
+        requester_id: int | None = None,
     ) -> int:
         """Open tickets older than their priority's SLA."""
         deadline = MaintenanceRequest.created_at + (
@@ -116,6 +127,7 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
                 deadline < now,
             ),
             technician_id,
+            requester_id,
         )
         return int((await self.session.execute(query)).scalar_one())
 
@@ -135,6 +147,7 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
         date_from: datetime,
         by_priority: bool = False,
         technician_id: int | None = None,
+        requester_id: int | None = None,
     ) -> list[ResolutionStats]:
         """Mean and median hours from creation to resolution, for tickets resolved
         since `date_from`. One overall row, or one row per priority."""
@@ -153,7 +166,7 @@ class DashboardRepository(BaseRepository[MaintenanceRequest]):
                 Priority, Priority.code == MaintenanceRequest.priority
             ).group_by(MaintenanceRequest.priority, Priority.level)
             query = query.order_by(Priority.level.desc())
-        query = self._scope(query, technician_id)
+        query = self._scope(query, technician_id, requester_id)
         rows = (await self.session.execute(query)).all()
         stats = [
             ResolutionStats(

@@ -287,3 +287,20 @@ async def test_a_denial_is_written_to_the_audit_log_with_who_what_and_where(
         "detail": "No tienes permiso para realizar esta acción.",
     }
     assert row.ip_address == "203.0.113.9" and row.created_at is not None
+
+
+def test_the_workflow_tells_each_person_which_states_they_may_enter(client):
+    app.dependency_overrides[get_authenticated_user] = lambda: person(
+        "tickets:ver", "tickets:cambiar_estado"
+    )
+    states = {
+        s["status"]: s for s in client.get("/maintenance/requests/workflow").json()
+    }
+    assert states["in_progress"]["can_enter"] is True
+    assert states["resolved"]["can_enter"] is True
+    # assigning, triage and rejecting need their own permission
+    assert states["assigned"]["can_enter"] is False
+    assert states["assigned"]["permission"] == "tickets:asignar"
+    assert states["cancelled"]["can_enter"] is False
+    assert states["cancelled"]["permission"] == "solicitudes:aprobar"
+    assert states["triaged"]["permission"] == "solicitudes:editar"
