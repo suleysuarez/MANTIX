@@ -159,8 +159,13 @@ describe('InventoryComponent', () => {
       expect(host().querySelector('svg[aria-label="Unidades consumidas por mes"]')).not.toBeNull();
     });
 
-    it('keeps the hero illustration as a clearly marked placeholder', () => {
-      expect(host().querySelector('[data-placeholder="inventario-hero.svg"]')).not.toBeNull();
+    it('plays the hero video muted and decorative', () => {
+    const video = host().querySelector('header video') as HTMLVideoElement;
+    expect(video.getAttribute('src')).toBe('assets/videos/inventory.mp4');
+    expect(video.getAttribute('poster')).toBe('assets/videos/inventario-poster.jpg');
+    expect(video.muted).toBeTrue();
+    expect(video.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(host().querySelector('[data-placeholder="inventario-hero.svg"]')).toBeNull();
     });
   });
 

@@ -62,9 +62,10 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
               </div>
             </div>
           </div>
-          <!-- PLACEHOLDER: se reemplaza por assets/images/inventario-hero.svg (ver lista de imágenes) -->
-          <div class="pointer-events-none absolute inset-y-3 right-4 hidden w-[34%] items-center justify-center rounded-2xl border-2 border-dashed border-white/40 text-center md:flex" data-placeholder="inventario-hero.svg">
-            <span class="px-4 text-[11px] font-semibold uppercase tracking-wider text-brand-grey">[Placeholder] ilustración<br />inventario-hero.svg · 640×360</span>
+          <!-- Ilustración animada; con «reducir movimiento» se queda en el primer fotograma. -->
+          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-video overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:block" aria-hidden="true">
+            <video class="h-full w-full object-cover" src="assets/videos/inventory.mp4" poster="assets/videos/inventario-poster.jpg"
+              [muted]="true" playsinline preload="auto" [loop]="!reduceMotion" [autoplay]="!reduceMotion"></video>
           </div>
         </header>
 
@@ -296,6 +297,8 @@ export class InventoryComponent implements OnInit {
   ];
   readonly skeleton = [1, 2, 3, 4, 5, 6];
   readonly focus = FOCUS;
+  /** Respeta la preferencia del sistema: sin movimiento, el video no se reproduce. */
+  readonly reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   readonly field = FIELD;
   readonly meta = STATUS_META;
   readonly icon = categoryIcon;

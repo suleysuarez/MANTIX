@@ -166,11 +166,13 @@ describe('MaintenanceHubComponent', () => {
       expect(host().querySelector('[role="alert"]')!.textContent).toContain('No se pudo cargar el calendario.');
     });
 
-    it('shows the hero illustration, decorative and without the placeholder', () => {
-      const image = host().querySelector('header img[src$="mantenimiento-hero.svg"]') as HTMLImageElement;
-      expect(image).not.toBeNull();
-      expect(image.getAttribute('alt')).toBe('');
-      expect(host().querySelector('[data-placeholder="mantenimiento-hero.svg"]')).toBeNull();
+    it('plays the hero video muted, decorative and without images', () => {
+    const video = host().querySelector('header video') as HTMLVideoElement;
+    expect(video.getAttribute('src')).toBe('assets/videos/mantenimiento1.mp4');
+    expect(video.getAttribute('poster')).toBe('assets/videos/mantenimiento-poster.jpg');
+    expect(video.muted).toBeTrue();
+    expect(video.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(host().querySelector('header img')).toBeNull();
     });
   });
 
