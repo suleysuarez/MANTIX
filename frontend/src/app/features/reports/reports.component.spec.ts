@@ -294,7 +294,7 @@ describe('ReportsComponent', () => {
       const table = host().querySelector('section[aria-label="Exportaciones recientes"]')!;
       expect(table.textContent).toContain('Tickets de mantenimiento');
       expect(table.textContent).toContain('Excel');
-      expect(table.textContent).toContain('12 en total');
+      expect(table.textContent).toContain('Exportaciones 1–8 de 12');
       click(Array.from(table.querySelectorAll('button')).find((b) => b.textContent?.includes('Siguiente'))!);
       expect(store.loadHistory).toHaveBeenCalledWith(2);
     });

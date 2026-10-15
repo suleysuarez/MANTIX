@@ -10,7 +10,7 @@ import { SchedulePayload } from '../../core/schedules.service';
 import { EquipmentDetailDrawerComponent } from './equipment-detail-drawer.component';
 import { EquipmentFormModalComponent } from './equipment-form-modal.component';
 import { EquipmentGridComponent } from './equipment-grid.component';
-import { EquipmentPaginationComponent } from './equipment-pagination.component';
+import { PaginationComponent } from '../../shared/pagination.component';
 import { EquipmentSummaryCardsComponent } from './equipment-summary-cards.component';
 import { EquipmentTableComponent } from './equipment-table.component';
 import { EquipmentToolbarComponent } from './equipment-toolbar.component';
@@ -46,7 +46,7 @@ const NO_ABILITIES: Abilities = {
     EquipmentDetailDrawerComponent,
     EquipmentFormModalComponent,
     EquipmentGridComponent,
-    EquipmentPaginationComponent,
+    PaginationComponent,
     EquipmentSummaryCardsComponent,
     EquipmentTableComponent,
     EquipmentToolbarComponent,
@@ -112,7 +112,7 @@ const NO_ABILITIES: Abilities = {
             <app-equipment-grid [equipment]="state.items" [loading]="state.loading" [filtered]="isFiltered(state.filters)"
               [canManage]="abilities().manage" (view)="view($event)" (edit)="openEdit($event)" />
           }
-          <app-equipment-pagination [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
+          <app-pagination noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
         </section>
 
         <footer class="flex items-center justify-between !border-t !border-slate-200/80 pb-2 pt-4 text-[11px] text-slate-400">

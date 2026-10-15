@@ -9,6 +9,7 @@ import { formatChange } from '../dashboard/dashboard-format';
 import { BuilderChange, ReportBuilderComponent } from './report-builder.component';
 import { EMPTY_VALUES, describeFilters } from './report-filters';
 import { ReportPreviewComponent } from './report-preview.component';
+import { PaginationComponent } from '../../shared/pagination.component';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: '7d', label: '7 días' },
@@ -22,7 +23,7 @@ const FORMAT_LABELS: Record<ExportFormat, string> = { xlsx: 'Excel', pdf: 'PDF',
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, ReportBuilderComponent, ReportPreviewComponent, ToastHostComponent],
+  imports: [AsyncPipe, DatePipe, ReportBuilderComponent, ReportPreviewComponent, ToastHostComponent, PaginationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -155,13 +156,7 @@ const FORMAT_LABELS: Record<ExportFormat, string> = { xlsx: 'Excel', pdf: 'PDF',
                 </tbody>
               </table>
             </div>
-            <nav class="mt-2 flex items-center justify-between text-[12px] text-on-surface-variant" aria-label="Paginación del historial">
-              <span>{{ vm.historyTotal }} en total</span>
-              <span class="flex items-center gap-1">
-                <button type="button" (click)="store.loadHistory(vm.historyPage - 1)" [disabled]="vm.historyPage <= 1" [class]="pageButton">Anterior</button>
-                <button type="button" (click)="store.loadHistory(vm.historyPage + 1)" [disabled]="vm.historyPage * pageSize >= vm.historyTotal" [class]="pageButton">Siguiente</button>
-              </span>
-            </nav>
+            <app-pagination noun="exportaciones" [page]="vm.historyPage" [pageSize]="pageSize" [total]="vm.historyTotal" (pageChange)="store.loadHistory($event)" />
           } @else {
             <p class="mt-2 text-[12px] text-on-surface-variant">Todavía no se ha exportado ningún reporte.</p>
           }

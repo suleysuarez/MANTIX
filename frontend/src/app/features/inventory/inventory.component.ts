@@ -16,6 +16,7 @@ import { CATEGORIES, STATUS_META, categoryIcon, categoryLabel, itemsToCsv, minMa
 import { ItemDetailPanelComponent } from './item-detail-panel.component';
 import { ItemFormModalComponent } from './item-form-modal.component';
 import { MovementModalComponent } from './movement-modal.component';
+import { PaginationComponent } from '../../shared/pagination.component';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: '7d', label: '7 días' },
@@ -31,7 +32,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [AsyncPipe, InventoryInsightsComponent, ItemDetailPanelComponent, ItemFormModalComponent, MovementModalComponent, ImportModalComponent, ToastHostComponent],
+  imports: [AsyncPipe, InventoryInsightsComponent, ItemDetailPanelComponent, ItemFormModalComponent, MovementModalComponent, ImportModalComponent, ToastHostComponent, PaginationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -223,14 +224,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
                 </div>
               }
 
-              <nav class="flex flex-wrap items-center justify-between gap-2 px-1 text-[12px] text-on-surface-variant" aria-label="Paginación">
-                <span>{{ rangeText(vm) }}</span>
-                <span class="flex items-center gap-1">
-                  <button type="button" (click)="store.setPage(vm.page - 1)" [disabled]="vm.page <= 1 || vm.loading" [class]="pageButton">Anterior</button>
-                  <span class="px-2 font-semibold text-on-surface">{{ vm.page }} / {{ pages(vm) }}</span>
-                  <button type="button" (click)="store.setPage(vm.page + 1)" [disabled]="vm.page >= pages(vm) || vm.loading" [class]="pageButton">Siguiente</button>
-                </span>
-              </nav>
+              <app-pagination noun="ítems" [page]="vm.page" [pageSize]="pageSize" [total]="vm.total" [loading]="vm.loading" (pageChange)="store.setPage($event)" />
             } @else if (vm.loading) {
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Cargando inventario">
                 @for (n of skeleton; track n) { <div class="h-36 animate-pulse rounded-2xl bg-surface-container motion-reduce:animate-none"></div> }
@@ -337,14 +331,7 @@ export class InventoryComponent implements OnInit {
     return !!(f.search.trim() || f.category || f.status);
   }
 
-  pages(vm: InventoryState): number {
-    return Math.max(Math.ceil(vm.total / PAGE_SIZE), 1);
-  }
-
-  rangeText(vm: InventoryState): string {
-    const from = (vm.page - 1) * PAGE_SIZE + 1;
-    return `${from}–${from + vm.items.length - 1} de ${vm.total}`;
-  }
+  readonly pageSize = PAGE_SIZE;
 
   sortBy(vm: InventoryState, field: string): void {
     this.store.setFilters({ sort: vm.filters.sort === field ? `-${field}` : field });

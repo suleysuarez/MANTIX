@@ -131,10 +131,10 @@ describe('InventoryComponent', () => {
     });
 
     it('paginates on the server and shows the range', () => {
-      expect(host().querySelector('nav[aria-label="Paginación"]')!.textContent).toContain('1–2 de 30');
+      expect(host().querySelector('nav[aria-label="Paginación de ítems"]')!.textContent).toContain('Ítems 1–12 de 30');
       click(button('Siguiente'));
       expect(store.setPage).toHaveBeenCalledWith(2);
-      expect(button('Anterior')!.disabled).toBeTrue();
+      expect(button('Anterior')).toBeNull(); // first page: nothing to go back to
     });
 
     it('sends category and status filters to the server', () => {

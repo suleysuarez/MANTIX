@@ -204,7 +204,7 @@ describe('MaintenanceHubComponent', () => {
       expect(rows.length).toBe(2);
       expect(rows[0].textContent).toContain('Limpieza interna');
       expect(rows[1].textContent).toContain('Vencido');
-      expect(host().querySelector('nav[aria-label="Paginación"]')!.textContent).toContain('1–2 de 31');
+      expect(host().querySelector('nav[aria-label="Paginación de planes"]')!.textContent).toContain('Planes 1–15 de 31');
       click(button('Siguiente'));
       expect(store.setListPage).toHaveBeenCalledWith(2);
     });

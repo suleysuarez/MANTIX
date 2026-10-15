@@ -30,6 +30,7 @@ import {
   priorityMeta,
   statusMeta,
 } from './ticket-ui';
+import { PaginationComponent } from '../../shared/pagination.component';
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -63,7 +64,7 @@ interface TicketsView extends TicketsState {
 @Component({
   selector: 'app-tickets',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent],
+  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -348,19 +349,7 @@ interface TicketsView extends TicketsState {
           </div>
         }
 
-        <nav class="flex items-center justify-end gap-3" aria-label="Páginas de tickets">
-          @if (vm.page > 0) {
-            <button type="button" (click)="page(vm.page - 1)" [disabled]="vm.loading"
-              class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-              <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-            </button>
-          }
-          <span class="text-[13px] font-semibold">Página {{ vm.page + 1 }}</span>
-          <button type="button" (click)="page(vm.page + 1)" [disabled]="!vm.hasNext || vm.loading"
-            class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-            Siguiente <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-          </button>
-        </nav>
+        <app-pagination noun="tickets" [page]="vm.page + 1" [pageSize]="vm.pageSize" [hasNext]="vm.hasNext" [loading]="vm.loading" (pageChange)="page($event - 1)" />
         </div>
 
         <aside class="space-y-4">

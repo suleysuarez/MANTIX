@@ -19,6 +19,7 @@ import { HubInsightsComponent } from './hub-insights.component';
 import { PlanDetailPanelComponent } from './plan-detail-panel.component';
 import { PlanFormModalComponent } from './plan-form-modal.component';
 import { planStatus, plansToCsv } from './plan-csv';
+import { PaginationComponent } from '../../shared/pagination.component';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: '7d', label: '7 días' },
@@ -46,7 +47,7 @@ const DOT: Record<string, string> = {
 @Component({
   selector: 'app-maintenance-hub',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, HubInsightsComponent, PlanDetailPanelComponent, PlanFormModalComponent, ToastHostComponent],
+  imports: [AsyncPipe, DatePipe, HubInsightsComponent, PlanDetailPanelComponent, PlanFormModalComponent, ToastHostComponent, PaginationComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -263,14 +264,7 @@ const DOT: Record<string, string> = {
                       </tbody>
                     </table>
                   </div>
-                  <nav class="flex flex-wrap items-center justify-between gap-2 border-t border-brand-grey px-3 py-2 text-[12px] text-on-surface-variant" aria-label="Paginación">
-                    <span>{{ rangeText(vm) }}</span>
-                    <span class="flex items-center gap-1">
-                      <button type="button" (click)="store.setListPage(vm.listPage - 1)" [disabled]="vm.listPage <= 1 || vm.listLoading" [class]="navButton + ' px-3 text-[12px] font-bold'">Anterior</button>
-                      <span class="px-2 font-semibold text-on-surface">{{ vm.listPage }} / {{ pages(vm) }}</span>
-                      <button type="button" (click)="store.setListPage(vm.listPage + 1)" [disabled]="vm.listPage >= pages(vm) || vm.listLoading" [class]="navButton + ' px-3 text-[12px] font-bold'">Siguiente</button>
-                    </span>
-                  </nav>
+                  <app-pagination noun="planes" [page]="vm.listPage" [pageSize]="listPageSize" [total]="vm.listTotal" [loading]="vm.listLoading" (pageChange)="store.setListPage($event)" />
                 } @else if (vm.listLoading) {
                   <div class="space-y-2 p-4" role="status" aria-label="Cargando planes">
                     @for (n of skeleton; track n) { <div class="h-10 animate-pulse rounded bg-surface-container motion-reduce:animate-none"></div> }
@@ -471,14 +465,7 @@ export class MaintenanceHubComponent implements OnInit {
     return value ? Number(value) : null;
   }
 
-  pages(vm: MaintenanceHubState): number {
-    return Math.max(Math.ceil(vm.listTotal / LIST_PAGE_SIZE), 1);
-  }
-
-  rangeText(vm: MaintenanceHubState): string {
-    const from = (vm.listPage - 1) * LIST_PAGE_SIZE + 1;
-    return `${from}–${from + vm.list.length - 1} de ${vm.listTotal}`;
-  }
+  readonly listPageSize = LIST_PAGE_SIZE;
 
   sortBy(vm: MaintenanceHubState, field: string): void {
     const current = vm.filters.sort;

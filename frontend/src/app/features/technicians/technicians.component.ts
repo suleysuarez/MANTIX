@@ -36,6 +36,7 @@ import {
   techniciansToCsv,
   validateTechnicianInput,
 } from './technician-ui';
+import { PaginationComponent } from '../../shared/pagination.component';
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -56,7 +57,7 @@ interface TechniciansView extends TechniciansState {
 @Component({
   selector: 'app-technicians',
   standalone: true,
-  imports: [AsyncPipe, CurrencyPipe, CustodianPickerComponent, TechnicianDrawerComponent],
+  imports: [AsyncPipe, CurrencyPipe, CustodianPickerComponent, TechnicianDrawerComponent, PaginationComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -314,22 +315,7 @@ interface TechniciansView extends TechniciansState {
         }
 
         @if (vm.pages > 1) {
-          <nav class="flex items-center justify-between gap-3" aria-label="Páginas de técnicos">
-            <span class="text-[12px] text-[#64748B]">Técnicos <strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + 1 }}</strong>–<strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + vm.pageItems.length }}</strong> de {{ vm.filtered.length }}</span>
-            <div class="flex items-center gap-3">
-              @if (vm.page > 1) {
-                <button type="button" (click)="setPage(vm.page - 1)"
-                  class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5]">
-                  <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-                </button>
-              }
-              <span class="text-[13px] font-semibold">Página {{ vm.page }} de {{ vm.pages }}</span>
-              <button type="button" (click)="setPage(vm.page + 1)" [disabled]="vm.page === vm.pages"
-                class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-                Siguiente <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-              </button>
-            </div>
-          </nav>
+          <app-pagination noun="técnicos" [page]="vm.page" [pageSize]="pageSize" [total]="vm.filtered.length" (pageChange)="setPage($event)" />
         }
 
         @if (createOpen()) {
