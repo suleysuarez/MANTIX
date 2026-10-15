@@ -64,11 +64,13 @@ class ExportService:
     @staticmethod
     def _authorize(definition: ExportDefinition, actor: AuthContext) -> None:
         """Some reports need a permission of their own on top of `reportes:exportar`."""
-        if definition.permission and definition.permission not in actor.permissions:
+        needed = definition.permission or "reportes:exportar"
+        if needed not in actor.permissions:
             raise ForbiddenError("No tienes permiso para exportar este reporte.")
 
-    def options(self, report: ExportReportKey) -> ExportOptions:
+    def options(self, report: ExportReportKey, actor: AuthContext) -> ExportOptions:
         definition = self._definition(report)
+        self._authorize(definition, actor)
         pdf_default = set(definition.pdf_default)
         return ExportOptions(
             report=report,

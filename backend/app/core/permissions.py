@@ -208,7 +208,7 @@ CATALOG_SET = frozenset(CATALOG)
 ROLE_PARENTS = MappingProxyType(
     {
         EMPLOYEE: None,
-        TECHNICIAN: EMPLOYEE,
+        TECHNICIAN: None,
         SUPERVISOR: TECHNICIAN,
         ADMIN: SUPERVISOR,
         AUDITOR: None,
@@ -249,6 +249,13 @@ ROLE_OWN_PERMISSIONS = MappingProxyType(
         ),
         TECHNICIAN: frozenset(
             {
+                "dashboard:ver",
+                "perfil:ver",
+                "perfil:editar",
+                "tickets:ver",
+                "tickets:adjuntar",
+                "equipos:ver",
+                "tickets:exportar",
                 "tickets:ver_asignados",
                 "tickets:editar",
                 "tickets:cambiar_estado",
@@ -259,6 +266,8 @@ ROLE_OWN_PERMISSIONS = MappingProxyType(
         ),
         SUPERVISOR: frozenset(
             {
+                "solicitudes:ver",
+                "solicitudes:crear",
                 "dashboard:ver_todos",
                 "solicitudes:ver_todos",
                 "solicitudes:editar",

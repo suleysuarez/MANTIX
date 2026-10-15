@@ -21,7 +21,7 @@ describe('Tickets screen: export to PDF and Excel', () => {
   let subject: BehaviorSubject<TicketsState>;
   let api: jasmine.SpyObj<ExportService>;
 
-  function create() {
+  function create(allowed = true) {
     subject = new BehaviorSubject(state());
     api = jasmine.createSpyObj('ExportService', ['options', 'count', 'export']);
     api.options.and.returnValue(of({ report: 'tickets', title: 'T', columns: [], formats: ['pdf', 'xlsx'], max_rows: 10_000, warn_rows: 2_000, max_range_days: 366 }));
@@ -35,7 +35,7 @@ describe('Tickets screen: export to PDF and Excel', () => {
         provideRouter([]),
         { provide: TicketsStore, useValue: store },
         { provide: ExportService, useValue: api },
-        { provide: LocalProfileService, useValue: { can: () => Promise.resolve(true) } },
+        { provide: LocalProfileService, useValue: { can: () => Promise.resolve(allowed) } },
         { provide: TechniciansService, useValue: { list: () => of([]) } },
         { provide: QueueService, useValue: { categories: () => of([]) } },
         { provide: WorkflowService, useValue: { states: () => of([]) } },
@@ -50,8 +50,11 @@ describe('Tickets screen: export to PDF and Excel', () => {
   const exportButton = (root: HTMLElement) =>
     Array.from(root.querySelectorAll('header button')).find((b) => b.textContent?.includes('Exportar')) as HTMLButtonElement;
 
-  it('has an Exportar button in the header (and no longer the page-only CSV one)', () => {
-    const root = create().nativeElement as HTMLElement;
+  it('has an Exportar button in the header (and no longer the page-only CSV one)', async () => {
+    const fixture = create();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
     expect(exportButton(root)).toBeDefined();
     expect(root.textContent).not.toContain('Exportar CSV');
     expect(root.querySelector('app-export-drawer')).toBeNull();
@@ -59,6 +62,8 @@ describe('Tickets screen: export to PDF and Excel', () => {
 
   it('opens the drawer starting from the filters of the screen', async () => {
     const fixture = create();
+    await fixture.whenStable();
+    fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     subject.next(state({ ...EMPTY_FILTERS, status: 'resolved', priority: 'high', dateFrom: '2026-10-01', dateTo: '2026-10-14' }));
     fixture.detectChanges();
@@ -76,5 +81,12 @@ describe('Tickets screen: export to PDF and Excel', () => {
     root.querySelector<HTMLElement>('[aria-label="Cerrar panel de exportación"]')!.click();
     fixture.detectChanges();
     expect(root.querySelector('app-export-drawer')).toBeNull();
+  });
+
+  it('hides the Exportar button from whoever cannot export tickets (a requester)', async () => {
+    const fixture = create(false);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(exportButton(fixture.nativeElement)).toBeUndefined();
   });
 });

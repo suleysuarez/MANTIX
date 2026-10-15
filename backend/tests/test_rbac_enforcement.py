@@ -71,6 +71,10 @@ def test_the_open_routes_are_only_the_ones_with_no_single_permission_to_ask_for(
         "/notifications",
         "/notifications/read-all",
         "/notifications/{notification_id}/read",
+        # who may export is decided per report, inside the service
+        "/reports/{report}/export",
+        "/reports/{report}/export/count",
+        "/reports/{report}/export/options",
     }
 
 

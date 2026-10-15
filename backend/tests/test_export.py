@@ -453,7 +453,7 @@ async def test_reports_without_an_export_yet_say_so():
     with pytest.raises(UnprocessableError, match="cannot be exported yet"):
         await service.export(ADMIN, "equipment", "pdf", ExportRequest(), now=NOW)
     with pytest.raises(UnprocessableError):
-        service.options("inventory_items")
+        service.options("inventory_items", ADMIN)
 
 
 async def test_each_role_exports_only_what_it_may_see():
@@ -529,7 +529,7 @@ async def test_the_header_never_shows_the_company_or_its_legal_ids():
 
 async def test_the_options_list_the_real_columns_with_their_defaults():
     service, _ = make_service()
-    options = service.options("tickets")
+    options = service.options("tickets", ADMIN)
     keys = {c.key: c for c in options.columns}
     assert keys["serial"].default_xlsx and not keys["serial"].default_pdf
     assert all(

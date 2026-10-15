@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from app.api.dependencies import require_permission
+from app.api.dependencies import require_authenticated
 from app.api.providers import get_export_service
 from app.core.authz import AuthContext
 from app.core.errors import error_responses
@@ -19,7 +19,9 @@ from app.services.export import ExportService
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 Service = Annotated[ExportService, Depends(get_export_service)]
-Reader = Annotated[AuthContext, Depends(require_permission("reportes:exportar"))]
+#: Who may export is decided per report (`ExportDefinition.permission`), so a technician can export
+#: their own tickets without being able to open the Reports screen.
+Reader = Annotated[AuthContext, Depends(require_authenticated())]
 
 
 @router.get(
@@ -30,9 +32,9 @@ Reader = Annotated[AuthContext, Depends(require_permission("reportes:exportar"))
     responses=error_responses(403, 422),
 )
 async def export_options(
-    report: ExportReportKey, _: Reader, service: Service
+    report: ExportReportKey, actor: Reader, service: Service
 ) -> ExportOptions:
-    return service.options(report)
+    return service.options(report, actor)
 
 
 @router.post(
