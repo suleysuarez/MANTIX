@@ -29,6 +29,9 @@ REPORTS_READ = "reports.read"
 AUDIT_READ = "audit.read"
 ATTACHMENTS_WRITE = "attachments.write"
 SCHEDULES_MANAGE = "schedules.manage"
+INVENTORY_READ = "inventory.read"
+INVENTORY_MANAGE = "inventory.manage"
+INVENTORY_CONSUME = "inventory.consume"
 
 ALL_PERMISSIONS = frozenset(
     {
@@ -45,6 +48,9 @@ ALL_PERMISSIONS = frozenset(
         AUDIT_READ,
         ATTACHMENTS_WRITE,
         SCHEDULES_MANAGE,
+        INVENTORY_READ,
+        INVENTORY_MANAGE,
+        INVENTORY_CONSUME,
     }
 )
 
@@ -66,6 +72,9 @@ ROLE_PERMISSIONS = MappingProxyType(
                 AUDIT_READ,
                 ATTACHMENTS_WRITE,
                 SCHEDULES_MANAGE,
+                INVENTORY_READ,
+                INVENTORY_MANAGE,
+                INVENTORY_CONSUME,
             }
         ),
         TECHNICIAN: frozenset(
@@ -75,6 +84,8 @@ ROLE_PERMISSIONS = MappingProxyType(
                 MAINTENANCE_MANAGE,
                 DASHBOARD_READ,
                 ATTACHMENTS_WRITE,
+                INVENTORY_READ,
+                INVENTORY_CONSUME,
             }
         ),
         EMPLOYEE: frozenset(

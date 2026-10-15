@@ -17,7 +17,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Técnicos', icon: 'engineering', path: '/technicians', permission: 'maintenance.read' },
   { label: 'Mantenimiento', icon: 'event_repeat', path: '/mantenimiento', permission: 'maintenance.read' },
   { label: 'Mantenimientos', icon: 'build', path: '/maintenance', permission: 'maintenance.read' },
-  { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'equipment.read' },
+  { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'inventory.read' },
   { label: 'Reportes', icon: 'monitoring', path: '/reportes', permission: 'maintenance.read' },
   { label: 'Usuarios pendientes', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'users.manage' },
   { label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'users.manage' },
