@@ -15,6 +15,10 @@ export interface WorkflowState {
   terminal: boolean;
   /** Sigue esperando trabajo: es una columna de la bandeja de solicitudes pendientes. */
   in_queue?: boolean;
+  /** Permiso que hace falta para mover un ticket A este estado. */
+  permission?: string;
+  /** Si la persona que mira tiene ese permiso (el servidor lo calcula; el tablero apaga el resto). */
+  can_enter?: boolean;
 }
 
 /** Los estados del ticket y los pasos válidos entre ellos, leídos del servidor (no escritos aquí). */

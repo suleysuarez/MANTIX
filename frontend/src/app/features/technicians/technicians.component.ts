@@ -14,7 +14,7 @@ import { BehaviorSubject, combineLatest, map } from 'rxjs';
 
 import { initials } from '../../core/equipment-status';
 import { CustodianCandidate } from '../../core/equipment.service';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { Technician } from '../../core/technicians.service';
 import { TechniciansState, TechniciansStore } from '../../core/technicians.store';
 import { CustodianPickerComponent } from '../equipos/custodian-picker.component';
@@ -448,7 +448,7 @@ interface TechniciansView extends TechniciansState {
 })
 export class TechniciansComponent implements OnInit {
   private readonly store = inject(TechniciansStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -492,7 +492,7 @@ export class TechniciansComponent implements OnInit {
       }
     });
     this.store.load();
-    this.canManage.set(await this.profile.can('tecnicos:editar').catch(() => false));
+    this.canManage.set(await this.permissions.can('tecnicos:editar').catch(() => false));
   }
 
   @HostListener('document:keydown.escape')

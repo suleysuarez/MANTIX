@@ -12,7 +12,7 @@ export interface ClerkSession {
   id: string;
   lastActiveAt?: Date;
   latestActivity?: ClerkSessionActivity;
-  getToken(): Promise<string | null>;
+  getToken(options?: { skipCache?: boolean }): Promise<string | null>;
   revoke?(): Promise<unknown>;
 }
 

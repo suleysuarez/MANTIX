@@ -62,7 +62,9 @@ export const permissionGuard = (permission: string): CanActivateFn => async () =
     return true;
   }
   // Sin ningún rol la cuenta sigue pendiente de aprobación; con rol pero sin permiso es un 403 visible.
-  return router.createUrlTree((profile.roles ?? []).length > 0 ? FORBIDDEN_ROUTE : ['/auth/pending']);
+  return (profile.roles ?? []).length > 0
+    ? router.createUrlTree(FORBIDDEN_ROUTE, { queryParams: { requiere: permission } })
+    : router.createUrlTree(['/auth/pending']);
 };
 
 /** Como `permissionGuard`, pero exige además alguno de los roles indicados. */

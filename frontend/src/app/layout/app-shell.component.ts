@@ -6,6 +6,7 @@ import { filter } from 'rxjs';
 import { ClerkService } from '../core/clerk.service';
 import { LocalProfileService } from '../core/local-profile.service';
 import { NavItem, visibleNavItems } from '../core/nav-items';
+import { PermissionsService } from '../core/permissions.service';
 import { ProfileStore } from '../core/profile.store';
 import { NotificationsBellComponent } from './notifications-bell.component';
 
@@ -154,6 +155,7 @@ function readCollapsed(): boolean {
 export class AppShellComponent implements OnInit {
   private readonly clerk = inject(ClerkService);
   private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly router = inject(Router);
   private readonly profileStore = inject(ProfileStore);
   private readonly destroyRef = inject(DestroyRef);
@@ -192,6 +194,8 @@ export class AppShellComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    // Los permisos efectivos se leen una vez aquí; las directivas y los avisos de las pantallas los usan.
+    void this.permissions.load();
     const profile = await this.profile.getProfile();
     this.navItems.set(
       visibleNavItems(

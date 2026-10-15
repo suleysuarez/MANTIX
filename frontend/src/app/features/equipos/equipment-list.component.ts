@@ -5,7 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EquipmentDetailStore } from '../../core/equipment-detail.store';
 import { Attachment, Equipment, ReportFormat } from '../../core/equipment.service';
 import { EquipmentFilters, EquipmentStore, EquipmentView, SaveRequest } from '../../core/equipment.store';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { SchedulePayload } from '../../core/schedules.service';
 import { EquipmentDetailDrawerComponent } from './equipment-detail-drawer.component';
 import { EquipmentFormModalComponent } from './equipment-form-modal.component';
@@ -160,7 +160,7 @@ const NO_ABILITIES: Abilities = {
 export class EquipmentListComponent implements OnInit {
   private readonly store = inject(EquipmentStore);
   private readonly detailStore = inject(EquipmentDetailStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly state$ = this.store.state$;
@@ -174,7 +174,7 @@ export class EquipmentListComponent implements OnInit {
     this.store.saved$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.closeForm());
     this.detailStore.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.store.refresh());
     this.store.load();
-    const can = (code: string) => this.profile.can(code).catch(() => false);
+    const can = (code: string) => this.permissions.can(code).catch(() => false);
     const [manage, exportReports, attach, schedule, createTicket, readMaintenance] = await Promise.all([
       can('equipos:editar'),
       can('reportes:exportar'),

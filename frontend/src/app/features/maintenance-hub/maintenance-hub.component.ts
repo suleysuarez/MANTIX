@@ -10,7 +10,7 @@ import { CalendarEvent } from '../../core/maintenance-overview.service';
 import {
   LIST_PAGE_SIZE, MaintenanceHubState, MaintenanceHubStore,
 } from '../../core/maintenance-hub.store';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { saveBlob, reportFilename } from '../../core/download';
 import { ToastService } from '../../core/toast.service';
 import { ToastHostComponent } from '../../shared/toast-host.component';
@@ -346,7 +346,7 @@ const DOT: Record<string, string> = {
 })
 export class MaintenanceHubComponent implements OnInit {
   readonly store = inject(MaintenanceHubStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly toasts = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -382,7 +382,7 @@ export class MaintenanceHubComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    this.canManage.set(await this.profile.can('mantenimiento:crear'));
+    this.canManage.set(await this.permissions.can('mantenimiento:crear'));
   }
 
   title(vm: MaintenanceHubState): string {

@@ -21,6 +21,8 @@ export interface MaintenanceListItem {
   category?: string | null;
   status: string;
   created_at: string;
+  /** La persona puede trabajar este ticket (los ve todos o está asignado a ella): solo esos se arrastran. */
+  can_act?: boolean;
 }
 
 export interface TechnicianSummary {

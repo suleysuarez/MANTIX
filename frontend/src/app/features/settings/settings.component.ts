@@ -2,7 +2,7 @@ import { AsyncPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { SettingsState, SettingsStore } from '../../core/settings.store';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { CategoriesSectionComponent } from './categories-section.component';
@@ -318,7 +318,7 @@ const CARD_BUTTON = `flex w-full items-center justify-center gap-2 rounded-xl bo
 })
 export class SettingsComponent implements OnInit {
   readonly store = inject(SettingsStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
 
   readonly vm$ = this.store.state$;
   readonly focus = FOCUS;
@@ -345,7 +345,7 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.loadAll();
-    void this.profile.can('configuracion:editar').then((allowed) => this.canManage.set(allowed)).catch(() => this.canManage.set(false));
+    void this.permissions.can('configuracion:editar').then((allowed) => this.canManage.set(allowed)).catch(() => this.canManage.set(false));
   }
 
   @HostListener('document:keydown.escape')

@@ -15,7 +15,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, Subject, catchError, debounceTime, map, of, tap } from 'rxjs';
 
 import { Equipment } from '../../core/equipment.service';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { apiErrorMessage } from '../../core/api-errors';
 import { MaintenanceListItem, PRIORITIES, REQUEST_STATUSES } from '../../core/maintenance.service';
 import { QueueService } from '../../core/queue.service';
@@ -39,7 +39,7 @@ import { PaginationComponent } from '../../shared/pagination.component';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { KanbanBoardComponent, KanbanCardDirective, KanbanColumn, KanbanMove, KanbanOutcome } from '../kanban/kanban-board.component';
 import { Choice, TransitionDialogComponent } from '../kanban/transition-dialog.component';
-import { TransitionFlow } from '../kanban/transition-flow';
+import { TransitionFlow, allowedTargets, permissionBlock } from '../kanban/transition-flow';
 import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
 const FIELD =
@@ -472,7 +472,7 @@ interface TicketsView extends TicketsState {
 })
 export class TicketsComponent implements OnInit {
   private readonly store = inject(TicketsStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -546,10 +546,13 @@ export class TicketsComponent implements OnInit {
     return columns;
   }
 
-  readonly validTargets = (_item: MaintenanceListItem, from: string): string[] =>
-    this.workflow().find((state) => state.status === from)?.allowed_targets ?? [];
+  readonly validTargets = (item: MaintenanceListItem, from: string): string[] => allowedTargets(item, from, this.workflow());
 
   readonly invalidMove = (move: KanbanMove<MaintenanceListItem>, allowed: string[]): string => {
+    const blocked = permissionBlock(move.item, move.to, this.workflow(), (status) => statusMeta(status).label);
+    if (blocked) {
+      return blocked;
+    }
     const label = (status: string): string => `«${statusMeta(status).label}»`;
     const next = allowed.length ? ` Desde ahí solo puede ir a ${allowed.map(label).join(', ')}.` : ' Ese estado es final.';
     return `No se puede pasar ${move.item.ticket_number} de ${label(move.from)} a ${label(move.to)}.${next}`;
@@ -604,11 +607,11 @@ export class TicketsComponent implements OnInit {
     if (this.statuses.some((item) => item === status)) {
       this.store.setFilters({ status });
     }
-    this.canCreate.set(await this.profile.can('solicitudes:crear'));
+    this.canCreate.set(await this.permissions.can('solicitudes:crear'));
     if (this.preselectedEquipmentId && this.canCreate()) {
       this.createOpen.set(true);
     }
-    this.canManage.set(await this.profile.can('tickets:cambiar_estado'));
+    this.canManage.set(await this.permissions.can('tickets:cambiar_estado'));
   }
 
   setFilter(changes: Partial<TicketFilters>): void {
