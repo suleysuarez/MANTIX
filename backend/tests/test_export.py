@@ -899,7 +899,7 @@ def test_excel_summary_shows_kpis_first_and_a_clean_chart_grid():
 
 
 def test_excel_totals_use_formulas_for_average_and_sla():
-    report, book = workbook(rows=10)
+    _report, book = workbook(rows=10)
     sheet = book["Detalle"]
     headers = [c.value for c in sheet[8]]
     total_row = 9 + 10

@@ -6,6 +6,8 @@ import { ExportService } from '../../core/export.service';
 import { LocalProfileService } from '../../core/local-profile.service';
 import { QueueService } from '../../core/queue.service';
 import { TechniciansService } from '../../core/technicians.service';
+import { TicketTransitionService } from '../../core/ticket-transitions.service';
+import { WorkflowService } from '../../core/workflow.service';
 import { EMPTY_FILTERS, TicketsState, TicketsStore } from '../../core/tickets.store';
 import { TicketsComponent } from './tickets.component';
 
@@ -36,6 +38,8 @@ describe('Tickets screen: export to PDF and Excel', () => {
         { provide: LocalProfileService, useValue: { can: () => Promise.resolve(true) } },
         { provide: TechniciansService, useValue: { list: () => of([]) } },
         { provide: QueueService, useValue: { categories: () => of([]) } },
+        { provide: WorkflowService, useValue: { states: () => of([]) } },
+        { provide: TicketTransitionService, useValue: { move: () => of({}) } },
       ],
     });
     const fixture = TestBed.createComponent(TicketsComponent);

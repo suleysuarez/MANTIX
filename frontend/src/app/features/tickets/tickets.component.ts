@@ -12,18 +12,23 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, debounceTime, map } from 'rxjs';
+import { Observable, Subject, catchError, debounceTime, map, of, tap } from 'rxjs';
 
 import { Equipment } from '../../core/equipment.service';
 import { LocalProfileService } from '../../core/local-profile.service';
+import { apiErrorMessage } from '../../core/api-errors';
 import { MaintenanceListItem, PRIORITIES, REQUEST_STATUSES } from '../../core/maintenance.service';
+import { QueueService } from '../../core/queue.service';
+import { Technician, TechniciansService } from '../../core/technicians.service';
+import { TicketTransitionService } from '../../core/ticket-transitions.service';
+import { ToastService } from '../../core/toast.service';
+import { TransitionData, WorkflowService, WorkflowState } from '../../core/workflow.service';
 import { TicketFilters, TicketOrder, TicketsState, TicketsStore, todayLocal } from '../../core/tickets.store';
 import { ChoiceOption, ExportDrawerComponent } from '../export/export-drawer.component';
 import { EMPTY_EXPORT_FILTERS, ExportFilterValues } from '../export/export-model';
 import { TicketChipComponent } from './ticket-chip.component';
 import { TicketDrawerComponent } from './ticket-drawer.component';
 import {
-  KANBAN_STATUSES,
   countByStatus,
   isUnassigned,
   needingAttention,
@@ -31,7 +36,18 @@ import {
   statusMeta,
 } from './ticket-ui';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { ToastHostComponent } from '../../shared/toast-host.component';
+import { KanbanBoardComponent, KanbanCardDirective, KanbanColumn, KanbanMove, KanbanOutcome } from '../kanban/kanban-board.component';
+import { Choice, TransitionDialogComponent } from '../kanban/transition-dialog.component';
 import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
+
+const DIALOG_TITLES: Record<string, string> = {
+  triaged: 'Clasificar ticket',
+  assigned: 'Asignar técnico',
+  resolved: 'Resolver ticket',
+  cancelled: 'Cancelar ticket',
+};
+const DIALOG_CONFIRM: Record<string, string> = { triaged: 'Clasificar', assigned: 'Asignar', resolved: 'Resolver', cancelled: 'Cancelar ticket' };
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -57,7 +73,6 @@ interface TicketsView extends TicketsState {
   counts: Record<string, number | undefined>;
   attention: MaintenanceListItem[];
   equipmentById: Map<number, Equipment>;
-  columns: { status: string; items: MaintenanceListItem[] }[];
   hasFilters: boolean;
 }
 
@@ -65,7 +80,7 @@ interface TicketsView extends TicketsState {
 @Component({
   selector: 'app-tickets',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent, DateRangeFilterComponent],
+  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent, DateRangeFilterComponent, KanbanBoardComponent, KanbanCardDirective, TransitionDialogComponent, ToastHostComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -215,7 +230,6 @@ interface TicketsView extends TicketsState {
           </div>
         </section>
 
-        <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div class="min-w-0 space-y-4">
         <div class="flex items-center justify-between gap-3">
             <div>
@@ -267,13 +281,13 @@ interface TicketsView extends TicketsState {
               <table class="w-full border-collapse text-left">
                 <thead>
                   <tr class="border-b border-[#E9EEF5] bg-[#EEF4FA]/70 text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                    <th class="w-28 px-4 py-3">Ticket</th>
-                    <th class="min-w-[280px] px-4 py-3">Título y descripción</th>
-                    <th class="min-w-[200px] px-4 py-3">Equipo</th>
+                    <th class="px-4 py-3">Ticket</th>
+                    <th class="w-[34%] px-4 py-3">Título</th>
+                    <th class="w-[22%] px-4 py-3">Equipo</th>
                     <th class="px-3 py-3 text-center">Prioridad</th>
                     <th class="px-3 py-3 text-center">Estado</th>
                     <th class="px-4 py-3">Creado</th>
-                    <th class="w-16 px-3 py-3 text-right">Ver</th>
+                    <th class="px-3 py-3 text-right"><span class="sr-only">Ver</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -283,22 +297,22 @@ interface TicketsView extends TicketsState {
                         <span class="rounded border border-[#CED4DA] bg-[#EEF4FA]/70 px-2 py-1 font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
                       </td>
                       <td class="px-4 py-3">
-                        <p class="max-w-sm truncate text-[14px] font-bold">{{ item.title }}</p>
+                        <p class="line-clamp-2 break-words text-[14px] font-bold" [attr.title]="item.title">{{ item.title }}</p>
                         @if (unassigned(item.status)) {
                           <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[#92400E]">
                             <span class="material-symbols-outlined text-[13px]">person_off</span> Sin asignar
                           </span>
                         }
                       </td>
-                      <td class="whitespace-nowrap px-4 py-3">
-                        <span class="inline-flex items-center gap-2 rounded-lg border border-[#CED4DA]/60 bg-[#EEF4FA]/60 px-2.5 py-1 text-[12px] font-medium">
+                      <td class="px-4 py-3">
+                        <span class="inline-flex max-w-full items-center gap-2 rounded-lg border border-[#CED4DA]/60 bg-[#EEF4FA]/60 px-2.5 py-1 text-[12px] font-medium" [attr.title]="equipmentLabel(vm, item.equipment_id)">
                           <span class="material-symbols-outlined text-[16px] text-[#457b9d]">devices</span>
-                          {{ equipmentLabel(vm, item.equipment_id) }}
+                          <span class="line-clamp-2 break-words">{{ equipmentLabel(vm, item.equipment_id) }}</span>
                         </span>
                       </td>
                       <td class="whitespace-nowrap px-3 py-3 text-center"><app-ticket-chip kind="priority" [value]="item.priority" /></td>
                       <td class="whitespace-nowrap px-3 py-3 text-center"><app-ticket-chip kind="status" [value]="item.status" /></td>
-                      <td class="whitespace-nowrap px-4 py-3 text-[12px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                      <td class="px-4 py-3 text-[12px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
                       <td class="px-3 py-3 text-right">
                         <button type="button" (click)="openTicket(item.id); $event.stopPropagation()" [attr.aria-label]="'Ver ' + item.ticket_number"
                           class="rounded-lg p-1.5 !text-[#64748B] transition-colors hover:bg-[#E9EEF5] hover:!text-[#0b1f3a]">
@@ -312,42 +326,30 @@ interface TicketsView extends TicketsState {
             </div>
           </div>
         } @else {
-          <div class="flex items-start gap-3 overflow-x-auto pb-2">
-            @for (column of vm.columns; track column.status) {
-              <section class="flex min-h-[320px] w-[270px] shrink-0 flex-col rounded-xl border border-[#E2E8F0] bg-[#EEF4FA]/60 p-3">
-                <div class="flex items-center justify-between border-b border-[#E9EEF5] pb-3">
-                  <span class="flex items-center gap-2 text-[14px] font-bold">
-                    <span class="h-2.5 w-2.5 rounded-full" [class]="statusDot(column.status)"></span>{{ statusLabel(column.status) }}
-                  </span>
-                  <span class="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold">{{ column.items.length }}</span>
+          <app-kanban-board ariaLabel="Tablero de tickets" [columns]="boardColumns(vm)" [key]="ticketKey" [label]="ticketLabel"
+            [validTargets]="validTargets" [handler]="moveTicket" [invalidMessage]="invalidMove" emptyText="Sin tickets" [minColumnWidth]="150">
+            <ng-template appKanbanCard let-item>
+              <article role="button" tabindex="0" (click)="openTicket(item.id)" (keydown.enter)="openTicket(item.id)"
+                class="cursor-pointer space-y-2 rounded-xl border border-[#E2E8F0] bg-white p-3 pr-9 shadow-sm transition-all hover:border-[#457b9d] hover:shadow-md">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                  <span class="font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
+                  <app-ticket-chip kind="priority" [value]="item.priority" />
                 </div>
-                <div class="flex-1 space-y-2 pt-2">
-                  @for (item of column.items; track item.id) {
-                    <article role="button" tabindex="0" (click)="openTicket(item.id)" (keydown.enter)="openTicket(item.id)" class="cursor-pointer space-y-2 rounded-xl border border-[#E2E8F0] bg-white p-3 transition-shadow hover:shadow-md">
-                      <div class="flex items-center justify-between">
-                        <span class="font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
-                        <app-ticket-chip kind="priority" [value]="item.priority" />
-                      </div>
-                      <p class="line-clamp-2 text-[13px] font-bold">{{ item.title }}</p>
-                      <p class="flex items-center gap-1 text-[11px] text-[#64748B]">
-                        <span class="material-symbols-outlined text-[14px] text-[#457b9d]">devices</span>
-                        <span class="truncate">{{ equipmentLabel(vm, item.equipment_id) }}</span>
-                      </p>
-                      <p class="border-t border-[#E9EEF5] pt-2 text-right text-[11px] text-[#94A3B8]">{{ item.created_at | date: 'dd/MM/yyyy' }}</p>
-                    </article>
-                  } @empty {
-                    <p class="py-8 text-center text-[12px] italic text-[#94A3B8]">Sin tickets</p>
-                  }
-                </div>
-              </section>
-            }
-          </div>
+                <p class="line-clamp-2 break-words text-[13px] font-bold" [attr.title]="item.title">{{ item.title }}</p>
+                <p class="flex items-start gap-1 text-[11px] text-[#64748B]">
+                  <span class="material-symbols-outlined text-[14px] text-[#457b9d]" aria-hidden="true">devices</span>
+                  <span class="line-clamp-2 break-words">{{ equipmentLabel(vm, item.equipment_id) }}</span>
+                </p>
+                <p class="border-t border-[#E9EEF5] pt-2 text-right text-[11px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy' }}</p>
+              </article>
+            </ng-template>
+          </app-kanban-board>
         }
 
         <app-pagination noun="tickets" [page]="vm.page + 1" [pageSize]="vm.pageSize" [hasNext]="vm.hasNext" [loading]="vm.loading" (pageChange)="page($event - 1)" />
         </div>
 
-        <aside class="space-y-4">
+        <aside class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="flex items-center gap-2 text-[14px] font-bold text-[#0b1f3a]">
               <span class="material-symbols-outlined text-[18px] text-[#457b9d]">bar_chart</span> Resumen de tickets
@@ -399,7 +401,13 @@ interface TicketsView extends TicketsState {
             }
           </section>
         </aside>
-        </div>
+
+        @if (dialog(); as d) {
+          <app-transition-dialog [title]="d.title" [subtitle]="d.subtitle" [confirmLabel]="d.confirm" [requires]="d.requires"
+            [categories]="categoryChoices()" [priorities]="priorityChoices" [technicians]="technicians()" [initial]="d.initial" [busy]="dialogBusy()"
+            (confirmed)="d.answer($event)" (cancelled)="d.answer(null)" />
+        }
+        <app-toast-host />
 
         @if (createOpen()) {
           <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -512,6 +520,98 @@ export class TicketsComponent implements OnInit {
     { initialValue: null },
   );
 
+  private readonly workflowApi = inject(WorkflowService);
+  private readonly transitions = inject(TicketTransitionService);
+  private readonly techniciansApi = inject(TechniciansService);
+  private readonly queueApi = inject(QueueService);
+  private readonly toasts = inject(ToastService);
+
+  /** Los estados y sus pasos válidos, tal como los define el servidor. */
+  readonly workflow = signal<WorkflowState[]>([]);
+  readonly technicians = signal<Technician[]>([]);
+  readonly categoryChoices = signal<Choice[]>([]);
+  readonly dialogBusy = signal(false);
+  /** Diálogo abierto por un paso que pide datos; `answer(null)` lo cancela. */
+  readonly dialog = signal<{
+    title: string;
+    subtitle: string;
+    confirm: string;
+    requires: WorkflowState['requires'];
+    initial: TransitionData;
+    answer: (data: TransitionData | null) => void;
+  } | null>(null);
+  private columnsCache: { items: MaintenanceListItem[]; workflow: WorkflowState[]; columns: KanbanColumn<MaintenanceListItem>[] } | null = null;
+
+  readonly ticketKey = (item: MaintenanceListItem): number => item.id;
+  readonly ticketLabel = (item: MaintenanceListItem): string => item.ticket_number;
+
+  /** Columnas del tablero: una por estado del servidor, con los tickets de la página. Se reutiliza el arreglo si nada cambió. */
+  boardColumns(vm: TicketsView): KanbanColumn<MaintenanceListItem>[] {
+    const workflow = this.workflow();
+    if (this.columnsCache?.items === vm.items && this.columnsCache.workflow === workflow) {
+      return this.columnsCache.columns;
+    }
+    const columns = workflow.map((state) => ({
+      id: state.status,
+      title: statusMeta(state.status).label,
+      dot: statusMeta(state.status).dot,
+      items: vm.items.filter((item) => item.status === state.status),
+    }));
+    this.columnsCache = { items: vm.items, workflow, columns };
+    return columns;
+  }
+
+  readonly validTargets = (_item: MaintenanceListItem, from: string): string[] =>
+    this.workflow().find((state) => state.status === from)?.allowed_targets ?? [];
+
+  readonly invalidMove = (move: KanbanMove<MaintenanceListItem>, allowed: string[]): string => {
+    const label = (status: string): string => `«${statusMeta(status).label}»`;
+    const next = allowed.length ? ` Desde ahí solo puede ir a ${allowed.map(label).join(', ')}.` : ' Ese estado es final.';
+    return `No se puede pasar ${move.item.ticket_number} de ${label(move.from)} a ${label(move.to)}.${next}`;
+  };
+
+  /** Paso pedido desde el tablero: si el estado destino exige datos se piden antes; el servidor valida y, si rechaza, la tarjeta vuelve. */
+  readonly moveTicket = (move: KanbanMove<MaintenanceListItem>): Observable<KanbanOutcome> => {
+    const requires = this.workflow().find((state) => state.status === move.to)?.requires ?? [];
+    if (requires.length === 0) {
+      return this.execute(move, {});
+    }
+    return new Observable<KanbanOutcome>((subscriber) => {
+      const finish = (outcome: KanbanOutcome): void => {
+        this.dialogBusy.set(false);
+        this.dialog.set(null);
+        subscriber.next(outcome);
+        subscriber.complete();
+      };
+      this.dialog.set({
+        title: DIALOG_TITLES[move.to] ?? 'Completa los datos',
+        subtitle: `${move.item.ticket_number} pasará a «${statusMeta(move.to).label}».`,
+        confirm: DIALOG_CONFIRM[move.to] ?? 'Confirmar',
+        requires,
+        initial: { category: move.item.category ?? '', priority: move.item.priority },
+        answer: (data) => {
+          if (!data) {
+            finish({ ok: false, cancelled: true });
+            return;
+          }
+          this.dialogBusy.set(true);
+          this.execute(move, data).subscribe(finish);
+        },
+      });
+    });
+  };
+
+  private execute(move: KanbanMove<MaintenanceListItem>, data: TransitionData): Observable<KanbanOutcome> {
+    return this.transitions.move(move.item.id, move.from, move.to, data).pipe(
+      tap(() => {
+        this.toasts.success(`${move.item.ticket_number} pasó a «${statusMeta(move.to).label}».`);
+        this.store.refresh();
+      }),
+      map((): KanbanOutcome => ({ ok: true })),
+      catchError((error) => of<KanbanOutcome>({ ok: false, message: apiErrorMessage(error, 'No se pudo cambiar el estado del ticket.') })),
+    );
+  }
+
   unassigned = isUnassigned;
   statusLabel = (status: string): string => statusMeta(status).label;
   statusDot = (status: string): string => statusMeta(status).dot;
@@ -529,6 +629,9 @@ export class TicketsComponent implements OnInit {
       this.openTicket(id);
     });
     this.store.load();
+    this.workflowApi.states().subscribe({ next: (states) => this.workflow.set(states), error: () => this.workflow.set([]) });
+    this.techniciansApi.list().subscribe({ next: (list) => this.technicians.set(list), error: () => this.technicians.set([]) });
+    this.queueApi.categories().subscribe({ next: (list) => this.categoryChoices.set(list.map((c) => ({ value: c.code, label: c.name }))), error: () => this.categoryChoices.set([]) });
     const status = this.query.get('status') ?? '';
     if (this.statuses.some((item) => item === status)) {
       this.store.setFilters({ status });
@@ -678,7 +781,6 @@ export class TicketsComponent implements OnInit {
       counts: countByStatus(state.all),
       attention: needingAttention(state.all),
       equipmentById: this.lastEquipmentMap,
-      columns: KANBAN_STATUSES.map((s) => ({ status: s, items: state.items.filter((item) => item.status === s) })),
       hasFilters: !!(search || status || priority || dateFrom || dateTo),
     };
   }

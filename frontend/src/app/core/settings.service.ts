@@ -58,8 +58,6 @@ export interface PriorityAdmin {
 
 export interface Organization {
   company_name: string;
-  legal_name: string | null;
-  tax_id: string | null;
   /** `false` mientras se usan los valores por defecto. */
   configured: boolean;
   updated_at: string | null;
@@ -67,8 +65,6 @@ export interface Organization {
 
 export interface OrganizationPayload {
   company_name: string;
-  legal_name: string | null;
-  tax_id: string | null;
 }
 
 export interface PriorityPayload {

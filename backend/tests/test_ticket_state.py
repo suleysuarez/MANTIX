@@ -172,7 +172,7 @@ def test_workflow_endpoint_mirrors_the_state_machine_and_needs_read_permission()
         )
         with TestClient(app) as client:
             body = client.get("/maintenance/requests/workflow").json()
-        assert [s["status"] for s in body][0] == "submitted"
+        assert body[0]["status"] == "submitted"
         by_status = {s["status"]: s for s in body}
         assert by_status["submitted"]["allowed_targets"] == [
             "assigned",
