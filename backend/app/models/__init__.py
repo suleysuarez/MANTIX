@@ -24,6 +24,7 @@ from app.models.maintenance import (
     TicketStatusHistory,
 )
 from app.models.notification import Notification
+from app.models.organization import OrganizationSettings
 from app.models.priority import Priority
 from app.models.report_run import ReportRun
 from app.models.schedule import MaintenanceSchedule, ScheduleReschedule, ScheduleRun
@@ -44,6 +45,7 @@ __all__ = [
     "MaintenanceRequest",
     "MaintenanceSchedule",
     "Notification",
+    "OrganizationSettings",
     "Permission",
     "Priority",
     "ReportRun",

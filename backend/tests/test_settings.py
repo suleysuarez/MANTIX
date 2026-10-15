@@ -13,7 +13,11 @@ from app.core.exceptions import ConflictError, NotFoundError, UnprocessableError
 from app.jobs import JobSnapshot, job_snapshots
 from app.main import app
 from app.repositories.settings import AuditRow, RoleRow, UserCountRow
-from app.schemas.settings import CategoryCreate, CategoryUpdate
+from app.schemas.settings import (
+    CategoryCreate,
+    CategoryUpdate,
+    OrganizationUpdate,
+)
 from app.services.settings import SystemSettingsService
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
@@ -39,6 +43,7 @@ class FakeRepo:
         self.categories = {}
         self.committed = 0
         self.deleted = []
+        self.organization = None
 
     async def ping(self):
         if self.ping_fails:
@@ -77,6 +82,18 @@ class FakeRepo:
 
     async def delete_category(self, category):
         self.deleted.append(category.id)
+
+    async def get_organization(self):
+        return self.organization
+
+    async def save_organization(self, *, company_name, legal_name, tax_id, user_id):
+        self.organization = SimpleNamespace(
+            company_name=company_name,
+            legal_name=legal_name,
+            tax_id=tax_id,
+            updated_at=NOW,
+        )
+        return self.organization
 
     async def commit(self):
         self.committed += 1
@@ -258,3 +275,88 @@ def test_settings_health_route_returns_the_panel(client):
     body = response.json()
     assert body["users"]["total"] == 10 and body["overall"] in {"ok", "warning"}
     assert "secret" not in str(body).lower()
+
+
+# -- organization (report header) -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"company_name": "A"},
+        {"company_name": "   "},
+        {"company_name": "Mantix", "tax_id": "12"},
+        {"company_name": "Mantix", "tax_id": "900 123 456"},
+        {"company_name": "Mantix", "tax_id": "9" * 31},
+        {"company_name": "Mantix", "legal_name": "x" * 201},
+        {"company_name": "Mantix", "unknown": 1},
+        {},
+    ],
+)
+def test_organization_validation(payload):
+    with pytest.raises(ValidationError):
+        OrganizationUpdate(**payload)
+
+
+def test_organization_trims_and_clears_blank_optionals():
+    payload = OrganizationUpdate(
+        company_name="  Mantix  ", legal_name="   ", tax_id="900.123.456-7"
+    )
+    assert (payload.company_name, payload.legal_name) == ("Mantix", None)
+    assert payload.tax_id == "900.123.456-7"
+
+
+async def test_organization_defaults_until_it_is_configured_then_audits_changes():
+    service, repo, audit = make()
+    default = await service.organization()
+    assert (default.company_name, default.configured, default.tax_id) == (
+        "Mantix",
+        False,
+        None,
+    )
+    saved = await service.update_organization(
+        OrganizationUpdate(
+            company_name="Majesa", legal_name="Majesa S.A.S.", tax_id="900.111.222-3"
+        ),
+        ACTOR,
+    )
+    assert saved.configured and saved.company_name == "Majesa"
+    assert audit.records[-1]["action"] == "organization.updated"
+    assert audit.records[-1]["old_values"] is None
+    await service.update_organization(
+        OrganizationUpdate(company_name="Majesa Café"), ACTOR
+    )
+    assert audit.records[-1]["old_values"]["tax_id"] == "900.111.222-3"
+    assert (await service.organization()).tax_id is None
+    assert repo.committed == 0 or repo.committed >= 2
+
+
+def test_organization_routes_need_users_manage(client):
+    as_user({"reports.read"})
+    assert client.get("/settings/organization").status_code == 403
+    assert (
+        client.put(
+            "/settings/organization", json={"company_name": "Mantix"}
+        ).status_code
+        == 403
+    )
+
+
+def test_organization_route_returns_and_saves(client):
+    service, _, _ = make()
+    app.dependency_overrides[providers.get_system_settings_service] = lambda: service
+    as_user({"users.manage"})
+    assert client.get("/settings/organization").json()["configured"] is False
+    bad = client.put(
+        "/settings/organization", json={"company_name": "M", "tax_id": "1"}
+    )
+    assert bad.status_code == 422
+    ok = client.put(
+        "/settings/organization",
+        json={
+            "company_name": "Mantix",
+            "legal_name": "Mantix S.A.S.",
+            "tax_id": "900.123.456-7",
+        },
+    )
+    assert ok.status_code == 200 and ok.json()["tax_id"] == "900.123.456-7"

@@ -21,6 +21,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.dashboard_kpis import DashboardKpiRepository
 from app.repositories.equipment import EquipmentRepository
+from app.repositories.export import ExportRepository
 from app.repositories.inventory import InventoryRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.maintenance_overview import MaintenanceOverviewRepository
@@ -39,6 +40,7 @@ from app.services.auth import ClerkAuthService
 from app.services.dashboard_kpis import DashboardKpiService
 from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
+from app.services.export import ExportService
 from app.services.inventory import InventoryService
 from app.services.maintenance import MaintenanceService
 from app.services.maintenance_overview import MaintenanceOverviewService
@@ -254,6 +256,17 @@ def get_report_builder_service(
     audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> ReportBuilderService:
     return ReportBuilderService(repository, dashboard, audit)
+
+
+def get_export_repository(session: AsyncSession = Session) -> ExportRepository:
+    return ExportRepository(session)
+
+
+def get_export_service(
+    repository: Annotated[ExportRepository, Depends(get_export_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ExportService:
+    return ExportService(repository, audit)
 
 
 def get_equipment_import_service(

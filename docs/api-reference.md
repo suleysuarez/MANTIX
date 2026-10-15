@@ -135,6 +135,9 @@
 | POST | `/reports/preview` | Preview a report with its filters | `reports.read` |
 | GET | `/reports/summary` | Export the operational summary | `reports.read` |
 | GET | `/reports/tickets` | Export maintenance tickets | `reports.read` |
+| POST | `/reports/{report}/export` | Export a report as PDF or Excel | `reports.read` |
+| POST | `/reports/{report}/export/count` | How many records an export would contain | `reports.read` |
+| GET | `/reports/{report}/export/options` | What a report export offers | `reports.read` |
 
 ### schedules
 
@@ -157,6 +160,8 @@
 | DELETE | `/settings/categories/{category_id}` | Delete an unused category | `priorities.manage` |
 | PATCH | `/settings/categories/{category_id}` | Rename or (de)activate a category | `priorities.manage` |
 | GET | `/settings/health` | System health | `users.manage` |
+| GET | `/settings/organization` | Company shown in report headers | `users.manage` |
+| PUT | `/settings/organization` | Set the company shown in report headers | `users.manage` |
 
 ### system
 
@@ -172,7 +177,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **87** endpoints.
+Total: **92** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

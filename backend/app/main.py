@@ -13,6 +13,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
 from app.api.routes.equipment import router as equipment_router
+from app.api.routes.export import router as export_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.maintenance_overview import router as maintenance_overview_router
@@ -157,6 +158,7 @@ API_ROUTERS = (
     maintenance_overview_router,
     inventory_router,
     report_builder_router,
+    export_router,
     settings_router,
     priority_router,
     dashboard_router,

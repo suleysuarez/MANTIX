@@ -9,6 +9,7 @@ from app.models.audit import AuditLog
 from app.models.auth import Role, RolePermission, User, UserRole
 from app.models.category import RequestCategory
 from app.models.maintenance import MaintenanceRequest
+from app.models.organization import OrganizationSettings
 from app.repositories.base import BaseRepository
 
 
@@ -147,3 +148,28 @@ class SettingsRepository(BaseRepository[RequestCategory]):
     async def delete_category(self, category: RequestCategory) -> None:
         await self.session.delete(category)
         await self.session.flush()
+
+    # -- organization ------------------------------------------------------------------------
+
+    async def get_organization(self) -> OrganizationSettings | None:
+        return await self.session.get(OrganizationSettings, 1)
+
+    async def save_organization(
+        self,
+        *,
+        company_name: str,
+        legal_name: str | None,
+        tax_id: str | None,
+        user_id: int | None,
+    ) -> OrganizationSettings:
+        row = await self.get_organization()
+        if row is None:
+            row = OrganizationSettings(id=1, company_name=company_name)
+            self.session.add(row)
+        row.company_name = company_name
+        row.legal_name = legal_name
+        row.tax_id = tax_id
+        row.updated_by_user_id = user_id
+        await self.session.flush()
+        await self.session.refresh(row)
+        return row

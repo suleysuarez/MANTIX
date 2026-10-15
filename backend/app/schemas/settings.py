@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Literal
 
@@ -124,4 +125,62 @@ class CategoryUpdate(BaseModel):
         value = value.strip()
         if len(value) < 3:
             raise ValueError("the name must have at least 3 characters")
+        return value
+
+
+# -- organization (report header) ---------------------------------------------------------
+
+DEFAULT_COMPANY = "Mantix"
+
+
+class OrganizationResponse(BaseModel):
+    company_name: str
+    legal_name: str | None
+    tax_id: str | None
+    configured: bool = Field(description="False while the defaults are in use")
+    updated_at: datetime | None
+
+
+class OrganizationUpdate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "company_name": "Mantix",
+                "legal_name": "Mantix S.A.S.",
+                "tax_id": "900.123.456-7",
+            }
+        },
+    )
+
+    company_name: str = Field(min_length=2, max_length=150)
+    legal_name: str | None = Field(default=None, max_length=200)
+    tax_id: str | None = Field(
+        default=None,
+        max_length=30,
+        description="Tax id (NIT): digits, letters, dots and hyphens",
+    )
+
+    @field_validator("company_name", "legal_name", "tax_id")
+    @classmethod
+    def _trim(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    @field_validator("company_name")
+    @classmethod
+    def _company_required(cls, value: str | None) -> str:
+        if value is None or len(value) < 2:
+            raise ValueError("the company name must have at least 2 characters")
+        return value
+
+    @field_validator("tax_id")
+    @classmethod
+    def _tax_id_format(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(r"[0-9A-Za-z.\-]{5,30}", value):
+            raise ValueError(
+                "the tax id must have 5 to 30 digits, letters, dots or hyphens"
+            )
         return value
