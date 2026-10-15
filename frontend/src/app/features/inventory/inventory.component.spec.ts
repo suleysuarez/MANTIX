@@ -177,7 +177,7 @@ describe('InventoryComponent', () => {
       expect(host().querySelector('[aria-label="Cargando inventario"]')).not.toBeNull();
       render(state({ items: [], total: 0 }));
       expect(host().textContent).toContain('Aún no hay ítems en el inventario');
-      expect(host().querySelector('img[src$="cola-vacia.svg"]')).not.toBeNull();
+      expect(host().querySelector('img[src$="inventario-vacio.webp"]')).not.toBeNull();
     });
 
     it('offers to clear filters when they leave nothing', () => {

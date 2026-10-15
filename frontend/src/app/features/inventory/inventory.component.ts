@@ -237,7 +237,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
               </div>
             } @else if (!vm.error) {
               <div class="glass flex flex-col items-center gap-2 rounded-2xl px-6 py-12 text-center">
-                <img src="assets/images/cola-vacia.svg" alt="" width="224" height="195" class="h-auto w-44 mix-blend-multiply" />
+                <img src="assets/images/inventario-vacio.webp" alt="" width="540" height="456" class="h-auto w-48 mix-blend-multiply" />
                 <h2 class="text-[15px] font-bold text-on-surface">{{ hasFilters(vm) ? 'Ningún ítem coincide con los filtros' : 'Aún no hay ítems en el inventario' }}</h2>
                 <p class="max-w-sm text-[13px] text-on-surface-variant">{{ hasFilters(vm) ? 'Prueba con otra búsqueda o limpia los filtros.' : 'Crea el primero o impórtalos desde un archivo CSV o Excel.' }}</p>
                 @if (!hasFilters(vm) && canManage()) {

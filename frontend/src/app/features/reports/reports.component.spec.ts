@@ -107,8 +107,11 @@ describe('ReportsComponent', () => {
       expect(store.load).toHaveBeenCalled();
     });
 
-    it('keeps the hero illustration as a clearly marked placeholder', () => {
-      expect(host().querySelector('[data-placeholder="reportes-hero.svg"]')).not.toBeNull();
+    it('shows the hero illustration, decorative and without the placeholder', () => {
+      const image = host().querySelector('header img[src$="reportes-hero.webp"]') as HTMLImageElement;
+      expect(image.getAttribute('alt')).toBe('');
+      expect(image.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(host().querySelector('[data-placeholder="reportes-hero.svg"]')).toBeNull();
     });
   });
 
