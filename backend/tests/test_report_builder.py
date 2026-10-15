@@ -548,6 +548,7 @@ def build_client(permissions):
     stub = StubBuilder()
     user = SimpleNamespace(
         id=1,
+        full_name="Ana",
         roles=[
             SimpleNamespace(
                 code="SUPERVISOR",

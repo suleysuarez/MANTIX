@@ -7,15 +7,15 @@ from typing import Any
 
 from app.exports.base import ExportContext, ExportDefinition, Scope
 from app.exports.formatting import format_value, local
+from app.exports.meta import meta_items, report_code
 from app.exports.model import (
     ExportColumn,
     ExtraSheet,
-    MetaItem,
     ReportExport,
     SummaryGroup,
     SummaryLine,
 )
-from app.exports.theme import DATE_FORMAT, DATETIME_FORMAT
+from app.exports.theme import DATE_FORMAT
 from app.repositories.export import ExportRepository
 from app.schemas.export import ExportFilters
 
@@ -47,7 +47,7 @@ COLUMNS = (
     ExportColumn("serial", "Serial", width=16),
     ExportColumn("equipment_type", "Tipo de equipo", width=15),
     ExportColumn("category", "Categoría", width=15),
-    ExportColumn("status", "Estado", width=12, align="center"),
+    ExportColumn("status", "Estado", width=14, align="center", pill=True),
     ExportColumn("priority", "Prioridad", width=11, align="center"),
     ExportColumn("requested_by", "Solicitante", width=20),
     ExportColumn("technician", "Técnico", width=20),
@@ -187,7 +187,14 @@ class TicketsExport(ExportDefinition):
 
     def build(self, rows: list[dict[str, Any]], context: ExportContext) -> ReportExport:
         data = [prepare(row) for row in rows]
-        generated = local(context.generated_at).strftime(DATETIME_FORMAT)
+        meta = meta_items(
+            code=report_code("TICK", context.generated_at),
+            generated_by=context.generated_by,
+            generated_at=context.generated_at,
+            records=len(data),
+            period=describe_period(context.filters),
+            filters=describe_filters(context.filters),
+        )
         return ReportExport(
             key=self.key,
             title=self.title.upper(),
@@ -195,16 +202,9 @@ class TicketsExport(ExportDefinition):
             columns=self.columns,
             rows=data,
             sheet_name="Detalle",
-            meta_left=[
-                MetaItem("Empresa", context.company),
-                MetaItem("Generado por", context.generated_by),
-                MetaItem("Generado el", generated),
-            ],
-            meta_right=[
-                MetaItem("Período", describe_period(context.filters)),
-                MetaItem("Total de registros", str(len(data))),
-                MetaItem("Filtros", describe_filters(context.filters)),
-            ],
+            subtitle="Gestión de equipos tecnológicos",
+            meta_left=meta[0],
+            meta_right=meta[1],
             summary=self._summary(data),
             extra_sheets=[self._by_technician(data)],
         )
@@ -225,13 +225,18 @@ class TicketsExport(ExportDefinition):
         mean_hours = round(sum(hours) / len(hours), 1) if hours else None
         sla_pct = round(met / len(measurable) * 100, 1) if measurable else None
         totals = [
-            SummaryLine("Total de tickets", len(data), str(len(data))),
-            SummaryLine("Abiertos", open_count, str(open_count)),
-            SummaryLine("Resueltos o cerrados", done, str(done)),
+            SummaryLine(
+                "Total de tickets", len(data), str(len(data)), "Registros del reporte"
+            ),
+            SummaryLine(
+                "Abiertos", open_count, str(open_count), "En espera de atención", "warn"
+            ),
+            SummaryLine("Resueltos o cerrados", done, str(done), "Finalizados", "good"),
             SummaryLine(
                 "Tiempo medio de resolución (h)",
                 mean_hours,
                 format_value(mean_hours, "number") if mean_hours is not None else "N/A",
+                "Horas hasta resolver",
             ),
             SummaryLine(
                 "Cumplimiento de SLA (%)",
@@ -239,8 +244,12 @@ class TicketsExport(ExportDefinition):
                 f"{format_value(sla_pct, 'number')} %"
                 if sla_pct is not None
                 else "N/A",
+                "Dentro del tiempo acordado",
+                "good",
             ),
-            SummaryLine("Costo total", float(cost), _money(cost)),
+            SummaryLine(
+                "Costo total", float(cost), _money(cost), "Mano de obra y repuestos"
+            ),
         ]
         return [
             SummaryGroup(

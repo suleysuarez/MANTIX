@@ -7,7 +7,7 @@ from typing import Any, cast
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import aliased
 
-from app.models.auth import User
+from app.models.auth import Role, User, UserRole
 from app.models.category import RequestCategory
 from app.models.equipment import Equipment, EquipmentType
 from app.models.maintenance import (
@@ -21,6 +21,10 @@ from app.models.technician import Technician
 from app.repositories.report import MAX_EXPORT_ROWS
 from app.repositories.report_builder import ReportBuilderRepository
 from app.schemas.export import ExportFilters
+
+#: Ticket statuses that count as open work / as finished work for a technician's load.
+OPEN_STATUSES = ("assigned", "in_progress", "waiting")
+DONE_STATUSES = ("resolved", "closed")
 
 
 class ExportRepository(ReportBuilderRepository):
@@ -108,6 +112,152 @@ class ExportRepository(ReportBuilderRepository):
         if filters.date_to is not None:
             query = query.where(request.created_at <= filters.date_to)
         return cast("Select[Any]", query)
+
+    def _technicians(self, filters: ExportFilters) -> Select[Any]:
+        """Roster rows: the person, their profile and how many tickets they hold or closed."""
+        open_tickets = (
+            select(
+                TicketAssignment.technician_id.label("technician_id"),
+                func.count(MaintenanceRequest.id).label("open_tickets"),
+            )
+            .join(
+                MaintenanceRequest, MaintenanceRequest.id == TicketAssignment.request_id
+            )
+            .where(
+                TicketAssignment.unassigned_at.is_(None),
+                MaintenanceRequest.status.in_(OPEN_STATUSES),
+            )
+            .group_by(TicketAssignment.technician_id)
+            .subquery("open_load")
+        )
+        resolved = (
+            select(
+                TicketAssignment.technician_id.label("technician_id"),
+                func.count(func.distinct(MaintenanceRequest.id)).label("resolved"),
+            )
+            .join(
+                MaintenanceRequest, MaintenanceRequest.id == TicketAssignment.request_id
+            )
+            .where(MaintenanceRequest.status.in_(DONE_STATUSES))
+            .group_by(TicketAssignment.technician_id)
+            .subquery("done_load")
+        )
+        open_count = func.coalesce(open_tickets.c.open_tickets, 0)
+        query: Any = (
+            select(
+                Technician.id,
+                User.full_name,
+                User.employee_code,
+                User.email,
+                Technician.specialization,
+                User.is_active,
+                Technician.is_available,
+                Technician.hourly_rate,
+                Technician.created_at,
+                open_count.label("open_tickets"),
+                func.coalesce(resolved.c.resolved, 0).label("resolved"),
+            )
+            .join(User, User.id == Technician.user_id)
+            .outerjoin(open_tickets, open_tickets.c.technician_id == Technician.id)
+            .outerjoin(resolved, resolved.c.technician_id == Technician.id)
+        )
+        if filters.is_active is not None:
+            query = query.where(User.is_active.is_(filters.is_active))
+        if filters.is_available is not None:
+            query = query.where(Technician.is_available.is_(filters.is_available))
+        if filters.specialty:
+            query = query.where(
+                func.lower(Technician.specialization).contains(
+                    filters.specialty.lower()
+                )
+            )
+        if filters.load == "none":
+            query = query.where(open_count == 0)
+        elif filters.load == "low":
+            query = query.where(open_count.between(1, 2))
+        elif filters.load == "high":
+            query = query.where(open_count >= 3)
+        if filters.search:
+            term = f"%{filters.search.lower()}%"
+            query = query.where(
+                func.lower(
+                    func.concat_ws(
+                        " ",
+                        User.full_name,
+                        User.email,
+                        User.employee_code,
+                        Technician.specialization,
+                    )
+                ).like(term)
+            )
+        return cast("Select[Any]", query)
+
+    async def count_technicians(self, filters: ExportFilters) -> int:
+        result = await self.session.execute(
+            select(func.count()).select_from(self._technicians(filters).subquery())
+        )
+        return int(result.scalar_one())
+
+    async def export_technicians(
+        self, filters: ExportFilters, *, limit: int = MAX_EXPORT_ROWS
+    ) -> list[dict[str, Any]]:
+        query = (
+            self._technicians(filters)
+            .order_by(User.full_name, Technician.id)
+            .limit(limit)
+        )
+        return [dict(row._mapping) for row in await self.session.execute(query)]
+
+    def _users(self, filters: ExportFilters) -> Select[Any]:
+        """Accounts with their role names, filtered like the Users screen."""
+        roles = (
+            select(func.string_agg(Role.name, ", "))
+            .select_from(UserRole)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(UserRole.user_id == User.id)
+            .scalar_subquery()
+        )
+        query: Any = select(
+            User.id,
+            User.full_name,
+            User.email,
+            User.employee_code,
+            User.phone,
+            User.is_active,
+            User.last_login_at,
+            User.created_at,
+            roles.label("roles"),
+        )
+        if filters.is_active is not None:
+            query = query.where(User.is_active.is_(filters.is_active))
+        if filters.role:
+            query = query.where(
+                User.user_roles.any(UserRole.role.has(Role.code == filters.role))
+            )
+        if filters.date_from is not None:
+            query = query.where(User.created_at >= filters.date_from)
+        if filters.date_to is not None:
+            query = query.where(User.created_at <= filters.date_to)
+        if filters.search:
+            term = f"%{filters.search.lower()}%"
+            query = query.where(
+                func.lower(
+                    func.concat_ws(" ", User.full_name, User.email, User.employee_code)
+                ).like(term)
+            )
+        return cast("Select[Any]", query)
+
+    async def count_users(self, filters: ExportFilters) -> int:
+        result = await self.session.execute(
+            select(func.count()).select_from(self._users(filters).subquery())
+        )
+        return int(result.scalar_one())
+
+    async def export_users(
+        self, filters: ExportFilters, *, limit: int = MAX_EXPORT_ROWS
+    ) -> list[dict[str, Any]]:
+        query = self._users(filters).order_by(User.full_name, User.id).limit(limit)
+        return [dict(row._mapping) for row in await self.session.execute(query)]
 
     async def count_tickets(
         self,

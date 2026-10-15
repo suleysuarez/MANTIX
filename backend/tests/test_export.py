@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from app.api import providers
 from app.api.dependencies import get_authenticated_user
 from app.core.authz import AuthContext
-from app.core.exceptions import UnprocessableError
+from app.core.exceptions import ForbiddenError, UnprocessableError
 from app.exports.base import ExportContext, Scope
 from app.exports.formatting import format_value
 from app.exports.model import ExportColumn
@@ -132,17 +132,26 @@ def test_the_report_describes_itself_and_summarises_the_rows():
         [raw_row(n) for n in range(1, 13)],
         context(statuses=["resolved"], date_from=aware(1), date_to=aware(30)),
     )
-    left = {m.label: m.value for m in report.meta_left}
-    right = {m.label: m.value for m in report.meta_right}
-    assert left["Empresa"] == "Mantix S.A.S."
-    # the legal name and the NIT never appear in an exported report
-    assert "NIT" not in left and "Razón social" not in left and "NIT" not in right
-    assert left["Generado por"] == "Ana Pérez"
-    assert right["Período"] == "31/08/2026 – 29/09/2026" or right["Período"].startswith(
+    meta = {m.label: m.value for m in [*report.meta_left, *report.meta_right]}
+    # the company, the legal name and the NIT are not part of an exported report
+    assert not {"Empresa", "NIT", "Razón social"} & set(meta)
+    assert meta["Reporte"].startswith("TICK-2026")
+    assert meta["Fecha de generación"] == "14/10/2026 10:00"
+    assert meta["Generado por"] == "Ana Pérez"
+    assert meta["Periodo"] == "31/08/2026 – 29/09/2026" or meta["Periodo"].startswith(
         "0"
     )
-    assert right["Total de registros"] == "12"
-    assert right["Filtros"] == "Estado: Resuelto"
+    assert meta["Registros"] == "12"
+    assert meta["Filtros"] == "Estado: Resuelto"
+    # laid out row by row in three columns: code, date, period / author, records, filters
+    assert [m.label for m in [*report.meta_left, *report.meta_right]] == [
+        "Reporte",
+        "Fecha de generación",
+        "Periodo",
+        "Generado por",
+        "Registros",
+        "Filtros",
+    ]
     groups = {
         g.title: {line.label: line.value for line in g.lines} for g in report.summary
     }
@@ -255,14 +264,16 @@ def test_pdf_opens_and_paginates_long_tables():
     )
 
 
-def test_pdf_summary_and_charts_are_optional():
+def test_pdf_summary_is_optional_and_has_no_charts():
     report = TicketsExport().build([raw_row(n) for n in range(1, 4)], context())
     chosen = report.only(["ticket_number", "status"])
     full = render_pdf(chosen)
-    no_charts = render_pdf(chosen, include_charts=False)
     no_summary = render_pdf(chosen, include_summary=False)
-    assert len(full) > len(no_charts) > len(no_summary)
+    assert len(full) > len(no_summary)
     assert pdf_pages(no_summary) == 1
+    # Charts are an Excel-only extra: the PDF renderer does not even take the option.
+    with pytest.raises(TypeError):
+        render_pdf(chosen, include_charts=True)  # type: ignore[call-arg]
 
 
 def test_pdf_handles_an_empty_table_and_odd_text():
@@ -339,6 +350,12 @@ class FakeRepository:
 
     async def technician_id_of(self, user_id):
         return self._technician_id
+
+    async def count_users(self, filters):
+        return len(self.rows)
+
+    async def export_users(self, filters, *, limit):
+        return self.rows[:limit]
 
     async def count_tickets(self, filters, *, requester_id=None, technician_id=None):
         self.scopes.append((requester_id, technician_id))
@@ -446,18 +463,58 @@ async def test_each_role_exports_only_what_it_may_see():
     assert isinstance(Scope(), Scope)
 
 
-async def test_the_header_uses_the_company_settings_or_falls_back():
-    service, _ = make_service()
-    default = await service.export(ADMIN, "tickets", "xlsx", ExportRequest(), now=NOW)
-    sheet = load_workbook(io.BytesIO(default.content))["Detalle"]
-    values = {c.value for row in sheet.iter_rows(min_row=4, max_row=7) for c in row}
-    assert "Mantix" in values and "NIT" not in values and "Razón social" not in values
-    org = SimpleNamespace(company_name="Majesa")
-    service, _ = make_service(organization=org)
-    custom = await service.export(ADMIN, "tickets", "xlsx", ExportRequest(), now=NOW)
-    sheet = load_workbook(io.BytesIO(custom.content))["Detalle"]
-    values = {c.value for row in sheet.iter_rows(min_row=4, max_row=7) for c in row}
-    assert "Majesa" in values and "NIT" not in values
+def user_row(n: int, **over: Any) -> dict[str, Any]:
+    return {
+        "id": n,
+        "full_name": f"Persona {n}",
+        "email": f"p{n}@example.com",
+        "employee_code": f"E-{n}",
+        "phone": None,
+        "is_active": n % 2 == 1,
+        "last_login_at": None if n == 1 else NOW,
+        "created_at": NOW,
+        "roles": "Empleado" if n != 2 else None,
+        **over,
+    }
+
+
+MANAGER = AuthContext(
+    user=SimpleNamespace(id=1, full_name="Ana Pérez"),
+    roles=frozenset({"ADMIN"}),
+    permissions=frozenset({"reports.read", "users.manage"}),
+)
+
+
+async def test_the_users_report_needs_users_manage_on_top_of_reports_read():
+    service, _ = make_service(rows=[user_row(n) for n in range(1, 5)])
+    with pytest.raises(ForbiddenError):
+        await service.count(ADMIN, "users", ExportFilters())
+    with pytest.raises(ForbiddenError):
+        await service.export(ADMIN, "users", "pdf", ExportRequest(), now=NOW)
+    assert (await service.count(MANAGER, "users", ExportFilters())).total == 4
+
+
+async def test_the_users_report_exports_pdf_and_excel_without_passwords_or_company():
+    service, _ = make_service(rows=[user_row(n) for n in range(1, 5)])
+    pdf = await service.export(MANAGER, "users", "pdf", ExportRequest(), now=NOW)
+    assert pdf.filename == "mantix_users_2026-10-14.pdf" and pdf_pages(pdf.content) >= 1
+    xlsx = await service.export(MANAGER, "users", "xlsx", ExportRequest(), now=NOW)
+    sheet = load_workbook(io.BytesIO(xlsx.content))["Detalle"]
+    text = " ".join(str(c.value) for row in sheet.iter_rows() for c in row if c.value)
+    assert "Persona 1" in text and "Sin rol" in text and "Inactivo" in text
+    assert "password" not in text.lower() and "contraseña" not in text.lower()
+
+
+async def test_the_header_never_shows_the_company_or_its_legal_ids():
+    for organization in (None, SimpleNamespace(company_name="Majesa")):
+        service, _ = make_service(organization=organization)
+        out = await service.export(ADMIN, "tickets", "xlsx", ExportRequest(), now=NOW)
+        sheet = load_workbook(io.BytesIO(out.content))["Detalle"]
+        values = {c.value for row in sheet.iter_rows(min_row=1, max_row=7) for c in row}
+        assert (
+            not {"Mantix S.A.S.", "Majesa", "Empresa", "NIT", "Razón social"} & values
+        )
+        assert {"Reporte", "Fecha de generación", "Generado por", "Registros"} <= values
 
 
 async def test_the_options_list_the_real_columns_with_their_defaults():
@@ -848,14 +905,6 @@ def test_the_totals_row_covers_count_average_and_sla():
     nothing = [prepare(raw_row(1))]
     assert total_text(columns["resolution_hours"], nothing) == "—"
     assert total_text(columns["sla_met"], nothing) == "—"
-
-
-def test_the_pdf_summary_splits_where_a_table_column_ends():
-    from app.exports.pdf import _split
-
-    widths = [80.0, 60.0, 50.0, 70.0, 40.0]
-    index = _split(widths)
-    assert sum(widths[:index]) in (140.0, 190.0)  # boundary closest to half of 300
 
 
 def test_the_pdf_with_nine_columns_fits_one_landscape_table():

@@ -172,6 +172,83 @@ async def test_assigning_an_inactive_technician_is_a_409():
     assert not service.audit.records[-1]["action"].endswith("technician_assigned")
 
 
+# -- kanban moves: State Pattern, required data, history and audit -----------------
+
+
+def test_queue_columns_are_the_states_waiting_for_work():
+    from app.domain.ticket_state import TicketState
+
+    queue = [s.status for s in TicketState.workflow() if s.in_queue]
+    assert queue == ["submitted", "triaged", "assigned"]
+
+
+async def test_a_valid_move_leaves_history_and_audit():
+    service = service_with_fakes(technicians=[make_technician(1, user_id=10)])
+    created = await create_ticket(service)
+    moved = await service.classify_request(
+        created.id,
+        MaintenanceClassifyRequest(category="network", priority="high"),
+        ADMIN,
+    )
+    assert moved.status == "triaged"
+    moved = await service.assign_technician(
+        created.id, TicketAssignmentCreateRequest(technician_id=1), ADMIN
+    )
+    assert moved.status == "assigned"
+    steps = [(h.from_status, h.to_status) for h in moved.status_history]
+    assert steps[-2:] == [("submitted", "triaged"), ("triaged", "assigned")]
+    actions = [r["action"] for r in service.audit.records]
+    assert "maintenance.classified" in actions
+    assert "maintenance.technician_assigned" in actions
+
+
+async def test_an_invalid_move_is_refused_and_changes_nothing():
+    from app.core.exceptions import InvalidTransitionError
+
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    with pytest.raises(InvalidTransitionError):
+        await service.transition_status(
+            created.id, MaintenanceStatusTransitionRequest(status="resolved"), ADMIN
+        )
+    assert (await service.get_request(created.id, ADMIN)).status == "submitted"
+
+
+async def test_moving_to_assigned_without_a_technician_is_refused():
+    from app.core.exceptions import InvalidTransitionError
+
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    with pytest.raises(InvalidTransitionError, match="without an assigned technician"):
+        await service.transition_status(
+            created.id, MaintenanceStatusTransitionRequest(status="assigned"), ADMIN
+        )
+
+
+@pytest.mark.parametrize("missing", ["category", "priority"])
+def test_classifying_without_the_required_data_is_a_validation_error(missing):
+    body = {"category": "network", "priority": "high"}
+    body.pop(missing)
+    with pytest.raises(ValidationError):
+        MaintenanceClassifyRequest(**body)
+
+
+def test_assigning_without_a_technician_is_a_validation_error():
+    with pytest.raises(ValidationError):
+        TicketAssignmentCreateRequest()
+
+
+async def test_moving_a_card_needs_an_elevated_role():
+    service = service_with_fakes(technicians=[make_technician(1, user_id=10)])
+    created = await create_ticket(service)
+    with pytest.raises(ForbiddenError):
+        await service.assign_technician(
+            created.id,
+            TicketAssignmentCreateRequest(technician_id=1),
+            make_actor(50, role_codes=("EMPLOYEE",)),
+        )
+
+
 # -- queue service (fake repository) ----------------------------------------------
 
 

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-from app.exports.model import ExportColumn, Kind
+from app.exports.model import ExportColumn, Kind, Tone
 from app.exports.theme import DATE_FORMAT, DATETIME_FORMAT, DISPLAY_TZ
 
 EMPTY = "—"
@@ -43,6 +43,63 @@ def format_value(value: Any, kind: Kind) -> str:
     if kind == "int":
         return _grouped(value, 0)
     return str(value)
+
+
+_TONES: tuple[tuple[Tone, tuple[str, ...]], ...] = (
+    (
+        "bad",
+        (
+            "vencid",
+            "agotad",
+            "fuera de servicio",
+            "dado de baja",
+            "cancelad",
+            "rechazad",
+            "crític",
+        ),
+    ),
+    (
+        "warn",
+        (
+            "proceso",
+            "curso",
+            "espera",
+            "mantenimiento",
+            "bajo mínimo",
+            "reparación",
+            "ajuste",
+        ),
+    ),
+    (
+        "good",
+        (
+            "completad",
+            "resuelt",
+            "cerrad",
+            "en stock",
+            "activo",
+            "disponible",
+            "asignad",
+            "funcionamiento",
+            "entrada",
+            "en uso",
+            "almacén",
+        ),
+    ),
+    ("info", ("programad", "enviad", "clasificad", "consumo", "triaje")),
+)
+
+
+def status_tone(text: str) -> Tone:
+    """Colour family of a status written in Spanish («Vencido» is red, «Completado» green…).
+    Unknown or negated words («Inactivo», «No disponible», «Pendiente») are neutral grey."""
+    lowered = text.casefold()
+    if lowered.startswith(("inactiv", "no ")) or "pendiente" in lowered:
+        return "neutral"
+    for tone, words in _TONES:
+        if any(word in lowered for word in words):
+            return tone
+    return "neutral"
 
 
 def total_of(column: ExportColumn, rows: list[dict[str, Any]]) -> Any:

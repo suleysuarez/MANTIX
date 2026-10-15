@@ -19,6 +19,7 @@ from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.maintenance_overview import router as maintenance_overview_router
 from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
+from app.api.routes.profile import router as profile_router
 from app.api.routes.queue import router as queue_router
 from app.api.routes.report import import_router
 from app.api.routes.report import router as report_router
@@ -26,6 +27,7 @@ from app.api.routes.report_builder import router as report_builder_router
 from app.api.routes.schedule import router as schedule_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.technician import router as technician_router
+from app.api.routes.users import router as users_router
 from app.core.config import get_settings
 from app.core.errors import error_responses, register_exception_handlers
 from app.core.middleware import (
@@ -150,6 +152,8 @@ COMMON_ERRORS = error_responses(401, 403, 422, 429)
 API_ROUTERS = (
     auth_router,
     admin_router,
+    users_router,
+    profile_router,
     equipment_router,
     location_router,
     technician_router,

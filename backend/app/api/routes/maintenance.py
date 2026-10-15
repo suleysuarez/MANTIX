@@ -46,6 +46,7 @@ async def ticket_workflow(
             allowed_targets=sorted(state.allowed_targets),
             requires=list(state.requires),
             terminal=state.is_terminal,
+            in_queue=state.in_queue,
         )
         for state in TicketState.workflow()
     ]

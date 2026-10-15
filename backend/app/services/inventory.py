@@ -13,9 +13,12 @@ from app.core.exceptions import (
     UnprocessableError,
 )
 from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.core.text import collapse, fold, normalise_unit, slug, title_case
+from app.core.validation_messages import describe
+from app.exports.inventory_template import build_import_template
 from app.models.inventory import InventoryItem, InventoryMovement
 from app.repositories.base import Page
-from app.repositories.inventory import InventoryRepository
+from app.repositories.inventory import InventoryRepository, ItemRanges
 from app.schemas.dashboard import Period
 from app.schemas.inventory import (
     MAX_QUANTITY,
@@ -27,6 +30,8 @@ from app.schemas.inventory import (
     MonthlyConsumption,
     MovementCreate,
     MovementResponse,
+    OptionCreate,
+    OptionResponse,
     ReorderAlert,
     Rotation,
     StaleItem,
@@ -45,6 +50,8 @@ from app.services.dashboard_kpis import (
 MANAGE = "inventory.manage"
 _CENT = Decimal("0.01")
 _NOT_NULL = ("name", "category", "unit", "unit_cost", "min_stock")
+#: Drop-down fields whose text is matched against `inventory_options` (one spelling per value).
+_FREE_OPTIONS = ("unit", "location", "supplier")
 
 
 def _money(value: Decimal) -> Decimal:
@@ -87,16 +94,133 @@ class InventoryService:
         status: str | None = None,
         params: PageParams = DEFAULT_PAGE,
         now: datetime | None = None,
+        ranges: ItemRanges | None = None,
     ) -> Page[ItemResponse]:
+        if ranges is not None:
+            self._check_ranges(ranges)
         page = await self.repository.search(
             search=search,
             category=category,
             status=status,
             now=now or datetime.now(UTC),
             params=params,
+            ranges=ranges,
         )
         last = await self.repository.last_movements([item.id for item in page.items])
         return page.map(lambda item: self._response(item, last.get(item.id)))
+
+    @staticmethod
+    def _check_ranges(r: ItemRanges) -> None:
+        """Each pair must be coherent: the start cannot come after the end."""
+        pairs: tuple[tuple[str, Any, Any], ...] = (
+            ("stock", r.stock_min, r.stock_max),
+            ("precio", r.cost_min, r.cost_max),
+            ("fecha de ingreso", r.created_from, r.created_to),
+            ("fecha de movimiento", r.moved_from, r.moved_to),
+        )
+        for name, low, high in pairs:
+            if low is not None and high is not None and high < low:
+                raise UnprocessableError(
+                    f"el rango de {name} no es válido: el valor final es menor que el inicial"
+                )
+
+    # -- drop-down options -------------------------------------------------------------
+
+    async def list_options(self, kind: str | None = None) -> list[OptionResponse]:
+        return [
+            OptionResponse(kind=o.kind, value=o.value, label=o.label)  # type: ignore[arg-type]
+            for o in await self.repository.list_options(kind)
+        ]
+
+    @staticmethod
+    def _option_text(kind: str, name: str) -> tuple[str, str]:
+        """The `(value, label)` a name becomes: units in lower case, the rest as a title;
+        a category's value is its code."""
+        if kind == "unit":
+            text = normalise_unit(name)
+            return text, text
+        label = title_case(name)
+        return (slug(label), label) if kind == "category" else (label, label)
+
+    async def create_option(
+        self, payload: OptionCreate, actor: AuthContext
+    ) -> OptionResponse:
+        """Add a value to a drop-down. A value that already exists, whatever its case, is a 409."""
+        if payload.kind != "unit" and len(payload.name) < 2:
+            raise UnprocessableError("el nombre debe tener al menos 2 caracteres")
+        value, label = self._option_text(payload.kind, payload.name)
+        if payload.kind == "category" and not (
+            2 <= len(value) <= 30 and value[0].isalpha()
+        ):
+            raise UnprocessableError(
+                "el nombre de la categoría debe empezar con una letra y tener hasta 30 caracteres"
+            )
+        if await self.repository.option_by_key(payload.kind, fold(label)):
+            raise ConflictError(f"ya existe «{label}» en esta lista")
+        option = await self.repository.add_option(
+            kind=payload.kind, value=value, label=label, key=fold(label)
+        )
+        self.audit.record(
+            user_id=actor.id,
+            action="inventory.option_created",
+            entity_type="inventory_option",
+            entity_id=option.id,
+            new_values={"kind": payload.kind, "value": value, "label": label},
+        )
+        await self.repository.commit()
+        return OptionResponse(kind=payload.kind, value=value, label=label)
+
+    async def _canonical(self, kind: str, text: str, actor: AuthContext) -> str:
+        """The stored spelling of a unit, location or supplier: the one already registered
+        (so «bodega a» becomes «Bodega A») or, if it is new, itself, which is registered."""
+        value, label = self._option_text(kind, text)
+        found = await self.repository.option_by_key(kind, fold(label))
+        if found is not None:
+            return found.value
+        option = await self.repository.add_option(
+            kind=kind, value=value, label=label, key=fold(label)
+        )
+        self.audit.record(
+            user_id=actor.id,
+            action="inventory.option_created",
+            entity_type="inventory_option",
+            entity_id=option.id,
+            new_values={"kind": kind, "value": value, "label": label},
+        )
+        return value
+
+    async def _category_map(self) -> dict[str, str]:
+        """Every way to name a category (its code, its folded name) -> its code."""
+        found: dict[str, str] = {}
+        for option in await self.repository.list_options("category"):
+            found[option.value] = option.value
+            found[option.key] = option.value
+        return found
+
+    @staticmethod
+    def _category_code(known: dict[str, str], text: str) -> str | None:
+        """The code of a category given its code or its name (any case), else `None`."""
+        return known.get(text) or known.get(fold(text)) or known.get(slug(text))
+
+    async def _resolve(
+        self, fields: dict[str, Any], actor: AuthContext
+    ) -> dict[str, Any]:
+        """Check the category exists and give unit, location and supplier their stored spelling."""
+        out = dict(fields)
+        if out.get("category") is not None:
+            code = self._category_code(await self._category_map(), out["category"])
+            if code is None:
+                raise UnprocessableError(f"la categoría '{out['category']}' no existe")
+            out["category"] = code
+        for field in _FREE_OPTIONS:
+            if out.get(field):
+                out[field] = await self._canonical(field, out[field], actor)
+        return out
+
+    async def import_template(self) -> bytes:
+        """The Excel template for the import; the category drop-down lists today's categories."""
+        categories = [o.label for o in await self.repository.list_options("category")]
+        return build_import_template(categories)
 
     async def get(self, item_id: int) -> ItemResponse:
         item = await self._require(item_id)
@@ -105,8 +229,12 @@ class InventoryService:
 
     async def create(self, payload: ItemCreate, actor: AuthContext) -> ItemResponse:
         if await self.repository.find_skus({payload.sku}):
-            raise ConflictError(f"an item with SKU '{payload.sku}' already exists")
-        item = await self._add(payload, actor)
+            raise ConflictError(f"ya existe un ítem con el código '{payload.sku}'")
+        resolved = await self._resolve(
+            payload.model_dump(include={"category", "unit", "location", "supplier"}),
+            actor,
+        )
+        item = await self._add(payload.model_copy(update=resolved), actor)
         await self.repository.commit()
         return await self.get(item.id)
 
@@ -123,7 +251,13 @@ class InventoryService:
         minimum = changes.get("min_stock", item.min_stock)
         maximum = changes.get("max_stock", item.max_stock)
         if maximum is not None and maximum < minimum:
-            raise UnprocessableError("max_stock cannot be below min_stock")
+            raise UnprocessableError("el stock máximo no puede ser menor que el mínimo")
+        changes.update(
+            await self._resolve(
+                {k: changes[k] for k in changes if k in {"category", *_FREE_OPTIONS}},
+                actor,
+            )
+        )
         old = {field: getattr(item, field) for field in changes}
         await self.repository.update_fields(item, changes)
         self.audit.record(
@@ -325,17 +459,31 @@ class InventoryService:
     # -- import ------------------------------------------------------------------------
 
     async def import_items(
-        self, rows: list[dict[str, str]], actor: AuthContext, *, dry_run: bool
+        self,
+        rows: list[dict[str, str]],
+        actor: AuthContext,
+        *,
+        dry_run: bool,
+        skip_invalid: bool = False,
     ) -> ImportResult:
-        """All-or-nothing bulk creation. A fixed file can simply be uploaded again."""
+        """Bulk creation, checked row by row.
+
+        By default it is all-or-nothing: one bad row and nothing is written. With
+        `skip_invalid` the valid rows are imported and the bad ones are reported (the
+        screen asks for confirmation first). `dry_run` only validates and summarises.
+        """
         errors: list[ImportRowError] = []
         missing = [c for c in ("sku", "name") if rows and c not in rows[0]]
-        if missing:
+        if missing or not rows:
             errors.append(
                 ImportRowError(
                     row=1,
                     field=None,
-                    message="missing required column(s): " + ", ".join(missing),
+                    message=(
+                        "faltan columnas obligatorias: " + ", ".join(missing)
+                        if missing
+                        else "el archivo no tiene filas de datos"
+                    ),
                 )
             )
             return ImportResult(
@@ -344,51 +492,87 @@ class InventoryService:
                 total_rows=len(rows),
                 created=0,
                 errors=errors,
+                valid_rows=0,
+                error_rows=1,
             )
 
         taken = await self.repository.find_skus(
-            {r.get("sku", "").strip().upper() for r in rows} - {""}
+            {collapse(r.get("sku", "")).upper() for r in rows} - {""}
         )
         seen: dict[str, int] = {}
+        categories = await self._category_map()
         payloads: list[ItemCreate] = []
+        bad_rows: set[int] = set()
         for index, row in enumerate(rows, start=2):
-            payload = self._parse_row(index, row, taken, seen, errors)
+            before = len(errors)
+            payload = self._parse_row(index, row, taken, seen, categories, errors)
             if payload is not None:
                 payloads.append(payload)
-        if not errors and not dry_run:
+            if len(errors) > before:
+                bad_rows.add(index)
+        importing = not dry_run and (not errors or (skip_invalid and bool(payloads)))
+        if importing:
             for payload in payloads:
-                await self._add(payload, actor)
+                resolved = await self._resolve(
+                    payload.model_dump(include={"unit", "location", "supplier"}), actor
+                )
+                await self._add(payload.model_copy(update=resolved), actor)
             await self.repository.commit()
+        if dry_run or not skip_invalid:
+            success = not errors
+        else:
+            success = importing
         return ImportResult(
             dry_run=dry_run,
-            success=not errors,
+            success=success,
             total_rows=len(rows),
-            created=0 if errors or dry_run else len(payloads),
+            created=len(payloads) if importing else 0,
             errors=errors,
+            valid_rows=len(payloads),
+            error_rows=len(bad_rows),
         )
 
-    @staticmethod
     def _parse_row(
+        self,
         index: int,
         row: dict[str, str],
         taken: set[str],
         seen: dict[str, int],
+        categories: dict[str, str],
         errors: list[ImportRowError],
     ) -> ItemCreate | None:
         data: dict[str, Any] = {
-            k: v.strip() for k, v in row.items() if v is not None and v.strip() != ""
+            k: collapse(v)
+            for k, v in row.items()
+            if v is not None and collapse(v) != ""
         }
         if "stock" in data:
             data["initial_stock"] = data.pop("stock")
         known = set(ItemCreate.model_fields)
         data = {k: v for k, v in data.items() if k in known}
+        if "category" in data:
+            code = self._category_code(categories, data["category"])
+            if code is None:
+                errors.append(
+                    ImportRowError(
+                        row=index,
+                        field="category",
+                        message=f"la categoría '{data['category']}' no existe",
+                    )
+                )
+                return None
+            data["category"] = code
         try:
             payload = ItemCreate(**data)
         except ValidationError as error:
             for item in error.errors():
                 field = ".".join(str(p) for p in item["loc"]) or None
                 errors.append(
-                    ImportRowError(row=index, field=field, message=str(item["msg"]))
+                    ImportRowError(
+                        row=index,
+                        field="stock" if field == "initial_stock" else field,
+                        message=describe(dict(item)),
+                    )
                 )
             return None
         if payload.sku in taken:
@@ -396,7 +580,7 @@ class InventoryService:
                 ImportRowError(
                     row=index,
                     field="sku",
-                    message=f"SKU '{payload.sku}' already exists",
+                    message=f"el código '{payload.sku}' ya existe en el inventario",
                 )
             )
             return None
@@ -405,7 +589,7 @@ class InventoryService:
                 ImportRowError(
                     row=index,
                     field="sku",
-                    message=f"duplicate SKU '{payload.sku}' (first seen in row {seen[payload.sku]})",
+                    message=f"código repetido '{payload.sku}' (primera vez en la fila {seen[payload.sku]})",
                 )
             )
             return None
@@ -461,7 +645,7 @@ class InventoryService:
             sku=item.sku,
             name=item.name,
             description=item.description,
-            category=item.category,  # type: ignore[arg-type]
+            category=item.category,
             unit=item.unit,
             unit_cost=item.unit_cost,
             stock=item.stock,

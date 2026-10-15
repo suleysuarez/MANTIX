@@ -1,5 +1,7 @@
-"""Excel renderer (openpyxl): "Resumen" with KPIs and native charts, "Detalle" with a
-filtered, frozen table and a totals row of formulas, plus any extra sheet.
+"""Excel renderer (openpyxl), the Mantix layout shared by every report: a banner with the logo
+and the title, a metadata band, «Resumen» with summary cards and native charts (a doughnut and
+bars), and «Detalle» with a dark-header table, coloured status pills, a totals row of formulas
+and a footer band, plus any extra sheet.
 
 Numbers, dates and money are written as real values with number formats, never as text.
 """
@@ -9,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from openpyxl import Workbook
-from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart import BarChart, DoughnutChart, Reference
 from openpyxl.chart.label import DataLabelList
 from openpyxl.chart.series import DataPoint
 from openpyxl.drawing.image import Image
@@ -18,8 +20,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.exports import theme
-from app.exports.formatting import local
-from app.exports.model import ExportColumn, ReportExport
+from app.exports.formatting import local, status_tone
+from app.exports.model import ExportColumn, ReportExport, Tone
 from app.services.exporters import neutralise_formula
 
 FONT = "Calibri"
@@ -31,7 +33,7 @@ _NUMBER_FORMATS = {
     "int": theme.XLSX_INTEGER,
 }
 _THIN = Side(style="thin", color=theme.GREY)
-_HEADER_FILL = PatternFill("solid", fgColor=theme.DEEP)
+_HEADER_FILL = PatternFill("solid", fgColor=theme.ACCENT_LIGHT)
 _ZEBRA_FILL = PatternFill("solid", fgColor=theme.ZEBRA)
 _TOTAL_FILL = PatternFill("solid", fgColor=theme.ACCENT_LIGHT)
 #: Rows above the table: logo and title (1-3), metadata (4-6), a blank row (7).
@@ -64,6 +66,15 @@ def _logo(sheet: Worksheet) -> None:
         sheet.row_dimensions[row].height = 20
 
 
+BAND = "E6F1FB"  # pale blue behind the logo and the metadata
+CARD_BORDER = "C9DCEE"
+
+
+def _tone_fills(tone: Tone) -> tuple[PatternFill, str, str]:
+    background, text, accent = theme.TONES[tone]
+    return PatternFill("solid", fgColor=background), text, accent
+
+
 def _title_block(
     sheet: Worksheet,
     export: ReportExport,
@@ -71,12 +82,14 @@ def _title_block(
     span: int,
     right_column: int | None = None,
 ) -> None:
+    """Clean header used by every sheet: the logo on top-left, the title large beside it, a thin
+    rule and the metadata (label in the palette's blue, value in ink) in two blocks."""
     _logo(sheet)
     last = max(span, 4)
     sheet.merge_cells(start_row=1, start_column=3, end_row=2, end_column=last)
     cell = sheet.cell(row=1, column=3, value=title)
-    cell.font = Font(name=FONT, size=16, bold=True, color=theme.DEEP)
-    cell.alignment = Alignment(horizontal="right", vertical="center")
+    cell.font = Font(name=FONT, size=20, bold=True, color=theme.DEEP)
+    cell.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     for column in range(1, last + 1):
         sheet.cell(row=3, column=column).border = Border(
             bottom=Side(style="medium", color=theme.ACCENT_SKY)
@@ -98,6 +111,17 @@ def _title_block(
                 value.font = Font(name=FONT, size=10, color=theme.INK)
 
 
+def _footer(sheet: Worksheet, row: int, span: int) -> None:
+    """A pale band closing the sheet, with the system name."""
+    last = max(span, 4)
+    for column in range(1, last + 1):
+        sheet.cell(row=row, column=column).fill = PatternFill("solid", fgColor=BAND)
+    sheet.row_dimensions[row].height = 26
+    cell = sheet.cell(row=row, column=1, value=theme.FOOTER_TEXT)
+    cell.font = Font(name=FONT, size=10, bold=True, color=theme.DEEP)
+    cell.alignment = Alignment(vertical="center")
+
+
 def _write_table(
     sheet: Worksheet,
     columns: list[ExportColumn],
@@ -109,13 +133,13 @@ def _write_table(
     """Header, rows with real formats, autofilter, freeze panes and a totals row of formulas."""
     for index, column in enumerate(columns, start=1):
         cell = sheet.cell(row=header_row, column=index, value=column.header)
-        cell.font = Font(name=FONT, size=10, bold=True, color=theme.WHITE)
+        cell.font = Font(name=FONT, size=11, bold=True, color=theme.DEEP)
         cell.fill = _HEADER_FILL
         cell.alignment = Alignment(
-            horizontal=column.alignment, vertical="center", wrap_text=True
+            horizontal="center", vertical="center", wrap_text=True
         )
         sheet.column_dimensions[get_column_letter(index)].width = column.width
-    sheet.row_dimensions[header_row].height = 24
+    sheet.row_dimensions[header_row].height = 28
 
     first = header_row + 1
     for offset, row in enumerate(rows):
@@ -135,6 +159,11 @@ def _write_table(
             cell.border = Border(bottom=_THIN)
             if offset % 2 == 1:
                 cell.fill = _ZEBRA_FILL
+            if column.pill and cell.value:
+                fill, text_color, _accent = _tone_fills(status_tone(str(cell.value)))
+                cell.fill = fill
+                cell.font = Font(name=FONT, size=10, bold=True, color=text_color)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
     last = first + len(rows) - 1
     if rows:
         sheet.auto_filter.ref = f"A{header_row}:{get_column_letter(len(columns))}{last}"
@@ -183,7 +212,7 @@ CHART_HEIGHT_CM = 7.0
 CHART_ROWS = 15  # 7 cm at the default row height, plus breathing room
 
 
-def _style_chart(chart: BarChart | PieChart, title: str) -> None:
+def _style_chart(chart: BarChart | DoughnutChart, title: str) -> None:
     chart.title = title
     chart.width, chart.height = CHART_WIDTH_CM, CHART_HEIGHT_CM
     if isinstance(chart, BarChart):
@@ -193,9 +222,10 @@ def _style_chart(chart: BarChart | PieChart, title: str) -> None:
 def _write_group(sheet: Worksheet, group: Any, row: int, column: int) -> int:
     """A titled two-column table at (row, column); returns its last row."""
     head = sheet.cell(row=row, column=column, value=group.title)
-    head.font = Font(name=FONT, size=11, bold=True, color=theme.WHITE)
+    head.font = Font(name=FONT, size=11, bold=True, color=theme.DEEP)
     head.fill = _HEADER_FILL
     sheet.cell(row=row, column=column + 1).fill = _HEADER_FILL
+    sheet.row_dimensions[row].height = 22
     for index, line in enumerate(group.lines, start=1):
         label = sheet.cell(
             row=row + index, column=column, value=neutralise_formula(line.label)
@@ -223,27 +253,53 @@ def _summary_sheet(book: Workbook, export: ReportExport, include_charts: bool) -
     kpis = [group for group in export.summary if group.kpi]
     others = [group for group in export.summary if not group.kpi]
     for group in kpis:
-        # Headline figures: one band across both blocks, the lines split between them.
-        sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        # Summary cards: two columns of cards (one per block), each one a tinted box with the
+        # label, a big figure and a caption.
         head = sheet.cell(row=row, column=1, value=group.title)
-        head.font = Font(name=FONT, size=11, bold=True, color=theme.WHITE)
-        head.fill = PatternFill("solid", fgColor=theme.MUSTARD)
-        head.font = Font(name=FONT, size=11, bold=True, color=theme.INK)
-        half = (len(group.lines) + 1) // 2
-        for side, lines in enumerate((group.lines[:half], group.lines[half:])):
+        head.font = Font(name=FONT, size=11, bold=True, color=theme.DEEP)
+        row += 1
+        stack = [0, 0]
+        for index, line in enumerate(group.lines):
+            side = index % 2
             column = BLOCK_COLUMNS[side]
-            for index, line in enumerate(lines, start=1):
-                label = sheet.cell(
-                    row=row + index, column=column, value=neutralise_formula(line.label)
+            top = row + stack[side] * 4
+            fill, text_color, accent = _tone_fills(line.tone)
+            side_line = Side(style="thin", color=accent)
+            for offset in range(3):
+                sheet.merge_cells(
+                    start_row=top + offset,
+                    start_column=column,
+                    end_row=top + offset,
+                    end_column=column + 1,
                 )
-                label.font = Font(name=FONT, size=10, color=theme.INK)
-                value = sheet.cell(row=row + index, column=column + 1, value=line.value)
-                value.font = Font(name=FONT, size=12, bold=True, color=theme.DEEP)
-                value.alignment = Alignment(horizontal="right")
-                if isinstance(line.value, float):
-                    value.number_format = theme.XLSX_NUMBER
-                label.border = value.border = Border(bottom=_THIN)
-        row += half + 3
+                for col in (column, column + 1):
+                    cell = sheet.cell(row=top + offset, column=col)
+                    cell.fill = fill
+                    cell.border = Border(
+                        left=side_line if col == column else None,
+                        right=side_line if col == column + 1 else None,
+                        top=side_line if offset == 0 else None,
+                        bottom=side_line if offset == 2 else None,
+                    )
+            label = sheet.cell(
+                row=top, column=column, value=neutralise_formula(line.label)
+            )
+            label.font = Font(name=FONT, size=10, bold=True, color=text_color)
+            label.alignment = Alignment(horizontal="left", indent=1, vertical="center")
+            value = sheet.cell(row=top + 1, column=column, value=line.value)
+            value.font = Font(name=FONT, size=22, bold=True, color=theme.DEEP)
+            value.alignment = Alignment(horizontal="left", indent=1, vertical="center")
+            if isinstance(line.value, float):
+                value.number_format = theme.XLSX_NUMBER
+            if line.note:
+                note = sheet.cell(row=top + 2, column=column, value=line.note)
+                note.font = Font(name=FONT, size=9, color=theme.SLATE)
+                note.alignment = Alignment(
+                    horizontal="left", indent=1, vertical="center"
+                )
+            sheet.row_dimensions[top + 1].height = 32
+            stack[side] += 1
+        row += max(stack) * 4 + 1
 
     placed: list[tuple[Any, int, int, int]] = []  # group, header row, last row, column
     for pair_start in range(0, len(others), 2):
@@ -261,18 +317,19 @@ def _summary_sheet(book: Workbook, export: ReportExport, include_charts: bool) -
                 continue
             labels = Reference(sheet, min_col=column, min_row=first + 1, max_row=last)
             values = Reference(sheet, min_col=column + 1, min_row=first, max_row=last)
-            chart: BarChart | PieChart
+            chart: BarChart | DoughnutChart
             if group.chart == "bar":
                 chart = BarChart()
                 chart.type = "col"
                 chart.add_data(values, titles_from_data=False)
                 chart.set_categories(labels)
-                chart.series[0].graphicalProperties.solidFill = theme.DEEP
+                chart.series[0].graphicalProperties.solidFill = theme.ACCENT_SKY
                 chart.dataLabels = DataLabelList()
                 chart.dataLabels.showVal = True
                 chart.y_axis.majorGridlines = None
             else:
-                chart = PieChart()
+                chart = DoughnutChart()
+                chart.holeSize = 55
                 chart.add_data(values, titles_from_data=False)
                 chart.set_categories(labels)
                 for index in range(last - first):
@@ -294,7 +351,9 @@ def _detail_sheet(book: Workbook, export: ReportExport) -> None:
     sheet.sheet_view.showGridLines = False
     columns = list(export.columns)
     _title_block(sheet, export, export.title, len(columns))
-    _write_table(sheet, columns, list(export.rows), header_row=HEADER_ROW)
+    last = _write_table(sheet, columns, list(export.rows), header_row=HEADER_ROW)
+    has_totals = bool(export.rows) and any(column.total for column in columns)
+    _footer(sheet, max(last, HEADER_ROW) + (3 if has_totals else 2), len(columns))
     sheet.page_setup.orientation = "landscape"
     sheet.page_setup.fitToWidth = 1
     sheet.page_setup.fitToHeight = 0

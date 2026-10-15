@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.exc import IntegrityError
 
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, get_clerk_profile
@@ -6,17 +8,43 @@ from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import User
 from app.repositories.auth import AuthRepository
 from app.schemas.auth import PermissionResponse, RoleResponse, UserResponse
+from app.services.audit import AuditService
+
+#: A new session is recorded when the previous one started longer ago than this.
+SESSION_GAP = timedelta(minutes=30)
 
 
 class ClerkAuthService:
-    def __init__(self, repository: AuthRepository, settings: Settings):
+    def __init__(
+        self,
+        repository: AuthRepository,
+        settings: Settings,
+        audit: AuditService | None = None,
+    ):
         self.repository = repository
         self.settings = settings
+        self.audit = audit
+
+    async def _touch_login(self, user: User) -> None:
+        """Note the start of a session (at most once per `SESSION_GAP`), with an audit entry."""
+        now = datetime.now(UTC)
+        if user.last_login_at is not None and now - user.last_login_at < SESSION_GAP:
+            return
+        user.last_login_at = now
+        if self.audit is not None:
+            self.audit.record(
+                user_id=user.id,
+                action="auth.login",
+                entity_type="user",
+                entity_id=user.id,
+            )
+        await self.repository.commit()
 
     async def resolve_local_user(self, identity: VerifiedClerkIdentity) -> User:
         user = await self.repository.get_user_by_clerk_id(identity.user_id)
         if user is not None:
             user = self._require_active(user)
+            await self._touch_login(user)
             if not user.roles:
                 assigned = await self._assign_bootstrap_admin(user)
                 if assigned:
@@ -31,11 +59,17 @@ class ClerkAuthService:
         profile = await get_clerk_profile(identity, self.settings)
         existing_by_email = await self.repository.get_user_by_email(profile.email)
         if existing_by_email is not None:
-            if existing_by_email.clerk_user_id != identity.user_id:
+            if existing_by_email.clerk_user_id is None:
+                # Pre-registered by an administrator: the first sign-in with that e-mail links it.
+                existing_by_email.clerk_user_id = identity.user_id
+                await self.repository.commit()
+            elif existing_by_email.clerk_user_id != identity.user_id:
                 raise ConflictError(
                     "local email is already linked to another Clerk user"
                 )
-            return self._require_active(existing_by_email)
+            user = self._require_active(existing_by_email)
+            await self._touch_login(user)
+            return user
 
         return await self._provision_first_or_pending(profile)
 

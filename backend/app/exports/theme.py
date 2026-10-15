@@ -22,6 +22,16 @@ LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "mantix-logo.png
 LOGO_SIZE = (720, 142)
 
 SYSTEM_NAME = "Mantix · Gestión de mantenimiento"
+FOOTER_TEXT = "MANTIX · Sistema de mantenimiento de equipos tecnológicos"
+
+#: Colour families of status pills and summary cards: (background, text, accent), as `RRGGBB`.
+TONES = {
+    "good": ("E3F5EA", "1E6B43", "3DAA6D"),
+    "info": ("E3F0FB", "2B4963", "3E8FD0"),
+    "warn": ("FDF0D6", "7A5200", "E4A53B"),
+    "bad": ("FBE3E0", "8C1D18", "D9534F"),
+    "neutral": ("E9EDF1", "4A5560", "8795A3"),
+}
 
 #: Dates are shown in Colombia time (UTC-5, no daylight saving).
 DISPLAY_TZ = timezone(timedelta(hours=-5))

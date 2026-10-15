@@ -74,5 +74,10 @@ class Technician(Base):
         return self.user.email
 
     @property
+    def is_active(self) -> bool:
+        """Whether the linked user account is active (an inactive one cannot be assigned)."""
+        return self.user.is_active
+
+    @property
     def employee_code(self) -> str | None:
         return self.user.employee_code

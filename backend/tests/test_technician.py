@@ -40,6 +40,7 @@ class FakeTechnicianRepository:
         item = SimpleNamespace(
             id=len(self.items) + 1,
             is_available=True,
+            is_active=True,
             created_at=datetime(2026, 10, 11, 15, 0, tzinfo=UTC),
             full_name=f"Tech {payload.user_id}",
             email=f"tech{payload.user_id}@example.com",

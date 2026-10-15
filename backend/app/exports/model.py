@@ -11,6 +11,9 @@ from typing import Any, Literal
 Kind = Literal["text", "date", "datetime", "int", "number", "money", "bool"]
 Total = Literal["sum", "count", "avg", "share_true"]
 Align = Literal["left", "right", "center"]
+#: Colour family of a status pill or a summary card: good (green), info (blue), warn (orange),
+#: bad (red) or neutral (grey).
+Tone = Literal["good", "info", "warn", "bad", "neutral"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +28,8 @@ class ExportColumn:
     total: Total | None = None
     #: Text left, numbers right, dates and states centered unless a report says otherwise.
     align: Align | None = None
+    #: Draw the cell as a coloured pill (statuses); the colour comes from the text.
+    pill: bool = False
 
     @property
     def numeric(self) -> bool:
@@ -51,6 +56,9 @@ class SummaryLine:
     #: Number kept apart from its text so Excel gets a real number and charts can plot it.
     value: float | int | None
     text: str
+    #: Small caption under the figure in a summary card, e.g. «Finalizados en el periodo».
+    note: str = ""
+    tone: Tone = "info"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +95,8 @@ class ReportExport:
     summary: Sequence[SummaryGroup] = ()
     extra_sheets: Sequence[ExtraSheet] = ()
     sheet_name: str = "Detalle"
+    #: Line under the title in the header band.
+    subtitle: str = "Gestión de equipos tecnológicos"
     extras: dict[str, Any] = field(default_factory=dict)
 
     def only(self, keys: Sequence[str] | None) -> "ReportExport":

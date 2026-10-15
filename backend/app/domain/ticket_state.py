@@ -43,6 +43,9 @@ class TicketState:
     #: before sending the change): `category`, `priority`, `technician`,
     #: `resolution_summary`, `reason`.
     requires: ClassVar[tuple[str, ...]] = ()
+    #: Whether a ticket in this state is still waiting for work to start: these states are
+    #: the columns of the pending-requests queue.
+    in_queue: ClassVar[bool] = False
 
     _registry: ClassVar[dict[str, "TicketState"]] = {}
 
@@ -124,12 +127,14 @@ class TicketState:
 class Submitted(TicketState):
     status = "submitted"
     order = 1
+    in_queue = True
     allowed_targets = frozenset({"triaged", "assigned", "cancelled"})
 
 
 class Triaged(TicketState):
     status = "triaged"
     order = 2
+    in_queue = True
     requires = ("category", "priority")
     allowed_targets = frozenset({"assigned", "cancelled"})
 
@@ -137,6 +142,7 @@ class Triaged(TicketState):
 class Assigned(TicketState):
     status = "assigned"
     order = 3
+    in_queue = True
     requires = ("technician",)
     allowed_targets = frozenset({"in_progress", "cancelled"})
     requires_technician = True

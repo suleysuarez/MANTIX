@@ -42,6 +42,16 @@ class User(Base):
     )
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: Start of the user's latest session (refreshed at most every 30 minutes).
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True
+    )
+    #: Storage key and type of the profile photo (re-encoded by the server); null = initials.
+    avatar_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_media_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    avatar_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

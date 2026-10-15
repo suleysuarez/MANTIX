@@ -135,6 +135,7 @@ class WorkflowState(BaseModel):
                 "allowed_targets": ["assigned", "cancelled"],
                 "requires": ["category", "priority"],
                 "terminal": False,
+                "in_queue": True,
             }
         }
     )
@@ -146,6 +147,10 @@ class WorkflowState(BaseModel):
         description="Data to ask for before moving a ticket into this status"
     )
     terminal: bool
+    in_queue: bool = Field(
+        default=False,
+        description="True for statuses still waiting for work: the pending-requests columns",
+    )
 
 
 class MaintenanceClassifyRequest(BaseModel):

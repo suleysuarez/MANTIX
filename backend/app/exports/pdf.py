@@ -1,15 +1,13 @@
-"""PDF renderer (ReportLab): header on every page, metadata, zebra table sized to its
-content, executive summary aligned with the table, charts, and a "Página X de Y" footer."""
+"""PDF renderer (ReportLab), the Mantix report layout shared by every report: logo and title
+on every page, a metadata box with icons, the table with a dark header, zebra rows and
+coloured status pills, a «Resumen general» of four-per-row cards, and a footer with
+«Página X de Y». No charts here (Excel keeps them)."""
 
 import io
 from datetime import UTC, datetime
 from typing import Any
 from xml.sax.saxutils import escape
 
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.legends import Legend
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.shapes import Drawing, String
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
@@ -21,8 +19,6 @@ from reportlab.platypus import (
     BaseDocTemplate,
     Flowable,
     Frame,
-    HRFlowable,
-    KeepTogether,
     PageTemplate,
     Paragraph,
     Spacer,
@@ -31,11 +27,11 @@ from reportlab.platypus import (
 )
 
 from app.exports import theme
-from app.exports.formatting import EMPTY, format_value, local, total_text
-from app.exports.model import ExportColumn, ReportExport, SummaryGroup
+from app.exports.formatting import EMPTY, format_value, status_tone, total_text
+from app.exports.model import ExportColumn, ReportExport, SummaryLine, Tone
 
 MARGIN = 10 * mm
-HEADER_HEIGHT = 26 * mm
+HEADER_HEIGHT = 32 * mm
 FOOTER_HEIGHT = 14 * mm
 #: A table with more columns than this is printed on a landscape page.
 LANDSCAPE_FROM = 6
@@ -97,39 +93,8 @@ SUBSECTION = ParagraphStyle(
 )
 
 
-class DotLeader(Flowable):  # type: ignore[misc]
-    """`Label ............ value` on one line, with dotted guides in between."""
-
-    def __init__(self, label: str, value: str, *, bold: bool = False) -> None:
-        super().__init__()
-        self.label, self.value, self.bold = label, value, bold
-        self.height = 13
-
-    def wrap(self, avail_width: float, avail_height: float) -> tuple[float, float]:
-        self.width = avail_width
-        return avail_width, self.height
-
-    def draw(self) -> None:
-        font = "Helvetica-Bold" if self.bold else "Helvetica"
-        canvas = self.canv
-        canvas.setFont(font, 8.5)
-        canvas.setFillColor(INK)
-        label_end = stringWidth(self.label, font, 8.5)
-        value_start = self.width - stringWidth(self.value, "Helvetica-Bold", 8.5)
-        canvas.drawString(0, 3, self.label)
-        canvas.setFont("Helvetica-Bold", 8.5)
-        canvas.drawRightString(self.width, 3, self.value)
-        canvas.setStrokeColor(SLATE)
-        canvas.setLineWidth(0.6)
-        canvas.setDash(0.6, 2.4)
-        canvas.line(label_end + 4, 4, value_start - 4, 4)
-        canvas.setDash()
-
-
 class _NumberedCanvas(pdf_canvas.Canvas):  # type: ignore[misc]
     """Keeps every page until the end so the footer can say "Página X de Y"."""
-
-    footer_date = ""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -156,9 +121,7 @@ class _NumberedCanvas(pdf_canvas.Canvas):  # type: ignore[misc]
         )
         self.setFont("Helvetica", 7.5)
         self.setFillColor(SLATE)
-        self.drawString(
-            MARGIN, FOOTER_HEIGHT - 7 * mm, f"{theme.SYSTEM_NAME} · {self.footer_date}"
-        )
+        self.drawString(MARGIN, FOOTER_HEIGHT - 7 * mm, theme.FOOTER_TEXT)
         self.drawRightString(
             width - MARGIN,
             FOOTER_HEIGHT - 7 * mm,
@@ -166,70 +129,241 @@ class _NumberedCanvas(pdf_canvas.Canvas):  # type: ignore[misc]
         )
 
 
-def _draw_header(title: str):  # type: ignore[no-untyped-def]
+def _tone(name: Tone) -> tuple[colors.Color, colors.Color, colors.Color]:
+    background, text, accent = theme.TONES[name]
+    return _color(background), _color(text), _color(accent)
+
+
+def _fit(text: str, font: str, size: float, width: float) -> str:
+    """`text` cut with an ellipsis so it never runs past `width`."""
+    if stringWidth(text, font, size) <= width:
+        return text
+    while text and stringWidth(text + "…", font, size) > width:
+        text = text[:-1]
+    return text + "…"
+
+
+def _icon(
+    canvas: pdf_canvas.Canvas, kind: str, cx: float, cy: float, color: colors.Color
+) -> None:
+    """Small line icons (document, calendar, person, database, filter, check, clock, warning)."""
+    canvas.saveState()
+    canvas.setStrokeColor(color)
+    canvas.setFillColor(color)
+    canvas.setLineWidth(1)
+    if kind == "calendar":
+        canvas.roundRect(cx - 4.5, cy - 4, 9, 8.5, 1.2, stroke=1, fill=0)
+        canvas.line(cx - 4.5, cy + 1.5, cx + 4.5, cy + 1.5)
+        canvas.line(cx - 2, cy + 3.2, cx - 2, cy + 5.2)
+        canvas.line(cx + 2, cy + 3.2, cx + 2, cy + 5.2)
+    elif kind == "person":
+        canvas.circle(cx, cy + 2, 2.2, stroke=1, fill=0)
+        canvas.arc(cx - 4.2, cy - 6, cx + 4.2, cy + 1, 0, 180)
+    elif kind == "database":
+        for step in (3.0, 0.0, -3.0):
+            canvas.ellipse(
+                cx - 4, cy + step - 1.4, cx + 4, cy + step + 1.4, stroke=1, fill=0
+            )
+    elif kind == "check":
+        path = canvas.beginPath()
+        path.moveTo(cx - 4, cy)
+        path.lineTo(cx - 1, cy - 3)
+        path.lineTo(cx + 4.5, cy + 3.5)
+        canvas.setLineWidth(1.6)
+        canvas.drawPath(path, stroke=1, fill=0)
+    elif kind == "clock":
+        canvas.circle(cx, cy, 4.5, stroke=1, fill=0)
+        canvas.line(cx, cy, cx, cy + 2.8)
+        canvas.line(cx, cy, cx + 2.4, cy - 1.2)
+    elif kind == "warning":
+        path = canvas.beginPath()
+        path.moveTo(cx, cy + 5)
+        path.lineTo(cx + 5, cy - 4)
+        path.lineTo(cx - 5, cy - 4)
+        path.close()
+        canvas.drawPath(path, stroke=1, fill=0)
+        canvas.line(cx, cy + 2, cx, cy - 1)
+        canvas.circle(cx, cy - 2.6, 0.5, stroke=0, fill=1)
+    elif kind == "list":
+        for dy in (3.5, 0, -3.5):
+            canvas.circle(cx - 3.8, cy + dy, 0.7, stroke=0, fill=1)
+            canvas.line(cx - 2, cy + dy, cx + 4.5, cy + dy)
+    elif kind == "chart":
+        for index, height in enumerate((3, 6, 9)):
+            canvas.rect(cx - 5 + index * 4, cy - 4, 2.6, height, stroke=0, fill=1)
+    else:  # document
+        canvas.roundRect(cx - 3.8, cy - 5, 7.6, 10, 1, stroke=1, fill=0)
+        canvas.line(cx - 1.8, cy + 1.5, cx + 1.8, cy + 1.5)
+        canvas.line(cx - 1.8, cy - 0.8, cx + 1.8, cy - 0.8)
+    canvas.restoreState()
+
+
+_META_ICONS = {
+    "reporte": "document",
+    "fecha": "calendar",
+    "periodo": "calendar",
+    "generado": "person",
+    "registros": "database",
+    "filtros": "list",
+}
+
+
+def _meta_icon(label: str) -> str:
+    lowered = label.casefold()
+    return next(
+        (icon for word, icon in _META_ICONS.items() if lowered.startswith(word)),
+        "document",
+    )
+
+
+def _draw_header(title: str, subtitle: str):  # type: ignore[no-untyped-def]
     def draw(canvas: pdf_canvas.Canvas, doc: BaseDocTemplate) -> None:
         width, height = doc.pagesize
-        logo_h = 11 * mm
+        logo_h = 14 * mm
         logo_w = logo_h * theme.LOGO_SIZE[0] / theme.LOGO_SIZE[1]
         canvas.drawImage(
             str(theme.LOGO_PATH),
             MARGIN,
-            height - 8 * mm - logo_h,
+            height - 7 * mm - logo_h,
             width=logo_w,
             height=logo_h,
             mask="auto",
         )
-        canvas.setFont("Helvetica-Bold", 14)
+        canvas.setFont("Helvetica-Bold", 17)
         canvas.setFillColor(DEEP)
-        canvas.drawRightString(width - MARGIN, height - 15 * mm, title)
-        canvas.setStrokeColor(_color(theme.ACCENT_SKY))
-        canvas.setLineWidth(0.8)
-        canvas.line(MARGIN, height - 22 * mm, width - MARGIN, height - 22 * mm)
+        canvas.drawRightString(width - MARGIN, height - 14 * mm, title)
+        canvas.setFont("Helvetica", 10)
+        canvas.setFillColor(SLATE)
+        canvas.drawRightString(width - MARGIN, height - 20 * mm, subtitle)
+        canvas.setStrokeColor(_color(theme.ACCENT_LIGHT))
+        canvas.setLineWidth(1)
+        canvas.line(MARGIN, height - 26 * mm, width - MARGIN, height - 26 * mm)
 
     return draw
 
 
-def _meta_block(export: ReportExport, width: float) -> Table:
-    def cell(item: Any) -> Paragraph:
-        return Paragraph(
-            f"<b><font color='#{theme.DEEP}'>{escape(item.label)}:</font></b> "
-            f"{escape(item.value)}",
-            _BASE,
-        )
+class _MetaCell(Flowable):  # type: ignore[misc]
+    """One metadata entry: an icon in a pale circle, the label above and the value below."""
 
-    rows = max(len(export.meta_left), len(export.meta_right))
+    def __init__(self, label: str, value: str) -> None:
+        super().__init__()
+        self.label, self.value = label, value
+        self.height = 30
+
+    def wrap(self, avail_width: float, avail_height: float) -> tuple[float, float]:
+        self.width = avail_width
+        return avail_width, self.height
+
+    def draw(self) -> None:
+        canvas = self.canv
+        canvas.setFillColor(_color(theme.ACCENT_LIGHT))
+        canvas.setFillAlpha(0.45)
+        canvas.circle(13, 15, 12, stroke=0, fill=1)
+        canvas.setFillAlpha(1)
+        _icon(canvas, _meta_icon(self.label), 13, 15, DEEP)
+        room = self.width - 34
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(SLATE)
+        canvas.drawString(32, 19, _fit(self.label, "Helvetica", 7.5, room))
+        canvas.setFont("Helvetica-Bold", 9)
+        canvas.setFillColor(INK)
+        canvas.drawString(32, 7, _fit(self.value, "Helvetica-Bold", 9, room))
+
+
+def _meta_block(export: ReportExport, width: float) -> Table:
+    items = [*export.meta_left, *export.meta_right]
+    per_row = 3
+    rows = [items[i : i + per_row] for i in range(0, len(items), per_row)]
     data = [
-        [
-            cell(export.meta_left[i]) if i < len(export.meta_left) else "",
-            cell(export.meta_right[i]) if i < len(export.meta_right) else "",
-        ]
-        for i in range(rows)
+        [_MetaCell(item.label, item.value) for item in row]
+        + [""] * (per_row - len(row))
+        for row in rows
     ]
-    table = Table(data, colWidths=[width / 2, width / 2])
+    table = Table(data, colWidths=[width / per_row] * per_row)
+    last = len(data) - 1
     table.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX", (0, 0), (-1, -1), 0.8, _color(theme.ACCENT_LIGHT)),
+                ("ROUNDEDCORNERS", [6, 6, 6, 6]),
+                (
+                    "LINEAFTER",
+                    (0, 0),
+                    (per_row - 2, -1),
+                    0.6,
+                    _color(theme.ACCENT_LIGHT),
+                ),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, 0), 9),
+                ("BOTTOMPADDING", (0, last), (-1, last), 9),
             ]
         )
     )
     return table
 
 
-def _section(text: str) -> list[Flowable]:
-    return [
-        Paragraph(escape(text.upper()), SECTION),
-        HRFlowable(
-            width="100%",
-            thickness=1,
-            color=_color(theme.ACCENT_LIGHT),
-            spaceBefore=1,
-            spaceAfter=6,
-        ),
-    ]
+class _SectionTitle(Flowable):  # type: ignore[misc]
+    """`≡ TITLE` with an optional rule to the right, like «RESUMEN GENERAL ————»."""
+
+    def __init__(self, text: str, icon: str, *, rule: bool = False) -> None:
+        super().__init__()
+        self.text, self.icon, self.rule = text.upper(), icon, rule
+        self.height = 28
+
+    def wrap(self, avail_width: float, avail_height: float) -> tuple[float, float]:
+        self.width = avail_width
+        return avail_width, self.height
+
+    def draw(self) -> None:
+        canvas = self.canv
+        _icon(canvas, self.icon, 9, 10, DEEP)
+        canvas.setFont("Helvetica-Bold", 11.5)
+        canvas.setFillColor(DEEP)
+        canvas.drawString(24, 6, self.text)
+        if self.rule:
+            start = 24 + stringWidth(self.text, "Helvetica-Bold", 11.5) + 8
+            canvas.setStrokeColor(_color(theme.ACCENT_LIGHT))
+            canvas.setLineWidth(1)
+            canvas.line(start, 9, self.width, 9)
+
+
+def _section(text: str, icon: str = "list", *, rule: bool = False) -> list[Flowable]:
+    return [Spacer(1, 8), _SectionTitle(text, icon, rule=rule)]
+
+
+class _Pill(Flowable):  # type: ignore[misc]
+    """A status as a rounded pill with a dot, coloured by what it says."""
+
+    def __init__(self, text: str, size: float = FONT_SIZE) -> None:
+        super().__init__()
+        self.text, self.size = text, size
+        self.tone = status_tone(text)
+
+    def wrap(self, avail_width: float, avail_height: float) -> tuple[float, float]:
+        label = _fit(self.text, "Helvetica-Bold", self.size, max(avail_width - 20, 10))
+        self.label = label
+        self.width = min(
+            stringWidth(label, "Helvetica-Bold", self.size) + 20, avail_width
+        )
+        self.height = self.size + 7
+        return self.width, self.height
+
+    def draw(self) -> None:
+        background, text, accent = _tone(self.tone)
+        canvas = self.canv
+        canvas.setFillColor(background)
+        canvas.roundRect(
+            0, 0, self.width, self.height, self.height / 2, stroke=0, fill=1
+        )
+        canvas.setFillColor(accent)
+        canvas.circle(7, self.height / 2, 2, stroke=0, fill=1)
+        canvas.setFillColor(text)
+        canvas.setFont("Helvetica-Bold", self.size)
+        canvas.drawString(13, (self.height - self.size) / 2 + 1.4, self.label)
 
 
 def _text_width(text: str, font: str = "Helvetica") -> float:
@@ -254,6 +388,8 @@ def column_widths(
             ),
             default=0,
         )
+        if column.pill:
+            body += 20  # the pill's dot and rounded ends
         if column.total:
             body = max(body, _text_width(total_text(column, rows), "Helvetica-Bold"))
         is_text = column.kind == "text"
@@ -292,13 +428,14 @@ def _data_table(
     columns: list[ExportColumn], rows: list[dict[str, Any]], widths: list[float]
 ) -> Table:
     header = [Paragraph(escape(c.header), HEAD[c.alignment]) for c in columns]
-    body = [
-        [
-            Paragraph(escape(format_value(row.get(c.key), c.kind)), CELL[c.alignment])
-            for c in columns
-        ]
-        for row in rows
-    ]
+
+    def cell(column: ExportColumn, row: dict[str, Any]) -> Flowable:
+        text = format_value(row.get(column.key), column.kind)
+        if column.pill and text != EMPTY:
+            return _Pill(text)
+        return Paragraph(escape(text), CELL[column.alignment])
+
+    body = [[cell(c, row) for c in columns] for row in rows]
     data = [header, *body]
     last = len(data) - 1
     has_totals = any(c.total for c in columns)
@@ -317,7 +454,9 @@ def _data_table(
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), CELL_PAD / 2),
         ("RIGHTPADDING", (0, 0), (-1, -1), CELL_PAD / 2),
-        ("LINEBELOW", (0, 1), (-1, last), 0.3, GREY),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("ROUNDEDCORNERS", [4, 4, 4, 4]),
     ]
     if last >= 1:
         style.append(("ROWBACKGROUNDS", (0, 1), (-1, last), [colors.white, ZEBRA]))
@@ -331,152 +470,66 @@ def _data_table(
     return table
 
 
-def _chart(group: SummaryGroup, width: float) -> Drawing | None:
-    points = [(line.label, line.value) for line in group.lines if line.value]
-    if not points or group.chart is None:
-        return None
-    height = 150
-    drawing = Drawing(width, height)
-    drawing.add(
-        String(
-            0,
-            height - 10,
-            group.title,
-            fontName="Helvetica-Bold",
-            fontSize=8.5,
-            fillColor=DEEP,
-        )
-    )
-    palette = [_color(c) for c in theme.CHART_COLORS]
-    if group.chart == "bar":
-        chart = VerticalBarChart()
-        chart.x, chart.y = 24, 30
-        chart.width, chart.height = width - 34, height - 56
-        chart.data = [[float(value) for _, value in points]]
-        chart.categoryAxis.categoryNames = [label for label, _ in points]
-        chart.categoryAxis.labels.fontName = "Helvetica"
-        chart.categoryAxis.labels.fontSize = 6.5
-        chart.categoryAxis.labels.angle = 25
-        chart.categoryAxis.labels.boxAnchor = "ne"
-        chart.categoryAxis.labels.dy = -2
-        chart.valueAxis.labels.fontName = "Helvetica"
-        chart.valueAxis.labels.fontSize = 6.5
-        chart.valueAxis.valueMin = 0
-        chart.valueAxis.strokeColor = GREY
-        chart.categoryAxis.strokeColor = GREY
-        chart.bars[0].fillColor = DEEP
-        chart.bars[0].strokeColor = None
-        chart.barLabelFormat = "%d"
-        chart.barLabels.fontName = "Helvetica"
-        chart.barLabels.fontSize = 6.5
-        chart.barLabels.nudge = 6
-        chart.barSpacing = 2
-        chart.groupSpacing = 6
-        drawing.add(chart)
-    else:
-        pie = Pie()
-        size = min(height - 40, width / 2 - 10)
-        pie.x, pie.y, pie.width, pie.height = 10, 12, size, size
-        pie.data = [float(value) for _, value in points]
-        pie.labels = None
-        pie.simpleLabels = 1
-        pie.slices.strokeColor = colors.white
-        pie.slices.strokeWidth = 0.8
-        for index in range(len(points)):
-            pie.slices[index].fillColor = palette[index % len(palette)]
-        drawing.add(pie)
-        legend = Legend()
-        legend.x, legend.y = size + 24, height - 30
-        legend.fontName, legend.fontSize = "Helvetica", 7
-        legend.alignment = "right"
-        legend.columnMaximum = 8
-        legend.dxTextSpace = 4
-        legend.colorNamePairs = [
-            (palette[i % len(palette)], f"{label} ({int(value)})")
-            for i, (label, value) in enumerate(points)
-        ]
-        drawing.add(legend)
-    return drawing
+RED = colors.HexColor("#C0392B")
 
 
-def _split(widths: list[float]) -> int:
-    """Column boundary closest to the middle of the table: the summary uses it as its own
-    split, so its two halves start and end where table columns do."""
-    total, running = sum(widths), 0.0
-    best, gap = 1, total
-    for index, width in enumerate(widths[:-1], start=1):
-        running += width
-        if abs(running - total / 2) < gap:
-            best, gap = index, abs(running - total / 2)
-    return best
+class _DotLeader(Flowable):  # type: ignore[misc]
+    """`Label ............ value` on one line with dotted guides, and an optional small note
+    under it. A line that is bad news (overdue, negative) is written in red; the closing
+    total is bold and in capitals."""
+
+    def __init__(self, line: SummaryLine, *, total: bool = False) -> None:
+        super().__init__()
+        self.line, self.total = line, total
+        self.height = 24 if line.note else 16
+
+    def wrap(self, avail_width: float, avail_height: float) -> tuple[float, float]:
+        self.width = avail_width
+        return avail_width, self.height
+
+    def draw(self) -> None:
+        canvas = self.canv
+        bad = self.line.tone == "bad"
+        label = f"{self.line.label.upper()}:" if self.total else self.line.label
+        font = "Helvetica-Bold" if self.total else "Helvetica"
+        top = self.height - 11
+        ink = RED if bad else INK
+        canvas.setFont(font, 9.5)
+        canvas.setFillColor(ink)
+        canvas.drawString(0, top, label)
+        canvas.setFont("Helvetica-Bold" if self.total else "Helvetica", 9.5)
+        canvas.drawRightString(self.width, top, self.line.text)
+        start = stringWidth(label, font, 9.5) + 6
+        end = self.width - stringWidth(self.line.text, canvas._fontname, 9.5) - 6
+        canvas.setStrokeColor(RED if bad else _color(theme.ACCENT_SKY))
+        canvas.setLineWidth(0.7)
+        canvas.setDash(0.7, 2.6)
+        canvas.line(start, top + 2.5, end, top + 2.5)
+        canvas.setDash()
+        if self.line.note:
+            canvas.setFont("Helvetica", 7)
+            canvas.setFillColor(SLATE)
+            canvas.drawString(0, top - 9, self.line.note)
 
 
-def _summary(
-    export: ReportExport, widths: list[float], *, include_charts: bool
-) -> list[Flowable]:
-    if not export.summary:
+def _summary(export: ReportExport, width: float) -> list[Flowable]:
+    """«Resumen general»: the headline lines one under the other, label ........ value, ending
+    with the total in bold capitals."""
+    lines = [line for group in export.summary if group.kpi for line in group.lines]
+    if not lines:
         return []
-    split = _split(widths)
-    left_w = sum(widths[:split])
-    right_w = sum(widths[split:])
-    sides = (left_w - 14, right_w - 14)
-    # KPIs first, then each group goes to the shorter side so both halves stay balanced.
-    ordered = sorted(export.summary, key=lambda group: not group.kpi)
-    columns: list[list[SummaryGroup]] = [[], []]
-    heights = [0, 0]
-    for group in ordered:
-        side = 0 if heights[0] <= heights[1] else 1
-        columns[side].append(group)
-        heights[side] += len(group.lines) + 2
-
-    def cell(groups: list[SummaryGroup]) -> list[Flowable]:
-        flow: list[Flowable] = []
-        for group in groups:
-            flow.append(Paragraph(escape(group.title), SUBSECTION))
-            flow += [
-                DotLeader(line.label, line.text, bold=group.kpi) for line in group.lines
-            ]
-        return flow
-
-    story: list[Flowable] = _section("Resumen ejecutivo")
-    layout = Table([[cell(columns[0]), cell(columns[1])]], colWidths=[left_w, right_w])
-    layout.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ]
-        )
-    )
-    story.append(KeepTogether([layout]))
-    if include_charts:
-        charts = [
-            chart
-            for group in export.summary
-            if (chart := _chart(group, min(sides) - 4)) is not None
-        ]
-        for start in range(0, len(charts), 2):
-            pair = charts[start : start + 2]
-            row = pair + [""] * (2 - len(pair))
-            table = Table([row], colWidths=[left_w, right_w])
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ]
-                )
-            )
-            story += [Spacer(1, 8), KeepTogether([table])]
-    return story
+    ordered = [*lines[1:], lines[0]]  # the first line is the total: it closes the block
+    flow: list[Flowable] = [
+        _DotLeader(line, total=index == len(ordered) - 1)
+        for index, line in enumerate(ordered)
+    ]
+    return [*_section("Resumen general", "chart", rule=True), Spacer(1, 4), *flow]
 
 
 def render_pdf(
     export: ReportExport,
     *,
     include_summary: bool = True,
-    include_charts: bool = True,
     generated_at: datetime | None = None,
 ) -> bytes:
     generated_at = generated_at or datetime.now(UTC)
@@ -506,22 +559,27 @@ def render_pdf(
         id="body",
     )
     doc.addPageTemplates(
-        [PageTemplate(id="page", frames=[frame], onPage=_draw_header(export.title))]
+        [
+            PageTemplate(
+                id="page",
+                frames=[frame],
+                onPage=_draw_header(export.title, export.subtitle),
+            )
+        ]
     )
     columns, rows = list(export.columns), list(export.rows)
     widths = column_widths(columns, rows, width) if columns else [width]
-    story: list[Flowable] = [_meta_block(export, width), *_section(export.section)]
+    story: list[Flowable] = [
+        Spacer(1, 4),
+        _meta_block(export, width),
+        *_section(export.section),
+    ]
     if rows and columns:
         story.append(_data_table(columns, rows, widths))
     else:
         story.append(Paragraph(f"Sin registros {EMPTY}", _BASE))
     if include_summary:
-        story += _summary(export, widths, include_charts=include_charts)
+        story += _summary(export, width)
 
-    footer = local(generated_at).strftime("%d/%m/%Y")
-
-    class Canvas(_NumberedCanvas):
-        footer_date = footer
-
-    doc.build(story, canvasmaker=Canvas)
+    doc.build(story, canvasmaker=_NumberedCanvas)
     return buffer.getvalue()

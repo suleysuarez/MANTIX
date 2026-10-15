@@ -10,9 +10,21 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.report_builder import MAX_RANGE_DAYS, MAX_VALUES, ReportKey
+from app.schemas.report_builder import MAX_RANGE_DAYS, MAX_VALUES
 
 DocumentFormat = Literal["pdf", "xlsx"]
+#: Reports with a document export: the ones the report builder lists plus the technician roster.
+ExportReportKey = Literal[
+    "equipment",
+    "tickets",
+    "summary",
+    "maintenance_plans",
+    "inventory_items",
+    "inventory_movements",
+    "technicians",
+    "users",
+]
+TechnicianLoad = Literal["none", "low", "high"]
 _Code = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,29}$")]
 
 
@@ -40,6 +52,24 @@ class ExportFilters(BaseModel):
     )
     date_from: AwareDatetime | None = None
     date_to: AwareDatetime | None = None
+    # Technician roster filters (the Technicians screen offers the same ones).
+    search: str | None = Field(default=None, max_length=100)
+    specialty: str | None = Field(default=None, max_length=100)
+    is_active: bool | None = Field(default=None, description="Account active or not")
+    is_available: bool | None = Field(default=None, description="Open to new work")
+    role: str | None = Field(
+        default=None, max_length=50, description="Role code (users)"
+    )
+    load: TechnicianLoad | None = Field(
+        default=None,
+        description="Open tickets: none (0), low (1-2) or high (3 or more)",
+    )
+
+    @field_validator("search", "specialty", "role")
+    @classmethod
+    def _trimmed(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        return value or None
 
     @field_validator("statuses", "priorities", "categories", "technician_ids")
     @classmethod
@@ -103,7 +133,7 @@ class ExportColumnInfo(BaseModel):
 
 
 class ExportOptions(BaseModel):
-    report: ReportKey
+    report: ExportReportKey
     title: str
     columns: list[ExportColumnInfo]
     formats: list[DocumentFormat]

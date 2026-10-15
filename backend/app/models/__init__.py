@@ -16,7 +16,7 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
-from app.models.inventory import InventoryItem, InventoryMovement
+from app.models.inventory import InventoryItem, InventoryMovement, InventoryOption
 from app.models.maintenance import (
     MaintenanceRecord,
     MaintenanceRequest,
@@ -40,6 +40,7 @@ __all__ = [
     "EquipmentType",
     "InventoryItem",
     "InventoryMovement",
+    "InventoryOption",
     "Location",
     "MaintenanceRecord",
     "MaintenanceRequest",

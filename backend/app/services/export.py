@@ -4,11 +4,13 @@ import asyncio
 from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
-from app.core.exceptions import UnprocessableError
+from app.core.exceptions import ForbiddenError, UnprocessableError
 from app.exports.base import ExportContext, ExportDefinition, Scope
 from app.exports.formatting import local
 from app.exports.pdf import render_pdf
+from app.exports.technicians import TechniciansExport
 from app.exports.tickets import TicketsExport
+from app.exports.users import UsersExport
 from app.exports.xlsx import render_xlsx
 from app.repositories.export import ExportRepository
 from app.repositories.report import MAX_EXPORT_ROWS
@@ -18,9 +20,10 @@ from app.schemas.export import (
     ExportCount,
     ExportFilters,
     ExportOptions,
+    ExportReportKey,
     ExportRequest,
 )
-from app.schemas.report_builder import MAX_RANGE_DAYS, ReportKey
+from app.schemas.report_builder import MAX_RANGE_DAYS
 from app.services.audit import AuditService
 from app.services.report import ExportedFile
 
@@ -33,7 +36,11 @@ _MEDIA = {
 }
 
 #: Reports that already have a document export; the rest follow the same pattern.
-DEFINITIONS: dict[str, ExportDefinition] = {"tickets": TicketsExport()}
+DEFINITIONS: dict[str, ExportDefinition] = {
+    "tickets": TicketsExport(),
+    "technicians": TechniciansExport(),
+    "users": UsersExport(),
+}
 
 
 def filename(report: str, extension: str, now: datetime) -> str:
@@ -47,13 +54,21 @@ class ExportService:
         self.audit = audit
 
     @staticmethod
-    def _definition(report: ReportKey) -> ExportDefinition:
+    def _definition(report: ExportReportKey) -> ExportDefinition:
         definition = DEFINITIONS.get(report)
         if definition is None:
             raise UnprocessableError(f"the report '{report}' cannot be exported yet")
         return definition
 
-    def options(self, report: ReportKey) -> ExportOptions:
+    @staticmethod
+    def _authorize(definition: ExportDefinition, actor: AuthContext) -> None:
+        """Some reports need a permission of their own on top of `reports.read`."""
+        if definition.permission and definition.permission not in actor.permissions:
+            raise ForbiddenError(
+                f"this report needs the {definition.permission} permission"
+            )
+
+    def options(self, report: ExportReportKey) -> ExportOptions:
         definition = self._definition(report)
         pdf_default = set(definition.pdf_default)
         return ExportOptions(
@@ -85,9 +100,10 @@ class ExportService:
         return Scope(requester_id=actor.id)
 
     async def count(
-        self, actor: AuthContext, report: ReportKey, filters: ExportFilters
+        self, actor: AuthContext, report: ExportReportKey, filters: ExportFilters
     ) -> ExportCount:
         definition = self._definition(report)
+        self._authorize(definition, actor)
         total = await definition.count(
             self.repository, filters, await self._scope(actor)
         )
@@ -102,7 +118,7 @@ class ExportService:
     async def export(
         self,
         actor: AuthContext,
-        report: ReportKey,
+        report: ExportReportKey,
         export_format: DocumentFormat,
         request: ExportRequest,
         *,
@@ -110,6 +126,7 @@ class ExportService:
     ) -> ExportedFile:
         now = now or datetime.now(UTC)
         definition = self._definition(report)
+        self._authorize(definition, actor)
         keys = self._columns(definition, export_format, request.columns)
         scope = await self._scope(actor)
 
@@ -132,13 +149,17 @@ class ExportService:
             filters=request.filters,
         )
         document = definition.build(rows, context).only(keys)
+        # Only the workbook draws charts; the PDF summary is text.
+        options = (
+            {} if export_format == "pdf" else {"include_charts": request.include_charts}
+        )
         render = render_pdf if export_format == "pdf" else render_xlsx
         content = await asyncio.to_thread(
             render,
             document,
             include_summary=request.include_summary,
-            include_charts=request.include_charts,
             generated_at=now,
+            **options,
         )
 
         filters = request.filters.model_dump(mode="json", exclude_none=True)

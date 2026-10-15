@@ -35,6 +35,8 @@ class ExportDefinition(ABC):
     columns: Sequence[ExportColumn]
     #: Compact set for the PDF (the page is only so wide).
     pdf_default: Sequence[str]
+    #: Permission the caller needs besides `reports.read` (e.g. `users.manage`), if any.
+    permission: str | None = None
 
     @abstractmethod
     async def count(

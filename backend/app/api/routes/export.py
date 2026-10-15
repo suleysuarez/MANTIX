@@ -11,9 +11,9 @@ from app.schemas.export import (
     ExportCount,
     ExportFilters,
     ExportOptions,
+    ExportReportKey,
     ExportRequest,
 )
-from app.schemas.report_builder import ReportKey
 from app.services.export import ExportService
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -30,7 +30,7 @@ Reader = Annotated[AuthContext, Depends(require_permission("reports.read"))]
     responses=error_responses(403, 422),
 )
 async def export_options(
-    report: ReportKey, _: Reader, service: Service
+    report: ExportReportKey, _: Reader, service: Service
 ) -> ExportOptions:
     return service.options(report)
 
@@ -44,7 +44,7 @@ async def export_options(
     responses=error_responses(403, 422),
 )
 async def export_count(
-    report: ReportKey,
+    report: ExportReportKey,
     filters: ExportFilters,
     actor: Reader,
     service: Service,
@@ -76,7 +76,7 @@ async def export_count(
     },
 )
 async def export_report(
-    report: ReportKey,
+    report: ExportReportKey,
     payload: ExportRequest,
     actor: Reader,
     service: Service,
