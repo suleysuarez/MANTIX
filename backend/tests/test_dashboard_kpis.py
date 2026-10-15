@@ -528,6 +528,7 @@ async def seed(session):
         brand="Dell",
         model="X",
         status="in_repair",
+        created_at=NOW - timedelta(days=400),
     )
     working = Equipment(
         asset_tag="LT-2",
@@ -535,6 +536,7 @@ async def seed(session):
         brand="Dell",
         model="X",
         status="assigned",
+        created_at=NOW - timedelta(days=400),
     )
     session.add_all([laptop, working])
     await session.flush()
@@ -598,7 +600,8 @@ async def test_window_stats_excludes_priorities_without_sla_and_cancelled(db_ses
     assert result.median_resolution_hours == pytest.approx(10)
     assert result.p90_resolution_hours == pytest.approx(26)  # 10 + 0.8 * (30 - 10)
     assert (result.min_resolution_hours, result.max_resolution_hours) == (5, 30)
-    assert result.stddev_resolution_hours == pytest.approx(12.58, abs=0.01)
+    # sample standard deviation of 10, 30 and 5: sqrt(((-5)^2 + 15^2 + (-10)^2) / 2)
+    assert result.stddev_resolution_hours == pytest.approx(175**0.5)
     assert result.created == 6
 
 
