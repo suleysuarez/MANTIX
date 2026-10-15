@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 #: A `priorities.code` from the managed catalog (validated by the service).
 MaintenancePriority = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,19}$")]
@@ -16,6 +16,8 @@ MaintenanceRequestStatus = Literal[
     "closed",
     "cancelled",
 ]
+#: A `request_categories.code` from the managed catalog (validated by the service).
+MaintenanceCategory = Annotated[str, Field(pattern=r"^[a-z][a-z_]{1,29}$")]
 WorkType = Literal[
     "corrective",
     "preventive",
@@ -83,6 +85,15 @@ class MaintenanceRequestCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1)
     priority: MaintenancePriority = "medium"
+    category: MaintenanceCategory | None = None
+
+    @field_validator("title", "description")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be blank")
+        return value
 
 
 class MaintenanceStatusTransitionRequest(BaseModel):
@@ -99,6 +110,22 @@ class MaintenanceStatusTransitionRequest(BaseModel):
     status: MaintenanceRequestStatus
     notes: str | None = None
     resolution_summary: str | None = None
+
+
+class MaintenanceRejectRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"reason": "Duplicates ticket TCK-2026-000042"}}
+    )
+
+    reason: str = Field(min_length=5, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 5:
+            raise ValueError("the reason must have at least 5 characters")
+        return value
 
 
 class TicketAssignmentCreateRequest(BaseModel):
@@ -164,6 +191,7 @@ class MaintenanceRequestListItem(BaseModel):
     equipment_id: int
     title: str
     priority: str
+    category: str | None = None
     status: str
     created_at: datetime
 
@@ -176,6 +204,7 @@ class MaintenanceRequestResponse(BaseModel):
     title: str
     description: str
     priority: str
+    category: str | None = None
     status: str
     resolution_summary: str | None
     resolved_at: datetime | None

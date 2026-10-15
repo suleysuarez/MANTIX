@@ -10,6 +10,7 @@ from app.core.pagination import PageParams
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRecordResponse,
+    MaintenanceRejectRequest,
     MaintenanceRequestCreate,
     MaintenanceRequestListItem,
     MaintenanceRequestResponse,
@@ -45,8 +46,16 @@ async def create_maintenance_request(
 )
 async def list_maintenance_requests(
     response: Response,
-    status_filter: str | None = Query(default=None, alias="status"),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        description="One status or a comma-separated list, e.g. `submitted,triaged`",
+    ),
     priority: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    unassigned: bool | None = Query(
+        default=None, description="True: no technician yet; false: has one"
+    ),
     equipment_id: int | None = Query(default=None),
     search: str | None = Query(
         default=None,
@@ -62,6 +71,8 @@ async def list_maintenance_requests(
     page = await service.list_requests(
         status=status_filter,
         priority=priority,
+        category=category,
+        unassigned=unassigned,
         equipment_id=equipment_id,
         search=search,
         date_from=date_from,
@@ -90,6 +101,25 @@ async def transition_maintenance_request_status(
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> MaintenanceRequestResponse:
     return await service.transition_status(request_id, payload, actor)
+
+
+@router.post(
+    "/{request_id}/reject",
+    response_model=MaintenanceRequestResponse,
+    summary="Reject a request that has not started",
+    description=(
+        "Cancels a submitted, triaged or assigned request. A reason of at least 5 "
+        "characters is required and is kept in the status history. ADMIN and "
+        "SUPERVISOR only."
+    ),
+)
+async def reject_maintenance_request(
+    request_id: int,
+    payload: MaintenanceRejectRequest,
+    actor: AuthContext = Depends(require_permission("maintenance.manage")),  # noqa: B008
+    service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
+) -> MaintenanceRequestResponse:
+    return await service.reject_request(request_id, payload.reason, actor)
 
 
 @router.post("/{request_id}/assignment", response_model=MaintenanceRequestResponse)

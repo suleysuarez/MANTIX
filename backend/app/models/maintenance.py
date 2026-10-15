@@ -77,6 +77,12 @@ class MaintenanceRequest(Base):
         default="medium",
         nullable=False,
     )
+    category: Mapped[str | None] = mapped_column(
+        String(30),
+        ForeignKey("request_categories.code", onupdate="CASCADE", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(String(30), default="submitted", nullable=False)
     resolution_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(

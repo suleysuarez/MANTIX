@@ -78,6 +78,8 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
+| GET | `/maintenance/categories` | Active request categories | `maintenance.read` |
+| GET | `/maintenance/queue/summary` | Pending-requests queue metrics | role `ADMIN`, `SUPERVISOR` |
 | GET | `/maintenance/requests` | List maintenance tickets | `maintenance.read` |
 | POST | `/maintenance/requests` | Create maintenance request | `maintenance.create` |
 | GET | `/maintenance/requests/{request_id}` | Get maintenance request | `maintenance.read` |
@@ -85,6 +87,7 @@
 | POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `maintenance.manage` |
 | GET | `/maintenance/requests/{request_id}/records` | List maintenance records | `maintenance.read` |
 | POST | `/maintenance/requests/{request_id}/records` | Add maintenance record | `maintenance.manage` |
+| POST | `/maintenance/requests/{request_id}/reject` | Reject a request that has not started | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/status` | Transition maintenance request status | `maintenance.manage` |
 
 ### notifications
@@ -136,7 +139,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **61** endpoints.
+Total: **64** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

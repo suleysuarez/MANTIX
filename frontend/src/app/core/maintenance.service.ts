@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { apiBaseUrl } from './api.config';
 
@@ -18,6 +18,7 @@ export interface MaintenanceListItem {
   equipment_id: number;
   title: string;
   priority: string;
+  category?: string | null;
   status: string;
   created_at: string;
 }
@@ -53,6 +54,7 @@ export interface MaintenanceRequest {
   description: string;
   priority: string;
   status: string;
+  category?: string | null;
   resolution_summary: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -97,8 +99,15 @@ export interface MaintenanceRecord {
 }
 
 export interface MaintenanceQuery {
+  /** Un estado o varios separados por comas (`submitted,triaged`). */
   status?: string;
   priority?: string;
+  category?: string;
+  /** `true`: sin técnico; `false`: con técnico. */
+  unassigned?: boolean;
+  /** Base 1; junto con `size` pagina en el servidor. */
+  page?: number;
+  size?: number;
   equipmentId?: number;
   search?: string;
   /** ISO datetimes; the API matches `created_at` between them. */
@@ -116,12 +125,46 @@ export class MaintenanceService {
   private readonly url = `${apiBaseUrl()}/maintenance/requests`;
 
   list(query: MaintenanceQuery = {}): Observable<MaintenanceListItem[]> {
+    return this.http.get<MaintenanceListItem[]>(this.url, { params: this.params(query) });
+  }
+
+  /** Como `list`, con el total que la API informa en la cabecera `X-Total-Count`. */
+  listPage(query: MaintenanceQuery = {}): Observable<{ items: MaintenanceListItem[]; total: number }> {
+    return this.http
+      .get<MaintenanceListItem[]>(this.url, { params: this.params(query), observe: 'response' })
+      .pipe(
+        map((response) => {
+          const items = response.body ?? [];
+          const total = Number(response.headers.get('X-Total-Count'));
+          return { items, total: Number.isFinite(total) && total >= items.length ? total : items.length };
+        }),
+      );
+  }
+
+  /** Rechaza una solicitud que no ha iniciado; el motivo queda en el historial. */
+  reject(id: number, reason: string): Observable<MaintenanceRequest> {
+    return this.http.post<MaintenanceRequest>(`${this.url}/${id}/reject`, { reason });
+  }
+
+  private params(query: MaintenanceQuery): HttpParams {
     let params = new HttpParams();
     if (query.status) {
       params = params.set('status', query.status);
     }
     if (query.priority) {
       params = params.set('priority', query.priority);
+    }
+    if (query.category) {
+      params = params.set('category', query.category);
+    }
+    if (query.unassigned !== undefined) {
+      params = params.set('unassigned', query.unassigned);
+    }
+    if (query.page !== undefined) {
+      params = params.set('page', query.page);
+    }
+    if (query.size !== undefined) {
+      params = params.set('size', query.size);
     }
     if (query.equipmentId !== undefined) {
       params = params.set('equipment_id', query.equipmentId);
@@ -144,7 +187,7 @@ export class MaintenanceService {
     if (query.offset !== undefined) {
       params = params.set('offset', query.offset);
     }
-    return this.http.get<MaintenanceListItem[]>(this.url, { params });
+    return params;
   }
 
   get(id: number): Observable<MaintenanceRequest> {

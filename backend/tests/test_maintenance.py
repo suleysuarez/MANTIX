@@ -26,7 +26,7 @@ def make_equipment(equipment_id=1):
 
 
 def make_user(user_id, full_name="User", email="user@example.com"):
-    return SimpleNamespace(id=user_id, full_name=full_name, email=email)
+    return SimpleNamespace(id=user_id, full_name=full_name, email=email, is_active=True)
 
 
 def make_technician(technician_id, user_id, full_name="Tech"):
@@ -68,6 +68,9 @@ class FakeMaintenanceRepository:
     async def get_active_priority(self, code):
         return SimpleNamespace(code=code) if code != "unknown" else None
 
+    async def get_active_category(self, code):
+        return SimpleNamespace(code=code) if code != "unknown" else None
+
     async def get_equipment(self, equipment_id):
         return self.equipment.get(equipment_id)
 
@@ -84,6 +87,7 @@ class FakeMaintenanceRepository:
         title,
         description,
         priority,
+        category=None,
     ):
         request = SimpleNamespace(
             id=self._next_request_id,
@@ -95,6 +99,7 @@ class FakeMaintenanceRepository:
             title=title,
             description=description,
             priority=priority,
+            category=category,
             status="submitted",
             resolution_summary=None,
             resolved_at=None,
