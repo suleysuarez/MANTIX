@@ -11,7 +11,12 @@
 | --- | --- | --- | --- |
 | GET | `/admin/permissions` | List permissions | `configuracion:ver` |
 | GET | `/admin/roles` | List roles | `usuarios:ver` |
+| POST | `/admin/roles` | Create a custom role | `usuarios:asignar` |
+| GET | `/admin/roles/manage` | Roles with their hierarchy, grants and inherited permissions | `usuarios:asignar` |
 | GET | `/admin/roles/matrix` | Role-permission matrix | `configuracion:ver` |
+| DELETE | `/admin/roles/{role_id}` | Delete a custom role | `usuarios:asignar` |
+| PATCH | `/admin/roles/{role_id}` | Rename, re-parent, activate or deactivate a role | `usuarios:asignar` |
+| PUT | `/admin/roles/{role_id}/permissions` | Replace the permissions a role grants itself | `usuarios:asignar` |
 | GET | `/admin/users/pending` | List pending users | `usuarios:ver` |
 | DELETE | `/admin/users/{user_id}/roles/{role_id}` | Revoke a role from a user | `usuarios:asignar` |
 
@@ -207,7 +212,7 @@
 | POST | `/admin/users/{user_id}/roles` | Assign roles | `usuarios:asignar` |
 | PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `usuarios:asignar` |
 
-Total: **112** endpoints.
+Total: **117** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 
