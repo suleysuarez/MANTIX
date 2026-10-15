@@ -66,6 +66,10 @@ def _as_text(value: Any) -> str:
     return str(value)
 
 
+#: Public name for the plain-text cell rendering (previews format rows the same way).
+cell_text = _as_text
+
+
 def _naive_utc(value: datetime) -> datetime:
     if value.tzinfo is not None:
         value = value.astimezone(UTC).replace(tzinfo=None)

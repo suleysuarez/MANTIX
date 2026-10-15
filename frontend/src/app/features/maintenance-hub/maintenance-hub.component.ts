@@ -52,8 +52,8 @@ const DOT: Record<string, string> = {
     @if (vm$ | async; as vm) {
       <div class="space-y-4">
         <!-- Encabezado con ilustración -->
-        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8">
-          <div class="relative z-10 flex flex-col gap-4 md:max-w-[58%]">
+        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8 lg:min-h-[16rem]">
+          <div class="relative z-10 flex flex-col gap-4 lg:max-w-[50%]">
             <span class="glass inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accentDeep">
               <span class="h-2 w-2 rounded-full bg-brand-mustard"></span> Mantenimiento preventivo
             </span>
@@ -78,9 +78,9 @@ const DOT: Record<string, string> = {
               </div>
             </div>
           </div>
-          <!-- PLACEHOLDER: se reemplaza por assets/images/mantenimiento-hero.svg (ver lista de imágenes) -->
-          <div class="pointer-events-none absolute inset-y-3 right-4 hidden w-[34%] items-center justify-center rounded-2xl border-2 border-dashed border-white/40 text-center md:flex" data-placeholder="mantenimiento-hero.svg">
-            <span class="px-4 text-[11px] font-semibold uppercase tracking-wider text-brand-grey">[Placeholder] ilustración<br />mantenimiento-hero.svg · 640×360</span>
+          <!-- Ilustración en un panel claro: el dibujo trae su propio fondo casi blanco. -->
+          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-[3/2] overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:flex lg:items-center lg:justify-center" aria-hidden="true">
+            <img src="assets/images/mantenimiento-hero.svg" alt="" width="640" height="426" class="h-full w-full object-contain mix-blend-multiply" />
           </div>
         </header>
 

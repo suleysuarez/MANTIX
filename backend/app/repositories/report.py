@@ -1,5 +1,6 @@
 """Flat, joined read models for exports. No ORM entities leave this module."""
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -30,6 +31,8 @@ class ReportRepository(BaseRepository[MaintenanceRequest]):
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        statuses: Sequence[str] | None = None,
+        equipment_type_ids: Sequence[int] | None = None,
         limit: int = MAX_EXPORT_ROWS,
     ) -> list[dict[str, Any]]:
         holder = aliased(User)
@@ -71,6 +74,10 @@ class ReportRepository(BaseRepository[MaintenanceRequest]):
             query = query.where(Equipment.status == status)
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if statuses:
+            query = query.where(Equipment.status.in_(statuses))
+        if equipment_type_ids:
+            query = query.where(Equipment.equipment_type_id.in_(equipment_type_ids))
         return [dict(row._mapping) for row in await self.session.execute(query)]
 
     async def ticket_rows(
@@ -80,6 +87,8 @@ class ReportRepository(BaseRepository[MaintenanceRequest]):
         priority: str | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        statuses: Sequence[str] | None = None,
+        priorities: Sequence[str] | None = None,
         limit: int = MAX_EXPORT_ROWS,
     ) -> list[dict[str, Any]]:
         requester = aliased(User)
@@ -124,6 +133,10 @@ class ReportRepository(BaseRepository[MaintenanceRequest]):
             query = query.where(MaintenanceRequest.status == status)
         if priority is not None:
             query = query.where(MaintenanceRequest.priority == priority)
+        if statuses:
+            query = query.where(MaintenanceRequest.status.in_(statuses))
+        if priorities:
+            query = query.where(MaintenanceRequest.priority.in_(priorities))
         if date_from is not None:
             query = query.where(MaintenanceRequest.created_at >= date_from)
         if date_to is not None:
