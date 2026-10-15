@@ -53,4 +53,22 @@ def total_of(column: ExportColumn, rows: list[dict[str, Any]]) -> Any:
         return len(present)
     if column.total == "sum":
         return sum(present, Decimal(0)) if column.kind == "money" else sum(present)
+    if column.total == "avg":
+        return round(sum(present) / len(present), 1) if present else None
+    if column.total == "share_true":
+        return (
+            round(sum(1 for v in present if v) / len(present) * 100, 1)
+            if present
+            else None
+        )
     return None
+
+
+def total_text(column: ExportColumn, rows: list[dict[str, Any]]) -> str:
+    """The totals-row cell as the PDF prints it."""
+    value = total_of(column, rows)
+    if value is None:
+        return EMPTY
+    if column.total == "share_true":
+        return f"{_grouped(value, 1)} %"
+    return format_value(value, column.kind)

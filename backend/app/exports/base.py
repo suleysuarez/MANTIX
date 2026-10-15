@@ -23,8 +23,6 @@ class Scope:
 @dataclass(frozen=True, slots=True)
 class ExportContext:
     company: str
-    legal_name: str | None
-    tax_id: str | None
     generated_by: str
     generated_at: datetime
     filters: ExportFilters

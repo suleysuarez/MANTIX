@@ -127,8 +127,6 @@ class ExportService:
         organization = await self.repository.organization()
         context = ExportContext(
             company=organization.company_name if organization else DEFAULT_COMPANY,
-            legal_name=organization.legal_name if organization else None,
-            tax_id=organization.tax_id if organization else None,
             generated_by=actor.user.full_name,
             generated_at=now,
             filters=request.filters,

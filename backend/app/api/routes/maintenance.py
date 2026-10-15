@@ -8,6 +8,7 @@ from app.api.providers import get_maintenance_service
 from app.core.authz import AuthContext
 from app.core.errors import error_responses
 from app.core.pagination import PageParams
+from app.domain.ticket_state import TicketState
 from app.schemas.maintenance import (
     MaintenanceClassifyRequest,
     MaintenanceRecordCreate,
@@ -18,10 +19,36 @@ from app.schemas.maintenance import (
     MaintenanceRequestResponse,
     MaintenanceStatusTransitionRequest,
     TicketAssignmentCreateRequest,
+    WorkflowState,
 )
 from app.services.maintenance import MaintenanceService
 
 router = APIRouter(prefix="/maintenance/requests", tags=["maintenance"])
+
+
+@router.get(
+    "/workflow",
+    response_model=list[WorkflowState],
+    summary="Ticket statuses and the moves between them",
+    description=(
+        "Every status in workflow order with the statuses it may move to and the data "
+        "a person must supply to enter it. Boards read this to draw their columns, "
+        "highlight valid drops and ask for what is missing; nothing is hard-coded there."
+    ),
+)
+async def ticket_workflow(
+    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+) -> list[WorkflowState]:
+    return [
+        WorkflowState(
+            status=state.status,
+            order=state.order,
+            allowed_targets=sorted(state.allowed_targets),
+            requires=list(state.requires),
+            terminal=state.is_terminal,
+        )
+        for state in TicketState.workflow()
+    ]
 
 
 @router.post(

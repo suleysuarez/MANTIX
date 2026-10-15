@@ -9,7 +9,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 Kind = Literal["text", "date", "datetime", "int", "number", "money", "bool"]
-Total = Literal["sum", "count"]
+Total = Literal["sum", "count", "avg", "share_true"]
+Align = Literal["left", "right", "center"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,12 +20,23 @@ class ExportColumn:
     kind: Kind = "text"
     #: Approximate width in characters (Excel) and relative weight (PDF).
     width: int = 14
-    #: Totals row: `sum` adds the column, `count` counts non-empty cells.
+    #: Totals row: `sum` adds, `count` counts non-empty cells, `avg` averages, `share_true`
+    #: is the percentage of Sí among the Sí/No cells.
     total: Total | None = None
+    #: Text left, numbers right, dates and states centered unless a report says otherwise.
+    align: Align | None = None
 
     @property
     def numeric(self) -> bool:
         return self.kind in ("int", "number", "money")
+
+    @property
+    def alignment(self) -> Align:
+        if self.align is not None:
+            return self.align
+        if self.numeric:
+            return "right"
+        return "center" if self.kind in ("date", "datetime", "bool") else "left"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +59,8 @@ class SummaryGroup:
     lines: Sequence[SummaryLine]
     #: Draw this group as a chart (when charts are included).
     chart: Literal["bar", "pie"] | None = None
+    #: Headline figures: first in the PDF summary and at the top of the Excel summary.
+    kpi: bool = False
 
 
 @dataclass(frozen=True, slots=True)

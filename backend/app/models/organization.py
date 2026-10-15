@@ -7,15 +7,13 @@ from app.db.base import Base
 
 
 class OrganizationSettings(Base):
-    """The company that appears in report headers. A single row (`id = 1`)."""
+    """The company name that appears in report headers. A single row (`id = 1`)."""
 
     __tablename__ = "organization_settings"
     __table_args__ = (CheckConstraint("id = 1", name="single_row"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, default=1)
     company_name: Mapped[str] = mapped_column(String(150), nullable=False)
-    legal_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    tax_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

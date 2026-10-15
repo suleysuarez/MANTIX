@@ -158,8 +158,6 @@ class SettingsRepository(BaseRepository[RequestCategory]):
         self,
         *,
         company_name: str,
-        legal_name: str | None,
-        tax_id: str | None,
         user_id: int | None,
     ) -> OrganizationSettings:
         row = await self.get_organization()
@@ -167,8 +165,6 @@ class SettingsRepository(BaseRepository[RequestCategory]):
             row = OrganizationSettings(id=1, company_name=company_name)
             self.session.add(row)
         row.company_name = company_name
-        row.legal_name = legal_name
-        row.tax_id = tax_id
         row.updated_by_user_id = user_id
         await self.session.flush()
         await self.session.refresh(row)

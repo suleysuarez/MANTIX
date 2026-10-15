@@ -98,6 +98,7 @@
 | GET | `/maintenance/queue/summary` | Pending-requests queue metrics | role `ADMIN`, `SUPERVISOR` |
 | GET | `/maintenance/requests` | List maintenance tickets | `maintenance.read` |
 | POST | `/maintenance/requests` | Create maintenance request | `maintenance.create` |
+| GET | `/maintenance/requests/workflow` | Ticket statuses and the moves between them | `maintenance.read` |
 | GET | `/maintenance/requests/{request_id}` | Get maintenance request | `maintenance.read` |
 | DELETE | `/maintenance/requests/{request_id}/assignment` | Unassign technician | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `maintenance.manage` |
@@ -177,7 +178,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **92** endpoints.
+Total: **93** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

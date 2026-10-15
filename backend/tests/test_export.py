@@ -121,8 +121,6 @@ def test_prepare_derives_hours_sla_and_cost():
 def context(**filters: Any) -> ExportContext:
     return ExportContext(
         company="Mantix S.A.S.",
-        legal_name="Mantix Servicios S.A.S.",
-        tax_id="900.123.456-7",
         generated_by="Ana Pérez",
         generated_at=NOW,
         filters=ExportFilters(**filters),
@@ -136,7 +134,9 @@ def test_the_report_describes_itself_and_summarises_the_rows():
     )
     left = {m.label: m.value for m in report.meta_left}
     right = {m.label: m.value for m in report.meta_right}
-    assert left["Empresa"] == "Mantix S.A.S." and left["NIT"] == "900.123.456-7"
+    assert left["Empresa"] == "Mantix S.A.S."
+    # the legal name and the NIT never appear in an exported report
+    assert "NIT" not in left and "Razón social" not in left and "NIT" not in right
     assert left["Generado por"] == "Ana Pérez"
     assert right["Período"] == "31/08/2026 – 29/09/2026" or right["Período"].startswith(
         "0"
@@ -148,8 +148,8 @@ def test_the_report_describes_itself_and_summarises_the_rows():
     }
     assert groups["Por estado"] == {"En curso": 8, "Resuelto": 4}
     assert groups["Por prioridad"] == {"Alta": 6, "Baja": 6}
-    assert groups["Totales"]["Total de tickets"] == 12
-    assert groups["Totales"]["Costo total"] == pytest.approx(600.0)
+    assert groups["Indicadores"]["Total de tickets"] == 12
+    assert groups["Indicadores"]["Costo total"] == pytest.approx(600.0)
     technicians = {r["technician"]: r for r in report.extra_sheets[0].rows}
     assert technicians["Luis Gómez"]["tickets"] == 9
     assert technicians["Sin asignar"]["tickets"] == 3
@@ -179,7 +179,7 @@ def test_excel_has_summary_detail_and_technician_sheets():
     assert len(summary._images) == 1 and len(summary._charts) == 2
     assert summary["C1"].value == "REPORTE DE TICKETS"
     labels = [c.value for row in summary.iter_rows(min_row=1, max_row=40) for c in row]
-    assert {"Por estado", "Por prioridad", "Totales"} <= set(labels)
+    assert {"Por estado", "Por prioridad", "Indicadores"} <= set(labels)
 
 
 def test_excel_detail_is_a_real_table_with_formats_filters_and_formulas():
@@ -451,15 +451,13 @@ async def test_the_header_uses_the_company_settings_or_falls_back():
     default = await service.export(ADMIN, "tickets", "xlsx", ExportRequest(), now=NOW)
     sheet = load_workbook(io.BytesIO(default.content))["Detalle"]
     values = {c.value for row in sheet.iter_rows(min_row=4, max_row=7) for c in row}
-    assert "Mantix" in values and "900.123.456-7" not in values
-    org = SimpleNamespace(
-        company_name="Majesa", legal_name="Majesa S.A.S.", tax_id="900.111.222-3"
-    )
+    assert "Mantix" in values and "NIT" not in values and "Razón social" not in values
+    org = SimpleNamespace(company_name="Majesa")
     service, _ = make_service(organization=org)
     custom = await service.export(ADMIN, "tickets", "xlsx", ExportRequest(), now=NOW)
     sheet = load_workbook(io.BytesIO(custom.content))["Detalle"]
     values = {c.value for row in sheet.iter_rows(min_row=4, max_row=7) for c in row}
-    assert {"Majesa", "Majesa S.A.S.", "900.111.222-3"} <= values
+    assert "Majesa" in values and "NIT" not in values
 
 
 async def test_the_options_list_the_real_columns_with_their_defaults():
@@ -467,7 +465,14 @@ async def test_the_options_list_the_real_columns_with_their_defaults():
     options = service.options("tickets")
     keys = {c.key: c for c in options.columns}
     assert keys["serial"].default_xlsx and not keys["serial"].default_pdf
-    assert keys["total_cost"].default_pdf
+    assert all(
+        keys[k].default_pdf
+        for k in ("ticket_number", "equipment", "sla_met", "resolution_hours")
+    )
+    assert not any(
+        keys[k].default_pdf
+        for k in ("title", "serial", "total_cost", "labor_cost", "requested_by")
+    )
     assert options.formats == ["pdf", "xlsx"] and options.max_rows == 10_000
 
 
@@ -753,3 +758,154 @@ async def test_a_real_export_end_to_end(db_session):
     assert sheet.cell(row=10, column=1).value == "T-2"
     pdf = await service.export(ADMIN, "tickets", "pdf", ExportRequest(), now=NOW)
     assert pdf_pages(pdf.content) >= 1
+
+
+# -- layout of the printed report ---------------------------------------------------------------
+
+
+def test_the_pdf_keeps_only_the_fields_the_printed_report_needs():
+    assert list(TicketsExport.pdf_default) == [
+        "ticket_number",
+        "equipment",
+        "priority",
+        "status",
+        "technician",
+        "created_at",
+        "resolved_at",
+        "resolution_hours",
+        "sla_met",
+    ]
+    assert len(TicketsExport.columns) > len(
+        TicketsExport.pdf_default
+    )  # Excel keeps the rest
+
+
+def test_columns_align_by_content():
+    columns = {c.key: c for c in TicketsExport.columns}
+    assert (
+        columns["title"].alignment == "left"
+        and columns["technician"].alignment == "left"
+    )
+    assert (
+        columns["total_cost"].alignment == "right"
+        and columns["resolution_hours"].alignment == "right"
+    )
+    assert (
+        columns["created_at"].alignment == "center"
+        and columns["sla_met"].alignment == "center"
+    )
+    assert (
+        columns["status"].alignment == "center"
+        and columns["priority"].alignment == "center"
+    )
+
+
+def pdf_columns(rows=12):
+    report = TicketsExport().build([raw_row(n) for n in range(1, rows + 1)], context())
+    return report.only(list(TicketsExport.pdf_default))
+
+
+def test_column_widths_follow_the_content_and_fill_the_page():
+    from reportlab.lib.pagesizes import A4, landscape
+
+    from app.exports.pdf import MARGIN, column_widths
+
+    export = pdf_columns()
+    width = landscape(A4)[0] - 2 * MARGIN
+    widths = column_widths(list(export.columns), list(export.rows), width)
+    assert sum(widths) == pytest.approx(width)
+    by_key = dict(zip((c.key for c in export.columns), widths, strict=True))
+    # the longest text takes more room than a short status or an SLA flag
+    assert by_key["ticket_number"] > by_key["sla_met"]
+    assert by_key["technician"] > by_key["priority"]
+    assert all(w > 30 for w in widths)
+
+
+def test_long_text_wraps_instead_of_stretching_the_table():
+    from reportlab.lib.pagesizes import A4
+
+    from app.exports.pdf import MARGIN, column_widths
+
+    report = TicketsExport().build([raw_row(1, title="palabra " * 60)], context())
+    export = report.only(["ticket_number", "title", "status", "created_at"])
+    width = A4[0] - 2 * MARGIN
+    widths = column_widths(list(export.columns), list(export.rows), width)
+    assert sum(widths) == pytest.approx(width)
+    assert (
+        dict(zip((c.key for c in export.columns), widths, strict=True))["title"]
+        < width * 0.7
+    )
+
+
+def test_the_totals_row_covers_count_average_and_sla():
+    from app.exports.formatting import total_text
+
+    columns = {c.key: c for c in TicketsExport.columns}
+    rows = [prepare(raw_row(n)) for n in range(1, 13)]
+    assert total_text(columns["ticket_number"], rows) == "12"
+    assert total_text(columns["resolution_hours"], rows) != "—"
+    assert total_text(columns["sla_met"], rows).endswith(" %")
+    nothing = [prepare(raw_row(1))]
+    assert total_text(columns["resolution_hours"], nothing) == "—"
+    assert total_text(columns["sla_met"], nothing) == "—"
+
+
+def test_the_pdf_summary_splits_where_a_table_column_ends():
+    from app.exports.pdf import _split
+
+    widths = [80.0, 60.0, 50.0, 70.0, 40.0]
+    index = _split(widths)
+    assert sum(widths[:index]) in (140.0, 190.0)  # boundary closest to half of 300
+
+
+def test_the_pdf_with_nine_columns_fits_one_landscape_table():
+    content = render_pdf(pdf_columns(rows=30))
+    assert pdf_pages(content) >= 1
+    assert b"/MediaBox [ 0 0 841.8" in content  # A4 landscape
+
+
+def test_excel_summary_shows_kpis_first_and_a_clean_chart_grid():
+    from openpyxl.utils import column_index_from_string
+
+    report = TicketsExport().build([raw_row(n) for n in range(1, 25)], context())
+    sheet = load_workbook(io.BytesIO(render_xlsx(report)))["Resumen"]
+    cells = {
+        c.value: c.row
+        for row in sheet.iter_rows(min_row=1, max_row=40)
+        for c in row
+        if c.value
+    }
+    assert (
+        cells["Indicadores"] < cells["Por estado"]
+        and cells["Indicadores"] < cells["Por prioridad"]
+    )
+    charts = sheet._charts
+    assert len(charts) == 2
+    anchors = [(c.anchor._from.col, c.anchor._from.row) for c in charts]
+    # side by side on the same row, in the two blocks, below every table and with the same size
+    assert anchors[0][1] == anchors[1][1]
+    assert {a[0] for a in anchors} == {
+        column_index_from_string("A") - 1,
+        column_index_from_string("D") - 1,
+    }
+    assert anchors[0][1] + 1 >= max(cells["Por estado"], cells["Por categoría"]) + 4
+    sizes = {(c.anchor.ext.width, c.anchor.ext.height) for c in charts}
+    assert len(sizes) == 1  # uniform
+    from app.exports.xlsx import CHART_WIDTH_CM, COLUMN_WIDTHS
+
+    assert (
+        CHART_WIDTH_CM < sum(COLUMN_WIDTHS[:3]) * 0.19
+    )  # narrower than its block (about 0.19 cm per character)
+
+
+def test_excel_totals_use_formulas_for_average_and_sla():
+    report, book = workbook(rows=10)
+    sheet = book["Detalle"]
+    headers = [c.value for c in sheet[8]]
+    total_row = 9 + 10
+    hours = sheet.cell(
+        row=total_row, column=headers.index("Tiempo de resolución (h)") + 1
+    ).value
+    sla = sheet.cell(row=total_row, column=headers.index("SLA cumplido") + 1)
+    assert "SUBTOTAL(101" in hours
+    assert "COUNTIF" in sla.value and sla.number_format == "0.0%"

@@ -47,31 +47,33 @@ COLUMNS = (
     ExportColumn("serial", "Serial", width=16),
     ExportColumn("equipment_type", "Tipo de equipo", width=15),
     ExportColumn("category", "Categoría", width=15),
-    ExportColumn("status", "Estado", width=12),
-    ExportColumn("priority", "Prioridad", width=11),
+    ExportColumn("status", "Estado", width=12, align="center"),
+    ExportColumn("priority", "Prioridad", width=11, align="center"),
     ExportColumn("requested_by", "Solicitante", width=20),
     ExportColumn("technician", "Técnico", width=20),
     ExportColumn("created_at", "Creado", "date", width=12),
     ExportColumn("resolved_at", "Resuelto", "date", width=12),
-    ExportColumn("resolution_hours", "Tiempo de resolución (h)", "number", width=13),
-    ExportColumn("sla_met", "SLA cumplido", "bool", width=10),
+    ExportColumn(
+        "resolution_hours", "Tiempo de resolución (h)", "number", width=13, total="avg"
+    ),
+    ExportColumn("sla_met", "SLA cumplido", "bool", width=10, total="share_true"),
     ExportColumn("labor_cost", "Mano de obra", "money", width=14, total="sum"),
     ExportColumn("parts_cost", "Repuestos", "money", width=14, total="sum"),
     ExportColumn("total_cost", "Costo total", "money", width=14, total="sum"),
 )
+#: What the printed report needs and nothing else: no ids, no free text (title), no
+#: columns that repeat what the equipment code already says (type, serial) and no costs,
+#: which are empty for most tickets. Excel keeps every column.
 PDF_DEFAULT = (
     "ticket_number",
-    "title",
     "equipment",
-    "equipment_type",
-    "status",
     "priority",
+    "status",
     "technician",
     "created_at",
     "resolved_at",
     "resolution_hours",
     "sla_met",
-    "total_cost",
 )
 
 
@@ -195,15 +197,13 @@ class TicketsExport(ExportDefinition):
             sheet_name="Detalle",
             meta_left=[
                 MetaItem("Empresa", context.company),
-                MetaItem("Razón social", context.legal_name or "—"),
-                MetaItem("NIT", context.tax_id or "—"),
                 MetaItem("Generado por", context.generated_by),
+                MetaItem("Generado el", generated),
             ],
             meta_right=[
                 MetaItem("Período", describe_period(context.filters)),
                 MetaItem("Total de registros", str(len(data))),
                 MetaItem("Filtros", describe_filters(context.filters)),
-                MetaItem("Generado el", generated),
             ],
             summary=self._summary(data),
             extra_sheets=[self._by_technician(data)],
@@ -254,7 +254,7 @@ class TicketsExport(ExportDefinition):
                 chart="pie",
             ),
             SummaryGroup("Por categoría", _count_lines(by_category)),
-            SummaryGroup("Totales", totals),
+            SummaryGroup("Indicadores", totals, kpi=True),
         ]
 
     @staticmethod

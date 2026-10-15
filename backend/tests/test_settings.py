@@ -86,11 +86,9 @@ class FakeRepo:
     async def get_organization(self):
         return self.organization
 
-    async def save_organization(self, *, company_name, legal_name, tax_id, user_id):
+    async def save_organization(self, *, company_name, user_id):
         self.organization = SimpleNamespace(
             company_name=company_name,
-            legal_name=legal_name,
-            tax_id=tax_id,
             updated_at=NOW,
         )
         return self.organization
@@ -285,11 +283,9 @@ def test_settings_health_route_returns_the_panel(client):
     [
         {"company_name": "A"},
         {"company_name": "   "},
-        {"company_name": "Mantix", "tax_id": "12"},
-        {"company_name": "Mantix", "tax_id": "900 123 456"},
-        {"company_name": "Mantix", "tax_id": "9" * 31},
-        {"company_name": "Mantix", "legal_name": "x" * 201},
-        {"company_name": "Mantix", "unknown": 1},
+        {"company_name": "x" * 151},
+        {"company_name": "Mantix", "tax_id": "900.123.456-7"},  # not asked any more
+        {"company_name": "Mantix", "legal_name": "Mantix S.A.S."},
         {},
     ],
 )
@@ -298,27 +294,19 @@ def test_organization_validation(payload):
         OrganizationUpdate(**payload)
 
 
-def test_organization_trims_and_clears_blank_optionals():
-    payload = OrganizationUpdate(
-        company_name="  Mantix  ", legal_name="   ", tax_id="900.123.456-7"
+def test_organization_collapses_spaces():
+    assert (
+        OrganizationUpdate(company_name="  Majesa    Café  ").company_name
+        == "Majesa Café"
     )
-    assert (payload.company_name, payload.legal_name) == ("Mantix", None)
-    assert payload.tax_id == "900.123.456-7"
 
 
 async def test_organization_defaults_until_it_is_configured_then_audits_changes():
-    service, repo, audit = make()
+    service, _, audit = make()
     default = await service.organization()
-    assert (default.company_name, default.configured, default.tax_id) == (
-        "Mantix",
-        False,
-        None,
-    )
+    assert (default.company_name, default.configured) == ("Mantix", False)
     saved = await service.update_organization(
-        OrganizationUpdate(
-            company_name="Majesa", legal_name="Majesa S.A.S.", tax_id="900.111.222-3"
-        ),
-        ACTOR,
+        OrganizationUpdate(company_name="Majesa"), ACTOR
     )
     assert saved.configured and saved.company_name == "Majesa"
     assert audit.records[-1]["action"] == "organization.updated"
@@ -326,9 +314,8 @@ async def test_organization_defaults_until_it_is_configured_then_audits_changes(
     await service.update_organization(
         OrganizationUpdate(company_name="Majesa Café"), ACTOR
     )
-    assert audit.records[-1]["old_values"]["tax_id"] == "900.111.222-3"
-    assert (await service.organization()).tax_id is None
-    assert repo.committed == 0 or repo.committed >= 2
+    assert audit.records[-1]["old_values"] == {"company_name": "Majesa"}
+    assert (await service.organization()).company_name == "Majesa Café"
 
 
 def test_organization_routes_need_users_manage(client):
@@ -347,16 +334,14 @@ def test_organization_route_returns_and_saves(client):
     app.dependency_overrides[providers.get_system_settings_service] = lambda: service
     as_user({"users.manage"})
     assert client.get("/settings/organization").json()["configured"] is False
-    bad = client.put(
-        "/settings/organization", json={"company_name": "M", "tax_id": "1"}
+    assert (
+        client.put("/settings/organization", json={"company_name": "M"}).status_code
+        == 422
     )
-    assert bad.status_code == 422
-    ok = client.put(
+    ok = client.put("/settings/organization", json={"company_name": "Mantix"})
+    assert ok.status_code == 200 and ok.json()["company_name"] == "Mantix"
+    legacy = client.put(
         "/settings/organization",
-        json={
-            "company_name": "Mantix",
-            "legal_name": "Mantix S.A.S.",
-            "tax_id": "900.123.456-7",
-        },
+        json={"company_name": "Mantix", "tax_id": "900.123.456-7"},
     )
-    assert ok.status_code == 200 and ok.json()["tax_id"] == "900.123.456-7"
+    assert legacy.status_code == 422

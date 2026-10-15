@@ -112,9 +112,7 @@ def _write_table(
         cell.font = Font(name=FONT, size=10, bold=True, color=theme.WHITE)
         cell.fill = _HEADER_FILL
         cell.alignment = Alignment(
-            horizontal="right" if column.numeric else "left",
-            vertical="center",
-            wrap_text=True,
+            horizontal=column.alignment, vertical="center", wrap_text=True
         )
         sheet.column_dimensions[get_column_letter(index)].width = column.width
     sheet.row_dimensions[header_row].height = 24
@@ -128,7 +126,7 @@ def _write_table(
             )
             cell.font = Font(name=FONT, size=10, color=theme.INK)
             cell.alignment = Alignment(
-                horizontal="right" if column.numeric else "left",
+                horizontal=column.alignment,
                 vertical="center",
                 wrap_text=column.kind == "text",
             )
@@ -149,6 +147,13 @@ def _write_table(
             cell = sheet.cell(row=total_row, column=index)
             if column.total == "sum":
                 cell.value = f"=SUBTOTAL(109,{letter}{first}:{letter}{last})"
+            elif column.total == "avg":
+                cell.value = (
+                    f'=IFERROR(SUBTOTAL(101,{letter}{first}:{letter}{last}),"")'
+                )
+            elif column.total == "share_true":
+                rng = f"{letter}{first}:{letter}{last}"
+                cell.value = f'=IFERROR(COUNTIF({rng},"Sí")/(COUNTIF({rng},"Sí")+COUNTIF({rng},"No")),"")'
             elif column.total == "count":
                 formula = f"SUBTOTAL(103,{letter}{first}:{letter}{last})"
                 cell.value = (
@@ -159,54 +164,97 @@ def _write_table(
             cell.font = Font(name=FONT, size=10, bold=True, color=theme.DEEP)
             cell.fill = _TOTAL_FILL
             cell.border = Border(top=Side(style="medium", color=theme.DEEP))
-            cell.alignment = Alignment(horizontal="right" if column.numeric else "left")
-            if column.kind in _NUMBER_FORMATS and column.total == "sum":
+            cell.alignment = Alignment(horizontal=column.alignment)
+            if column.total == "share_true":
+                cell.number_format = "0.0%"
+            if column.kind in _NUMBER_FORMATS and column.total in ("sum", "avg"):
                 cell.number_format = _NUMBER_FORMATS[column.kind]
             elif column.total == "count":
                 cell.number_format = theme.XLSX_INTEGER
     return last
 
 
+#: Summary grid: two blocks per row, each one A-B-C or D-E-F wide. A chart is as wide as its
+#: block (never wider, so neighbours cannot overlap) and takes a fixed number of rows.
+BLOCK_COLUMNS = {0: 1, 1: 4}  # first column of the left and right block
+COLUMN_WIDTHS = (32, 14, 3, 32, 14, 3)
+CHART_WIDTH_CM = 9.2
+CHART_HEIGHT_CM = 7.0
+CHART_ROWS = 15  # 7 cm at the default row height, plus breathing room
+
+
 def _style_chart(chart: BarChart | PieChart, title: str) -> None:
     chart.title = title
-    chart.height, chart.width = 7.5, 12.5
-    chart.legend = None if isinstance(chart, BarChart) else chart.legend
+    chart.width, chart.height = CHART_WIDTH_CM, CHART_HEIGHT_CM
+    if isinstance(chart, BarChart):
+        chart.legend = None
+
+
+def _write_group(sheet: Worksheet, group: Any, row: int, column: int) -> int:
+    """A titled two-column table at (row, column); returns its last row."""
+    head = sheet.cell(row=row, column=column, value=group.title)
+    head.font = Font(name=FONT, size=11, bold=True, color=theme.WHITE)
+    head.fill = _HEADER_FILL
+    sheet.cell(row=row, column=column + 1).fill = _HEADER_FILL
+    for index, line in enumerate(group.lines, start=1):
+        label = sheet.cell(
+            row=row + index, column=column, value=neutralise_formula(line.label)
+        )
+        label.font = Font(name=FONT, size=10, color=theme.INK)
+        value = sheet.cell(row=row + index, column=column + 1, value=line.value)
+        value.font = Font(name=FONT, size=10, bold=True, color=theme.DEEP)
+        value.alignment = Alignment(horizontal="right")
+        if isinstance(line.value, float):
+            value.number_format = theme.XLSX_NUMBER
+        label.border = value.border = Border(bottom=_THIN)
+    return row + len(group.lines)
 
 
 def _summary_sheet(book: Workbook, export: ReportExport, include_charts: bool) -> None:
+    """KPIs on top, then the breakdown tables, then the charts in a tidy two-per-row grid."""
     sheet = book.active
     sheet.title = "Resumen"
     sheet.sheet_view.showGridLines = False
-    for letter, width in zip("ABCDEFGH", (30, 16, 4, 30, 16, 4, 4, 4), strict=True):
+    for letter, width in zip("ABCDEF", COLUMN_WIDTHS, strict=True):
         sheet.column_dimensions[letter].width = width
     _title_block(sheet, export, export.title, 5, right_column=4)
 
     row = HEADER_ROW
-    placed: list[tuple[Any, int, int, int]] = []  # group, header row, last row, column
-    for pair_start in range(0, len(export.summary), 2):
-        pair = export.summary[pair_start : pair_start + 2]
-        for offset, group in enumerate(pair):
-            column = 1 if offset == 0 else 4
-            head = sheet.cell(row=row, column=column, value=group.title)
-            head.font = Font(name=FONT, size=11, bold=True, color=theme.WHITE)
-            head.fill = _HEADER_FILL
-            sheet.cell(row=row, column=column + 1).fill = _HEADER_FILL
-            for index, line in enumerate(group.lines, start=1):
+    kpis = [group for group in export.summary if group.kpi]
+    others = [group for group in export.summary if not group.kpi]
+    for group in kpis:
+        # Headline figures: one band across both blocks, the lines split between them.
+        sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        head = sheet.cell(row=row, column=1, value=group.title)
+        head.font = Font(name=FONT, size=11, bold=True, color=theme.WHITE)
+        head.fill = PatternFill("solid", fgColor=theme.MUSTARD)
+        head.font = Font(name=FONT, size=11, bold=True, color=theme.INK)
+        half = (len(group.lines) + 1) // 2
+        for side, lines in enumerate((group.lines[:half], group.lines[half:])):
+            column = BLOCK_COLUMNS[side]
+            for index, line in enumerate(lines, start=1):
                 label = sheet.cell(
                     row=row + index, column=column, value=neutralise_formula(line.label)
                 )
                 label.font = Font(name=FONT, size=10, color=theme.INK)
                 value = sheet.cell(row=row + index, column=column + 1, value=line.value)
-                value.font = Font(name=FONT, size=10, bold=True, color=theme.DEEP)
+                value.font = Font(name=FONT, size=12, bold=True, color=theme.DEEP)
                 value.alignment = Alignment(horizontal="right")
                 if isinstance(line.value, float):
                     value.number_format = theme.XLSX_NUMBER
                 label.border = value.border = Border(bottom=_THIN)
-            placed.append((group, row, row + len(group.lines), column))
+        row += half + 3
+
+    placed: list[tuple[Any, int, int, int]] = []  # group, header row, last row, column
+    for pair_start in range(0, len(others), 2):
+        pair = others[pair_start : pair_start + 2]
+        for offset, group in enumerate(pair):
+            column = BLOCK_COLUMNS[offset]
+            last = _write_group(sheet, group, row, column)
+            placed.append((group, row, last, column))
         row += max(len(group.lines) for group in pair) + 3
 
     if include_charts:
-        anchor_row = row + 1
         slot = 0
         for group, first, last, column in placed:
             if group.chart is None or last <= first:
@@ -236,9 +284,8 @@ def _summary_sheet(book: Workbook, export: ReportExport, include_charts: bool) -
                 chart.dataLabels = DataLabelList()
                 chart.dataLabels.showPercent = True
             _style_chart(chart, group.title)
-            sheet.add_chart(
-                chart, f"{'A' if slot % 2 == 0 else 'D'}{anchor_row + (slot // 2) * 17}"
-            )
+            anchor = f"{'A' if slot % 2 == 0 else 'D'}{row + (slot // 2) * CHART_ROWS}"
+            sheet.add_chart(chart, anchor)
             slot += 1
 
 

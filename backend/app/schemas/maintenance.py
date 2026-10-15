@@ -124,6 +124,30 @@ class MaintenanceStatusTransitionRequest(BaseModel):
         return _clean(value)
 
 
+class WorkflowState(BaseModel):
+    """One status of the ticket lifecycle, as the State pattern defines it."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "triaged",
+                "order": 2,
+                "allowed_targets": ["assigned", "cancelled"],
+                "requires": ["category", "priority"],
+                "terminal": False,
+            }
+        }
+    )
+
+    status: str
+    order: int
+    allowed_targets: list[str]
+    requires: list[str] = Field(
+        description="Data to ask for before moving a ticket into this status"
+    )
+    terminal: bool
+
+
 class MaintenanceClassifyRequest(BaseModel):
     """Triage: sets the category and priority, and moves a new request to `triaged`."""
 

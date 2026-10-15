@@ -289,19 +289,9 @@ class SystemSettingsService:
         self, payload: OrganizationUpdate, actor: AuthContext
     ) -> OrganizationResponse:
         current = await self.repository.get_organization()
-        old = (
-            {
-                "company_name": current.company_name,
-                "legal_name": current.legal_name,
-                "tax_id": current.tax_id,
-            }
-            if current is not None
-            else None
-        )
+        old = {"company_name": current.company_name} if current is not None else None
         row = await self.repository.save_organization(
             company_name=payload.company_name,
-            legal_name=payload.legal_name,
-            tax_id=payload.tax_id,
             user_id=actor.id,
         )
         self.audit.record(
@@ -320,15 +310,11 @@ class SystemSettingsService:
         if row is None:
             return OrganizationResponse(
                 company_name=DEFAULT_COMPANY,
-                legal_name=None,
-                tax_id=None,
                 configured=False,
                 updated_at=None,
             )
         return OrganizationResponse(
             company_name=row.company_name,
-            legal_name=row.legal_name,
-            tax_id=row.tax_id,
             configured=True,
             updated_at=row.updated_at,
         )

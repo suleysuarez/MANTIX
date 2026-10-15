@@ -125,3 +125,67 @@ def test_assign_technician_keeps_status_of_later_open_states(status):
 def test_assign_technician_rejected_on_terminal_states(status):
     with pytest.raises(InvalidTransitionError):
         TicketState.of(status).assign_technician(ticket(status), now=NOW)
+
+
+# -- workflow metadata for boards ------------------------------------------------------------
+
+
+def test_workflow_lists_every_state_in_order_with_what_must_be_supplied():
+    flow = TicketState.workflow()
+    assert [s.status for s in flow] == [
+        "submitted",
+        "triaged",
+        "assigned",
+        "in_progress",
+        "waiting",
+        "resolved",
+        "closed",
+        "cancelled",
+    ]
+    requires = {s.status: s.requires for s in flow}
+    assert requires["triaged"] == ("category", "priority")
+    assert requires["assigned"] == ("technician",)
+    assert requires["resolved"] == ("resolution_summary",)
+    assert requires["cancelled"] == ("reason",)
+    assert requires["in_progress"] == () and requires["closed"] == ()
+
+
+def test_workflow_endpoint_mirrors_the_state_machine_and_needs_read_permission():
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from app.api.dependencies import get_authenticated_user
+    from app.main import app
+
+    def user(permissions):
+        role = SimpleNamespace(
+            code="ADMIN",
+            is_active=True,
+            permissions=[SimpleNamespace(code=c, is_active=True) for c in permissions],
+        )
+        return SimpleNamespace(id=1, full_name="Ana", roles=[role])
+
+    try:
+        app.dependency_overrides[get_authenticated_user] = lambda: user(
+            ["maintenance.read"]
+        )
+        with TestClient(app) as client:
+            body = client.get("/maintenance/requests/workflow").json()
+        assert [s["status"] for s in body][0] == "submitted"
+        by_status = {s["status"]: s for s in body}
+        assert by_status["submitted"]["allowed_targets"] == [
+            "assigned",
+            "cancelled",
+            "triaged",
+        ]
+        assert (
+            by_status["closed"]["terminal"] is True
+            and by_status["cancelled"]["terminal"] is True
+        )
+        assert by_status["in_progress"]["terminal"] is False
+        app.dependency_overrides[get_authenticated_user] = lambda: user([])
+        with TestClient(app) as client:
+            assert client.get("/maintenance/requests/workflow").status_code == 403
+    finally:
+        app.dependency_overrides.clear()
