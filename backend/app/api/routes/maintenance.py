@@ -6,8 +6,10 @@ from app.api.dependencies import require_permission
 from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_maintenance_service
 from app.core.authz import AuthContext
+from app.core.errors import error_responses
 from app.core.pagination import PageParams
 from app.schemas.maintenance import (
+    MaintenanceClassifyRequest,
     MaintenanceRecordCreate,
     MaintenanceRecordResponse,
     MaintenanceRejectRequest,
@@ -101,6 +103,27 @@ async def transition_maintenance_request_status(
     service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
 ) -> MaintenanceRequestResponse:
     return await service.transition_status(request_id, payload, actor)
+
+
+@router.post(
+    "/{request_id}/classify",
+    response_model=MaintenanceRequestResponse,
+    summary="Classify (triage) a request",
+    description=(
+        "Sets the category and priority, both of which must be active catalog "
+        "entries (422 otherwise), and moves a `submitted` request to `triaged`. "
+        "A `triaged` request can be reclassified. Audited with the previous and "
+        "new values. ADMIN and SUPERVISOR only."
+    ),
+    responses=error_responses(404, 409, 422),
+)
+async def classify_maintenance_request(
+    request_id: int,
+    payload: MaintenanceClassifyRequest,
+    actor: AuthContext = Depends(require_permission("maintenance.manage")),  # noqa: B008
+    service: MaintenanceService = Depends(get_maintenance_service),  # noqa: B008
+) -> MaintenanceRequestResponse:
+    return await service.classify_request(request_id, payload, actor)
 
 
 @router.post(

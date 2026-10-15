@@ -236,6 +236,11 @@ class FakeMaintenanceRepository:
     async def list_records(self, request_id):
         return [record for record in self.records if record.request_id == request_id]
 
+    async def update_fields(self, entity, values):
+        for field, value in values.items():
+            setattr(entity, field, value)
+        return entity
+
     async def commit(self):
         self.committed = True
 

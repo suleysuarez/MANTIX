@@ -7,7 +7,12 @@ from pydantic import ValidationError
 
 from app.api import providers
 from app.api.dependencies import get_authenticated_user
-from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    BusinessRuleError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+)
 from app.main import app
 from app.models.auth import User
 from app.models.category import RequestCategory
@@ -18,6 +23,7 @@ from app.repositories.dashboard import CountRow
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.queue import DecisionStats, QueueRepository, WaitStats
 from app.schemas.maintenance import (
+    MaintenanceClassifyRequest,
     MaintenanceRejectRequest,
     MaintenanceRequestCreate,
     MaintenanceStatusTransitionRequest,
@@ -460,3 +466,158 @@ async def test_list_filters_by_status_list_category_and_assignment(db_session):
     assert len(unassigned.items) == 6  # nobody has an assignment in this seed
     assigned = await repo.list_requests(unassigned=False)
     assert assigned.items == []
+
+
+# -- classification (triage) -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"category": "Hardware", "priority": "high"},
+        {"category": "hardware", "priority": "1"},
+        {"category": "hardware", "priority": "high", "notes": "x" * 501},
+        {"category": "", "priority": "high"},
+        {"priority": "high"},
+    ],
+)
+def test_classify_validates_the_body(payload):
+    with pytest.raises(ValidationError):
+        MaintenanceClassifyRequest(**payload)
+
+
+def test_classify_notes_are_trimmed_and_blank_means_none():
+    assert (
+        MaintenanceClassifyRequest(
+            category="hardware", priority="high", notes="  visita  "
+        ).notes
+        == "visita"
+    )
+    assert (
+        MaintenanceClassifyRequest(
+            category="hardware", priority="high", notes="   "
+        ).notes
+        is None
+    )
+
+
+def test_assignment_and_transition_notes_are_bounded():
+    with pytest.raises(ValidationError):
+        TicketAssignmentCreateRequest(technician_id=1, notes="x" * 501)
+    with pytest.raises(ValidationError):
+        TicketAssignmentCreateRequest(technician_id=0)
+    with pytest.raises(ValidationError):
+        MaintenanceStatusTransitionRequest(status="triaged", notes="x" * 501)
+    assert TicketAssignmentCreateRequest(technician_id=1, notes="  ").notes is None
+
+
+async def test_classify_sets_category_and_priority_and_triages():
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    response = await service.classify_request(
+        created.id,
+        MaintenanceClassifyRequest(
+            category="network", priority="high", notes="Visita en sitio"
+        ),
+        ADMIN,
+    )
+    assert (response.status, response.category, response.priority) == (
+        "triaged",
+        "network",
+        "high",
+    )
+    assert response.status_history[-1].notes == "Visita en sitio"
+    classified = next(
+        r for r in service.audit.records if r["action"] == "maintenance.classified"
+    )
+    assert classified["old_values"]["status"] == "submitted"
+    assert classified["new_values"] == {
+        "priority": "high",
+        "category": "network",
+        "notes": "Visita en sitio",
+    }
+    assert service.repository.committed
+
+
+async def test_a_triaged_request_can_be_reclassified_without_a_new_status_change():
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    body = MaintenanceClassifyRequest(category="network", priority="high")
+    await service.classify_request(created.id, body, ADMIN)
+    history = len(
+        (await service.classify_request(created.id, body, ADMIN)).status_history
+    )
+    again = await service.classify_request(
+        created.id,
+        MaintenanceClassifyRequest(category="hardware", priority="low"),
+        ADMIN,
+    )
+    assert (again.category, again.priority, again.status) == (
+        "hardware",
+        "low",
+        "triaged",
+    )
+    assert len(again.status_history) == history
+
+
+async def test_classify_rejects_unknown_catalog_entries_with_422():
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    with pytest.raises(UnprocessableError, match="category"):
+        await service.classify_request(
+            created.id,
+            MaintenanceClassifyRequest(category="unknown", priority="high"),
+            ADMIN,
+        )
+    with pytest.raises(UnprocessableError, match="priority"):
+        await service.classify_request(
+            created.id,
+            MaintenanceClassifyRequest(category="network", priority="unknown"),
+            ADMIN,
+        )
+
+
+async def test_classify_only_works_before_assignment_and_for_elevated_roles():
+    service = service_with_fakes(technicians=[make_technician(1, user_id=10)])
+    created = await create_ticket(service)
+    body = MaintenanceClassifyRequest(category="network", priority="high")
+    with pytest.raises(ForbiddenError):
+        await service.classify_request(created.id, body, make_actor(100))
+    await service.assign_technician(
+        created.id, TicketAssignmentCreateRequest(technician_id=1), ADMIN
+    )
+    with pytest.raises(BusinessRuleError, match="waiting for triage"):
+        await service.classify_request(created.id, body, ADMIN)
+    with pytest.raises(NotFoundError):
+        await service.classify_request(999, body, ADMIN)
+
+
+async def test_reject_is_audited_with_its_reason():
+    service = service_with_fakes()
+    created = await create_ticket(service)
+    await service.reject_request(created.id, "Duplicado del TCK-1", ADMIN)
+    rejected = next(
+        r for r in service.audit.records if r["action"] == "maintenance.rejected"
+    )
+    assert rejected["new_values"] == {"reason": "Duplicado del TCK-1"}
+    assert rejected["old_values"] == {"status": "submitted"}
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to"),
+    [
+        (NOW + timedelta(days=400), None),
+        (NOW, NOW - timedelta(days=1)),
+    ],
+)
+async def test_list_rejects_incoherent_date_filters(date_from, date_to):
+    service = service_with_fakes()
+    with pytest.raises(UnprocessableError):
+        await service.list_requests(
+            status=None,
+            priority=None,
+            equipment_id=None,
+            date_from=date_from,
+            date_to=date_to,
+            actor=ADMIN,
+        )

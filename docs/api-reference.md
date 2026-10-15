@@ -101,6 +101,7 @@
 | GET | `/maintenance/requests/{request_id}` | Get maintenance request | `maintenance.read` |
 | DELETE | `/maintenance/requests/{request_id}/assignment` | Unassign technician | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `maintenance.manage` |
+| POST | `/maintenance/requests/{request_id}/classify` | Classify (triage) a request | `maintenance.manage` |
 | GET | `/maintenance/requests/{request_id}/records` | List maintenance records | `maintenance.read` |
 | POST | `/maintenance/requests/{request_id}/records` | Add maintenance record | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/reject` | Reject a request that has not started | `maintenance.manage` |
@@ -171,7 +172,7 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **86** endpoints.
+Total: **87** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 
