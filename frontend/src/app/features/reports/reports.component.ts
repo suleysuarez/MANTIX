@@ -43,9 +43,9 @@ const FORMAT_LABELS: Record<ExportFormat, string> = { xlsx: 'Excel', pdf: 'PDF',
               }
             </div>
           </div>
-          <!-- PLACEHOLDER: se reemplaza por assets/images/reportes-hero.svg (ver lista de imágenes) -->
-          <div class="pointer-events-none absolute inset-y-3 right-4 hidden w-[34%] items-center justify-center rounded-2xl border-2 border-dashed border-white/40 text-center md:flex" data-placeholder="reportes-hero.svg">
-            <span class="px-4 text-[11px] font-semibold uppercase tracking-wider text-brand-grey">[Placeholder] ilustración<br />reportes-hero.svg · 640×360</span>
+<!-- Ilustración en un panel claro: la imagen trae fondo casi blanco. -->
+          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-[13/10] overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:flex lg:items-center lg:justify-center" aria-hidden="true">
+            <img src="assets/images/reportes-hero.webp" alt="" width="720" height="554" class="h-full w-full object-contain mix-blend-multiply" />
           </div>
         </header>
 
