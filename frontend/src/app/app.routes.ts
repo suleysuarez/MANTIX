@@ -20,7 +20,7 @@ export const routes: Routes = [
       { path: 'tickets', canActivate: [permissionGuard('maintenance.read')], data: { title: 'Tickets', icon: 'confirmation_number', description: 'Seguimiento de incidentes reportados por los usuarios.' }, loadComponent: () => import('./features/placeholder/module-placeholder.component').then((m) => m.ModulePlaceholderComponent) },
       { path: 'inventario', canActivate: [permissionGuard('inventory.read')], loadComponent: () => import('./features/inventory/inventory.component').then((m) => m.InventoryComponent) },
       { path: 'reportes', canActivate: [permissionGuard('reports.read')], loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
-      { path: 'configuracion', canActivate: [permissionGuard('users.manage')], data: { title: 'Configuración', icon: 'settings', description: 'Parámetros generales del sistema.' }, loadComponent: () => import('./features/placeholder/module-placeholder.component').then((m) => m.ModulePlaceholderComponent) },
+      { path: 'configuracion', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
       { path: 'equipos', loadChildren: () => import('./features/equipos/equipos.routes').then((m) => m.EQUIPOS_ROUTES) },
     ],
   },

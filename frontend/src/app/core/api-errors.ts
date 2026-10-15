@@ -37,6 +37,8 @@ const BY_STATUS: Record<number, string> = {
 /** Reglas de negocio conocidas (409): el servidor devuelve el texto en inglés. */
 const BUSINESS_RULES: [RegExp, string][] = [
   [/inactive technician/i, 'No se puede asignar a un técnico inactivo.'],
+  [/used by \d+ request/i, 'La categoría está en uso por solicitudes: desactívala en lugar de eliminarla.'],
+  [/already exists/i, 'Ya existe un registro con ese identificador.'],
   [/have not started/i, 'Solo se pueden rechazar solicitudes que aún no se han iniciado.'],
   [/cannot transition|not allowed/i, 'Ese cambio de estado no está permitido desde el estado actual.'],
 ];
