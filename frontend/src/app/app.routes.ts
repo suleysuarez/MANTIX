@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'admin/pending-users', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/admin/pending-users.component').then((m) => m.PendingUsersComponent) },
       { path: 'maintenance', canActivate: [permissionGuard('maintenance.read')], loadChildren: () => import('./features/maintenance/maintenance.routes').then((m) => m.MAINTENANCE_ROUTES) },
       { path: 'solicitudes', canActivate: [roleGuard('maintenance.manage', 'ADMIN', 'SUPERVISOR')], loadComponent: () => import('./features/pending-requests/pending-requests.component').then((m) => m.PendingRequestsComponent) },
+      { path: 'mantenimiento', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/maintenance-hub/maintenance-hub.component').then((m) => m.MaintenanceHubComponent) },
       { path: 'technicians', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/technicians/technicians.component').then((m) => m.TechniciansComponent) },
       { path: 'tickets', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/tickets/tickets.component').then((m) => m.TicketsComponent) },
       { path: 'inventario', canActivate: [permissionGuard('equipment.read')], data: { title: 'Inventario', icon: 'inventory_2', description: 'Control de existencias y repuestos del parque tecnológico.' }, loadComponent: () => import('./features/placeholder/module-placeholder.component').then((m) => m.ModulePlaceholderComponent) },

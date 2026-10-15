@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Response, status
+from pydantic import AwareDatetime
 
 from app.api.dependencies import require_permission
 from app.api.pagination import page_params, set_page_headers
@@ -8,12 +9,18 @@ from app.core.errors import error_responses
 from app.core.pagination import PageParams
 from app.schemas.schedule import (
     ReminderRunResponse,
+    ScheduleCompleteRequest,
     ScheduleCreate,
+    ScheduleHistoryResponse,
     ScheduleResponse,
     ScheduleUpdate,
 )
 from app.services.reminders import ReminderService
 from app.services.schedule import ScheduleService
+
+DUE_FROM = Query(default=None, description="Next service at or after")
+DUE_TO = Query(default=None, description="Next service before")
+OVERDUE = Query(default=False, description="Only active plans already overdue")
 
 router = APIRouter(prefix="/maintenance/schedules", tags=["schedules"])
 
@@ -29,12 +36,23 @@ async def list_schedules(
     equipment_id: int | None = Query(default=None),
     is_active: bool | None = Query(default=None),
     search: str | None = Query(default=None, max_length=100),
+    technician_id: int | None = Query(default=None),
+    due_from: AwareDatetime | None = DUE_FROM,
+    due_to: AwareDatetime | None = DUE_TO,
+    overdue: bool = OVERDUE,
     params: PageParams = Depends(page_params()),  # noqa: B008
     _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
     service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
 ) -> list[ScheduleResponse]:
     page = await service.list(
-        equipment_id=equipment_id, is_active=is_active, search=search, params=params
+        equipment_id=equipment_id,
+        is_active=is_active,
+        search=search,
+        technician_id=technician_id,
+        due_from=due_from,
+        due_to=due_to,
+        overdue=overdue,
+        params=params,
     )
     set_page_headers(response, page)
     return page.items
@@ -116,7 +134,23 @@ async def update_schedule(
 )
 async def complete_schedule(
     schedule_id: int,
+    payload: ScheduleCompleteRequest | None = None,
     actor: AuthContext = Depends(require_permission("schedules.manage")),  # noqa: B008
     service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
 ) -> ScheduleResponse:
-    return await service.complete(schedule_id, actor)
+    hours = payload.actual_hours if payload else None
+    return await service.complete(schedule_id, actor, actual_hours=hours)
+
+
+@router.get(
+    "/{schedule_id}/history",
+    response_model=ScheduleHistoryResponse,
+    summary="Completions and reschedules of a plan",
+    responses=error_responses(404),
+)
+async def schedule_history(
+    schedule_id: int,
+    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
+) -> ScheduleHistoryResponse:
+    return await service.history(schedule_id)

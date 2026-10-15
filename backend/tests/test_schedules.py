@@ -10,7 +10,7 @@ from app.api import providers
 from app.api.dependencies import get_authenticated_user
 from app.core.authz import AuthContext
 from app.core.config import Settings
-from app.core.exceptions import NotFoundError, UnprocessableError
+from app.core.exceptions import BusinessRuleError, NotFoundError, UnprocessableError
 from app.jobs import REMINDER_JOB_ID, build_scheduler, run_reminder_job
 from app.main import app
 from app.repositories.base import Page
@@ -64,6 +64,31 @@ class FakeScheduleRepository:
     def __init__(self):
         self.items = {}
         self.committed = 0
+        self.runs = []
+        self.reschedules = []
+
+    def record_run(self, **kwargs):
+        self.runs.append(kwargs)
+
+    def record_reschedule(self, **kwargs):
+        self.reschedules.append(kwargs)
+
+    async def history(self, schedule_id, *, limit=50):
+        runs = [
+            SimpleNamespace(
+                id=i + 1, **{k: v for k, v in run.items() if k != "user_id"}
+            )
+            for i, run in enumerate(self.runs)
+        ]
+        moves = [
+            SimpleNamespace(
+                id=i + 1,
+                changed_at=NOW,
+                **{k: v for k, v in m.items() if k != "user_id"},
+            )
+            for i, m in enumerate(self.reschedules)
+        ]
+        return runs, moves
 
     async def add_and_flush(self, entity):
         entity.id = len(self.items) + 1
@@ -120,12 +145,16 @@ class FakeScheduleRepository:
 
 class FakeEquipment:
     async def get(self, equipment_id):
-        return SimpleNamespace(id=equipment_id) if equipment_id == 1 else None
+        status = {1: "assigned", 3: "retired", 4: "lost"}.get(equipment_id)
+        return SimpleNamespace(id=equipment_id, status=status) if status else None
 
 
 class FakeTechnicians:
     async def get(self, technician_id):
-        return SimpleNamespace(id=technician_id) if technician_id == 2 else None
+        active = {2: True, 3: False}.get(technician_id)
+        if active is None:
+            return None
+        return SimpleNamespace(id=technician_id, user=SimpleNamespace(is_active=active))
 
 
 class FakeAudit:
@@ -136,8 +165,18 @@ class FakeAudit:
         self.records.append(kwargs)
 
 
+class ClockedScheduleService(ScheduleService):
+    """Runs the service at a fixed `now` so the "not in the past" rule is deterministic."""
+
+    async def create(self, payload, actor, *, now=None):
+        return await super().create(payload, actor, now=now or NOW)
+
+    async def update(self, schedule_id, payload, actor, *, now=None):
+        return await super().update(schedule_id, payload, actor, now=now or NOW)
+
+
 def schedule_service():
-    return ScheduleService(
+    return ClockedScheduleService(
         FakeScheduleRepository(), FakeEquipment(), FakeTechnicians(), FakeAudit()
     )
 
@@ -525,8 +564,8 @@ class StubScheduleService:
         self.calls.append(("list", kwargs))
         return Page(items=[], total=0, page=1, size=20)
 
-    async def complete(self, schedule_id, actor):
-        self.calls.append(("complete", schedule_id))
+    async def complete(self, schedule_id, actor, actual_hours=None):
+        self.calls.append(("complete", schedule_id, actual_hours))
         return ScheduleResponse(
             id=schedule_id,
             equipment={"id": 1, "asset_tag": "SRV-1", "brand": "Dell", "model": "R450"},
@@ -605,7 +644,7 @@ def test_run_reminders_is_not_shadowed_by_the_id_route(client):
 
 def test_complete_endpoint_and_validation_errors(client):
     assert client.post("/maintenance/schedules/4/complete").status_code == 200
-    assert client.schedules.calls[-1] == ("complete", 4)
+    assert client.schedules.calls[-1] == ("complete", 4, None)
     bad = client.post(
         "/maintenance/schedules",
         json={
@@ -617,3 +656,176 @@ def test_complete_endpoint_and_validation_errors(client):
     )
     assert bad.status_code == 422
     assert any(e["field"] == "interval_days" for e in bad.json()["errors"])
+
+
+# -- phase 2: validations, runs and reschedules ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"estimated_hours": "0"},
+        {"estimated_hours": "-1"},
+        {"estimated_hours": "1000"},
+        {"estimated_hours": "1.234"},
+        {"title": "   "},
+    ],
+)
+def test_create_rejects_bad_hours_and_blank_titles(overrides):
+    with pytest.raises(ValidationError):
+        create_payload(**overrides)
+
+
+def test_create_trims_text_and_keeps_two_decimals():
+    payload = create_payload(
+        title="  Limpieza  ", description="   ", estimated_hours="1.5"
+    )
+    assert payload.title == "Limpieza" and payload.description is None
+    assert str(payload.estimated_hours) == "1.5"
+
+
+async def test_cannot_schedule_in_the_past_but_right_now_is_fine():
+    service = schedule_service()
+    with pytest.raises(UnprocessableError, match="in the past"):
+        await service.create(create_payload(first_due_at="2026-10-11T11:59:00Z"), ACTOR)
+    created = await service.create(
+        create_payload(first_due_at="2026-10-11T12:00:00Z"), ACTOR
+    )
+    assert created.next_due_at == NOW
+
+
+@pytest.mark.parametrize("equipment_id", [3, 4])
+async def test_no_plan_for_retired_or_lost_equipment(equipment_id):
+    with pytest.raises(BusinessRuleError, match="cannot schedule"):
+        await schedule_service().create(
+            create_payload(equipment_id=equipment_id), ACTOR
+        )
+
+
+async def test_cannot_assign_a_plan_to_an_inactive_technician():
+    with pytest.raises(BusinessRuleError, match="inactive"):
+        await schedule_service().create(create_payload(technician_id=3), ACTOR)
+
+
+async def test_moving_the_due_date_is_recorded_with_its_reason():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    new_due = datetime(2027, 2, 1, 9, tzinfo=UTC)
+    await service.update(
+        created.id,
+        ScheduleUpdate(next_due_at=new_due, reschedule_reason="  Equipo en uso  "),
+        ACTOR,
+    )
+    (move,) = service.repository.reschedules
+    assert move["old_due_at"] == datetime(2026, 12, 1, 9, tzinfo=UTC)
+    assert move["new_due_at"] == new_due and move["reason"] == "Equipo en uso"
+    assert move["user_id"] == ACTOR.id
+
+
+async def test_a_reason_without_a_new_date_is_rejected_and_the_same_date_is_not_a_move():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    with pytest.raises(UnprocessableError, match="needs a new next_due_at"):
+        await service.update(
+            created.id, ScheduleUpdate(reschedule_reason="porque sí"), ACTOR
+        )
+    await service.update(
+        created.id,
+        ScheduleUpdate(next_due_at=datetime(2026, 12, 1, 9, tzinfo=UTC)),
+        ACTOR,
+    )
+    assert service.repository.reschedules == []
+
+
+async def test_cannot_reschedule_into_the_past():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    with pytest.raises(UnprocessableError, match="in the past"):
+        await service.update(
+            created.id,
+            ScheduleUpdate(next_due_at=datetime(2026, 10, 1, tzinfo=UTC)),
+            ACTOR,
+        )
+    assert service.repository.reschedules == []
+
+
+async def test_other_edits_do_not_create_reschedules():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    await service.update(
+        created.id, ScheduleUpdate(title="Otro", estimated_hours="2"), ACTOR
+    )
+    assert service.repository.reschedules == []
+
+
+async def test_completing_records_a_run_with_the_old_due_date_and_real_hours():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    done_at = datetime(2026, 11, 20, tzinfo=UTC)
+    await service.complete(created.id, ACTOR, actual_hours="1.75", now=done_at)
+    (run,) = service.repository.runs
+    assert run["due_at"] == datetime(2026, 12, 1, 9, tzinfo=UTC)
+    assert run["completed_at"] == done_at and run["actual_hours"] == "1.75"
+    history = await service.history(created.id)
+    assert history.runs[0].on_time is True  # done before it was due
+
+
+async def test_a_late_completion_is_not_on_time():
+    service = schedule_service()
+    created = await service.create(create_payload(), ACTOR)
+    await service.complete(created.id, ACTOR, now=datetime(2026, 12, 5, tzinfo=UTC))
+    assert (await service.history(created.id)).runs[0].on_time is False
+
+
+async def test_history_of_a_missing_plan_is_a_404():
+    with pytest.raises(NotFoundError):
+        await schedule_service().history(404)
+
+
+@pytest.mark.parametrize(
+    ("due_from", "due_to", "message"),
+    [
+        (datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 10, 1, tzinfo=UTC), "after"),
+        (datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC), "after"),
+        (datetime(2025, 1, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC), "exceed"),
+    ],
+)
+async def test_list_rejects_inverted_or_huge_due_ranges(due_from, due_to, message):
+    with pytest.raises(UnprocessableError, match=message):
+        await schedule_service().list(due_from=due_from, due_to=due_to)
+
+
+async def test_list_passes_the_new_filters_and_the_overdue_moment():
+    service = schedule_service()
+    await service.list(technician_id=2, overdue=True, now=NOW)
+    kwargs = service.repository.search_kwargs
+    assert kwargs["technician_id"] == 2 and kwargs["overdue_at"] == NOW
+    await service.list(now=NOW)
+    assert service.repository.search_kwargs["overdue_at"] is None
+
+
+def test_complete_accepts_the_real_hours_and_rejects_bad_ones(client):
+    ok = client.post("/maintenance/schedules/4/complete", json={"actual_hours": "1.50"})
+    assert ok.status_code == 200
+    assert str(client.schedules.calls[-1][2]) == "1.50"
+    for bad in ("0", "-2", "1000", "1.234", "abc"):
+        response = client.post(
+            "/maintenance/schedules/4/complete", json={"actual_hours": bad}
+        )
+        assert response.status_code == 422, bad
+
+
+def test_list_endpoint_forwards_the_new_filters(client):
+    response = client.get(
+        "/maintenance/schedules?technician_id=2&overdue=true"
+        "&due_from=2026-10-01T00:00:00Z&due_to=2026-11-01T00:00:00Z"
+    )
+    assert response.status_code == 200
+    kind, kwargs = client.schedules.calls[-1]
+    assert kind == "list"
+    assert kwargs["technician_id"] == 2 and kwargs["overdue"] is True
+    assert kwargs["due_from"] == datetime(2026, 10, 1, tzinfo=UTC)
+    assert (
+        client.get("/maintenance/schedules?due_from=2026-10-01T00:00:00").status_code
+        == 422
+    )  # naive

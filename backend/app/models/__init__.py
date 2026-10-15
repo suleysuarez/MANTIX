@@ -24,7 +24,7 @@ from app.models.maintenance import (
 )
 from app.models.notification import Notification
 from app.models.priority import Priority
-from app.models.schedule import MaintenanceSchedule
+from app.models.schedule import MaintenanceSchedule, ScheduleReschedule, ScheduleRun
 from app.models.technician import Technician
 
 __all__ = [
@@ -45,6 +45,8 @@ __all__ = [
     "RequestCategory",
     "Role",
     "RolePermission",
+    "ScheduleReschedule",
+    "ScheduleRun",
     "Technician",
     "TicketAssignment",
     "TicketStatusHistory",

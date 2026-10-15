@@ -16,7 +16,7 @@ const ICON: Record<ToastKind, string> = { success: 'check_circle', error: 'error
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
+    <div class="pointer-events-none fixed bottom-24 right-4 z-[60] lg:bottom-4 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
       @for (toast of toasts.toasts(); track toast.id) {
         <div class="pointer-events-auto flex items-start gap-3 rounded-xl px-4 py-3 shadow-lg" [class]="tone[toast.kind]"
           [attr.role]="toast.kind === 'error' ? 'alert' : 'status'">

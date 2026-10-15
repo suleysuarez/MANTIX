@@ -39,8 +39,8 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
     @if (vm$ | async; as vm) {
       <div class="space-y-4">
         <!-- Encabezado con ilustración -->
-        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8">
-          <div class="relative z-10 flex flex-col gap-4 md:max-w-[58%]">
+        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8 lg:min-h-[17rem]">
+          <div class="relative z-10 flex flex-col gap-4 lg:max-w-[48%]">
             <span class="glass inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accentDeep">
               <span class="h-2 w-2 rounded-full bg-brand-mustard"></span> Bandeja de triaje
             </span>
@@ -58,11 +58,10 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
               }
             </div>
           </div>
-          <!-- PLACEHOLDER: se reemplaza por assets/images/solicitudes-hero.svg (ver lista de imágenes) -->
-          <div class="pointer-events-none absolute inset-y-3 right-4 hidden w-[36%] items-center justify-center rounded-2xl border-2 border-dashed border-white/40 text-center md:flex" data-placeholder="solicitudes-hero.svg">
-            <span class="px-4 text-[11px] font-semibold uppercase tracking-wider text-brand-grey">
-              [Placeholder] ilustración<br />solicitudes-hero.svg · 640×360
-            </span>
+          <!-- Ilustración animada; con «reducir movimiento» se queda en el primer fotograma. -->
+          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-video overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:block" aria-hidden="true">
+            <video class="h-full w-full object-cover" src="assets/videos/mensajes.mp4" poster="assets/videos/mensajes-poster.jpg"
+              [muted]="true" playsinline preload="auto" [loop]="!reduceMotion" [autoplay]="!reduceMotion"></video>
           </div>
         </header>
 
@@ -291,6 +290,8 @@ export class PendingRequestsComponent implements OnInit {
   readonly focus = FOCUS;
   readonly field = FIELD;
   readonly search$ = new Subject<string>();
+  /** Respeta la preferencia del sistema: sin movimiento, el video no se reproduce. */
+  readonly reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   readonly wait = formatWait;
   readonly pct = formatPct;

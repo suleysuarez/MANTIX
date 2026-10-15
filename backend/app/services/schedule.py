@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.authz import AuthContext
-from app.core.exceptions import NotFoundError, UnprocessableError
+from app.core.exceptions import BusinessRuleError, NotFoundError, UnprocessableError
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.schedule import MaintenanceSchedule
 from app.repositories.base import Page
@@ -12,7 +12,10 @@ from app.repositories.technician import TechnicianRepository
 from app.schemas.maintenance import EquipmentSummary, TechnicianSummary
 from app.schemas.schedule import (
     ScheduleCreate,
+    ScheduleHistoryResponse,
+    ScheduleRescheduleResponse,
     ScheduleResponse,
+    ScheduleRunResponse,
     ScheduleUpdate,
 )
 from app.services.audit import AuditService
@@ -22,10 +25,16 @@ _AUDITED_FIELDS = (
     "title",
     "description",
     "interval_days",
+    "estimated_hours",
     "remind_days_before",
     "next_due_at",
     "is_active",
 )
+
+#: Equipment that is gone for good gets no preventive plan.
+UNSERVICEABLE_STATUSES = ("retired", "disposed", "lost")
+#: Longest due-date window a listing may ask for.
+MAX_DUE_RANGE = timedelta(days=400)
 
 
 def _jsonable(values: dict[str, Any]) -> dict[str, Any]:
@@ -56,12 +65,28 @@ class ScheduleService:
         equipment_id: int | None = None,
         is_active: bool | None = None,
         search: str | None = None,
+        technician_id: int | None = None,
+        due_from: datetime | None = None,
+        due_to: datetime | None = None,
+        overdue: bool = False,
         params: PageParams = DEFAULT_PAGE,
+        now: datetime | None = None,
     ) -> Page[ScheduleResponse]:
+        if due_from is not None and due_to is not None:
+            if due_to <= due_from:
+                raise UnprocessableError("due_to must be after due_from")
+            if due_to - due_from > MAX_DUE_RANGE:
+                raise UnprocessableError(
+                    f"the due date range cannot exceed {MAX_DUE_RANGE.days} days"
+                )
         page = await self.repository.search(
             equipment_id=equipment_id,
             is_active=is_active,
             search=search,
+            technician_id=technician_id,
+            due_from=due_from,
+            due_to=due_to,
+            overdue_at=(now or datetime.now(UTC)) if overdue else None,
             params=params,
         )
         return page.map(self._response)
@@ -70,10 +95,20 @@ class ScheduleService:
         return self._response(await self._require(schedule_id))
 
     async def create(
-        self, payload: ScheduleCreate, actor: AuthContext
+        self,
+        payload: ScheduleCreate,
+        actor: AuthContext,
+        *,
+        now: datetime | None = None,
     ) -> ScheduleResponse:
-        if await self.equipment.get(payload.equipment_id) is None:
+        equipment = await self.equipment.get(payload.equipment_id)
+        if equipment is None:
             raise NotFoundError("equipment not found")
+        if getattr(equipment, "status", None) in UNSERVICEABLE_STATUSES:
+            raise BusinessRuleError(
+                f"cannot schedule maintenance for equipment that is {equipment.status}"
+            )
+        self._require_not_past(payload.first_due_at, now)
         await self._require_technician(payload.technician_id)
         schedule = await self.repository.add_and_flush(
             MaintenanceSchedule(
@@ -82,6 +117,7 @@ class ScheduleService:
                 title=payload.title,
                 description=payload.description,
                 interval_days=payload.interval_days,
+                estimated_hours=payload.estimated_hours,
                 remind_days_before=payload.remind_days_before,
                 next_due_at=payload.first_due_at,
                 is_active=True,
@@ -106,10 +142,25 @@ class ScheduleService:
         return self._response(await self._require(schedule.id))
 
     async def update(
-        self, schedule_id: int, payload: ScheduleUpdate, actor: AuthContext
+        self,
+        schedule_id: int,
+        payload: ScheduleUpdate,
+        actor: AuthContext,
+        *,
+        now: datetime | None = None,
     ) -> ScheduleResponse:
         schedule = await self._require(schedule_id)
         changes = payload.model_dump(exclude_unset=True)
+        reason = changes.pop("reschedule_reason", None)
+        moved = (
+            "next_due_at" in changes
+            and changes["next_due_at"] is not None
+            and changes["next_due_at"] != schedule.next_due_at
+        )
+        if reason is not None and not moved:
+            raise UnprocessableError("reschedule_reason needs a new next_due_at")
+        if moved:
+            self._require_not_past(changes["next_due_at"], now)
         if "technician_id" in changes:
             await self._require_technician(changes["technician_id"])
         interval = changes.get("interval_days", schedule.interval_days)
@@ -126,6 +177,14 @@ class ScheduleService:
             self.repository.expire(schedule, ["technician"])
         if "next_due_at" in changes:
             schedule.last_reminded_at = None  # a new date deserves a new reminder
+        if moved:
+            self.repository.record_reschedule(
+                schedule_id=schedule_id,
+                old_due_at=old_values["next_due_at"],
+                new_due_at=changes["next_due_at"],
+                reason=reason,
+                user_id=actor.id,
+            )
         self.audit.record(
             user_id=actor.id,
             action="schedule.updated",
@@ -138,7 +197,12 @@ class ScheduleService:
         return self._response(await self._require(schedule_id))
 
     async def complete(
-        self, schedule_id: int, actor: AuthContext, *, now: datetime | None = None
+        self,
+        schedule_id: int,
+        actor: AuthContext,
+        *,
+        actual_hours: Any = None,
+        now: datetime | None = None,
     ) -> ScheduleResponse:
         """Record that the service was done and schedule the next one.
 
@@ -155,6 +219,13 @@ class ScheduleService:
             days=schedule.interval_days
         )
         schedule.last_reminded_at = None
+        self.repository.record_run(
+            schedule_id=schedule_id,
+            due_at=previous,
+            completed_at=now,
+            actual_hours=actual_hours,
+            user_id=actor.id,
+        )
         await self.repository.flush()
         self.audit.record(
             user_id=actor.id,
@@ -167,6 +238,32 @@ class ScheduleService:
         await self.repository.commit()
         return self._response(await self._require(schedule_id))
 
+    async def history(self, schedule_id: int) -> ScheduleHistoryResponse:
+        await self._require(schedule_id)
+        runs, moves = await self.repository.history(schedule_id)
+        return ScheduleHistoryResponse(
+            runs=[
+                ScheduleRunResponse(
+                    id=r.id,
+                    due_at=r.due_at,
+                    completed_at=r.completed_at,
+                    on_time=r.completed_at <= r.due_at,
+                    actual_hours=r.actual_hours,
+                )
+                for r in runs
+            ],
+            reschedules=[
+                ScheduleRescheduleResponse(
+                    id=m.id,
+                    old_due_at=m.old_due_at,
+                    new_due_at=m.new_due_at,
+                    reason=m.reason,
+                    changed_at=m.changed_at,
+                )
+                for m in moves
+            ],
+        )
+
     # -- Internals ---------------------------------------------------------------
 
     async def _require(self, schedule_id: int) -> MaintenanceSchedule:
@@ -175,12 +272,20 @@ class ScheduleService:
             raise NotFoundError("maintenance schedule not found")
         return schedule
 
+    @staticmethod
+    def _require_not_past(value: datetime, now: datetime | None) -> None:
+        if value < (now or datetime.now(UTC)):
+            raise UnprocessableError("a service cannot be scheduled in the past")
+
     async def _require_technician(self, technician_id: int | None) -> None:
-        if (
-            technician_id is not None
-            and await self.technicians.get(technician_id) is None
-        ):
+        if technician_id is None:
+            return
+        technician = await self.technicians.get(technician_id)
+        if technician is None:
             raise NotFoundError("technician not found")
+        user = getattr(technician, "user", None)
+        if user is not None and not user.is_active:
+            raise BusinessRuleError("cannot assign a plan to an inactive technician")
 
     @staticmethod
     def _response(schedule: MaintenanceSchedule) -> ScheduleResponse:
@@ -200,6 +305,7 @@ class ScheduleService:
             title=schedule.title,
             description=schedule.description,
             interval_days=schedule.interval_days,
+            estimated_hours=schedule.estimated_hours,
             remind_days_before=schedule.remind_days_before,
             next_due_at=schedule.next_due_at,
             last_reminded_at=schedule.last_reminded_at,

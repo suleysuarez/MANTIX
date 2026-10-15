@@ -92,6 +92,15 @@ describe('PendingRequestsComponent', () => {
     expect(cards[0].textContent).toContain('30 h');
   });
 
+  it('plays the hero illustration muted and looping, hidden from assistive technology', () => {
+    const video = host().querySelector('header video') as HTMLVideoElement;
+    expect(video.getAttribute('src')).toBe('assets/videos/mensajes.mp4');
+    expect(video.getAttribute('poster')).toBe('assets/videos/mensajes-poster.jpg');
+    expect(video.muted).toBeTrue();
+    expect(video.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(host().querySelector('[data-placeholder="solicitudes-hero.svg"]')).toBeNull();
+  });
+
   it('opens the detail panel through the store when a card is picked', () => {
     click(host().querySelector('[aria-label="Tablero de solicitudes"] button[aria-pressed]'));
     expect(store.select).toHaveBeenCalledWith(1);
