@@ -54,18 +54,23 @@ const NO_ABILITIES: Abilities = {
   template: `
     @if (state$ | async; as state) {
       <div class="space-y-6 py-2">
-        <header class="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 class="text-2xl font-bold leading-tight text-slate-900">Gestión de equipos</h1>
-            <p class="mt-1 max-w-2xl text-sm text-slate-500">
-              Administra los equipos tecnológicos, consulta sus especificaciones y realiza seguimiento a su ciclo de vida y mantenimiento.
-            </p>
+        <header class="flex flex-col justify-between gap-5 rounded-2xl bg-gradient-to-r from-[#0b1f3a] to-[#14365f] px-6 py-6 md:flex-row md:items-center md:px-8">
+          <div class="flex items-center gap-5">
+            <span class="hidden h-16 w-16 shrink-0 items-center justify-center self-center rounded-2xl border border-white/30 bg-white/10 text-[#ADD7F6] sm:flex">
+              <span class="material-symbols-outlined block text-center !text-[34px] !leading-none">devices</span>
+            </span>
+            <div>
+              <h1 class="text-[26px] font-extrabold uppercase leading-tight tracking-tight text-white">Gestión de <span class="text-[#4DB8F0]">Equipos</span></h1>
+              <p class="mt-1 max-w-2xl text-[14px] leading-relaxed text-[#CBD5E1]">
+                Administra los equipos tecnológicos, consulta sus especificaciones y realiza seguimiento a su ciclo de vida y mantenimiento.
+              </p>
+            </div>
           </div>
           <div class="flex items-center gap-3">
             @if (abilities().manage) {
               <button type="button" (click)="openCreate()"
-                class="flex items-center gap-2 rounded-xl !border !border-slate-700/60 bg-brand-sidebar px-4 py-2.5 !text-xs !font-bold !uppercase tracking-wider !text-white shadow-md transition-all hover:bg-slate-900 active:scale-95">
-                <span class="material-symbols-outlined text-[18px] text-brand-mustard">add</span>
+                class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-[#FFB703] transition-all hover:bg-white/35 active:scale-95">
+                <span class="material-symbols-outlined text-[20px]">add</span>
                 <span>Nuevo equipo</span>
               </button>
             }

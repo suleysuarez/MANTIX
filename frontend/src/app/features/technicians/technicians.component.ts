@@ -60,21 +60,26 @@ interface TechniciansView extends TechniciansState {
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
-        <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          <div>
-            <h1 class="text-[26px] font-extrabold tracking-tight text-[#0b1f3a]">Personal técnico y especialistas</h1>
-            <p class="max-w-2xl text-[14px] text-[#64748B]">
-              Supervisa al equipo técnico: disponibilidad, especialidades y carga de tickets.
-            </p>
+        <header class="flex flex-col justify-between gap-5 rounded-2xl bg-gradient-to-r from-[#0b1f3a] to-[#14365f] px-6 py-6 md:flex-row md:items-center md:px-8">
+          <div class="flex items-center gap-5">
+            <span class="hidden h-16 w-16 shrink-0 items-center justify-center self-center rounded-2xl border border-white/30 bg-white/10 text-[#ADD7F6] sm:flex">
+              <span class="material-symbols-outlined block text-center !text-[34px] !leading-none">engineering</span>
+            </span>
+            <div>
+              <h1 class="text-[26px] font-extrabold uppercase tracking-tight text-white">Personal <span class="text-[#4DB8F0]">técnico</span> y especialistas</h1>
+              <p class="mt-1 max-w-2xl text-[14px] leading-relaxed text-[#CBD5E1]">
+                Supervisa al equipo técnico: disponibilidad, especialidades y carga de tickets.
+              </p>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-3">
             <button type="button" (click)="exportCsv(vm)" [disabled]="vm.filtered.length === 0" title="Exporta los técnicos que coinciden con los filtros"
-              class="flex items-center gap-1.5 rounded-lg border border-[#CED4DA] bg-white px-3 py-2 text-[13px] font-medium !text-[#1E293B] transition-colors hover:bg-[#EEF4FA] disabled:opacity-50">
-              <span class="material-symbols-outlined text-[18px] text-[#457b9d]">download</span> Exportar CSV
+              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-medium !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed">
+              <span class="material-symbols-outlined text-[18px]">download</span> Exportar CSV
             </button>
             @if (canManage()) {
               <button type="button" (click)="openCreate()"
-                class="flex items-center gap-1.5 rounded-lg bg-[#0b1f3a] px-4 py-2.5 text-[13px] font-bold !text-[#D4A017] shadow-sm transition-colors hover:bg-[#3E5C76]">
+                class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-[#FFB703] transition-colors hover:bg-white/35">
                 <span class="material-symbols-outlined text-[20px]">person_add</span> Registrar técnico
               </button>
             }
@@ -312,10 +317,12 @@ interface TechniciansView extends TechniciansState {
           <nav class="flex items-center justify-between gap-3" aria-label="Páginas de técnicos">
             <span class="text-[12px] text-[#64748B]">Técnicos <strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + 1 }}</strong>–<strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + vm.pageItems.length }}</strong> de {{ vm.filtered.length }}</span>
             <div class="flex items-center gap-3">
-              <button type="button" (click)="setPage(vm.page - 1)" [disabled]="vm.page === 1"
-                class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-                <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-              </button>
+              @if (vm.page > 1) {
+                <button type="button" (click)="setPage(vm.page - 1)"
+                  class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5]">
+                  <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
+                </button>
+              }
               <span class="text-[13px] font-semibold">Página {{ vm.page }} de {{ vm.pages }}</span>
               <button type="button" (click)="setPage(vm.page + 1)" [disabled]="vm.page === vm.pages"
                 class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">

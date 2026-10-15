@@ -21,10 +21,12 @@ import { pageWindow } from '../../core/equipment-status';
       </span>
       @if (pages > 1) {
         <div class="flex items-center gap-1.5">
-          <button type="button" (click)="pageChange.emit(page - 1)" [disabled]="page === 1 || loading" aria-label="Página anterior"
-            class="bg-transparent flex h-8 w-8 items-center justify-center rounded-lg !border !border-slate-200 !text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40">
-            <span class="material-symbols-outlined text-[16px]">chevron_left</span>
-          </button>
+          @if (page > 1) {
+            <button type="button" (click)="pageChange.emit(page - 1)" [disabled]="loading" aria-label="Página anterior"
+              class="bg-transparent flex h-8 w-8 items-center justify-center rounded-lg !border !border-slate-200 !text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40">
+              <span class="material-symbols-outlined text-[16px]">chevron_left</span>
+            </button>
+          }
           @for (entry of window; track $index) {
             @if (entry === '…') {
               <span class="flex h-8 w-6 items-center justify-center text-slate-400" aria-hidden="true">…</span>
