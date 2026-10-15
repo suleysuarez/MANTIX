@@ -14,6 +14,8 @@ import {
 import { QueueService, QueueSummary, RequestCategory } from './queue.service';
 import { Technician, TechniciansService } from './technicians.service';
 import { ToastService } from './toast.service';
+import { queueRangeError } from '../features/pending-requests/pending-ui';
+import { dayBoundaryIso } from '../features/reports/report-filters';
 
 /** Columnas de la bandeja: lo que aún espera trabajo, en el orden del flujo. */
 export const QUEUE_STATUSES = ['submitted', 'triaged', 'assigned'] as const;
@@ -28,6 +30,9 @@ export interface QueueFilters {
   /** `true`: solo solicitudes sin técnico (enviadas y clasificadas). */
   unassignedOnly: boolean;
   order: QueueOrder;
+  /** Recibidas desde / hasta, como `yyyy-MM-dd` (vacío: sin límite). */
+  dateFrom: string;
+  dateTo: string;
 }
 
 export interface QueueColumn {
@@ -41,6 +46,8 @@ export interface QueueColumn {
 
 export interface PendingRequestsState {
   filters: QueueFilters;
+  /** Mensaje del rango de fechas inválido; con él no se consulta al servidor. */
+  filterError: string;
   columns: Record<QueueStatus, QueueColumn>;
   period: Period;
   /** `null`: no disponible (falló o sin permiso); la pantalla lo dice en vez de mostrar ceros. */
@@ -79,12 +86,15 @@ export const EMPTY_FILTERS: QueueFilters = {
   category: '',
   unassignedOnly: false,
   order: 'oldest',
+  dateFrom: '',
+  dateTo: '',
 };
 
 const emptyColumn = (): QueueColumn => ({ items: [], total: 0, page: 0, loading: false, failed: false });
 
 const INITIAL: PendingRequestsState = {
   filters: EMPTY_FILTERS,
+  filterError: '',
   columns: { submitted: emptyColumn(), triaged: emptyColumn(), assigned: emptyColumn() },
   period: '30d',
   summary: null,
@@ -144,8 +154,12 @@ export class PendingRequestsStore {
   }
 
   setFilters(changes: Partial<QueueFilters>): void {
-    this.patch({ filters: { ...this.value.filters, ...changes } });
-    this.reloadColumns();
+    const filters = { ...this.value.filters, ...changes };
+    const filterError = queueRangeError(filters.dateFrom, filters.dateTo);
+    this.patch({ filters, filterError });
+    if (!filterError) {
+      this.reloadColumns();
+    }
   }
 
   clearFilters(): void {
@@ -184,9 +198,9 @@ export class PendingRequestsStore {
     });
   }
 
-  /** Clasifica la solicitud (enviada → clasificada). */
-  triage(id: number): Observable<ActionResult> {
-    return this.run(this.maintenance.transition(id, 'triaged', null, null), id, 'Solicitud clasificada.');
+  /** Clasifica la solicitud: categoría y prioridad del catálogo, y pasa de enviada a clasificada. */
+  classify(id: number, body: { category: string; priority: string; notes: string | null }): Observable<ActionResult> {
+    return this.run(this.maintenance.classify(id, body), id, 'Solicitud clasificada.');
   }
 
   assign(id: number, technicianId: number): Observable<ActionResult> {
@@ -220,9 +234,11 @@ export class PendingRequestsStore {
   }
 
   private query(status: QueueStatus, page: number): MaintenanceQuery {
-    const { search, priority, category, order } = this.value.filters;
+    const { search, priority, category, order, dateFrom, dateTo } = this.value.filters;
     return {
       status,
+      dateFrom: dayBoundaryIso(dateFrom, false) ?? undefined,
+      dateTo: dayBoundaryIso(dateTo, true) ?? undefined,
       search: search.trim() || undefined,
       priority: priority || undefined,
       category: category || undefined,

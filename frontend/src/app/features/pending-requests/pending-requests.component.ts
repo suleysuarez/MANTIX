@@ -16,6 +16,7 @@ import { ToastHostComponent } from '../../shared/toast-host.component';
 import { changeTone, formatChange, formatPct } from '../dashboard/dashboard-format';
 import { TicketChipComponent } from '../tickets/ticket-chip.component';
 import { priorityMeta } from '../tickets/ticket-ui';
+import { todayLocal } from '../../core/tickets.store';
 import {
   COLUMNS, WAIT_CLASSES, categoryLabel, formatWait, share, waitHours, waitTone,
 } from './pending-ui';
@@ -107,6 +108,18 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
                   <option value="priority" [selected]="vm.filters.order === 'priority'">Mayor prioridad primero</option>
                 </select>
               </div>
+              <fieldset class="space-y-1.5">
+                <legend class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Recibidas entre</legend>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="sr-only" for="q-from">Desde</label>
+                  <input id="q-from" type="date" [class]="field" [value]="vm.filters.dateFrom" [max]="today" aria-describedby="q-range-err"
+                    [attr.aria-invalid]="!!vm.filterError" (change)="store.setFilters({ dateFrom: $any($event.target).value })" />
+                  <label class="sr-only" for="q-to">Hasta</label>
+                  <input id="q-to" type="date" [class]="field" [value]="vm.filters.dateTo" [attr.aria-invalid]="!!vm.filterError"
+                    (change)="store.setFilters({ dateTo: $any($event.target).value })" />
+                </div>
+                <p id="q-range-err" class="min-h-4 text-[12px] text-error" role="alert">{{ vm.filterError }}</p>
+              </fieldset>
               <label class="flex items-center gap-2 text-[13px] text-on-surface">
                 <input type="checkbox" [checked]="vm.filters.unassignedOnly" (change)="store.setFilters({ unassignedOnly: $any($event.target).checked })"
                   class="h-4 w-4 accent-brand-accentDeep" />
@@ -269,7 +282,7 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
             <div class="fixed inset-0 z-40 bg-brand-navy/40 xl:hidden" (click)="store.select(null)" aria-hidden="true"></div>
             <div class="fixed inset-y-0 right-0 z-50 w-full max-w-md p-3 xl:sticky xl:top-4 xl:z-auto xl:h-fit xl:max-w-none xl:self-start xl:p-0">
               <app-request-detail-panel [detail]="vm.detail" [loading]="vm.detailLoading" [error]="vm.detailError" [busy]="vm.busy"
-                [technicians]="vm.technicians" [categoryNames]="categoryNames(vm)" (closed)="store.select(null)" />
+                [technicians]="vm.technicians" [categories]="vm.categories" [categoryNames]="categoryNames(vm)" (closed)="store.select(null)" />
             </div>
           }
         </div>
@@ -289,6 +302,8 @@ export class PendingRequestsComponent implements OnInit {
   readonly skeleton = [1, 2];
   readonly focus = FOCUS;
   readonly field = FIELD;
+  /** Tope del selector «desde»: las solicitudes recibidas no son futuras. */
+  readonly today = todayLocal();
   readonly search$ = new Subject<string>();
   /** Respeta la preferencia del sistema: sin movimiento, el video no se reproduce. */
   readonly reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -308,7 +323,7 @@ export class PendingRequestsComponent implements OnInit {
 
   hasFilters(vm: PendingRequestsState): boolean {
     const f = vm.filters;
-    return !!(f.search.trim() || f.priority || f.category || f.unassignedOnly || f.order !== 'oldest');
+    return !!(f.search.trim() || f.priority || f.category || f.unassignedOnly || f.dateFrom || f.dateTo || f.order !== 'oldest');
   }
 
   isEmpty(vm: PendingRequestsState): boolean {

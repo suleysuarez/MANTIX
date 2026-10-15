@@ -32,6 +32,7 @@ function state(overrides: Partial<PendingRequestsState> = {}): PendingRequestsSt
   const column = (items: MaintenanceListItem[]) => ({ items, total: items.length, page: 1, loading: false, failed: false });
   return {
     filters: EMPTY_FILTERS,
+    filterError: '',
     columns: { submitted: column([item(1, 30), item(2)]), triaged: column([]), assigned: column([]) },
     period: '30d', summary: null, summaryLoading: false,
     categories: [{ code: 'network', name: 'Red y conectividad' }],
@@ -68,10 +69,10 @@ describe('PendingRequestsComponent', () => {
   beforeEach(() => {
     subject = new BehaviorSubject(state());
     store = Object.assign(
-      jasmine.createSpyObj('PendingRequestsStore', ['load', 'setFilters', 'clearFilters', 'setPeriod', 'loadMore', 'select', 'triage', 'assign', 'reject']),
+      jasmine.createSpyObj('PendingRequestsStore', ['load', 'setFilters', 'clearFilters', 'setPeriod', 'loadMore', 'select', 'classify', 'assign', 'reject']),
       { state$: subject },
     );
-    store.triage.and.returnValue(of({ ok: true, fieldErrors: {} }));
+    store.classify.and.returnValue(of({ ok: true, fieldErrors: {} }));
     store.assign.and.returnValue(of({ ok: true, fieldErrors: {} }));
     store.reject.and.returnValue(of({ ok: true, fieldErrors: {} }));
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: PendingRequestsStore, useValue: store }] });
@@ -149,14 +150,57 @@ describe('PendingRequestsComponent', () => {
   describe('detail panel', () => {
     beforeEach(() => render(state({ selectedId: 1, detail: detail() })));
 
-    it('classifies a submitted request', () => {
-      click(button('Clasificar solicitud'));
-      expect(store.triage).toHaveBeenCalledWith(1);
+    const choose = (id: string, value: string) => {
+      const select = host().querySelector(id) as HTMLSelectElement;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
+    const type = (selector: string, value: string) => {
+      const field = host().querySelector(selector) as HTMLTextAreaElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    };
+    const submitClassify = () => host().querySelector('form[aria-label="Clasificación"] button[type=submit]') as HTMLButtonElement;
+
+    it('starts from the current category and priority and classifies with them', () => {
+      expect((host().querySelector('#cls-category') as HTMLSelectElement).value).toBe('network');
+      expect((host().querySelector('#cls-priority') as HTMLSelectElement).value).toBe('high');
+      type('#cls-notes', '  Visita en sitio ');
+      click(submitClassify());
+      expect(store.classify).toHaveBeenCalledWith(1, { category: 'network', priority: 'high', notes: 'Visita en sitio' });
     });
 
-    it('does not offer triage once the request is classified, only assignment and rejection', () => {
+    it('requires category and priority before classifying', () => {
+      choose('#cls-category', '');
+      expect(submitClassify().disabled).toBeTrue();
+      choose('#cls-category', 'network');
+      choose('#cls-priority', '');
+      expect(submitClassify().disabled).toBeTrue();
+      choose('#cls-priority', 'low');
+      expect(submitClassify().disabled).toBeFalse();
+      click(submitClassify());
+      expect(store.classify).toHaveBeenCalledWith(1, { category: 'network', priority: 'low', notes: null });
+    });
+
+    it('limits the note to 500 characters', () => {
+      type('#cls-notes', 'x'.repeat(501));
+      expect(host().querySelector('form[aria-label="Clasificación"]')!.textContent).toContain('como máximo 500 caracteres');
+      expect(submitClassify().disabled).toBeTrue();
+    });
+
+    it('blocks a second submit while an action is running', () => {
+      render(state({ selectedId: 1, detail: detail(), busy: true }));
+      expect(submitClassify().disabled).toBeTrue();
+    });
+
+    it('offers to reclassify a triaged request but not one that is assigned', () => {
       render(state({ selectedId: 1, detail: detail('triaged') }));
-      expect(button('Clasificar solicitud')).toBeNull();
+      expect(host().querySelector('form[aria-label="Clasificación"]')!.textContent).toContain('Guardar clasificación');
+      expect(button('Asignar')).not.toBeNull();
+      render(state({ selectedId: 1, detail: detail('assigned') }));
+      expect(host().querySelector('form[aria-label="Clasificación"]')).toBeNull();
       expect(button('Asignar')).not.toBeNull();
     });
 

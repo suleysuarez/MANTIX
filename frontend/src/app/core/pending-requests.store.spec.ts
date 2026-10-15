@@ -22,7 +22,7 @@ describe('PendingRequestsStore', () => {
   let latest: PendingRequestsState;
 
   beforeEach(() => {
-    maintenance = jasmine.createSpyObj('MaintenanceService', ['listPage', 'get', 'transition', 'assign', 'reject']);
+    maintenance = jasmine.createSpyObj('MaintenanceService', ['listPage', 'get', 'transition', 'assign', 'reject', 'classify']);
     queue = jasmine.createSpyObj('QueueService', ['summary', 'categories']);
     const technicians = jasmine.createSpyObj('TechniciansService', ['list']);
     const equipment = jasmine.createSpyObj('EquipmentService', ['listAll']);
@@ -65,6 +65,24 @@ describe('PendingRequestsStore', () => {
     store.setFilters({ search: '  pantalla ', priority: 'high', category: 'network', order: 'priority' });
     const query = maintenance.listPage.calls.first().args[0]!;
     expect(query).toEqual(jasmine.objectContaining({ search: 'pantalla', priority: 'high', category: 'network', sort: '-priority', page: 1 }));
+  });
+
+  it('sends the received-between range as day boundaries and does not ask the server for an invalid one', () => {
+    store.load();
+    maintenance.listPage.calls.reset();
+    store.setFilters({ dateFrom: '2026-10-01', dateTo: '2026-10-14' });
+    const query = maintenance.listPage.calls.first().args[0]!;
+    expect(new Date(query.dateFrom!).getHours()).toBe(0);
+    expect(new Date(query.dateTo!).getHours()).toBe(23);
+    expect(latest.filterError).toBe('');
+
+    maintenance.listPage.calls.reset();
+    store.setFilters({ dateFrom: '2026-10-14', dateTo: '2026-10-01' });
+    expect(maintenance.listPage).not.toHaveBeenCalled();
+    expect(latest.filterError).toBe('La fecha final no puede ser anterior a la inicial.');
+    store.setFilters({ dateTo: '2026-10-20' });
+    expect(maintenance.listPage).toHaveBeenCalled();
+    expect(latest.filterError).toBe('');
   });
 
   it('skips the assigned column when only unassigned requests are wanted', () => {
@@ -117,6 +135,16 @@ describe('PendingRequestsStore', () => {
       expect(toasts.toasts()[0].message).toBe('Solicitud rechazada.');
       expect(maintenance.listPage).toHaveBeenCalledTimes(3);
       expect(latest.busy).toBeFalse();
+    });
+
+    it('classifies with category, priority and note, then refreshes', () => {
+      maintenance.classify.and.returnValue(of(detail));
+      store.load();
+      maintenance.listPage.calls.reset();
+      store.classify(7, { category: 'network', priority: 'high', notes: null }).subscribe();
+      expect(maintenance.classify).toHaveBeenCalledWith(7, { category: 'network', priority: 'high', notes: null });
+      expect(toasts.toasts()[0].message).toBe('Solicitud clasificada.');
+      expect(maintenance.listPage).toHaveBeenCalledTimes(3);
     });
 
     it('turns a 409 into a readable toast and a 422 into field errors', () => {
