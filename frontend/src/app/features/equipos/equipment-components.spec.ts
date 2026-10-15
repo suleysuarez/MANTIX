@@ -142,9 +142,9 @@ describe('EquipmentPaginationComponent', () => {
     fixture.componentInstance.pageChange.subscribe((value) => pages.push(value));
     const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
 
-    expect(buttons[0].disabled).toBeTrue(); // previous on page 1
-    expect(buttons[1].getAttribute('aria-current')).toBe('page');
-    buttons[2].click(); // page 2
+    expect(buttons[0].getAttribute('aria-label')).not.toBe('Página anterior'); // no previous button on page 1
+    expect(buttons[0].getAttribute('aria-current')).toBe('page');
+    buttons[1].click(); // page 2
     buttons[buttons.length - 1].click(); // next
 
     expect(pages).toEqual([2, 2]);

@@ -66,22 +66,27 @@ interface TicketsView extends TicketsState {
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
-        <header class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <h1 class="text-[26px] font-extrabold tracking-tight text-[#0b1f3a]">Gestión de tickets</h1>
-            <p class="text-[14px] text-[#64748B]">Registra, asigna, diagnostica y supervisa las incidencias técnicas y órdenes de trabajo activas.</p>
+        <header class="flex flex-col justify-between gap-5 rounded-2xl bg-gradient-to-r from-[#0b1f3a] to-[#14365f] px-6 py-6 md:flex-row md:items-center md:px-8">
+          <div class="flex items-center gap-5">
+            <span class="hidden h-16 w-16 shrink-0 items-center justify-center self-center rounded-2xl border border-white/30 bg-white/10 text-[#ADD7F6] sm:flex">
+              <span class="material-symbols-outlined block text-center !text-[34px] !leading-none">confirmation_number</span>
+            </span>
+            <div>
+              <h1 class="text-[26px] font-extrabold uppercase tracking-tight text-white">Gestión de <span class="text-[#4DB8F0]">Tickets</span></h1>
+              <p class="mt-1 max-w-xl text-[14px] leading-relaxed text-[#CBD5E1]">Registra, asigna, diagnostica y supervisa las incidencias técnicas y órdenes de trabajo activas.</p>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" (click)="exportCsv(vm)" [disabled]="vm.items.length === 0" title="Exporta los tickets de la página actual"
-              class="flex items-center gap-1.5 rounded-lg border border-[#CED4DA] bg-white px-3 py-2 text-[13px] font-medium !text-[#1E293B] transition-colors hover:bg-[#EEF4FA] disabled:opacity-50">
-              <span class="material-symbols-outlined text-[18px] text-[#457b9d]">file_download</span> Exportar CSV
-            </button>
+          <div class="flex flex-wrap items-center gap-3">
             @if (canCreate()) {
               <button type="button" (click)="openCreate()"
-                class="flex items-center gap-1.5 rounded-lg bg-[#0b1f3a] px-4 py-2.5 text-[13px] font-bold !text-[#D4A017] shadow-sm transition-colors hover:bg-[#3E5C76]">
+                class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-[#FFB703] transition-colors hover:bg-white/35">
                 <span class="material-symbols-outlined text-[20px]">add</span> Nuevo ticket
               </button>
             }
+            <button type="button" (click)="exportCsv(vm)" [disabled]="vm.items.length === 0" title="Exporta los tickets de la página actual"
+              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed">
+              <span class="material-symbols-outlined text-[18px]">file_download</span> Exportar CSV
+            </button>
           </div>
         </header>
 
@@ -89,19 +94,19 @@ interface TicketsView extends TicketsState {
           <p class="rounded-lg bg-[#FEE2E2] px-4 py-3 text-[13px] text-[#991B1B]" role="alert">{{ vm.error }}</p>
         }
 
-        <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
           @for (card of metrics; track card.label) {
             <button type="button" (click)="filterStatus(card.status)"
-              class="flex items-center justify-between rounded-xl border bg-white p-3 text-left transition-all hover:border-[#457b9d]"
+              class="flex min-h-[104px] items-center gap-4 rounded-2xl border bg-white px-5 py-4 text-left shadow-sm transition-all hover:border-[#457b9d] hover:shadow-md"
               [class]="vm.filters.status === card.status ? 'border-[#457b9d] ring-1 ring-[#457b9d]/30' : 'border-[#E2E8F0]'">
-              <div>
-                <span class="block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">{{ card.label }}</span>
-                <span class="block text-[26px] font-extrabold leading-tight text-[#0b1f3a]">{{ card.status ? (vm.counts[card.status] ?? 0) : vm.all.length }}</span>
-                <span class="block text-[11px] text-[#64748B]">{{ card.hint }}</span>
-              </div>
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" [class]="card.tone">
-                <span class="material-symbols-outlined text-[18px]">{{ card.icon }}</span>
+              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" [class]="card.tone">
+                <span class="material-symbols-outlined text-[24px]">{{ card.icon }}</span>
               </span>
+              <div class="min-w-0">
+                <span class="block text-[12px] font-bold uppercase tracking-wider text-[#64748B]">{{ card.label }}</span>
+                <span class="block text-[30px] font-extrabold leading-tight text-[#0b1f3a]">{{ card.status ? (vm.counts[card.status] ?? 0) : vm.all.length }}</span>
+                <span class="block truncate text-[12px] text-[#64748B]">{{ card.hint }}</span>
+              </div>
             </button>
           }
         </div>
@@ -151,8 +156,8 @@ interface TicketsView extends TicketsState {
           </section>
         }
 
-        <section class="space-y-3 rounded-xl border border-[#E2E8F0] bg-white p-4">
-          <div class="grid grid-cols-1 items-end gap-2 md:grid-cols-12">
+        <section class="space-y-3 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <div class="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
             <div class="relative md:col-span-3">
               <span class="material-symbols-outlined pointer-events-none absolute left-3 top-2.5 text-[20px] text-[#94A3B8]">search</span>
               <input #searchInput type="search" [value]="initialSearch" (input)="onSearch($any($event.target).value)" aria-label="Buscar tickets"
@@ -207,7 +212,13 @@ interface TicketsView extends TicketsState {
           </div>
         </section>
 
-        <div class="flex justify-end">
+        <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="min-w-0 space-y-4">
+        <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-[17px] font-bold text-[#0b1f3a]">Tickets recientes</h2>
+              <p class="text-[12px] text-[#64748B]">Últimos tickets registrados en el sistema</p>
+            </div>
             <div class="flex items-center rounded-xl border border-[#CED4DA] bg-[#EEF4FA] p-1" role="group" aria-label="Vista">
               <button type="button" (click)="view.set('table')" [attr.aria-pressed]="view() === 'table'"
                 class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-all"
@@ -225,9 +236,28 @@ interface TicketsView extends TicketsState {
         @if (vm.loading) {
           <p class="rounded-xl border border-[#E2E8F0] bg-white p-6 text-center text-[14px] text-[#64748B]">Cargando tickets…</p>
         } @else if (vm.items.length === 0) {
-          <p class="rounded-xl border border-[#E2E8F0] bg-white p-8 text-center text-[14px] text-[#64748B]">
-            {{ vm.hasFilters ? 'Ningún ticket coincide con los filtros actuales.' : 'Aún no hay tickets registrados.' }}
-          </p>
+          <div class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#E2E8F0] bg-white px-6 py-16 text-center shadow-sm">
+            @if (vm.hasFilters) {
+              <span class="mb-2 flex h-20 w-20 items-center justify-center rounded-full bg-[#EEF4FA] text-[#457b9d]">
+                <span class="material-symbols-outlined text-[44px]">search_off</span>
+              </span>
+            } @else {
+              <svg class="mb-2 h-24 w-24" viewBox="0 0 96 96" fill="none" aria-hidden="true">
+                <path d="M24 20h28l16 16v34a6 6 0 0 1-6 6H24a6 6 0 0 1-6-6V26a6 6 0 0 1 6-6Z" fill="#fff" stroke="#5C6B7F" stroke-width="3.5" stroke-linejoin="round"/>
+                <path d="M52 20v11a5 5 0 0 0 5 5h11" stroke="#5C6B7F" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+                <path d="M28 46h24M28 56h24M28 66h14" stroke="#3B82F6" stroke-width="3.5" stroke-linecap="round"/>
+                <path d="M74 6v14M67 13h14" stroke="#2F6FED" stroke-width="3.5" stroke-linecap="round"/>
+                <circle cx="68" cy="72" r="14" fill="#2F6FED" stroke="#fff" stroke-width="3"/>
+                <path d="M68 65v14M61 72h14" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+              </svg>
+            }
+            <p class="text-[16px] font-bold text-[#0b1f3a]">
+              {{ vm.hasFilters ? 'Ningún ticket coincide con los filtros actuales.' : 'Aún no hay tickets registrados.' }}
+            </p>
+            <p class="max-w-sm text-[13px] text-[#64748B]">
+              {{ vm.hasFilters ? 'Prueba a cambiar o limpiar los filtros para ver más resultados.' : 'Los tickets aparecerán aquí una vez que se creen en el sistema.' }}
+            </p>
+          </div>
         } @else if (view() === 'table') {
           <div class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
             <div class="overflow-x-auto">
@@ -312,16 +342,73 @@ interface TicketsView extends TicketsState {
         }
 
         <nav class="flex items-center justify-end gap-3" aria-label="Páginas de tickets">
-          <button type="button" (click)="page(vm.page - 1)" [disabled]="vm.page === 0 || vm.loading"
-            class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-            <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-          </button>
+          @if (vm.page > 0) {
+            <button type="button" (click)="page(vm.page - 1)" [disabled]="vm.loading"
+              class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
+              <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
+            </button>
+          }
           <span class="text-[13px] font-semibold">Página {{ vm.page + 1 }}</span>
           <button type="button" (click)="page(vm.page + 1)" [disabled]="!vm.hasNext || vm.loading"
             class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
             Siguiente <span class="material-symbols-outlined text-[18px]">chevron_right</span>
           </button>
         </nav>
+        </div>
+
+        <aside class="space-y-4">
+          <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="flex items-center gap-2 text-[14px] font-bold text-[#0b1f3a]">
+              <span class="material-symbols-outlined text-[18px] text-[#457b9d]">bar_chart</span> Resumen de tickets
+            </h3>
+            <div class="mt-4 flex items-center gap-5">
+              <div class="relative h-[112px] w-[112px] shrink-0 rounded-full" [style.background]="donut(vm)">
+                <div class="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-white">
+                  <span class="text-[22px] font-extrabold leading-none text-[#0b1f3a]">{{ vm.all.length }}</span>
+                  <span class="mt-0.5 text-[11px] text-[#64748B]">Total</span>
+                </div>
+              </div>
+              <ul class="flex-1 space-y-2 text-[12px]">
+                @for (segment of segments; track segment.status) {
+                  <li class="flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2 text-[#334155]">
+                      <span class="h-2.5 w-2.5 rounded-full" [style.background]="segment.color"></span>{{ segment.label }}
+                    </span>
+                    <span class="font-semibold text-[#0b1f3a]">{{ vm.counts[segment.status] ?? 0 }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="flex items-center gap-2 text-[14px] font-bold text-[#0b1f3a]">
+              <span class="material-symbols-outlined text-[18px] text-[#457b9d]">history</span> Actividad reciente
+            </h3>
+            @if (recent(vm).length === 0) {
+              <div class="flex flex-col items-center gap-2 py-6 text-center">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF4FA] text-[#457b9d]">
+                  <span class="material-symbols-outlined text-[24px]">description</span>
+                </span>
+                <p class="text-[12px] font-semibold text-[#334155]">No hay actividad reciente</p>
+                <p class="max-w-[220px] text-[12px] text-[#64748B]">La actividad aparecerá aquí cuando se generen nuevos tickets.</p>
+              </div>
+            } @else {
+              <ul class="mt-3 space-y-3">
+                @for (item of recent(vm); track item.id) {
+                  <li class="flex items-start gap-3">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#457b9d]"></span>
+                    <button type="button" (click)="openTicket(item.id)" class="min-w-0 text-left">
+                      <span class="block truncate text-[12px] font-semibold text-[#1E293B]">{{ item.ticket_number }} · {{ item.title }}</span>
+                      <span class="block text-[11px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        </aside>
+        </div>
 
         @if (createOpen()) {
           <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -374,7 +461,7 @@ interface TicketsView extends TicketsState {
                 <div class="flex items-center justify-end gap-2 border-t border-[#E9EEF5] pt-4">
                   <button type="button" (click)="closeCreate()" class="rounded-lg px-4 py-2.5 text-[13px] font-medium hover:bg-[#E9EEF5]">Cancelar</button>
                   <button type="submit" [disabled]="vm.saving"
-                    class="rounded-lg bg-[#0b1f3a] px-5 py-2.5 text-[13px] font-bold !text-[#D4A017] shadow-sm hover:bg-[#3E5C76] disabled:opacity-50">
+                    class="rounded-lg bg-[#0b1f3a] px-5 py-2.5 text-[14px] font-extrabold tracking-wide !text-[#FFB703] shadow-sm hover:bg-[#14365f] disabled:opacity-50">
                     {{ vm.saving ? 'Guardando…' : 'Guardar y registrar ticket' }}
                   </button>
                 </div>
@@ -528,6 +615,34 @@ export class TicketsComponent implements OnInit {
       description,
       priority: String(data.get('priority') || 'medium'),
     });
+  }
+
+  readonly segments = [
+    { status: 'submitted', label: 'Enviados', color: '#3B82F6' },
+    { status: 'in_progress', label: 'En proceso', color: '#84A03A' },
+    { status: 'resolved', label: 'Resueltos', color: '#22C55E' },
+    { status: 'closed', label: 'Cerrados', color: '#8B5CF6' },
+  ];
+
+  donut(vm: TicketsView): string {
+    const total = this.segments.reduce((sum, s) => sum + (vm.counts[s.status] ?? 0), 0);
+    if (total === 0) {
+      return '#E2E8F0';
+    }
+    let start = 0;
+    const stops = this.segments
+      .filter((s) => (vm.counts[s.status] ?? 0) > 0)
+      .map((s) => {
+        const end = start + ((vm.counts[s.status] ?? 0) / total) * 100;
+        const stop = `${s.color} ${start}% ${end}%`;
+        start = end;
+        return stop;
+      });
+    return `conic-gradient(${stops.join(', ')})`;
+  }
+
+  recent(vm: TicketsView): MaintenanceListItem[] {
+    return [...vm.all].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
   }
 
   equipmentLabel(vm: TicketsView, equipmentId: number): string {
