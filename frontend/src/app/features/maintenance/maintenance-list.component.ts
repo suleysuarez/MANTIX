@@ -138,7 +138,13 @@ export class MaintenanceListComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.store.requestCreated$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.resetForm());
-    this.store.load();
+    const query = this.route.snapshot.queryParamMap;
+    const status = query.get('status') ?? '';
+    const priority = query.get('priority') ?? '';
+    this.store.load({
+      ...(this.statuses.some((s) => s === status) ? { status } : {}),
+      ...(this.priorities.some((p) => p === priority) ? { priority } : {}),
+    });
     this.canCreate.set(await this.profile.can('maintenance.create'));
   }
 

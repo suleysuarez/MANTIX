@@ -1,53 +1,71 @@
-import { Equipment } from './equipment.service';
-import { MaintenanceListItem } from './maintenance.service';
-import { buildMetrics } from './dashboard.store';
+import { TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
-const NOW = new Date(2026, 9, 1, 12);
+import {
+  AlertsResponse,
+  DashboardKpisService,
+  KpisResponse,
+  TechniciansPerformanceResponse,
+  TrendsResponse,
+} from './dashboard-kpis.service';
+import { DashboardState, DashboardStore } from './dashboard.store';
 
-function equipment(id: number, status: string, type = 'Laptop'): Equipment {
-  return {
-    id, asset_tag: `A${id}`, serial_number: null, equipment_type_id: 1,
-    equipment_type: { id: 1, code: type, name: type }, brand: 'b', model: 'm',
-    description: null, status, purchase_date: null, purchase_cost: null,
-    warranty_start_date: null, warranty_end_date: null, created_at: '2026-01-01T00:00:00Z',
-    current_location: null, current_custodian: null, last_maintenance: null,
-  };
-}
+const kpi = { value: 1, previous: null, change_pct: null, sample_size: 1 };
+const kpis = {
+  period: '30d', mttr_hours: kpi, first_assignment_hours: kpi, resolution_rate_pct: kpi,
+  sla_compliance_pct: { ...kpi, met: 1, missed: 0, excluded_no_sla: 2 },
+  backlog: { open: 0, age_0_2_days: 0, age_3_7_days: 0, age_over_7_days: 0 },
+  availability: { value: 100, operational: 1, total: 1 },
+} as unknown as KpisResponse;
+const trends = { period: '30d', granularity: 'day', points: [] } as unknown as TrendsResponse;
+const alerts = { tickets: [], down_equipment: [], schedules: [] } as unknown as AlertsResponse;
 
-function ticket(id: number, status: string, priority: string, created: Date): MaintenanceListItem {
-  return {
-    id, ticket_number: `T${id}`, equipment_id: 1, title: 't', priority, status,
-    created_at: created.toISOString(),
-  };
-}
+describe('DashboardStore', () => {
+  let api: jasmine.SpyObj<DashboardKpisService>;
+  let store: DashboardStore;
+  let latest: DashboardState;
 
-describe('buildMetrics', () => {
-  it('returns zeros for empty data', () => {
-    const metrics = buildMetrics([], [], [], NOW);
-    expect(metrics.operationalPct).toBe(0);
-    expect(metrics.resolutionPct).toBe(0);
-    expect(metrics.week.length).toBe(7);
+  beforeEach(() => {
+    api = jasmine.createSpyObj('DashboardKpisService', ['kpis', 'trends', 'alerts', 'topFailingEquipment', 'technicians']);
+    api.kpis.and.returnValue(of(kpis));
+    api.trends.and.returnValue(of(trends));
+    api.alerts.and.returnValue(of(alerts));
+    api.topFailingEquipment.and.returnValue(of({ window_days: 30, equipment: [] }));
+    api.technicians.and.returnValue(of({ period: '30d', technicians: [] } as unknown as TechniciansPerformanceResponse));
+    TestBed.configureTestingModule({
+      providers: [
+        DashboardStore,
+        { provide: DashboardKpisService, useValue: api },
+      ],
+    });
+    store = TestBed.inject(DashboardStore);
+    store.state$.subscribe((state) => (latest = state));
   });
 
-  it('computes operational share, ticket buckets and the weekly peak', () => {
-    const metrics = buildMetrics(
-      [equipment(1, 'assigned'), equipment(2, 'in_repair'), equipment(3, 'in_storage', 'Server'), equipment(4, 'retired')],
-      [
-        ticket(1, 'in_progress', 'critical', NOW),
-        ticket(2, 'submitted', 'low', NOW),
-        ticket(3, 'resolved', 'high', new Date(2026, 9, 1, 8)),
-      ],
-      [{ id: 1, user_id: 1, full_name: 'T', email: 't@x.io', employee_code: null, specialization: null, is_available: true, hourly_rate: null, created_at: '2026-01-01T00:00:00Z' }],
-      NOW,
-    );
-    expect(metrics.operationalPct).toBe(50);
-    expect(metrics.byType[0]).toEqual({ name: 'Laptop', count: 3 });
-    expect(metrics.activeTickets).toBe(1);
-    expect(metrics.pendingTickets).toBe(1);
-    expect(metrics.urgentTickets).toBe(1);
-    expect(metrics.monthTickets).toBe(3);
-    expect(metrics.resolutionPct).toBe(33);
-    expect(metrics.week[6]).toEqual({ label: 'Jue', count: 3, isPeak: true });
-    expect(metrics.techniciansAvailable).toBe(1);
+  it('loads every source for the default period', () => {
+    store.load();
+    expect(latest.loading).toBeFalse();
+    expect(latest.period).toBe('30d');
+    expect(latest.kpis).toBe(kpis);
+    expect(latest.topEquipment).toEqual([]);
+    expect(api.kpis).toHaveBeenCalledWith('30d');
+  });
+
+  it('asks every source for the chosen global period and keeps it for reloads', () => {
+    store.load('12m');
+    expect(api.trends).toHaveBeenCalledWith('12m');
+    expect(api.topFailingEquipment).toHaveBeenCalledWith('12m');
+    expect(api.technicians).toHaveBeenCalledWith('12m');
+    store.load();
+    expect(api.kpis).toHaveBeenCalledTimes(2);
+    expect(api.kpis.calls.mostRecent().args).toEqual(['12m']);
+  });
+
+  it('survives a failing source and leaves it null', () => {
+    api.alerts.and.returnValue(throwError(() => new Error('403')));
+    store.load();
+    expect(latest.alerts).toBeNull();
+    expect(latest.kpis).toBe(kpis);
+    expect(latest.loading).toBeFalse();
   });
 });

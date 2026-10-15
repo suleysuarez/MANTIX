@@ -2,320 +2,381 @@ import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { DashboardStore, DayBar, TypeCount } from '../../core/dashboard.store';
+import { Period, TrendsResponse } from '../../core/dashboard-kpis.service';
+import { DashboardState, DashboardStore } from '../../core/dashboard.store';
+import { formatDate } from '../../core/equipment-status';
 import { LocalProfileService } from '../../core/local-profile.service';
+import {
+  bucketLabel,
+  changeTone,
+  formatCentral,
+  formatDowntime,
+  formatHours,
+  formatPct,
+  formatSpread,
+  reasonLabel,
+} from './dashboard-format';
+import { KpiCardComponent } from './kpi-card.component';
 
-const CARD =
-  'rounded-[18px] bg-white p-3 shadow-[0_8px_25px_rgba(15,23,42,0.05)] transition-transform duration-200 hover:-translate-y-[3px]';
-const ICON = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full';
-const PALETTE = ['#60A5FA', '#8B5CF6', '#2563EB', '#F59E0B', '#10B981', '#94A3B8'];
-const DONUT_RADIUS = 52;
-const DONUT_LENGTH = 2 * Math.PI * DONUT_RADIUS;
+const CARD = 'rounded-[18px] bg-white p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)]';
+const LINK_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563EB]';
+const PERIODS: { id: Period; label: string; caption: string }[] = [
+  { id: '7d', label: '7 días', caption: 'últimos 7 días' },
+  { id: '30d', label: '30 días', caption: 'últimos 30 días' },
+  { id: '12m', label: '12 meses', caption: 'últimos 12 meses' },
+];
+const CHART_W = 600;
+const CHART_H = 150;
 
-export interface DonutSegment {
-  name: string;
-  count: number;
-  color: string;
-  dash: string;
-  offset: number;
+export interface ChartBar {
+  x: number;
+  width: number;
+  createdH: number;
+  resolvedH: number;
+  label: string;
+  created: number;
+  resolved: number;
+  showLabel: boolean;
 }
 
-/** Smart component: carga los indicadores desde el store y los presenta en el panel principal. */
+/** Smart component: pide los KPI del periodo global al store y los presenta. */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [AsyncPipe, RouterLink],
+  imports: [AsyncPipe, RouterLink, KpiCardComponent],
   template: `
     @if (state$ | async; as state) {
-      @let m = state.metrics;
-      <div class="tw-reset flex w-full flex-col gap-3 font-sans text-[#1E293B]">
-        <!-- Hero: texto + visual sobre un único fondo -->
-        <section class="hero relative overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_100%)] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)] lg:p-5">
+      <div class="tw-reset flex w-full flex-col gap-3 font-sans text-[#1E293B]" [attr.aria-busy]="state.loading">
+        <!-- Hero: saludo + visual sobre un único fondo -->
+        <section class="hero group relative overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_100%)] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.05)] lg:min-h-[250px] lg:p-5">
           <div class="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-[#2563EB]/[0.07]"></div>
           <div class="pointer-events-none absolute bottom-[-6rem] left-[38%] h-64 w-64 rotate-45 rounded-[40px] bg-[#3B82F6]/[0.06]"></div>
-          <div class="pointer-events-none absolute left-[-3rem] top-1/2 h-40 w-40 rounded-full bg-[#2563EB]/[0.05]"></div>
 
-          <div class="hero-visual absolute inset-y-2 right-2 hidden w-[42%] lg:block"
-            (mouseenter)="showKpis.set(true)" (mouseleave)="showKpis.set(false)">
-            <video
-              class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
-              src="assets/videos/dashboard1.mp4"
-              autoplay
-              muted
-              loop
-              playsinline
-              preload="auto"
-              aria-hidden="true"></video>
-            <div class="holo absolute inset-x-6 bottom-4 flex items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] transition-all duration-300 ease-out"
-              [class]="showKpis() ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'">
+          <div class="hero-visual absolute inset-y-0 right-0 hidden w-[60%] lg:block">
+            <video class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
+              src="assets/videos/dashboard1.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
+            <div class="holo pointer-events-none absolute inset-x-8 bottom-5 flex translate-y-2 items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
               <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-[26px]">desktop_windows</span>
                 <div>
-                  <span class="block text-[22px] font-bold leading-6">{{ m.operationalPct }}%</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Equipos operativos</span>
+                  <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.availability?.value ?? null) }}</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#3E5C76]">Disponibilidad</span>
                 </div>
               </div>
               <span class="h-8 w-[2px] rounded-full bg-[#D4A017]"></span>
               <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-[26px]">settings</span>
+                <span class="material-symbols-outlined text-[26px]">verified</span>
                 <div>
-                  <span class="block text-[22px] font-bold leading-6">{{ m.resolutionPct }}%</span>
-                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#778DA9]">Resolución</span>
+                  <span class="block text-[22px] font-bold leading-6">{{ pct(state.kpis?.sla_compliance_pct?.value ?? null) }}</span>
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-[#3E5C76]">Cumplimiento SLA</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="relative z-10 flex flex-col gap-3 lg:min-h-[190px] lg:justify-between">
-            <div class="flex flex-col gap-2 lg:max-w-[52%]">
-              <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1E293B]">
-                <span class="h-2 w-2 rounded-full bg-[#2563EB]"></span>
-                {{ userName() ? 'Hola, ' + userName() : 'Plataforma central' }}
-              </span>
-              <h1 class="text-[22px] font-extrabold uppercase leading-[1.1] tracking-tight text-[#0b1f3a] md:text-[28px]">
-                Sistema inteligente <br />de mantenimiento
-              </h1>
-              <p class="max-w-md text-[12px] leading-4 text-[#64748B]">
-                Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.
-              </p>
-            </div>
-
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-[50%]">
-              <div class="flex flex-col gap-3 rounded-[12px] bg-white p-2.5 shadow-[0_8px_25px_rgba(15,23,42,0.06)]">
-                <div class="flex items-center gap-3">
-                  <span [class]="icon + ' bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">build</span></span>
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="truncate text-[13px] font-semibold">Mantenimientos activos</span>
-                      @if (m.urgentTickets > 0) {
-                        <span class="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#B45309]">{{ m.urgentTickets }} urgentes</span>
-                      }
-                    </div>
-                    <div class="flex items-baseline gap-2">
-                      <span class="text-[20px] font-bold leading-6">{{ m.activeTickets }}</span>
-                      <span class="text-[12px] text-[#64748B]">en ejecución</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div class="mb-1 flex justify-between text-[11px] text-[#64748B]">
-                    <span>Resueltos del mes</span><span class="font-bold text-[#1E293B]">{{ m.resolutionPct }}%</span>
-                  </div>
-                  <div class="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                    <div class="h-full rounded-full bg-[#2563EB] transition-all duration-700" [style.width.%]="m.resolutionPct"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex flex-col gap-3 rounded-[12px] bg-white p-2.5 shadow-[0_8px_25px_rgba(15,23,42,0.06)]">
-                <div class="flex items-center gap-3">
-                  <span [class]="icon + ' bg-[#EDE9FE] text-[#7C3AED]'"><span class="material-symbols-outlined text-[20px]">calendar_month</span></span>
-                  <div class="min-w-0">
-                    <span class="block truncate text-[13px] font-semibold">Pendientes de asignación</span>
-                    <div class="flex items-baseline gap-2">
-                      <span class="text-[20px] font-bold leading-6">{{ m.pendingTickets }}</span>
-                      <span class="text-[12px] text-[#64748B]">en cola de triaje</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div class="mb-1 flex justify-between text-[11px] text-[#64748B]">
-                    <span>Técnicos disponibles</span>
-                    <span class="font-bold text-[#1E293B]">{{ m.techniciansAvailable }}/{{ m.techniciansTotal }}</span>
-                  </div>
-                  <div class="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                    <div class="h-full rounded-full bg-[#7C3AED] transition-all duration-700"
-                      [style.width.%]="m.techniciansTotal ? (m.techniciansAvailable / m.techniciansTotal) * 100 : 0"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </section>
-
-        <!-- KPIs -->
-        <section class="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">desktop_windows</span></span>
-                <span class="text-[12px] font-bold uppercase tracking-wider text-[#64748B]">Equipos totales</span>
-              </div>
-              <a routerLink="/equipos" aria-label="Ir a equipos" class="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] hover:bg-[#E2E8F0]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
-            </div>
-            <div>
-              <span class="text-[22px] font-bold leading-7">{{ m.equipmentTotal }}</span>
-              <p class="text-[12px] text-[#64748B]">Activos registrados en el inventario</p>
-            </div>
-            <a routerLink="/equipos" class="flex h-8 items-center gap-2 rounded-xl bg-[#EFF6FF] px-4 text-[13px] font-medium !text-[#2563EB] hover:bg-[#DBEAFE]">
-              Ver equipos registrados <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-            </a>
-          </div>
-
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' bg-[#D1FAE5] text-[#10B981]'"><span class="material-symbols-outlined text-[20px]">calendar_month</span></span>
-                <span class="text-[12px] font-bold uppercase tracking-wider text-[#64748B]">Mantenimientos del mes</span>
-              </div>
-              <a routerLink="/maintenance" aria-label="Ir a mantenimientos" class="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] hover:bg-[#E2E8F0]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
-            </div>
-            <div>
-              <span class="text-[22px] font-bold leading-7">{{ m.monthTickets }}</span>
-              <p class="text-[12px] text-[#64748B]">{{ m.monthDone }} resueltos / {{ m.monthTickets - m.monthDone }} abiertos</p>
-            </div>
-            <div>
-              <div class="flex h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                <div class="h-full bg-[#10B981]" [style.width.%]="m.resolutionPct"></div>
-                <div class="h-full bg-[#F59E0B]" [style.width.%]="m.monthTickets ? 100 - m.resolutionPct : 0"></div>
-              </div>
-              <div class="mt-2 text-[12px] text-[#64748B]">
-                Tasa de resolución: <strong class="text-[#1E293B]">{{ m.resolutionPct }}%</strong>
-              </div>
-            </div>
-          </div>
-
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' bg-[#FEF3C7] text-[#F59E0B]'"><span class="material-symbols-outlined text-[20px]">build</span></span>
-                <span class="text-[12px] font-bold uppercase tracking-wider text-[#64748B]">Técnicos activos</span>
-              </div>
-              <a routerLink="/technicians" aria-label="Ir a técnicos" class="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] hover:bg-[#E2E8F0]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
-            </div>
-            <div>
-              <span class="text-[22px] font-bold leading-7">{{ m.techniciansTotal }}</span>
-              <p class="text-[12px] text-[#64748B]">{{ m.techniciansAvailable }} disponibles ahora</p>
-            </div>
-            <a routerLink="/technicians" class="flex h-8 items-center gap-2 rounded-xl bg-[#EFF6FF] px-4 text-[13px] font-medium !text-[#2563EB] hover:bg-[#DBEAFE]">
-              Ver equipo <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-            </a>
+          <div class="relative z-10 flex flex-col gap-2 lg:max-w-[40%]">
+            <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1E293B]">
+              <span class="h-2 w-2 rounded-full bg-[#D4A017]"></span>
+              {{ userName() ? 'Hola, ' + userName() : 'Plataforma central' }}
+            </span>
+            <h1 class="text-[22px] font-extrabold uppercase leading-[1.1] tracking-tight text-[#0b1f3a] md:text-[28px]">
+              Sistema inteligente <br />de mantenimiento
+            </h1>
+            <p class="max-w-md text-[12px] leading-4 text-[#64748B]">
+              Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.
+            </p>
           </div>
         </section>
 
-        <!-- Detalle -->
+        <!-- Selector de periodo global -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-[15px] font-bold text-[#0b1f3a]">
+            Indicadores · {{ periodCaption(state.period) }}
+            @if (state.loading) {
+              <span class="ml-2 inline-block h-2 w-2 animate-pulse rounded-full bg-[#2563EB] motion-reduce:animate-none" role="status" aria-label="Actualizando"></span>
+            }
+          </h2>
+          <div class="flex rounded-full bg-white p-0.5 shadow-[0_4px_12px_rgba(15,23,42,0.06)]" role="group" aria-label="Periodo de los indicadores">
+            @for (p of periods; track p.id) {
+              <button type="button" (click)="setPeriod(p.id)" [attr.aria-pressed]="state.period === p.id"
+                class="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors active:scale-95"
+                [class]="focus + (state.period === p.id ? ' bg-[#0b1f3a] !text-white' : ' bg-transparent !text-[#64748B] hover:bg-[#F1F5F9] hover:!text-[#1E293B]')">
+                {{ p.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (!state.loading && !state.kpis) {
+          <p role="alert" class="rounded-xl bg-[#FEF3C7] px-4 py-3 text-[13px] font-medium text-[#92400E]">
+            No se pudieron cargar los indicadores. Revisa tu conexión o tus permisos e inténtalo de nuevo.
+            <button type="button" (click)="reload()" class="ml-2 bg-transparent p-0 font-bold underline">Reintentar</button>
+          </p>
+        }
+
+        <!-- 4 KPI -->
+        <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores clave">
+          @let k = state.kpis;
+          <app-kpi-card label="MTTR · mediana" icon="timer" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+            [value]="k && k.mttr_hours.value !== null ? hours(k.mttr_hours.value) : null"
+            [caption]="k ? mttrCaption(k.first_assignment_hours.value) : ''"
+            [detail]="k && k.mttr_hours.value !== null ? central(k.mttr_hours) : ''"
+            [spread]="k && k.mttr_hours.value !== null ? spread(k.mttr_hours) : ''"
+            emptyText="Aún no hay tickets resueltos en este periodo"
+            [changePct]="k?.mttr_hours?.change_pct ?? null" [tone]="tone(k?.mttr_hours?.change_pct ?? null, 'lower')"
+            changeHint="mediana vs. periodo anterior"
+            [n]="k ? k.mttr_hours.sample_size : null" [lowSample]="k?.mttr_hours?.low_sample ?? false"
+            [series]="series(state.trends, 'mttr_hours')" />
+
+          <app-kpi-card label="Cumplimiento SLA" icon="verified" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+            [value]="k && k.sla_compliance_pct.value !== null ? pct(k.sla_compliance_pct.value) : null"
+            [caption]="k ? slaCaption(k) : ''"
+            [emptyText]="k && k.sla_compliance_pct.excluded_no_sla ? k.sla_compliance_pct.excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Aún no hay tickets resueltos con SLA'"
+            [changePct]="k?.sla_compliance_pct?.change_pct ?? null" [tone]="tone(k?.sla_compliance_pct?.change_pct ?? null, 'higher')"
+            [n]="k ? k.sla_compliance_pct.sample_size : null" [lowSample]="k?.sla_compliance_pct?.low_sample ?? false"
+            [series]="series(state.trends, 'sla_compliance_pct')" />
+
+          <app-kpi-card label="Disponibilidad" icon="monitor_heart" link="/equipos"
+            [value]="k && k.availability.value !== null ? pct(k.availability.value) : null"
+            [caption]="k ? k.availability.operational + ' de ' + k.availability.total + ' equipos operativos' : ''"
+            emptyText="Sin equipos registrados"
+            [changePct]="k?.availability?.change_pct ?? null" [tone]="tone(k?.availability?.change_pct ?? null, 'higher')"
+            changeHint="vs. inicio del periodo" />
+
+          <app-kpi-card label="Backlog" icon="inbox" link="/maintenance"
+            [value]="k ? '' + k.backlog.open : null" [caption]="k && k.backlog.open ? 'tickets abiertos' : 'Sin tickets abiertos'"
+            [changePct]="k?.backlog?.change_pct ?? null" [tone]="tone(k?.backlog?.change_pct ?? null, 'lower')"
+            changeHint="vs. inicio del periodo">
+            @if (k && k.backlog.open > 0) {
+              <div class="mt-1">
+                <div class="flex h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]" role="img"
+                  [attr.aria-label]="k.backlog.age_0_2_days + ' de 0 a 2 días, ' + k.backlog.age_3_7_days + ' de 3 a 7 días, ' + k.backlog.age_over_7_days + ' de más de 7 días'">
+                  <div class="h-full bg-[#93C5FD]" [style.width.%]="share(k.backlog.age_0_2_days, k.backlog.open)"></div>
+                  <div class="h-full bg-[#2563EB]" [style.width.%]="share(k.backlog.age_3_7_days, k.backlog.open)"></div>
+                  <div class="h-full bg-[#A16207]" [style.width.%]="share(k.backlog.age_over_7_days, k.backlog.open)"></div>
+                </div>
+                <p class="mt-1 text-[11px] text-[#64748B]">0-2 d: {{ k.backlog.age_0_2_days }} · 3-7 d: {{ k.backlog.age_3_7_days }} · +7 d: <strong class="text-[#92400E]">{{ k.backlog.age_over_7_days }}</strong></p>
+              </div>
+            }
+          </app-kpi-card>
+        </section>
+
+        <!-- Gráficos -->
         <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">event_note</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Mantenimientos por semana</h2>
-                  <p class="text-[11px] text-[#64748B]">Solicitudes creadas en los últimos 7 días</p>
-                </div>
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 class="text-[15px] font-bold">Tickets creados y resueltos</h2>
+                <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }}</p>
               </div>
-              <a routerLink="/maintenance" aria-label="Ir a mantenimientos" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] hover:bg-[#E2E8F0]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
+              <div class="flex items-center gap-3 text-[11px] text-[#64748B]">
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-[#93C5FD]"></span>Creados</span>
+                <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-[#2563EB]"></span>Resueltos</span>
+                @if (state.kpis?.resolution_rate_pct?.value !== null && state.kpis) {
+                  <span class="rounded-full bg-[#FEF3C7] px-2 py-0.5 font-bold text-[#92400E]">Resolución {{ pct(state.kpis.resolution_rate_pct.value) }}</span>
+                }
+              </div>
             </div>
-            <div class="flex h-16 items-end justify-between gap-2 px-1">
-              @for (day of m.week; track $index) {
-                <div class="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                  <span class="text-[11px] font-semibold" [class]="day.isPeak ? 'text-[#2563EB]' : 'text-[#64748B]'">{{ day.count }}</span>
-                  <div class="w-full max-w-[26px] rounded-full transition-all"
-                    [class]="day.isPeak ? 'bg-[#2563EB]' : 'bg-[#BFDBFE]'"
-                    [style.height.%]="barHeight(day, m.week)"></div>
-                  <span class="text-[11px]" [class]="day.isPeak ? 'font-bold text-[#2563EB]' : 'text-[#64748B]'">{{ day.label }}</span>
-                </div>
-              }
-            </div>
-            <div class="flex items-center justify-between border-t border-[#F1F5F9] pt-3 text-[11px] text-[#64748B]">
-              <span>Pico destacado en azul</span>
-              <span class="font-bold uppercase tracking-wider">Total: {{ m.weekTotal }} sol.</span>
-            </div>
+            @let bars = chart(state.trends);
+            @if (bars.length) {
+              <svg [attr.viewBox]="'0 0 ' + chartW + ' ' + (chartH + 20)" class="h-48 w-full" role="img"
+                [attr.aria-label]="'Tickets creados y resueltos, ' + periodCaption(state.period)">
+                <line x1="0" [attr.x2]="chartW" [attr.y1]="chartH" [attr.y2]="chartH" stroke="#E2E8F0" />
+                @for (bar of bars; track $index) {
+                  <g>
+                    <title>{{ bar.label }}: {{ bar.created }} creados, {{ bar.resolved }} resueltos</title>
+                    <rect [attr.x]="bar.x" [attr.y]="chartH - bar.createdH" [attr.width]="bar.width" [attr.height]="bar.createdH" rx="2" fill="#93C5FD" />
+                    <rect [attr.x]="bar.x + bar.width + 1" [attr.y]="chartH - bar.resolvedH" [attr.width]="bar.width" [attr.height]="bar.resolvedH" rx="2" fill="#2563EB" />
+                    @if (bar.created) {
+                      <text [attr.x]="bar.x + bar.width / 2" [attr.y]="chartH - bar.createdH - 3" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 8 : 10" font-weight="600" fill="#475569">{{ bar.created }}</text>
+                    }
+                    @if (bar.resolved) {
+                      <text [attr.x]="bar.x + bar.width * 1.5 + 1" [attr.y]="chartH - bar.resolvedH - 3" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 8 : 10" font-weight="700" fill="#1D4ED8">{{ bar.resolved }}</text>
+                    }
+                    @if (bar.showLabel) {
+                      <text [attr.x]="bar.x + bar.width" [attr.y]="chartH + 14" text-anchor="middle" [attr.font-size]="bars.length > 12 ? 9 : 11" fill="#475569">{{ bar.label }}</text>
+                    }
+                  </g>
+                }
+              </svg>
+            } @else {
+              <div class="flex h-44 flex-col items-center justify-center gap-1 rounded-[14px] bg-[#F8FAFC] text-center">
+                <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">bar_chart</span>
+                <p class="text-[12px] text-[#64748B]">{{ state.trends ? 'No hay tickets en este periodo.' : 'Gráfico no disponible.' }}</p>
+              </div>
+            }
           </div>
 
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">monitor_heart</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Salud de equipos</h2>
-                  <p class="text-[11px] text-[#64748B]">Inventario por categoría</p>
-                </div>
-              </div>
-              <a routerLink="/equipos" aria-label="Ir a inventario" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] !text-[#64748B] hover:bg-[#E2E8F0]">
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </a>
+          <div [class]="card + ' flex flex-col gap-3'">
+            <div>
+              <h2 class="text-[15px] font-bold">Equipos con más incidencias</h2>
+              <p class="text-[11px] text-[#64748B]">Candidatos a revisar o reemplazar</p>
             </div>
-            <div class="flex flex-1 items-center gap-5">
-              <div class="relative h-[88px] w-[88px] shrink-0">
-                <svg viewBox="0 0 130 130" class="h-full w-full -rotate-90" role="img" aria-label="Equipos por categoría">
-                  <circle cx="65" cy="65" [attr.r]="radius" fill="none" stroke="#DBEAFE" stroke-width="14" />
-                  @for (seg of donut(m.byType); track seg.name) {
-                    <circle cx="65" cy="65" [attr.r]="radius" fill="none" [attr.stroke]="seg.color" stroke-width="14"
-                      [attr.stroke-dasharray]="seg.dash" [attr.stroke-dashoffset]="seg.offset" />
-                  }
-                </svg>
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-[20px] font-bold leading-6">{{ m.equipmentTotal }}</span>
-                  <span class="text-[11px] text-[#64748B]">equipos</span>
-                </div>
-              </div>
-              <ul class="flex min-w-0 flex-1 flex-col gap-2 text-[12px]">
-                @for (seg of donut(m.byType); track seg.name) {
-                  <li class="flex items-center gap-2">
-                    <span class="h-2 w-2 shrink-0 rounded-full" [style.background]="seg.color"></span>
-                    <span class="min-w-0 flex-1 truncate text-[#64748B]">{{ seg.name }}</span>
-                    <span class="font-semibold">{{ seg.count }}</span>
+            @if (state.topEquipment?.length) {
+              <ul class="flex flex-col gap-2">
+                @for (item of state.topEquipment; track item.equipment_id) {
+                  <li>
+                    <a routerLink="/maintenance" [queryParams]="{ equipmentId: item.equipment_id }"
+                      [class]="'block rounded-lg px-1 py-0.5 !text-inherit transition-colors hover:bg-[#F1F5F9] ' + focus">
+                      <div class="flex items-baseline justify-between gap-2 text-[12px]">
+                        <span class="min-w-0 truncate font-semibold">{{ item.asset_tag }} <span class="font-normal text-[#64748B]">{{ item.brand }} {{ item.model }}</span></span>
+                        <span class="shrink-0 font-bold">{{ item.tickets }}</span>
+                      </div>
+                      <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
+                        <div class="h-full rounded-full bg-[#2563EB]" [style.width.%]="share(item.tickets, state.topEquipment![0].tickets)"></div>
+                      </div>
+                    </a>
                   </li>
-                } @empty {
-                  <li class="text-[#64748B]">Sin equipos registrados</li>
                 }
               </ul>
-            </div>
-          </div>
-
-          <div [class]="card + ' flex flex-col gap-2'">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <span [class]="icon + ' rounded-xl bg-[#DBEAFE] text-[#2563EB]'"><span class="material-symbols-outlined text-[20px]">groups</span></span>
-                <div>
-                  <h2 class="text-[15px] font-bold">Equipo técnico</h2>
-                  <p class="text-[11px] text-[#64748B]">Disponibilidad actual</p>
-                </div>
-              </div>
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FEF3C7] text-[#F59E0B]">
-                <span class="material-symbols-outlined text-[18px]">emoji_events</span>
-              </span>
-            </div>
-            <div class="flex max-h-[96px] flex-1 flex-col gap-2 overflow-y-auto rounded-[14px] bg-[#F8FAFC] p-3">
-              @for (tech of m.technicians; track tech.id) {
-                <div class="flex items-center gap-3 rounded-xl bg-white p-2.5">
-                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563EB] text-[12px] font-bold text-white">T{{ tech.id }}</span>
-                  <div class="min-w-0 flex-1">
-                    <h3 class="truncate text-[13px] font-semibold">Técnico #{{ tech.id }}</h3>
-                    <span class="text-[11px] text-[#64748B]">{{ tech.specialization || 'General' }}</span>
-                  </div>
-                  <span class="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                    [class]="tech.is_available ? 'bg-[#D1FAE5] text-[#047857]' : 'bg-[#FEF3C7] text-[#B45309]'">
-                    {{ tech.is_available ? 'LIBRE' : 'OCUPADO' }}
-                  </span>
-                </div>
-              } @empty {
-                <div class="flex flex-1 flex-col items-center justify-center gap-2 py-1 text-center">
-                  <span class="material-symbols-outlined text-[28px] text-[#94A3B8]">groups</span>
-                  <p class="text-[12px] text-[#64748B]">Aún no hay técnicos registrados.</p>
-                  <a routerLink="/technicians" class="inline-flex h-9 items-center gap-2 rounded-full bg-[#DBEAFE] px-4 text-[12px] font-medium !text-[#2563EB] hover:bg-[#BFDBFE]">
-                    Gestionar técnicos <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-                  </a>
-                </div>
-              }
-            </div>
+            } @else {
+              <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
+                {{ state.topEquipment ? 'Ningún equipo con incidencias en este periodo.' : 'Dato no disponible.' }}
+              </p>
+            }
           </div>
         </section>
 
-        <footer class="flex items-center justify-between gap-3 text-[11px] text-[#94A3B8]">
+        <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 class="text-[15px] font-bold">Rendimiento del equipo técnico</h2>
+                <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }} · ordenado por tickets abiertos (carga), no por desempeño</p>
+              </div>
+              <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
+            </div>
+            @let techs = state.technicians;
+            @if (techs?.length) {
+              <div class="overflow-x-auto">
+                <table class="w-full min-w-[680px] border-collapse text-left text-[12px]">
+                  <caption class="sr-only">Rendimiento por técnico en {{ periodCaption(state.period) }}</caption>
+                  <thead>
+                    <tr class="border-b border-[#E2E8F0] text-[11px] uppercase tracking-wider text-[#64748B]">
+                      <th scope="col" class="py-2 pr-3 font-bold">Técnico</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">Abiertos</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">Resueltos</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">MTTR (mediana)</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">SLA</th>
+                      <th scope="col" class="px-3 py-2 text-right font-bold">n</th>
+                      <th scope="col" class="py-2 pl-3 text-right font-bold">Reabiertos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (t of techs; track t.technician_id) {
+                      <tr class="border-b border-[#F1F5F9] last:border-0">
+                        <th scope="row" class="py-2 pr-3 font-normal">
+                          <span class="flex items-center gap-2">
+                            <span class="h-2 w-2 shrink-0 rounded-full" [class]="t.is_available ? 'bg-[#047857]' : 'bg-[#A16207]'"
+                              [attr.title]="t.is_available ? 'Disponible' : 'No disponible'"></span>
+                            <span class="min-w-0">
+                              <span class="block truncate font-semibold text-[#1E293B]">{{ t.full_name }}</span>
+                              <span class="block truncate text-[11px] text-[#64748B]">{{ t.specialization || 'General' }}</span>
+                            </span>
+                          </span>
+                        </th>
+                        <td class="px-3 py-2 text-right text-[14px] font-bold text-[#0b1f3a]">{{ t.open_tickets }}</td>
+                        <td class="px-3 py-2 text-right">{{ t.resolved }}</td>
+                        <td class="px-3 py-2 text-right">
+                          @if (t.mttr_median_hours !== null) {
+                            <span class="font-semibold">{{ hours(t.mttr_median_hours) }}</span>
+                            @if (t.low_sample) {
+                              <span class="ml-1 rounded-full bg-[#FEF3C7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400E]">pocos datos</span>
+                            }
+                          } @else {
+                            <span class="text-[#64748B]" title="Sin tickets resueltos en el periodo">—</span>
+                          }
+                        </td>
+                        <td class="px-3 py-2 text-right">
+                          @if (t.sla_compliance_pct !== null) {
+                            <span class="font-semibold">{{ pct(t.sla_compliance_pct) }}</span>
+                            <span class="text-[11px] text-[#64748B]"> (n = {{ t.sla_sample_size }})</span>
+                            @if (t.sla_low_sample) {
+                              <span class="ml-1 rounded-full bg-[#FEF3C7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400E]">pocos datos</span>
+                            }
+                          } @else {
+                            <span class="text-[#64748B]" [attr.title]="t.sla_excluded_no_sla ? t.sla_excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Sin tickets resueltos con SLA'">—</span>
+                          }
+                          @if (t.sla_excluded_no_sla) {
+                            <span class="block text-[10px] text-[#64748B]">{{ t.sla_excluded_no_sla }} sin SLA excluidos</span>
+                          }
+                        </td>
+                        <td class="px-3 py-2 text-right text-[#475569]">{{ t.sample_size }}</td>
+                        <td class="py-2 pl-3 text-right" [class]="t.reopened ? 'font-bold text-[#92400E]' : 'text-[#475569]'">{{ t.reopened }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[11px] text-[#64748B]">n = tickets resueltos en el periodo. Las prioridades sin SLA no entran en el cumplimiento. Reabiertos: pasaron de resuelto a en curso.</p>
+            } @else {
+              <p class="flex flex-1 items-center justify-center rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">
+                {{ techs ? 'Aún no hay técnicos registrados.' : 'Dato no disponible.' }}
+              </p>
+            }
+          </div>
+
+          <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
+            <div>
+              <h2 class="text-[15px] font-bold">Atención inmediata</h2>
+              <p class="text-[11px] text-[#64748B]">Lo que necesita acción ahora, sin importar el periodo</p>
+            </div>
+            @let alerts = state.alerts;
+            @if (alerts && (alerts.tickets.length || alerts.down_equipment.length || alerts.schedules.length)) {
+              <ul class="flex flex-col gap-2">
+                @for (a of alerts.tickets; track a.id) {
+                  <li>
+                    <a [routerLink]="['/maintenance', a.id]" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px]" [class]="a.reason === 'sla_at_risk' ? 'text-[#A16207]' : 'text-[#B45309]'" aria-hidden="true">confirmation_number</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ a.ticket_number }} · {{ a.title }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ a.asset_tag }} · {{ a.priority }} · {{ a.assigned ? 'asignado' : 'sin asignar' }}@if (a.sla_deadline) { · vence {{ date(a.sla_deadline) }} }</p>
+                      </div>
+                      <span class="shrink-0 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#92400E]">{{ reason(a.reason) }}</span>
+                    </a>
+                  </li>
+                }
+                @for (e of alerts.down_equipment; track e.equipment_id) {
+                  <li>
+                    <a routerLink="/equipos" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#B45309]" aria-hidden="true">report</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ e.asset_tag }} · {{ e.brand }} {{ e.model }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ e.status === 'lost' ? 'Extraviado' : 'En mantenimiento' }}</p>
+                      </div>
+                      <span class="shrink-0 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-bold text-[#92400E]">Caído {{ downtime(e.down_hours) }}</span>
+                    </a>
+                  </li>
+                }
+                @for (s of alerts.schedules; track s.id) {
+                  <li>
+                    <a routerLink="/maintenance" [class]="rowClass + ' ' + focus">
+                      <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#2563EB]" aria-hidden="true">event_busy</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-[13px] font-semibold">{{ s.title }}</p>
+                        <p class="truncate text-[11px] text-[#64748B]">{{ s.asset_tag }} · preventivo</p>
+                      </div>
+                      <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        [class]="s.overdue ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#DBEAFE] text-[#1D4ED8]'">{{ s.overdue ? 'Vencido' : 'Vence' }} {{ date(s.next_due_at) }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            } @else if (alerts) {
+              <div class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-[#F0FDF4] py-6 text-center">
+                <span class="material-symbols-outlined text-[28px] text-[#10B981]" aria-hidden="true">check_circle</span>
+                <p class="px-3 text-[12px] text-[#047857]">Todo al día. No hay incidencias prioritarias registradas.</p>
+              </div>
+            } @else {
+              <p class="rounded-[14px] bg-[#F8FAFC] px-3 py-6 text-center text-[12px] text-[#64748B]">Alertas no disponibles.</p>
+            }
+          </div>
+        </section>
+
+        <footer class="flex items-center justify-between gap-3 text-[11px] text-[#64748B]">
           <span class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[18px]">shield</span>
-            <strong class="text-[#64748B]">Mantix</strong> · Tecnología que mantiene tu productividad
+            <strong class="text-[#475569]">Mantix</strong> · Tecnología que mantiene tu productividad
           </span>
           <span>v1.0.0</span>
         </footer>
@@ -334,10 +395,10 @@ export interface DonutSegment {
       }
       /* Capa holográfica: vidrio translúcido que flota sobre la animación. */
       .holo {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.62);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.55);
         box-shadow: 0 8px 24px rgba(62, 92, 118, 0.12);
       }
       .hero-gif {
@@ -354,37 +415,82 @@ export class DashboardComponent implements OnInit {
 
   readonly state$ = this.store.state$;
   readonly card = CARD;
-  readonly icon = ICON;
-  readonly radius = DONUT_RADIUS;
+  readonly focus = LINK_FOCUS;
+  readonly rowClass = `flex items-start gap-3 rounded-xl bg-[#F8FAFC] p-2.5 !text-inherit transition-colors hover:bg-[#EFF6FF]`;
+  readonly periods = PERIODS;
+  readonly chartW = CHART_W;
+  readonly chartH = CHART_H;
   readonly userName = signal('');
-  readonly showKpis = signal(false);
+
+  readonly pct = formatPct;
+  readonly hours = formatHours;
+  readonly central = formatCentral;
+  readonly spread = formatSpread;
+  readonly tone = changeTone;
+  readonly reason = reasonLabel;
+  readonly downtime = formatDowntime;
+  readonly date = formatDate;
 
   async ngOnInit(): Promise<void> {
     this.store.load();
     this.userName.set((await this.profileService.getProfile()).full_name);
   }
 
-  /** Altura relativa al día con más solicitudes; mínimo visible para los días en cero. */
-  barHeight(day: DayBar, week: DayBar[]): number {
-    const max = Math.max(...week.map((d) => d.count), 1);
-    return Math.max((day.count / max) * 80, 4);
+  setPeriod(period: Period): void {
+    this.store.load(period);
   }
 
-  /** Arcos del donut: cada categoría ocupa su fracción de la circunferencia. */
-  donut(byType: TypeCount[]): DonutSegment[] {
-    const total = byType.reduce((sum, type) => sum + type.count, 0);
-    let consumed = 0;
-    return byType.map((type, index) => {
-      const length = total ? (type.count / total) * DONUT_LENGTH : 0;
-      const segment: DonutSegment = {
-        name: type.name,
-        count: type.count,
-        color: PALETTE[index % PALETTE.length],
-        dash: `${length} ${DONUT_LENGTH - length}`,
-        offset: -consumed,
-      };
-      consumed += length;
-      return segment;
-    });
+  reload(): void {
+    this.store.load();
+  }
+
+  periodCaption(period: Period): string {
+    return PERIODS.find((p) => p.id === period)?.caption ?? '';
+  }
+
+  mttrCaption(firstAssignmentHours: number | null): string {
+    return firstAssignmentHours === null
+      ? 'Tiempo medio de resolución'
+      : `Resolución · 1.ª asignación en ${formatHours(firstAssignmentHours)}`;
+  }
+
+  slaCaption(kpis: NonNullable<DashboardState['kpis']>): string {
+    const sla = kpis.sla_compliance_pct;
+    const base = `${sla.met} de ${sla.met + sla.missed} a tiempo`;
+    return sla.excluded_no_sla ? `${base} · ${sla.excluded_no_sla} sin SLA excluidos` : base;
+  }
+
+  /** Serie del sparkline: un valor por punto de la tendencia (`null` = sin datos ese día). */
+  series(trends: TrendsResponse | null, key: 'mttr_hours' | 'sla_compliance_pct'): (number | null)[] {
+    return trends ? trends.points.map((point) => point[key]) : [];
+  }
+
+  share(value: number, max: number): number {
+    return max > 0 ? Math.max((value / max) * 100, value > 0 ? 4 : 0) : 0;
+  }
+
+
+  /** Barras agrupadas (creados / resueltos) escaladas al máximo de la serie. */
+  chart(trends: TrendsResponse | null): ChartBar[] {
+    if (!trends || trends.points.every((p) => p.created === 0 && p.resolved === 0)) {
+      return [];
+    }
+    const max = Math.max(...trends.points.flatMap((p) => [p.created, p.resolved]), 1);
+    const slot = CHART_W / trends.points.length;
+    const width = Math.min(slot * 0.4, 18);
+    return trends.points.map((point, index) => ({
+      x: index * slot + (slot - width * 2 - 1) / 2,
+      width,
+      createdH: this.barHeight(point.created, max),
+      resolvedH: this.barHeight(point.resolved, max),
+      label: bucketLabel(point.bucket, trends.granularity, index === 0),
+      created: point.created,
+      resolved: point.resolved,
+      showLabel: trends.points.length <= 12 || (trends.points.length - 1 - index) % 3 === 0,
+    }));
+  }
+
+  private barHeight(count: number, max: number): number {
+    return count ? Math.max((count / max) * (CHART_H - 22), 3) : 0;
   }
 }

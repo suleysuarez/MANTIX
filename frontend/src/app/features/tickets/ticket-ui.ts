@@ -57,9 +57,10 @@ export const TRANSITION_LABELS: Record<string, string> = {
 };
 
 export const TRANSITION_STYLES: Record<string, string> = {
-  resolved: 'bg-[#059669] text-white hover:bg-[#047857]',
-  closed: 'bg-[#0b1f3a] text-white hover:bg-[#3E5C76]',
-  cancelled: 'bg-[#FEE2E2] text-[#991B1B] hover:bg-[#FECACA]',
+  // `!` porque `.tw-reset button { color: inherit }` pisa a las utilidades sin importancia.
+  resolved: 'bg-[#047857] !text-white hover:bg-[#065F46]',
+  closed: 'bg-[#0b1f3a] !text-white hover:bg-[#3E5C76]',
+  cancelled: 'bg-[#FEE2E2] !text-[#991B1B] hover:bg-[#FECACA]',
 };
 export const DEFAULT_TRANSITION_STYLE = 'bg-[#E9EEF5] text-[#1E293B] hover:bg-[#DDE5EF]';
 
