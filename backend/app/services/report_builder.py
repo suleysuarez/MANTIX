@@ -531,7 +531,9 @@ class ReportBuilderService:
     @staticmethod
     def _title(key: str) -> str:
         dataset = DATASETS.get(key)
-        return dataset.title if dataset else key
+        if dataset:
+            return dataset.title
+        return {"technicians": "Técnicos", "users": "Usuarios"}.get(key, key)
 
     def _last(self, run: RunRow | None) -> LastExport | None:
         if run is None:
