@@ -47,7 +47,7 @@ from app.services.dashboard_kpis import (
     previous_window,
 )
 
-MANAGE = "inventory.manage"
+MANAGE = "inventario:editar"
 _CENT = Decimal("0.01")
 _NOT_NULL = ("name", "category", "unit", "unit_cost", "min_stock")
 #: Drop-down fields whose text is matched against `inventory_options` (one spelling per value).

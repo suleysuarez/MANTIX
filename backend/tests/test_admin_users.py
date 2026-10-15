@@ -7,6 +7,7 @@ from app.api.dependencies import require_permission
 from app.core.authz import AuthContext
 from app.core.exceptions import NotFoundError
 from app.services.admin import AdminUserService
+from tests.support import perm_objects
 
 
 class FakeAudit:
@@ -97,7 +98,7 @@ async def test_assign_roles_succeeds_and_is_idempotent():
     target = user(10, "pending@example.com")
     repository = FakeAdminRepository(users=[target], roles=[role(20)])
     service = AdminUserService(repository, FakeAudit(), FakeNotifications())
-    admin = user(1, "admin@example.com", roles=[99])
+    admin = AuthContext.for_roles(SimpleNamespace(id=1), "ADMIN")
 
     first = await service.assign_roles(10, [20], admin)
     second = await service.assign_roles(10, [20, 20], admin)
@@ -138,14 +139,15 @@ async def test_assign_roles_rejects_missing_user_role_and_inactive_user():
 
 
 def test_permission_boundary_distinguishes_403_from_authenticated_user():
-    dependency = require_permission("users.manage")
+    dependency = require_permission("usuarios:ver")
+    request = SimpleNamespace(state=SimpleNamespace())
     denied = SimpleNamespace(roles=[])
     allowed = SimpleNamespace(
         roles=[
             SimpleNamespace(
                 code="ADMIN",
                 is_active=True,
-                permissions=[SimpleNamespace(code="users.manage", is_active=True)],
+                permissions=perm_objects("users.manage"),
             )
         ]
     )
@@ -153,9 +155,9 @@ def test_permission_boundary_distinguishes_403_from_authenticated_user():
     with pytest.raises(HTTPException) as error:
         import asyncio
 
-        asyncio.run(dependency(AuthContext.from_user(denied)))
+        asyncio.run(dependency(request, AuthContext.from_user(denied)))
     assert error.value.status_code == 403
     import asyncio
 
     context = AuthContext.from_user(allowed)
-    assert asyncio.run(dependency(context)) is context
+    assert asyncio.run(dependency(request, context)) is context

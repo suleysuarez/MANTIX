@@ -19,12 +19,13 @@ from app.schemas.settings import (
     OrganizationUpdate,
 )
 from app.services.settings import SystemSettingsService
+from tests.support import expand, perm_objects
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 ACTOR = AuthContext(
     user=SimpleNamespace(id=1, full_name="Ana"),
     roles=frozenset({"ADMIN"}),
-    permissions=frozenset({"users.manage", "priorities.manage"}),
+    permissions=expand("users.manage", "priorities.manage"),
 )
 
 
@@ -247,9 +248,7 @@ def as_user(permissions):
             SimpleNamespace(
                 code="ADMIN",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

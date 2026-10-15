@@ -312,10 +312,12 @@ def test_auth_me_response_contains_empty_pending_collections() -> None:
 async def test_permission_granted_and_missing_permission_returns_403() -> None:
     user = SimpleNamespace(roles=[role()])
     context = AuthContext.from_user(user)
-    allowed = await require_permission("equipment.read")(context)
+    request = SimpleNamespace(state=SimpleNamespace())
+    allowed = await require_permission("equipment.read")(request, context)
     assert allowed is context
     with pytest.raises(HTTPException) as error:
-        await require_permission("equipment.write")(context)
+        await require_permission("equipment.write")(request, context)
+    assert request.state.denied_permission == "equipment.write"
     assert error.value.status_code == 403
 
 
@@ -349,7 +351,8 @@ async def test_require_permission_and_user_response_against_real_permission_orm(
     )
 
     context = AuthContext.from_user(user)
-    allowed = await require_permission("equipment.read")(context)
+    request = SimpleNamespace(state=SimpleNamespace())
+    allowed = await require_permission("equipment.read")(request, context)
     assert allowed is context
 
     response = user_response(user)

@@ -89,7 +89,7 @@ async def list_items(
     moved_from: datetime | None = MOVED_FROM,
     moved_to: datetime | None = MOVED_TO,
     params: PageParams = Depends(page_params()),  # noqa: B008
-    _: AuthContext = Depends(require_permission("inventory.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:ver")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> list[ItemResponse]:
     page = await service.list_items(
@@ -122,7 +122,7 @@ async def list_items(
 )
 async def create_item(
     payload: ItemCreate,
-    actor: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:crear")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> ItemResponse:
     return await service.create(payload, actor)
@@ -137,7 +137,7 @@ async def create_item(
 )
 async def list_options(
     kind: OptionKind | None = KIND,
-    _: AuthContext = Depends(require_permission("inventory.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:ver")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> list[OptionResponse]:
     return await service.list_options(kind)
@@ -156,7 +156,7 @@ async def list_options(
 )
 async def create_option(
     payload: OptionCreate,
-    actor: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:crear")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> OptionResponse:
     return await service.create_option(payload, actor)
@@ -170,7 +170,7 @@ async def create_option(
 )
 async def get_item(
     item_id: int,
-    _: AuthContext = Depends(require_permission("inventory.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:ver")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> ItemResponse:
     return await service.get(item_id)
@@ -186,7 +186,7 @@ async def get_item(
 async def update_item(
     item_id: int,
     payload: ItemUpdate,
-    actor: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:editar")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> ItemResponse:
     return await service.update(item_id, payload, actor)
@@ -201,7 +201,7 @@ async def update_item(
 )
 async def delete_item(
     item_id: int,
-    actor: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:eliminar")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> Response:
     await service.delete(item_id, actor)
@@ -223,7 +223,7 @@ async def delete_item(
 async def register_movement(
     item_id: int,
     payload: MovementCreate,
-    actor: AuthContext = Depends(require_permission("inventory.consume")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:consumir")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> MovementResponse:
     return await service.move(item_id, payload, actor)
@@ -239,7 +239,7 @@ async def list_movements(
     item_id: int,
     response: Response,
     params: PageParams = Depends(page_params()),  # noqa: B008
-    _: AuthContext = Depends(require_permission("inventory.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:ver")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> list[MovementResponse]:
     page = await service.movements(item_id, params=params)
@@ -259,7 +259,7 @@ async def list_movements(
 )
 async def inventory_overview(
     period: Period = PERIOD,
-    _: AuthContext = Depends(require_permission("inventory.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:ver")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> InventoryOverview:
     return await service.overview(period=period)
@@ -283,7 +283,7 @@ async def inventory_overview(
     },
 )
 async def import_template(
-    _: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("inventario:importar")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> Response:
     return Response(
@@ -316,7 +316,7 @@ async def import_items(
     file: UploadFile = FILE,
     dry_run: bool = DRY_RUN,
     skip_invalid: bool = SKIP_INVALID,
-    actor: AuthContext = Depends(require_permission("inventory.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("inventario:importar")),  # noqa: B008
     service: InventoryService = Depends(get_inventory_service),  # noqa: B008
 ) -> ImportResult:
     filename = safe_filename(file.filename)

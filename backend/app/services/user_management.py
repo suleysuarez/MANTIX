@@ -126,6 +126,7 @@ class UserManagementService:
                 f"ya existe un usuario con el código '{payload.employee_code}'"
             )
         roles = await self._roles(payload.role_ids)
+        actor.ensure_can_change_roles(roles, target_user_id=None)
         user = await self.repository.create(
             email=payload.email,
             full_name=payload.full_name,
@@ -215,6 +216,14 @@ class UserManagementService:
     ) -> UserListItem:
         user = await self._require(user_id)
         roles = await self._roles(role_ids)
+        before = {link.role_id: link.role for link in user.user_roles}
+        after = {role.id: role for role in roles}
+        changed = [
+            role
+            for rid, role in {**before, **after}.items()
+            if (rid in before) != (rid in after)
+        ]
+        actor.ensure_can_change_roles(changed, target_user_id=user_id)
         was_admin = self._is_admin(user)
         will_be_admin = any(role.code == ADMIN for role in roles)
         if was_admin and not will_be_admin:

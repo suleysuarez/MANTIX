@@ -31,7 +31,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 )
 async def system_health(
     request: Request,
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> SystemHealth:
     scheduler = getattr(request.app.state, "scheduler", None)
@@ -44,7 +44,7 @@ async def system_health(
     summary="Request categories, with how many requests use each",
 )
 async def list_categories(
-    _: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> list[CategoryAdmin]:
     return await service.categories()
@@ -59,7 +59,7 @@ async def list_categories(
 )
 async def create_category(
     payload: CategoryCreate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> CategoryAdmin:
     return await service.create_category(payload, actor)
@@ -75,7 +75,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     payload: CategoryUpdate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> CategoryAdmin:
     return await service.update_category(category_id, payload, actor)
@@ -90,7 +90,7 @@ async def update_category(
 )
 async def delete_category(
     category_id: int,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> Response:
     await service.delete_category(category_id, actor)
@@ -104,7 +104,7 @@ async def delete_category(
     description="Company name, legal name and tax id (NIT). ADMIN only.",
 )
 async def get_organization(
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> OrganizationResponse:
     return await service.organization()
@@ -119,7 +119,7 @@ async def get_organization(
 )
 async def update_organization(
     payload: OrganizationUpdate,
-    actor: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> OrganizationResponse:
     return await service.update_organization(payload, actor)

@@ -142,6 +142,13 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
         await self._require_can_act(request, actor)
+        # Moving a ticket needs more than a valid transition: the role must be allowed to
+        # take it to that state (e.g. only whoever assigns may assign; only a supervisor
+        # rejects or cancels).
+        actor.require(
+            TicketState.of(payload.status).permission,
+            f"Tu rol no puede mover un ticket al estado «{payload.status}».",
+        )
 
         current, target = request.status, payload.status
         has_technician = await self.repository.get_active_assignment(request_id)
@@ -187,7 +194,7 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         """Set category and priority (both must be active catalog entries) and triage."""
         request = await self._reload(request_id)
-        self._require_elevated(actor)
+        actor.require("solicitudes:editar")
         if request.status not in CLASSIFIABLE_STATUSES:
             raise BusinessRuleError(
                 "only requests waiting for triage can be classified "
@@ -239,7 +246,7 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         """Cancel a request that has not been started, recording why."""
         request = await self._reload(request_id)
-        self._require_elevated(actor)
+        actor.require("solicitudes:aprobar")
         if request.status not in REJECTABLE_STATUSES:
             raise BusinessRuleError(
                 "only requests that have not started can be rejected "
@@ -270,7 +277,7 @@ class MaintenanceService:
         actor: AuthContext,
     ) -> MaintenanceRequestResponse:
         request = await self._reload(request_id)
-        self._require_elevated(actor)
+        actor.require("tickets:asignar")
         state = TicketState.of(request.status)
         state.ensure_accepts_assignment()  # fail before touching the repository
         technician = await self.repository.get_technician(payload.technician_id)
@@ -317,7 +324,7 @@ class MaintenanceService:
         request = await self.repository.get(request_id)
         if request is None:
             raise NotFoundError("maintenance request not found")
-        self._require_elevated(actor)
+        actor.require("tickets:asignar")
         closed = await self.repository.unassign_active(request_id)
         if closed is None:
             raise NotFoundError("no active technician assignment")
@@ -378,11 +385,6 @@ class MaintenanceService:
         return [MaintenanceRecordResponse.model_validate(item) for item in records]
 
     # -- Authorization helpers ----------------------------------------------
-
-    @staticmethod
-    def _require_elevated(actor: AuthContext) -> None:
-        if not actor.is_elevated:
-            raise ForbiddenError("only ADMIN or SUPERVISOR can perform this action")
 
     async def _ensure_visible(
         self, request: MaintenanceRequest, actor: AuthContext

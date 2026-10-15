@@ -23,6 +23,7 @@ from app.services.attachment import (
     AttachmentService,
     DownloadedFile,
 )
+from tests.support import expand, perm_objects
 
 PDF = b"%PDF-1.7 fake"
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 20
@@ -33,10 +34,12 @@ def upload(content=PDF, name="report.pdf"):
 
 
 def actor(user_id=1, *roles, permissions=()):
+    from app.core.permissions import effective_for_system_roles
+
     return AuthContext(
         user=SimpleNamespace(id=user_id),
         roles=frozenset(roles),
-        permissions=frozenset(permissions),
+        permissions=expand(*permissions) | effective_for_system_roles(*roles),
     )
 
 
@@ -123,7 +126,9 @@ class FakeMaintenance:
     async def ensure_can_view(self, request_id, actor):
         if request_id != 1:
             raise NotFoundError("maintenance request not found")
-        if actor.id not in self.visible_to and not actor.is_elevated:
+        if actor.id not in self.visible_to and not actor.has_permission(
+            "tickets:ver_todos"
+        ):
             raise ForbiddenError("not authorized to view this maintenance request")
 
 
@@ -291,10 +296,7 @@ def client():
             SimpleNamespace(
                 code="EMPLOYEE",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=code, is_active=True)
-                    for code in ("attachments.write", "maintenance.read")
-                ],
+                permissions=perm_objects("attachments.write", "maintenance.read"),
             )
         ],
     )

@@ -22,7 +22,7 @@ router = APIRouter(prefix="/admin", tags=["administration"])
     response_model=list[PendingUserResponse],
 )
 async def list_pending_users(
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("usuarios:ver")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[PendingUserResponse]:
     """List active users with no local application role assignment."""
@@ -31,7 +31,7 @@ async def list_pending_users(
 
 @router.get("/roles", response_model=list[AdminRoleResponse])
 async def list_roles(
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("usuarios:ver")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[AdminRoleResponse]:
     return await service.list_roles()
@@ -45,7 +45,7 @@ async def list_roles(
 async def assign_roles(
     user_id: int,
     payload: AssignRolesRequest,
-    admin: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    admin: AuthContext = Depends(require_permission("usuarios:asignar")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> ManagedUserResponse:
     return await service.assign_roles(user_id, payload.role_ids, admin)
@@ -58,7 +58,7 @@ async def assign_roles(
     description="Every active role with the permissions it currently grants.",
 )
 async def role_matrix(
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[RoleDetailResponse]:
     return await service.role_matrix()
@@ -70,7 +70,7 @@ async def role_matrix(
     summary="List permissions",
 )
 async def list_permissions(
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> list[PermissionDetail]:
     return await service.list_permissions()
@@ -86,7 +86,7 @@ async def list_permissions(
 async def revoke_role(
     user_id: int,
     role_id: int,
-    admin: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    admin: AuthContext = Depends(require_permission("usuarios:asignar")),  # noqa: B008
     service: AdminUserService = Depends(get_admin_user_service),  # noqa: B008
 ) -> ManagedUserResponse:
     return await service.revoke_role(user_id, role_id, admin)

@@ -158,6 +158,7 @@ def describe_filters(filters: ExportFilters) -> str:
 
 class TicketsExport(ExportDefinition):
     key = "tickets"
+    permission = "tickets:exportar"
     title = "Reporte de tickets"
     columns = COLUMNS
     pdf_default = PDF_DEFAULT

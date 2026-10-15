@@ -31,6 +31,7 @@ from app.schemas.maintenance import (
     TicketAssignmentCreateRequest,
 )
 from app.services.queue import QueueService
+from tests.support import perm_objects
 from tests.test_maintenance import (
     create_ticket,
     make_actor,
@@ -343,9 +344,7 @@ def build_client(role, permissions):
             SimpleNamespace(
                 code=role,
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )
@@ -356,7 +355,10 @@ def build_client(role, permissions):
 
 @pytest.fixture
 def client():
-    stub = build_client("SUPERVISOR", ["maintenance.read", "maintenance.manage"])
+    stub = build_client(
+        "SUPERVISOR",
+        ["maintenance.read", "maintenance.manage", "solicitudes:ver_todos"],
+    )
     with TestClient(app, raise_server_exceptions=False) as test_client:
         test_client.stub = stub
         yield test_client

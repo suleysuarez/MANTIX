@@ -77,7 +77,7 @@ class AttachmentService:
     async def add_to_equipment(
         self, equipment_id: int, upload: UploadFile, actor: AuthContext
     ) -> AttachmentResponse:
-        if not actor.has_permission("equipment.manage"):
+        if not actor.has_permission("equipos:adjuntar"):
             raise ForbiddenError("attaching files to equipment needs equipment.manage")
         await self._require_equipment(equipment_id)
         return await self._store(upload, actor, equipment_id=equipment_id)
@@ -96,9 +96,12 @@ class AttachmentService:
 
     async def delete(self, attachment_id: int, actor: AuthContext) -> None:
         attachment = await self._authorised(attachment_id, actor, reading=False)
-        if not actor.is_elevated and attachment.uploaded_by_user_id != actor.id:
+        sees_all = actor.has_permission("tickets:ver_todos") or actor.has_permission(
+            "equipos:editar"
+        )
+        if not sees_all and attachment.uploaded_by_user_id != actor.id:
             raise ForbiddenError(
-                "only the uploader or a supervisor can delete this file"
+                "Solo quien subió el archivo o un supervisor puede eliminarlo."
             )
         key = attachment.file_path
         await self.repository.delete(attachment)
@@ -129,9 +132,9 @@ class AttachmentService:
         if attachment.request_id is not None:
             await self.maintenance.ensure_can_view(attachment.request_id, actor)
         elif attachment.equipment_id is not None:
-            needed = "equipment.read" if reading else "equipment.manage"
-            if not (actor.has_permission(needed) or actor.is_elevated):
-                raise ForbiddenError("not authorized for this attachment")
+            needed = "equipos:ver" if reading else "equipos:adjuntar"
+            if not actor.has_permission(needed):
+                raise ForbiddenError("No tienes acceso a este archivo.")
         return attachment
 
     async def _store(

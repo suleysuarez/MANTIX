@@ -5,9 +5,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.authz import AuthContext
-from app.core.exceptions import ConflictError, NotFoundError, UnprocessableError
+from app.core.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+)
 from app.schemas.user_management import PasswordReset, UserCreate, UserUpdate
 from app.services.user_management import UserManagementService
+from tests.support import expand
 
 
 class FakeAudit:
@@ -111,7 +117,7 @@ def actor(user_id=99):
     return AuthContext(
         user=SimpleNamespace(id=user_id),
         roles=frozenset({"ADMIN"}),
-        permissions=frozenset({"users.manage"}),
+        permissions=expand("users.manage"),
     )
 
 
@@ -248,7 +254,7 @@ async def test_cannot_remove_own_admin_role():
     service, *_ = build(
         [person(1, "a@x.com", roles=[ADMIN]), person(2, "b@x.com", roles=[ADMIN])]
     )
-    with pytest.raises(ConflictError):
+    with pytest.raises(ForbiddenError, match="propios roles"):
         await service.replace_roles(1, [2], actor(user_id=1))
 
 
@@ -298,3 +304,56 @@ async def test_unknown_user_is_not_found():
     service, *_ = build([])
     with pytest.raises(NotFoundError):
         await service.get(404)
+
+
+# -- who may give which roles ----------------------------------------------------------------
+
+AUDITOR_ROLE = SimpleNamespace(
+    id=3,
+    code="AUDITOR",
+    name="Auditor",
+    is_active=True,
+    permissions=[SimpleNamespace(code="auditoria:ver", is_active=True)],
+)
+
+
+async def test_nobody_changes_their_own_roles():
+    service, *_ = build([person(5, "me@x.com", roles=[EMPLOYEE])])
+    with pytest.raises(ForbiddenError, match="propios roles"):
+        await service.replace_roles(5, [1, 2], actor(user_id=5))
+
+
+async def test_a_role_cannot_be_given_by_someone_who_lacks_its_permissions():
+    service, repository, *_ = build([person(7, "x@x.com", roles=[EMPLOYEE])])
+    repository.roles[3] = AUDITOR_ROLE
+    # `actor()` manages users but has no `auditoria:ver`: it cannot hand out a role that has it.
+    with pytest.raises(ForbiddenError, match="concede permisos"):
+        await service.replace_roles(7, [2, 3], actor())
+    with pytest.raises(ForbiddenError, match="concede permisos"):
+        await service.create(
+            UserCreate(email="n@x.com", full_name="Nuevo Usuario", role_ids=[3]),
+            actor(),
+        )
+
+
+async def test_the_same_person_may_give_the_role_once_they_hold_its_permissions():
+    service, repository, *_ = build([person(7, "x@x.com", roles=[EMPLOYEE])])
+    repository.roles[3] = AUDITOR_ROLE
+    rich = AuthContext(
+        user=SimpleNamespace(id=99),
+        roles=frozenset({"ADMIN"}),
+        permissions=expand("users.manage") | {"auditoria:ver"},
+    )
+    updated = await service.replace_roles(7, [2, 3], rich)
+    assert sorted(r.code for r in updated.roles) == ["AUDITOR", "EMPLOYEE"]
+
+
+async def test_assigning_roles_needs_its_own_permission():
+    service, *_ = build([person(7, "x@x.com", roles=[EMPLOYEE])])
+    no_assign = AuthContext(
+        user=SimpleNamespace(id=99),
+        roles=frozenset(),
+        permissions=frozenset({"usuarios:ver"}),
+    )
+    with pytest.raises(ForbiddenError, match="administrador"):
+        await service.replace_roles(7, [1], no_assign)

@@ -53,7 +53,7 @@ class UsersExport(ExportDefinition):
     title = "Usuarios"
     columns = COLUMNS
     pdf_default = PDF_DEFAULT
-    permission = "users.manage"
+    permission = "usuarios:ver"
 
     async def count(
         self, repo: ExportRepository, filters: ExportFilters, scope: Scope

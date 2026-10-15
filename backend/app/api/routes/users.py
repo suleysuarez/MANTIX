@@ -20,7 +20,6 @@ from app.services.user_management import UserManagementService
 
 router = APIRouter(prefix="/admin/users", tags=["users"])
 
-MANAGE = "users.manage"
 SEARCH = Query(
     default=None, max_length=100, description="Name, e-mail or employee code"
 )
@@ -49,7 +48,7 @@ async def list_users(
     created_from: datetime | None = CREATED_FROM,
     created_to: datetime | None = CREATED_TO,
     params: PageParams = Depends(page_params(default_size=20)),  # noqa: B008
-    _: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    _: AuthContext = Depends(require_permission("usuarios:ver")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> list[UserListItem]:
     page = await service.list_users(
@@ -72,7 +71,7 @@ async def list_users(
     responses=error_responses(403),
 )
 async def users_summary(
-    _: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    _: AuthContext = Depends(require_permission("usuarios:ver")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UsersSummary:
     return await service.summary()
@@ -92,7 +91,7 @@ async def users_summary(
 )
 async def create_user(
     payload: UserCreate,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:crear")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.create(payload, actor)
@@ -106,7 +105,7 @@ async def create_user(
 )
 async def get_user(
     user_id: int,
-    _: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    _: AuthContext = Depends(require_permission("usuarios:ver")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.get(user_id)
@@ -125,7 +124,7 @@ async def get_user(
 async def update_user(
     user_id: int,
     payload: UserUpdate,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:editar")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.update(user_id, payload, actor)
@@ -143,7 +142,7 @@ async def update_user(
 )
 async def deactivate_user(
     user_id: int,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:cambiar_estado")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.set_active(user_id, False, actor)
@@ -157,7 +156,7 @@ async def deactivate_user(
 )
 async def activate_user(
     user_id: int,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:cambiar_estado")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.set_active(user_id, True, actor)
@@ -176,7 +175,7 @@ async def activate_user(
 async def set_roles(
     user_id: int,
     payload: RolesReplace,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:asignar")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> UserListItem:
     return await service.replace_roles(user_id, payload.role_ids, actor)
@@ -197,7 +196,7 @@ async def set_roles(
 async def reset_password(
     user_id: int,
     payload: PasswordReset,
-    actor: AuthContext = Depends(require_permission(MANAGE)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("usuarios:editar")),  # noqa: B008
     service: UserManagementService = Depends(get_user_management_service),  # noqa: B008
 ) -> Response:
     await service.reset_password(user_id, payload.password, actor)

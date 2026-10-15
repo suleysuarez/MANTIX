@@ -46,6 +46,9 @@ class TicketState:
     #: Whether a ticket in this state is still waiting for work to start: these states are
     #: the columns of the pending-requests queue.
     in_queue: ClassVar[bool] = False
+    #: Permission a person needs to move a ticket INTO this state (who may do it, on top of
+    #: the transition being valid). The ticket must also be in their data scope.
+    permission: ClassVar[str] = "tickets:cambiar_estado"
 
     _registry: ClassVar[dict[str, "TicketState"]] = {}
 
@@ -133,6 +136,7 @@ class Submitted(TicketState):
 
 class Triaged(TicketState):
     status = "triaged"
+    permission = "solicitudes:editar"
     order = 2
     in_queue = True
     requires = ("category", "priority")
@@ -141,6 +145,7 @@ class Triaged(TicketState):
 
 class Assigned(TicketState):
     status = "assigned"
+    permission = "tickets:asignar"
     order = 3
     in_queue = True
     requires = ("technician",)
@@ -196,5 +201,6 @@ class Closed(TicketState):
 
 class Cancelled(TicketState):
     status = "cancelled"
+    permission = "solicitudes:aprobar"
     order = 8
     requires = ("reason",)

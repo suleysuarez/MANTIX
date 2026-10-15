@@ -12,14 +12,14 @@ from pathlib import Path
 
 from fastapi.routing import APIRoute
 
-from app.api.dependencies import RequirePermission, RequireRole, get_auth_context
-from app.core.authz import ADMIN, EMPLOYEE, SUPERVISOR, TECHNICIAN
-from app.core.permissions import ALL_PERMISSIONS, ROLE_PERMISSIONS
+from app.api.dependencies import AuthenticatedOnly, RequirePermission
+from app.core.authz import ADMIN, AUDITOR, EMPLOYEE, SUPERVISOR, TECHNICIAN
+from app.core.permissions import CATALOG, effective_for_system_roles
 from app.domain.ticket_state import TicketState
 from app.main import API_ROUTERS
 
 OUTPUT = Path(__file__).resolve().parents[2] / "docs" / "api-reference.md"
-ROLES = (ADMIN, SUPERVISOR, TECHNICIAN, EMPLOYEE)
+ROLES = (ADMIN, SUPERVISOR, TECHNICIAN, EMPLOYEE, AUDITOR)
 STATE_ORDER = (
     "submitted",
     "triaged",
@@ -40,9 +40,7 @@ def _access(route: APIRoute) -> str:
         call = node.call
         if isinstance(call, RequirePermission):
             return f"`{call.code}`"
-        if isinstance(call, RequireRole):
-            return "role " + ", ".join(f"`{code}`" for code in sorted(call.codes))
-        if call is get_auth_context:
+        if isinstance(call, AuthenticatedOnly):
             authenticated = True
         stack.extend(node.dependencies)
     return "any signed-in user" if authenticated else "public"
@@ -110,16 +108,16 @@ def build_markdown() -> str:
         "| Permission | " + " | ".join(ROLES) + " |",
         "| --- | " + " | ".join("---" for _ in ROLES) + " |",
     ]
-    for permission in sorted(ALL_PERMISSIONS):
-        marks = [
-            "yes" if permission in ROLE_PERMISSIONS[role] else "-" for role in ROLES
-        ]
+    effective = {role: effective_for_system_roles(role) for role in ROLES}
+    for permission in CATALOG:
+        marks = ["yes" if permission in effective[role] else "-" for role in ROLES]
         lines.append(f"| `{permission}` | " + " | ".join(marks) + " |")
     lines += [
         "",
         (
-            "`maintenance.manage` for a TECHNICIAN only applies to tickets assigned to them; "
-            "EMPLOYEE only sees tickets they requested; ADMIN and SUPERVISOR see all."
+            "Roles inherit: EMPLOYEE → TECHNICIAN → SUPERVISOR → ADMIN (AUDITOR stands alone). "
+            "Data scope follows `ver` (own), `ver_asignados` (assigned to the person) and "
+            "`ver_todos` (everything)."
         ),
         "",
         "## Ticket state diagram",

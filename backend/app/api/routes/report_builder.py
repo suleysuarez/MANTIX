@@ -31,7 +31,7 @@ SIZE = Query(default=10, ge=1, le=100)
     "export formats and the limits.",
 )
 async def catalog(
-    _: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("reportes:ver")),  # noqa: B008
     service: ReportBuilderService = Depends(get_report_builder_service),  # noqa: B008
 ) -> CatalogResponse:
     return await service.catalog()
@@ -50,7 +50,7 @@ async def catalog(
 )
 async def preview_report(
     payload: ReportPreviewRequest,
-    actor: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("reportes:ver")),  # noqa: B008
     service: ReportBuilderService = Depends(get_report_builder_service),  # noqa: B008
 ) -> ReportPreview:
     return await service.preview(actor, payload)
@@ -74,7 +74,7 @@ async def preview_report(
 )
 async def generate_report(
     payload: ReportGenerateRequest,
-    actor: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("reportes:exportar")),  # noqa: B008
     service: ReportBuilderService = Depends(get_report_builder_service),  # noqa: B008
 ) -> Response:
     report = await service.generate(actor, payload)
@@ -98,7 +98,7 @@ async def generate_report(
 )
 async def reports_overview(
     period: Period = PERIOD,
-    _: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("reportes:ver")),  # noqa: B008
     service: ReportBuilderService = Depends(get_report_builder_service),  # noqa: B008
 ) -> ReportsOverview:
     return await service.overview(period=period)
@@ -113,7 +113,7 @@ async def report_history(
     response: Response,
     page: int = PAGE,
     size: int = SIZE,
-    _: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("reportes:ver")),  # noqa: B008
     service: ReportBuilderService = Depends(get_report_builder_service),  # noqa: B008
 ) -> list[ReportRunResponse]:
     result = await service.history(page=page, size=size)

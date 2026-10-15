@@ -276,7 +276,7 @@ async def test_ticket_lifecycle_from_request_to_closure(api):
     # audit trail: who/what/when with previous and new values
     trail = await api.get(
         f"/audit-logs?entity_type=maintenance_request&entity_id={tid}&sort=id",
-        supervisor,
+        await api.user("ADMIN"),  # only the administrator reads the audit trail
     )
     assert trail.status_code == 200
     actions = [row["action"] for row in trail.json()]
@@ -607,11 +607,11 @@ async def test_roles_assigned_and_revoked_change_what_a_user_may_do(api):
         and "users.manage" not in by_role["SUPERVISOR"]
     )
 
-    # the only admin cannot lock the system by removing their own role
+    # nobody changes their own roles, so the only admin cannot lock the system out
     own = await api.delete(
         f"/admin/users/{await api.id_of(admin)}/roles/{roles['ADMIN']}", admin
     )
-    assert own.status_code == 409
+    assert own.status_code == 403
 
 
 async def test_notifications_can_be_read_and_cleared(api):
@@ -653,7 +653,9 @@ async def test_technicians_management_and_dashboard_scope(api):
     await api.patch(
         f"/technicians/{profile_b['id']}", admin, json={"is_available": False}
     )
-    available = await api.get("/technicians?is_available=true&search=tech", employee)
+    # a requester no longer lists technicians (and never sees their hourly rate)
+    assert (await api.get("/technicians", employee)).status_code == 403
+    available = await api.get("/technicians?is_available=true&search=tech", admin)
     assert [t["id"] for t in available.json()] == [profile_a["id"]]
 
     for title, tech in (("A1", profile_a), ("A2", profile_a), ("B1", profile_b)):
@@ -682,7 +684,11 @@ async def test_technicians_management_and_dashboard_scope(api):
     failing = (await api.get("/dashboard/top-failing-equipment?limit=1", admin)).json()
     assert failing["equipment"][0]["asset_tag"] == "LT-INT-1"
     assert failing["equipment"][0]["tickets"] >= 3
-    assert (await api.get("/dashboard/summary", employee)).status_code == 403
+    # a requester has the dashboard too, with their own scope (never the whole operation)
+    assert (await api.get("/dashboard/summary", employee)).json()["scope"] == "own"
+    assert (
+        await api.get("/dashboard/top-failing-equipment", employee)
+    ).status_code == 403
 
     pdf = await api.get("/reports/summary?format=pdf", admin)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-")

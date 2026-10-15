@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import require_permission, require_role
+from app.api.dependencies import require_permission
 from app.api.providers import get_queue_service
-from app.core.authz import ADMIN, SUPERVISOR, AuthContext
+from app.core.authz import AuthContext
 from app.schemas.dashboard import Period
 from app.schemas.queue import QueueSummary, RequestCategoryResponse
 from app.services.queue import QueueService
@@ -18,7 +18,7 @@ PERIOD = Query(default="30d", description="Global dashboard period")
     summary="Active request categories",
 )
 async def list_categories(
-    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("tickets:ver")),  # noqa: B008
     service: QueueService = Depends(get_queue_service),  # noqa: B008
 ) -> list[RequestCategoryResponse]:
     return await service.categories()
@@ -39,7 +39,7 @@ async def list_categories(
 )
 async def queue_summary(
     period: Period = PERIOD,
-    actor: AuthContext = Depends(require_role(ADMIN, SUPERVISOR)),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("solicitudes:ver_todos")),  # noqa: B008
     service: QueueService = Depends(get_queue_service),  # noqa: B008
 ) -> QueueSummary:
     return await service.summary(actor, period=period)

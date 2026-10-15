@@ -10,7 +10,14 @@ def test_generated_api_reference_is_up_to_date():
 
 def test_reference_lists_every_role_permission_and_state():
     text = build_markdown()
-    for token in ("ADMIN", "SUPERVISOR", "TECHNICIAN", "EMPLOYEE", "audit.read"):
+    for token in (
+        "ADMIN",
+        "SUPERVISOR",
+        "TECHNICIAN",
+        "EMPLOYEE",
+        "AUDITOR",
+        "auditoria:ver",
+    ):
         assert token in text
     for state in ("submitted", "in_progress", "resolved", "cancelled"):
         assert f"`{state}`" in text

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from app.core.authz import AuthContext
+from app.core.scope import ScopeKind
 from app.repositories.dashboard import (
     OPEN_STATUSES,
     CountRow,
@@ -27,15 +28,15 @@ _NO_TECHNICIAN = 0
 class DashboardService:
     """Operational metrics.
 
-    Admins and supervisors see the whole operation; anyone else holding
-    `dashboard.read` (technicians) sees only the tickets assigned to them.
+    Whoever holds `dashboard:ver_todos` sees the whole operation; anyone else with
+    `dashboard:ver` sees only the tickets assigned to them.
     """
 
     def __init__(self, repository: DashboardRepository):
         self.repository = repository
 
     async def _scope(self, actor: AuthContext) -> tuple[int | None, Scope]:
-        if actor.is_elevated:
+        if actor.scope_kind("dashboard") is ScopeKind.ALL:
             return None, "all"
         technician_id = await self.repository.get_technician_id_for_user(actor.id)
         return (technician_id if technician_id is not None else _NO_TECHNICIAN), "own"

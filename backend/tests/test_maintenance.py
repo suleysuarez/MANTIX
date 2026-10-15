@@ -36,8 +36,8 @@ def make_technician(technician_id, user_id, full_name="Tech"):
     )
 
 
-def make_actor(user_id, role_codes=()):
-    return AuthContext(user=SimpleNamespace(id=user_id), roles=frozenset(role_codes))
+def make_actor(user_id, role_codes=("EMPLOYEE",)):
+    return AuthContext.for_roles(SimpleNamespace(id=user_id), *role_codes)
 
 
 class FakeAudit:
@@ -439,3 +439,80 @@ async def test_employee_only_lists_own_tickets():
 
     assert result.total == 1
     assert result.items[0].ticket_number == own_ticket.ticket_number
+
+
+# -- who may take a ticket to each state (on top of the transition being valid) ---------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target", "technician_may"),
+    [
+        ("in_progress", True),
+        ("waiting", True),
+        ("resolved", True),
+        ("closed", True),
+        ("cancelled", False),  # rejecting or cancelling is the supervisor's call
+    ],
+)
+async def test_each_target_state_needs_its_own_permission(target, technician_may):
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    created = await create_ticket(service)
+    supervisor = make_actor(1, role_codes=("SUPERVISOR",))
+    await service.assign_technician(
+        created.id, TicketAssignmentCreateRequest(technician_id=1), supervisor
+    )
+    actor = make_actor(10, role_codes=("TECHNICIAN",))
+    payload = MaintenanceStatusTransitionRequest(
+        status=target, resolution_summary="done", reason="duplicado"
+    )
+    # Walk the ticket to a state from which `target` is valid.
+    steps = {
+        "waiting": ["in_progress"],
+        "resolved": ["in_progress"],
+        "closed": ["in_progress", "resolved"],
+    }
+    for step in steps.get(target, []):
+        await service.transition_status(
+            created.id,
+            MaintenanceStatusTransitionRequest(status=step, resolution_summary="ok"),
+            actor,
+        )
+    if technician_may:
+        done = await service.transition_status(created.id, payload, actor)
+        assert done.status == target
+    else:
+        with pytest.raises(ForbiddenError, match="no puede mover"):
+            await service.transition_status(created.id, payload, actor)
+        # ...but the supervisor can, even though the ticket is not theirs.
+        done = await service.transition_status(created.id, payload, supervisor)
+        assert done.status == target
+
+
+@pytest.mark.asyncio
+async def test_a_requester_cannot_move_their_own_ticket():
+    service = service_with_fakes()
+    created = await create_ticket(service, requester_id=100)
+    with pytest.raises(ForbiddenError):
+        await service.transition_status(
+            created.id,
+            MaintenanceStatusTransitionRequest(status="cancelled", reason="x"),
+            make_actor(100),
+        )
+
+
+@pytest.mark.asyncio
+async def test_only_whoever_assigns_may_assign_or_reassign():
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    created = await create_ticket(service)
+    body = TicketAssignmentCreateRequest(technician_id=1)
+    for role in ("TECHNICIAN", "EMPLOYEE"):
+        with pytest.raises(ForbiddenError):
+            await service.assign_technician(
+                created.id, body, make_actor(10, role_codes=(role,))
+            )
+    supervisor = make_actor(1, role_codes=("SUPERVISOR",))
+    assigned = await service.assign_technician(created.id, body, supervisor)
+    assert assigned.status == "assigned"

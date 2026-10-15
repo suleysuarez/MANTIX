@@ -6,6 +6,7 @@ from app.api.dependencies import get_authenticated_user
 from app.api.providers import get_maintenance_service
 from app.main import app
 from app.repositories.base import Page
+from tests.support import perm_objects
 
 
 class StubMaintenanceService:
@@ -22,7 +23,7 @@ def test_route_uses_injected_service_without_a_database():
             SimpleNamespace(
                 code="EMPLOYEE",
                 is_active=True,
-                permissions=[SimpleNamespace(is_active=True, code="maintenance.read")],
+                permissions=perm_objects("maintenance.read"),
             )
         ],
     )
@@ -39,4 +40,4 @@ def test_route_uses_injected_service_without_a_database():
     assert response.headers["X-Total-Pages"] == "0"
     assert stub.kwargs["status"] == "resolved"
     assert stub.kwargs["actor"].user is user
-    assert stub.kwargs["actor"].has_permission("maintenance.read")
+    assert stub.kwargs["actor"].has_permission("tickets:ver")

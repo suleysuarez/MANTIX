@@ -29,6 +29,7 @@ from app.services.exporters import (
     supported_formats,
 )
 from app.services.report import ExportedFile, ReportService
+from tests.support import perm_objects
 
 COLUMNS = (Column("name", "Name"), Column("when", "When"), Column("cost", "Cost"))
 WHEN = datetime(2026, 10, 11, 15, 30, tzinfo=UTC)
@@ -242,7 +243,7 @@ class FakeAudit:
         self.records.append(kwargs)
 
 
-ACTOR = AuthContext(user=SimpleNamespace(id=3), roles=frozenset({"ADMIN"}))
+ACTOR = AuthContext.for_roles(SimpleNamespace(id=3), "ADMIN")
 
 
 def good_row(tag, **extra):
@@ -359,9 +360,7 @@ def user_with(*permissions):
             SimpleNamespace(
                 code="ADMIN",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=p, is_active=True) for p in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

@@ -33,17 +33,18 @@ from app.repositories.inventory import (
 )
 from app.schemas.inventory import ItemCreate, ItemUpdate, MovementCreate
 from app.services.inventory import InventoryService
+from tests.support import expand, perm_objects
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 MANAGER = AuthContext(
     user=SimpleNamespace(id=1, full_name="Ana"),
     roles=frozenset({"SUPERVISOR"}),
-    permissions=frozenset({"inventory.read", "inventory.manage", "inventory.consume"}),
+    permissions=expand("inventory.read", "inventory.manage", "inventory.consume"),
 )
 TECHNICIAN = AuthContext(
     user=SimpleNamespace(id=2, full_name="Luis"),
     roles=frozenset({"TECHNICIAN"}),
-    permissions=frozenset({"inventory.read", "inventory.consume"}),
+    permissions=expand("inventory.read", "inventory.consume"),
 )
 
 
@@ -683,9 +684,7 @@ def build_client(permissions):
             SimpleNamespace(
                 code="TECHNICIAN",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )
