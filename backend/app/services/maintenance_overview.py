@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from app.core.authz import AuthContext
 from app.core.exceptions import UnprocessableError
+from app.core.scope import ScopeKind
 from app.repositories.maintenance_overview import (
     DurationRow,
     MaintenanceOverviewRepository,
@@ -32,6 +34,8 @@ from app.services.dashboard_kpis import (
 MAX_CALENDAR_DAYS = 62
 MAX_CALENDAR_EVENTS = 1500
 _PLAN_LIMIT = 500
+#: Matches no technician: a person who sees only assigned work but has no technician profile.
+_NO_TECHNICIAN = -1
 _MAX_OCCURRENCES_PER_PLAN = 100
 
 
@@ -59,22 +63,36 @@ class MaintenanceOverviewService:
     def __init__(self, repository: MaintenanceOverviewRepository):
         self.repository = repository
 
+    async def technician_scope(self, actor: AuthContext) -> int | None:
+        """`None` for whoever sees all the work; otherwise the technician whose work it is
+        (an id that matches nothing when the person has no technician profile)."""
+        if actor.scope_kind("tickets") is not ScopeKind.ASSIGNED:
+            return None
+        found = await self.repository.technician_id_for_user(actor.id)
+        return found if found is not None else _NO_TECHNICIAN
+
     async def overview(
-        self, *, period: Period, now: datetime | None = None
+        self,
+        *,
+        period: Period,
+        now: datetime | None = None,
+        technician_id: int | None = None,
     ) -> MaintenanceOverview:
         now = now or datetime.now(UTC)
         start, end = period_window(period, now)
         prev_start, prev_end = previous_window(period, start, end)
         repo = self.repository
-        upcoming = await repo.upcoming(now)
+        upcoming = await repo.upcoming(now, technician_id)
         return MaintenanceOverview(
             generated_at=now,
             period=period,
             window_start=start,
             window_end=end,
             mix=self._mix(
-                await repo.work_mix(start=start, end=end),
-                await repo.work_mix(start=prev_start, end=prev_end),
+                await repo.work_mix(start=start, end=end, technician_id=technician_id),
+                await repo.work_mix(
+                    start=prev_start, end=prev_end, technician_id=technician_id
+                ),
             ),
             upcoming=Upcoming(
                 overdue=upcoming.overdue,
@@ -82,15 +100,23 @@ class MaintenanceOverviewService:
                 next_30_days=upcoming.next_30,
             ),
             compliance=self._compliance(
-                await repo.compliance_weeks(start=start, end=end, now=now),
-                await repo.compliance_weeks(start=prev_start, end=prev_end, now=now),
+                await repo.compliance_weeks(
+                    start=start, end=end, now=now, technician_id=technician_id
+                ),
+                await repo.compliance_weeks(
+                    start=prev_start, end=prev_end, now=now, technician_id=technician_id
+                ),
             ),
             duration=self._duration(
-                await repo.durations(start=start, end=end),
-                await repo.durations(start=prev_start, end=prev_end),
+                await repo.durations(start=start, end=end, technician_id=technician_id),
+                await repo.durations(
+                    start=prev_start, end=prev_end, technician_id=technician_id
+                ),
             ),
-            cost=await self._cost(start, end, prev_start, prev_end),
-            reschedules=await self._reschedules(start, end, prev_start, prev_end),
+            cost=await self._cost(start, end, prev_start, prev_end, technician_id),
+            reschedules=await self._reschedules(
+                start, end, prev_start, prev_end, technician_id
+            ),
         )
 
     @staticmethod
@@ -149,10 +175,19 @@ class MaintenanceOverviewService:
         )
 
     async def _cost(
-        self, start: datetime, end: datetime, prev_start: datetime, prev_end: datetime
+        self,
+        start: datetime,
+        end: datetime,
+        prev_start: datetime,
+        prev_end: datetime,
+        technician_id: int | None,
     ) -> CostSummary:
-        current = await self.repository.costs(start=start, end=end)
-        previous = await self.repository.costs(start=prev_start, end=prev_end)
+        current = await self.repository.costs(
+            start=start, end=end, technician_id=technician_id
+        )
+        previous = await self.repository.costs(
+            start=prev_start, end=prev_end, technician_id=technician_id
+        )
         average = (
             (current.total / current.with_cost).quantize(Decimal("0.01"))
             if current.with_cost
@@ -168,10 +203,19 @@ class MaintenanceOverviewService:
         )
 
     async def _reschedules(
-        self, start: datetime, end: datetime, prev_start: datetime, prev_end: datetime
+        self,
+        start: datetime,
+        end: datetime,
+        prev_start: datetime,
+        prev_end: datetime,
+        technician_id: int | None,
     ) -> Reschedules:
-        count = await self.repository.reschedules(start=start, end=end)
-        before = await self.repository.reschedules(start=prev_start, end=prev_end)
+        count = await self.repository.reschedules(
+            start=start, end=end, technician_id=technician_id
+        )
+        before = await self.repository.reschedules(
+            start=prev_start, end=prev_end, technician_id=technician_id
+        )
         return Reschedules(
             count=count,
             previous=before,
@@ -179,7 +223,12 @@ class MaintenanceOverviewService:
         )
 
     async def calendar(
-        self, *, start: datetime, end: datetime, now: datetime | None = None
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime | None = None,
+        technician_id: int | None = None,
     ) -> CalendarResponse:
         """Occurrences of the active plans in `[start, end)` plus the services already done.
 
@@ -195,7 +244,9 @@ class MaintenanceOverviewService:
                 f"the range cannot exceed {MAX_CALENDAR_DAYS} days"
             )
         events: list[CalendarEvent] = []
-        for plan in await self.repository.plans_due_before(end, limit=_PLAN_LIMIT):
+        for plan in await self.repository.plans_due_before(
+            end, limit=_PLAN_LIMIT, technician_id=technician_id
+        ):
             due = plan.next_due_at
             first = True
             for _ in range(_MAX_OCCURRENCES_PER_PLAN):
@@ -219,7 +270,7 @@ class MaintenanceOverviewService:
                 due = base + timedelta(days=plan.interval_days)
                 first = False
         for run in await self.repository.runs_between(
-            start, end, limit=MAX_CALENDAR_EVENTS
+            start, end, limit=MAX_CALENDAR_EVENTS, technician_id=technician_id
         ):
             events.append(
                 CalendarEvent(

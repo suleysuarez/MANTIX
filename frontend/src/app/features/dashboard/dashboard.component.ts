@@ -299,7 +299,9 @@ export interface ChartBar {
                 <h2 class="text-[15px] font-bold">{{ mode() === 'technician' ? 'Mi carga y mi rendimiento' : 'Rendimiento del equipo técnico' }}</h2>
                 <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }} · ordenado por tickets abiertos (carga), no por desempeño</p>
               </div>
-              <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
+              @if (canSeeTechnicians()) {
+                <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
+              }
             </div>
             @let techs = state.technicians;
             @if (techs?.length) {
@@ -470,6 +472,11 @@ export class DashboardComponent implements OnInit {
   private readonly store = inject(DashboardStore);
   private readonly profileService = inject(LocalProfileService);
   private readonly permissions = inject(PermissionsService);
+
+  /** El enlace al listado solo lo ve quien puede abrirlo. */
+  canSeeTechnicians(): boolean {
+    return this.permissions.has('tecnicos:ver');
+  }
 
   readonly state$ = this.store.state$;
   readonly card = CARD;

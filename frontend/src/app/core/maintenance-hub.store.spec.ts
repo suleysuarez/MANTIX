@@ -1,3 +1,4 @@
+import { PermissionsService } from './permissions.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject, defer, of, throwError } from 'rxjs';
@@ -44,6 +45,7 @@ describe('MaintenanceHubStore', () => {
         { provide: MaintenanceOverviewService, useValue: overview },
         { provide: SchedulesService, useValue: schedules },
         { provide: TechniciansService, useValue: technicians },
+        { provide: PermissionsService, useValue: { has: () => true } },
         { provide: EquipmentService, useValue: equipment },
       ],
     });
@@ -238,5 +240,28 @@ describe('MaintenanceHubStore', () => {
       store.clearFilters();
       expect(latest.range).toEqual({ from: '', to: '' });
     });
+  });
+});
+
+describe('MaintenanceHubStore without permission to see technicians', () => {
+  it('does not ask for them (the server would answer 403 and the person would see an error)', () => {
+    const technicians = jasmine.createSpyObj('TechniciansService', ['list']);
+    const overview = jasmine.createSpyObj('MaintenanceOverviewService', ['overview', 'calendar']);
+    const equipment = jasmine.createSpyObj('EquipmentService', ['listAll']);
+    overview.overview.and.returnValue(of({ period: '30d' } as MaintenanceOverview));
+    overview.calendar.and.returnValue(of({ generated_at: '', start: '', end: '', truncated: false, events: [] }));
+    equipment.listAll.and.returnValue(of([]));
+    TestBed.configureTestingModule({
+      providers: [
+        MaintenanceHubStore,
+        { provide: MaintenanceOverviewService, useValue: overview },
+        { provide: SchedulesService, useValue: jasmine.createSpyObj('SchedulesService', ['listPage']) },
+        { provide: TechniciansService, useValue: technicians },
+        { provide: EquipmentService, useValue: equipment },
+        { provide: PermissionsService, useValue: { has: () => false } },
+      ],
+    });
+    TestBed.inject(MaintenanceHubStore).load();
+    expect(technicians.list).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,7 @@ import {
   ScheduleUpdatePayload,
   SchedulesService,
 } from './schedules.service';
+import { PermissionsService } from './permissions.service';
 import { Technician, TechniciansService } from './technicians.service';
 import { ToastService } from './toast.service';
 
@@ -121,6 +122,7 @@ export class MaintenanceHubStore {
   private readonly overviewApi = inject(MaintenanceOverviewService);
   private readonly schedules = inject(SchedulesService);
   private readonly techniciansApi = inject(TechniciansService);
+  private readonly permissions = inject(PermissionsService);
   private readonly equipmentApi = inject(EquipmentService);
   private readonly toasts = inject(ToastService);
   private readonly subject = new BehaviorSubject<MaintenanceHubState>({ ...INITIAL, anchor: startOfDay(new Date()) });
@@ -137,7 +139,8 @@ export class MaintenanceHubStore {
 
   load(): void {
     forkJoin({
-      technicians: this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))),
+      // Quien no puede ver a los técnicos no los pide (el servidor respondería 403).
+      technicians: this.permissions.has('tecnicos:ver') ? this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))) : of([] as Technician[]),
       equipment: this.equipmentApi.listAll().pipe(catchError(() => of([] as Equipment[]))),
     }).subscribe((lookups) => this.patch(lookups));
     this.refresh();
