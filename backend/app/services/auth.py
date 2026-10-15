@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, get_clerk_profile
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
+from app.core.rbac import effective_permission_objects
 from app.models.auth import User
 from app.repositories.auth import AuthRepository
 from app.schemas.auth import PermissionResponse, RoleResponse, UserResponse
@@ -115,12 +116,12 @@ def user_response(user: User) -> UserResponse:
         for role in sorted(user.roles, key=lambda item: item.code)
         if role.is_active
     ]
+    # Own permissions of each role plus those inherited from its ancestors.
     permissions = {
-        permission.code: PermissionResponse(code=permission.code, name=permission.name)
-        for role in user.roles
-        if role.is_active
-        for permission in role.permissions
-        if permission.is_active
+        code: PermissionResponse(code=code, name=permission.name)
+        for code, permission in effective_permission_objects(
+            role for role in user.roles if role.is_active
+        ).items()
     }
     return UserResponse(
         id=user.id,

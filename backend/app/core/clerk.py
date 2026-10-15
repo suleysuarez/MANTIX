@@ -33,7 +33,7 @@ def verify_clerk_request(request: Request, settings: Settings) -> VerifiedClerkI
     if not settings.clerk_secret_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Clerk authentication is not configured",
+            detail="El inicio de sesión no está disponible por ahora.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -52,7 +52,7 @@ def verify_clerk_request(request: Request, settings: Settings) -> VerifiedClerkI
     if not state.is_signed_in or not state.payload or not state.payload.get("sub"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid or expired Clerk session",
+            detail="Tu sesión no es válida o expiró. Inicia sesión de nuevo.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return VerifiedClerkIdentity(
@@ -73,7 +73,7 @@ async def get_clerk_profile(
     if not settings.clerk_secret_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Clerk profile cannot be resolved",
+            detail="No pudimos verificar tu perfil. Inicia sesión de nuevo.",
         )
     client = get_clerk_client(settings.clerk_secret_key)
     clerk_user = await client.users.get_async(user_id=identity.user_id)
@@ -91,7 +91,7 @@ async def get_clerk_profile(
     if not resolved_email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Clerk user has no usable email address",
+            detail="Tu cuenta no tiene un correo válido. Contacta a un administrador.",
         )
     first_name = getattr(clerk_user, "first_name", None) or ""
     last_name = getattr(clerk_user, "last_name", None) or ""

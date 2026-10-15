@@ -313,9 +313,13 @@ async def test_migration_seeds_match_the_canonical_matrix():
             }
     finally:
         await engine.dispose()
+    # Only the legacy dotted permissions and the four original roles: the `recurso:accion`
+    # catalogue and the AUDITOR role have their own tests (test_rbac_hierarchy.py).
+    known = {code for code in known if ":" not in code}
     seeded: dict[str, set[str]] = {role: set() for role in ROLES}
     for role_code, permission_code in rows:
-        seeded[role_code].add(permission_code)
+        if role_code in seeded and ":" not in permission_code:
+            seeded[role_code].add(permission_code)
     assert {role: frozenset(codes) for role, codes in seeded.items()} == dict(
         ROLE_PERMISSIONS
     )

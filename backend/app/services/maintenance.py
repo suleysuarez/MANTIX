@@ -109,22 +109,13 @@ class MaintenanceService:
             raise UnprocessableError("date_from must not be after date_to")
         if date_from is not None and date_from > datetime.now(UTC):
             raise UnprocessableError("date_from cannot be in the future")
-        requested_by_user_id = None
-        technician_id = None
-        if not actor.is_elevated:
-            technician = await self.repository.get_technician_by_user_id(actor.id)
-            if technician is not None:
-                technician_id = technician.id
-            else:
-                requested_by_user_id = actor.id
         page = await self.repository.list_requests(
+            scope=await self.repository.scope_for(actor),
             status=status,
             priority=priority,
             category=category,
             unassigned=unassigned,
             equipment_id=equipment_id,
-            requested_by_user_id=requested_by_user_id,
-            technician_id=technician_id,
             search=search,
             date_from=date_from,
             date_to=date_to,
@@ -396,29 +387,21 @@ class MaintenanceService:
     async def _ensure_visible(
         self, request: MaintenanceRequest, actor: AuthContext
     ) -> None:
-        if actor.is_elevated:
-            return
-        technician = await self.repository.get_technician_by_user_id(actor.id)
-        if technician is not None and any(
-            assignment.technician_id == technician.id
-            for assignment in request.ticket_assignments
-        ):
-            return
-        if request.requested_by_user_id == actor.id:
-            return
-        raise ForbiddenError("not authorized to view this maintenance request")
+        scope = await self.repository.scope_for(actor)
+        if not self.repository.visible_to(request, scope):
+            raise ForbiddenError("not authorized to view this maintenance request")
 
     async def _require_can_act(
         self, request: MaintenanceRequest, actor: AuthContext
     ) -> None:
-        if actor.is_elevated:
+        scope = await self.repository.scope_for(actor)
+        if scope.sees_everything:
             return
-        technician = await self.repository.get_technician_by_user_id(actor.id)
         active = await self.repository.get_active_assignment(request.id)
         if (
-            technician is not None
+            scope.technician_id is not None
             and active is not None
-            and active.technician_id == technician.id
+            and active.technician_id == scope.technician_id
         ):
             return
         raise ForbiddenError(

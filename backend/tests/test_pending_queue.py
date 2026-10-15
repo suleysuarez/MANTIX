@@ -13,6 +13,7 @@ from app.core.exceptions import (
     NotFoundError,
     UnprocessableError,
 )
+from app.core.scope import DataScope
 from app.main import app
 from app.models.auth import User
 from app.models.category import RequestCategory
@@ -535,13 +536,17 @@ async def test_each_request_is_decided_once_on_its_first_exit_from_submitted(
 async def test_list_filters_by_status_list_category_and_assignment(db_session):
     await seed(db_session)
     repo = MaintenanceRepository(db_session)
-    pending = await repo.list_requests(status="submitted, triaged ,assigned")
+    pending = await repo.list_requests(
+        scope=DataScope.everything(), status="submitted, triaged ,assigned"
+    )
     assert sorted(r.ticket_number for r in pending.items) == ["T-1", "T-2", "T-3"]
-    network = await repo.list_requests(status="submitted,triaged", category="network")
+    network = await repo.list_requests(
+        scope=DataScope.everything(), status="submitted,triaged", category="network"
+    )
     assert sorted(r.ticket_number for r in network.items) == ["T-1", "T-2"]
-    unassigned = await repo.list_requests(unassigned=True)
+    unassigned = await repo.list_requests(scope=DataScope.everything(), unassigned=True)
     assert len(unassigned.items) == 6  # nobody has an assignment in this seed
-    assigned = await repo.list_requests(unassigned=False)
+    assigned = await repo.list_requests(scope=DataScope.everything(), unassigned=False)
     assert assigned.items == []
 
 

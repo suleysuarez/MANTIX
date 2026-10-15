@@ -25,7 +25,9 @@ async def get_auth_context(
     return AuthContext.from_user(user)
 
 
-def _forbidden(detail: str = "insufficient permissions") -> HTTPException:
+def _forbidden(
+    detail: str = "No tienes permiso para realizar esta acción.",
+) -> HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -53,7 +55,7 @@ class RequireRole:
         self, context: Annotated[AuthContext, Depends(get_auth_context)]
     ) -> AuthContext:
         if not context.has_role(*self.codes):
-            raise _forbidden("insufficient role")
+            raise _forbidden("Tu rol no permite realizar esta acción.")
         return context
 
 
