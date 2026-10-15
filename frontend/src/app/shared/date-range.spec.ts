@@ -13,6 +13,14 @@ describe('date-range', () => {
       expect(shortcutRange('custom', today)).toBeNull();
     });
 
+    it('looks forward for scheduled ranges', () => {
+      expect(shortcutRange('7d', today, true)).toEqual({ from: '2026-10-14', to: '2026-10-20' });
+      expect(shortcutRange('30d', today, true)).toEqual({ from: '2026-10-14', to: '2026-11-12' });
+      expect(shortcutRange('month', today, true)).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+      expect(shortcutOf('2026-10-14', '2026-10-20', today, true)).toBe('7d');
+      expect(shortcutOf('2026-10-08', '2026-10-14', today, true)).toBe('custom');
+    });
+
     it('crosses month and year boundaries', () => {
       expect(shortcutRange('7d', new Date(2027, 0, 3))).toEqual({ from: '2026-12-28', to: '2027-01-03' });
       expect(dayString(new Date(2026, 1, 9))).toBe('2026-02-09');
@@ -47,6 +55,13 @@ describe('date-range', () => {
     it('rejects a start in the future but allows an end in the future', () => {
       expect(dateRangeError('2026-10-15', '', today)).toBe('La fecha inicial no puede ser futura.');
       expect(dateRangeError('2026-10-01', '2026-12-31', today)).toBe('');
+    });
+
+    it('accepts a future start only for scheduled (upcoming) ranges', () => {
+      expect(dateRangeError('2026-10-20', '2026-10-31', today)).toBe('La fecha inicial no puede ser futura.');
+      expect(dateRangeError('2026-10-20', '2026-10-31', today, true)).toBe('');
+      expect(dateRangeError('2026-10-31', '2026-10-20', today, true)).toBe('La fecha final no puede ser anterior a la inicial.');
+      expect(dateRangeError('2026-02-30', '', today, true)).toBe('La fecha no existe en el calendario.');
     });
 
     it('allows 366 days and rejects 367', () => {

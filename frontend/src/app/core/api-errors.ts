@@ -38,6 +38,19 @@ const BY_STATUS: Record<number, string> = {
 const BUSINESS_RULES: [RegExp, string][] = [
   [/inactive technician/i, 'No se puede asignar a un técnico inactivo.'],
   [/used by \d+ request/i, 'La categoría está en uso por solicitudes: desactívala en lugar de eliminarla.'],
+  [/ya existe un ítem con el código/i, 'Ya existe un ítem con ese código.'],
+  [/ya existe «/i, 'Ese valor ya existe en la lista (no se distingue entre mayúsculas y minúsculas). Elígelo del desplegable.'],
+  // Usuarios y perfil: el servidor ya explica estas reglas en español.
+  [/no puedes desactivar tu propia cuenta/i, 'No puedes desactivar tu propia cuenta.'],
+  [/último administrador activo/i, 'No se puede desactivar al último administrador activo.'],
+  [/sin administradores/i, 'No se puede dejar al sistema sin administradores.'],
+  [/tu propio rol de administrador/i, 'No puedes quitarte tu propio rol de administrador.'],
+  [/ya existe un usuario con el correo/i, 'Ya existe un usuario con ese correo.'],
+  [/ya existe un usuario con el código/i, 'Ya existe un usuario con ese código de empleado.'],
+  [/cambia tu propia contraseña/i, 'Cambia tu propia contraseña desde tu perfil.'],
+  [/cuenta está desactivada/i, 'La cuenta está desactivada: actívala antes de restablecer su contraseña.'],
+  [/aún no ha iniciado sesión/i, 'La persona aún no ha iniciado sesión: no tiene contraseña que restablecer.'],
+  [/sign-in service/i, 'El servicio de acceso rechazó la contraseña o no está disponible. Revisa que cumpla la política.'],
   [/already exists/i, 'Ya existe un registro con ese identificador.'],
   [/have not started/i, 'Solo se pueden rechazar solicitudes que aún no se han iniciado.'],
   [/cannot transition|not allowed/i, 'Ese cambio de estado no está permitido desde el estado actual.'],
@@ -52,6 +65,14 @@ const VALIDATION_RULES: [RegExp, string][] = [
   [/narrow the filters/i, 'Hay demasiados registros para exportar (máximo 10.000). Acota los filtros.'],
   [/unknown columns/i, 'Alguna de las columnas elegidas no existe en este reporte.'],
   [/choose at least one column/i, 'Elige al menos una columna.'],
+  [/foto es muy pequeña/i, 'La foto es muy pequeña: mínimo 64×64 píxeles.'],
+  [/foto es muy grande/i, 'La foto es demasiado grande: máximo 6000 píxeles por lado.'],
+  [/imagen es demasiado grande/i, 'La imagen es demasiado grande.'],
+  [/contraseña actual no es correcta/i, 'La contraseña actual no es correcta.'],
+  [/distinta de la actual/i, 'La nueva contraseña debe ser distinta de la actual.'],
+  [/aún no está vinculada/i, 'Tu cuenta aún no está vinculada al servicio de acceso.'],
+  [/correo de una cuenta que ya inició sesión/i, 'El correo de una cuenta que ya inició sesión no se puede cambiar.'],
+  [/rango de fecha.* no es válido/i, 'El rango de fechas no es válido: la final es anterior a la inicial.'],
   [/cannot be exported yet/i, 'Este reporte todavía no se puede exportar.'],
 ];
 
@@ -74,6 +95,12 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
     if (rule) {
       return rule[1];
     }
+  }
+  if (error.status === 403 && detail && /correo no se puede modificar/i.test(detail)) {
+    return 'Tu correo es tu identidad de acceso y no se puede modificar desde el perfil.';
+  }
+  if (error.status === 415 && detail && /no es una imagen válida/i.test(detail)) {
+    return 'El archivo no es una imagen válida. Sube un PNG o JPG.';
   }
   if (error.status === 409 && detail) {
     const rule = BUSINESS_RULES.find(([pattern]) => pattern.test(detail));

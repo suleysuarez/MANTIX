@@ -43,6 +43,13 @@ export class LocalProfileService {
     return profile.permissions.some((item) => item.code === permission);
   }
 
+  /** Mantiene al día el nombre de la copia en memoria cuando la persona lo edita en su perfil. */
+  setName(fullName: string): void {
+    if (this.profile) {
+      this.profile = { ...this.profile, full_name: fullName };
+    }
+  }
+
   clear(): void {
     this.profile = null;
   }

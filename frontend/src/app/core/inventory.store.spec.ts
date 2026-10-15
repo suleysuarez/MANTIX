@@ -22,10 +22,11 @@ describe('InventoryStore', () => {
   let latest: InventoryState;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj('InventoryService', ['listPage', 'get', 'create', 'update', 'remove', 'move', 'movements', 'overview', 'importFile']);
+    api = jasmine.createSpyObj('InventoryService', ['listPage', 'get', 'create', 'update', 'remove', 'move', 'movements', 'overview', 'importFile', 'options', 'createOption']);
     api.listPage.and.returnValue(of({ items: [item()], total: 30 }));
     api.overview.and.returnValue(of({ period: '30d' } as InventoryOverview));
     api.get.and.returnValue(of(item()));
+    api.options.and.returnValue(of([]));
     api.movements.and.returnValue(of({ items: [], total: 0 }));
     TestBed.configureTestingModule({ providers: [InventoryStore, { provide: InventoryService, useValue: api }] });
     toasts = TestBed.inject(ToastService);
@@ -153,7 +154,7 @@ describe('InventoryStore', () => {
       store.load();
       api.listPage.calls.reset();
       store.importFile(file, true).subscribe();
-      expect(api.importFile).toHaveBeenCalledWith(file, true);
+      expect(api.importFile).toHaveBeenCalledWith(file, true, false);
       expect(api.listPage).not.toHaveBeenCalled();
       expect(toasts.toasts()).toEqual([]);
     });
@@ -164,6 +165,16 @@ describe('InventoryStore', () => {
       api.listPage.calls.reset();
       store.importFile(file, false).subscribe();
       expect(toasts.toasts()[0].message).toBe('4 ítems importados.');
+      expect(api.listPage).toHaveBeenCalled();
+    });
+
+    it('imports only the valid rows when asked, and says how many went in', () => {
+      api.importFile.and.returnValue(of(result({ dry_run: false, created: 3, valid_rows: 3, error_rows: 2, errors: [{ row: 3, field: 'sku', message: 'x' }] })));
+      store.load();
+      api.listPage.calls.reset();
+      store.importFile(file, false, true).subscribe();
+      expect(api.importFile).toHaveBeenCalledWith(file, false, true);
+      expect(toasts.toasts()[0].message).toBe('3 ítems importados.');
       expect(api.listPage).toHaveBeenCalled();
     });
 
@@ -181,12 +192,5 @@ describe('InventoryStore', () => {
       expect(toasts.toasts()[0].message).toBe('El tipo de archivo no está permitido.');
       expect(latest.busy).toBeFalse();
     });
-  });
-
-  it('exports every item matching the current filters, not just the page', () => {
-    store.setFilters({ status: 'low' });
-    api.listPage.calls.reset();
-    store.exportAll().subscribe();
-    expect(api.listPage.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({ status: 'low', size: 500, page: 1 }));
   });
 });

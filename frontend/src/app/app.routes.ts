@@ -4,7 +4,7 @@ import { authGuard, authorizedGuard, permissionGuard, roleGuard } from './core/a
 import { LoadErrorComponent } from './features/errors/load-error.component';
 
 /** Rutas del shell que no son entradas del menú (el test de rutas las exige explícitas). */
-export const NON_MENU_ROUTES: readonly string[] = ['cuenta', 'acceso-denegado'];
+export const NON_MENU_ROUTES: readonly string[] = ['perfil', 'acceso-denegado'];
 
 export const routes: Routes = [
   { path: 'auth', loadChildren: () => import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES) },
@@ -16,8 +16,11 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', canActivate: [authorizedGuard], loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent) },
-      { path: 'cuenta', canActivate: [authorizedGuard], loadComponent: () => import('./features/account/account.component').then((m) => m.AccountComponent) },
+      { path: 'perfil', canActivate: [authorizedGuard], loadComponent: () => import('./features/profile/profile.component').then((m) => m.ProfileComponent) },
+      // «Cuenta» pasó a llamarse «Perfil»: se conservan los enlaces guardados.
+      { path: 'cuenta', redirectTo: 'perfil', pathMatch: 'full' },
       { path: 'acceso-denegado', canActivate: [authorizedGuard], loadComponent: () => import('./features/errors/forbidden.component').then((m) => m.ForbiddenComponent) },
+      { path: 'usuarios', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
       { path: 'admin/pending-users', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/admin/pending-users.component').then((m) => m.PendingUsersComponent) },
       { path: 'equipos', loadChildren: () => import('./features/equipos/equipos.routes').then((m) => m.EQUIPOS_ROUTES) },
       { path: 'tickets', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/tickets/tickets.component').then((m) => m.TicketsComponent) },

@@ -6,7 +6,6 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import {
   CalendarDay, addDays, dayKey, dayLabel, groupByDay, monthGrid, rangeTitle, startOfDay, weekDays, WEEKDAYS,
 } from '../../core/calendar-utils';
-import { Period } from '../../core/dashboard-kpis.service';
 import { CalendarEvent } from '../../core/maintenance-overview.service';
 import {
   LIST_PAGE_SIZE, MaintenanceHubState, MaintenanceHubStore,
@@ -20,12 +19,8 @@ import { PlanDetailPanelComponent } from './plan-detail-panel.component';
 import { PlanFormModalComponent } from './plan-form-modal.component';
 import { planStatus, plansToCsv } from './plan-csv';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
-const PERIODS: { id: Period; label: string }[] = [
-  { id: '7d', label: '7 días' },
-  { id: '30d', label: '30 días' },
-  { id: '12m', label: '12 meses' },
-];
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep';
 const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowest px-3 py-2 text-[13px] text-on-surface ${FOCUS}`;
 
@@ -47,21 +42,21 @@ const DOT: Record<string, string> = {
 @Component({
   selector: 'app-maintenance-hub',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, HubInsightsComponent, PlanDetailPanelComponent, PlanFormModalComponent, ToastHostComponent, PaginationComponent],
+  imports: [AsyncPipe, DatePipe, HubInsightsComponent, PlanDetailPanelComponent, PlanFormModalComponent, ToastHostComponent, PaginationComponent, DateRangeFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-4">
         <!-- Encabezado con ilustración -->
-        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8 lg:min-h-[16rem]">
-          <div class="relative z-10 flex flex-col gap-4 lg:max-w-[50%]">
+        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-4 md:px-8 lg:min-h-[10rem]">
+          <div class="relative z-10 flex flex-col gap-2.5 lg:max-w-[50%]">
             <span class="glass inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accentDeep">
               <span class="h-2 w-2 rounded-full bg-brand-mustard"></span> Mantenimiento preventivo
             </span>
-            <h1 class="text-[26px] font-extrabold uppercase leading-tight tracking-tight text-white">
+            <h1 class="text-[24px] font-extrabold uppercase leading-tight tracking-tight text-white">
               Planifica antes de que <span class="text-brand-accentLight">falle</span>
             </h1>
-            <p class="max-w-xl text-[14px] leading-relaxed text-brand-grey">
+            <p class="max-w-xl text-[13px] leading-snug text-brand-grey">
               Calendario de servicios, línea de tiempo de lo próximo y el pulso de cómo vas con tu plan.
             </p>
             <div class="flex flex-wrap items-center gap-3">
@@ -70,13 +65,6 @@ const DOT: Record<string, string> = {
                   <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span> Programar mantenimiento
                 </button>
               }
-              <div class="glass flex rounded-full p-0.5" role="group" aria-label="Periodo de las métricas">
-                @for (p of periods; track p.id) {
-                  <button type="button" (click)="store.setPeriod(p.id)" [attr.aria-pressed]="vm.period === p.id"
-                    class="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors active:scale-95"
-                    [class]="focus + (vm.period === p.id ? ' bg-brand-sidebar !text-white' : ' bg-transparent !text-brand-accentDeep hover:bg-surface-container')">{{ p.label }}</button>
-                }
-              </div>
             </div>
           </div>
           <!-- Ilustración animada; con «reducir movimiento» se queda en el primer fotograma. -->
@@ -122,6 +110,17 @@ const DOT: Record<string, string> = {
           }
         </div>
 
+        <!-- Filtro por fechas: mueve el calendario y filtra la lista -->
+        <section class="glass flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-2xl px-4 py-2" aria-label="Filtro por fechas">
+          <app-date-range-filter [inline]="true" [upcoming]="true" label="Servicios entre" [from]="vm.range.from" [to]="vm.range.to"
+            (rangeChange)="store.setRange($event)" />
+          @if (vm.view === 'calendar' && hasRange(vm)) {
+            <p class="text-[12px] font-semibold text-brand-accentDeep" role="status">
+              {{ rangeCount(vm) }} {{ rangeCount(vm) === 1 ? 'servicio' : 'servicios' }} en el rango · {{ rangeText(vm) }}
+            </p>
+          }
+        </section>
+
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <!-- Principal -->
           <div class="min-w-0 space-y-3">
@@ -147,9 +146,10 @@ const DOT: Record<string, string> = {
                 <div class="grid grid-cols-7" [class.opacity-60]="vm.calendarLoading">
                   @for (day of days(vm); track day.key) {
                     @let items = byDay.get(day.key) ?? [];
-                    <button type="button" (click)="store.selectDay(day.key)" [attr.aria-pressed]="vm.selectedDay === day.key"
-                      [attr.aria-label]="dayLabel(day.date) + ': ' + items.length + ' servicios'"
-                      [class]="focus + ' flex flex-col gap-1 border-b border-r border-brand-grey/60 bg-transparent p-1 text-left transition-colors hover:bg-surface-container-low ' + (vm.mode === 'month' ? 'min-h-[4.5rem] sm:min-h-[6.5rem] ' : 'min-h-[14rem] ') + (day.inMonth ? '' : 'opacity-50 ') + (vm.selectedDay === day.key ? 'bg-brand-accentLight/40 ' : '')">
+                    @let inside = inRange(vm, day.key);
+                    <button type="button" (click)="store.selectDay(day.key)" [attr.aria-pressed]="vm.selectedDay === day.key" [disabled]="!inside"
+                      [attr.aria-label]="dayLabel(day.date) + ': ' + items.length + ' servicios' + (inside ? '' : ' (fuera del rango)')"
+                      [class]="focus + ' flex flex-col gap-1 border-b border-r border-brand-grey/60 bg-transparent p-1 text-left transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:hover:bg-transparent ' + (vm.mode === 'month' ? 'min-h-[4.5rem] sm:min-h-[6.5rem] ' : 'min-h-[14rem] ') + (day.inMonth && inside ? '' : 'opacity-40 ') + (vm.selectedDay === day.key ? 'bg-brand-accentLight/40 ' : '')">
                       <span class="flex h-6 w-6 items-center justify-center self-end rounded-full text-[12px] font-semibold sm:self-start"
                         [class]="day.today ? 'bg-brand-sidebar text-white' : 'text-on-surface'">{{ day.date.getDate() }}</span>
                       <span class="hidden flex-col gap-0.5 sm:flex">
@@ -284,18 +284,18 @@ const DOT: Record<string, string> = {
           </div>
 
           <!-- Riel derecho -->
-          <div class="space-y-4">
-            <section class="glass rounded-2xl p-4" aria-label="Próximos 30 días">
-              <h2 class="text-[13px] font-bold uppercase tracking-wider text-brand-accentDeep">Próximos 30 días</h2>
+          <div class="flex flex-col gap-6">
+            <section class="glass rounded-2xl p-5" aria-label="Próximos 30 días">
+              <h2 class="text-center text-[13px] font-bold uppercase tracking-wider text-brand-accentDeep">Próximos 30 días</h2>
               @if (vm.timeline === null) {
-                <p class="mt-2 text-[12px] text-on-surface-variant">La línea de tiempo no está disponible.</p>
+                <p class="mt-3 text-center text-[12px] text-on-surface-variant">La línea de tiempo no está disponible.</p>
               } @else if (vm.timeline.length === 0) {
-                <div class="mt-2 flex flex-col items-center gap-1 py-3 text-center">
+                <div class="mt-3 flex flex-col items-center gap-1 py-3 text-center">
                   <img src="assets/images/columna-vacia.svg" alt="" width="144" height="79" class="h-auto w-32 mix-blend-multiply" />
                   <p class="text-[12px] text-on-surface-variant">Nada programado en los próximos 30 días.</p>
                 </div>
               } @else {
-                <ol class="mt-3 max-h-[26rem] space-y-3 overflow-y-auto border-l-2 border-brand-accentSky pl-3">
+                <ol class="mt-4 max-h-[26rem] space-y-4 overflow-y-auto border-l-2 border-brand-accentSky pl-3 pr-1">
                   @for (group of timeline(vm); track group.key) {
                     <li>
                       <p class="text-[11px] font-bold uppercase tracking-wider" [class]="group.overdue ? 'text-error' : 'text-on-surface-variant'">{{ group.label }}</p>
@@ -351,7 +351,6 @@ export class MaintenanceHubComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly vm$ = this.store.state$;
-  readonly periods = PERIODS;
   readonly views = [
     { id: 'calendar' as const, label: 'Calendario', icon: 'calendar_month' },
     { id: 'list' as const, label: 'Lista', icon: 'view_list' },
@@ -375,6 +374,7 @@ export class MaintenanceHubComponent implements OnInit {
   readonly sortButton = `${FOCUS} bg-transparent p-0 text-[11px] font-bold uppercase tracking-wider !text-on-surface-variant hover:!text-on-surface`;
 
   private lastEvents: CalendarEvent[] | null = null;
+  private lastRange: MaintenanceHubState['range'] | null = null;
   private lastMap = new Map<string, CalendarEvent[]>();
 
   async ngOnInit(): Promise<void> {
@@ -395,9 +395,11 @@ export class MaintenanceHubComponent implements OnInit {
 
   /** Eventos por día local; se recalcula solo cuando llega otra lista. */
   eventsByDay(vm: MaintenanceHubState): Map<string, CalendarEvent[]> {
-    if (vm.events !== this.lastEvents) {
+    if (vm.events !== this.lastEvents || vm.range !== this.lastRange) {
       this.lastEvents = vm.events;
-      this.lastMap = groupByDay(vm.events);
+      this.lastRange = vm.range;
+      // Solo los servicios del rango: marcadores, conteos y detalle del día salen del mismo mapa.
+      this.lastMap = new Map([...groupByDay(vm.events)].filter(([key]) => this.inRange(vm, key)));
     }
     return this.lastMap;
   }
@@ -458,7 +460,31 @@ export class MaintenanceHubComponent implements OnInit {
 
   hasFilters(vm: MaintenanceHubState): boolean {
     const f = vm.filters;
-    return !!(f.search.trim() || f.technicianId !== null || f.status);
+    return !!(f.search.trim() || f.technicianId !== null || f.status || this.hasRange(vm));
+  }
+
+  hasRange(vm: MaintenanceHubState): boolean {
+    return !!(vm.range.from || vm.range.to);
+  }
+
+  /** ¿El día cae dentro del rango elegido? Sin rango, todos los días cuentan. */
+  inRange(vm: MaintenanceHubState, key: string): boolean {
+    return (!vm.range.from || key >= vm.range.from) && (!vm.range.to || key <= vm.range.to);
+  }
+
+  /** Servicios del rango dentro de la vista cargada (los mismos que muestran los marcadores). */
+  rangeCount(vm: MaintenanceHubState): number {
+    let total = 0;
+    for (const items of this.eventsByDay(vm).values()) {
+      total += items.length;
+    }
+    return total;
+  }
+
+  rangeText(vm: MaintenanceHubState): string {
+    const show = (value: string): string => value.split('-').reverse().join('/');
+    const { from, to } = vm.range;
+    return from && to ? `${show(from)} – ${show(to)}` : from ? `desde ${show(from)}` : `hasta ${show(to)}`;
   }
 
   toNumber(value: string): number | null {

@@ -15,6 +15,7 @@ import { Technician, TechniciansService } from '../../core/technicians.service';
 import { ToastService } from '../../core/toast.service';
 import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 import { dateRangeError } from '../../shared/date-range';
+import { ACTIVE_OPTIONS, AVAILABILITY_OPTIONS, LOAD_OPTIONS } from '../technicians/technician-ui';
 import { ExportFilterValues, FORMAT_CARDS, countMessage, toExportFilters } from './export-model';
 
 export interface ChoiceOption {
@@ -23,7 +24,7 @@ export interface ChoiceOption {
 }
 
 /** Qué filtros ofrece el panel para un reporte; los listados pasan los suyos. */
-export type ExportFilterKind = 'statuses' | 'priorities' | 'technicians' | 'categories';
+export type ExportFilterKind = 'statuses' | 'priorities' | 'technicians' | 'categories' | 'roster' | 'users';
 
 type Phase = 'idle' | 'generating' | 'done' | 'error';
 type CountState =
@@ -85,7 +86,69 @@ const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outli
               </div>
 
               <!-- Periodo -->
-              <app-date-range-filter label="Periodo (fecha de creación)" [from]="dateFrom()" [to]="dateTo()" (rangeChange)="setRange($event)" />
+              @if (showPeriod()) {
+                <app-date-range-filter label="Periodo (fecha de creación)" [from]="dateFrom()" [to]="dateTo()" (rangeChange)="setRange($event)" />
+              }
+
+              <!-- Listado de técnicos: estado de la cuenta, disponibilidad, carga y especialidad -->
+              @if (filterKinds().includes('roster')) {
+                <section aria-label="Estado" class="space-y-1.5">
+                  <h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Estado</h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    @for (o of activeChoices; track o.value) {
+                      <button type="button" (click)="active.set(active() === o.value ? '' : o.value)" [attr.aria-pressed]="active() === o.value" [class]="chip(active() === o.value)">{{ o.label }}</button>
+                    }
+                  </div>
+                </section>
+                <section aria-label="Disponibilidad" class="space-y-1.5">
+                  <h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Disponibilidad</h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    @for (o of availabilityChoices; track o.value) {
+                      <button type="button" (click)="availability.set(availability() === o.value ? '' : o.value)" [attr.aria-pressed]="availability() === o.value" [class]="chip(availability() === o.value)">{{ o.label }}</button>
+                    }
+                  </div>
+                </section>
+                <section aria-label="Carga" class="space-y-1.5">
+                  <h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Carga de tickets abiertos</h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    @for (o of loadChoices; track o.value) {
+                      <button type="button" (click)="load.set(load() === o.value ? '' : o.value)" [attr.aria-pressed]="load() === o.value" [class]="chip(load() === o.value)">{{ o.label }}</button>
+                    }
+                  </div>
+                </section>
+                @if (specialtyOptions().length) {
+                  <section class="space-y-1.5">
+                    <label for="exp-specialty" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Especialidad</label>
+                    <select id="exp-specialty" (change)="specialty.set($any($event.target).value)"
+                      class="h-10 w-full rounded-lg border border-outline bg-surface-container-lowest px-3 text-[13px] text-on-surface">
+                      <option value="" [selected]="!specialty()">Todas</option>
+                      @for (s of specialtyOptions(); track s) { <option [value]="s" [selected]="specialty() === s">{{ s }}</option> }
+                    </select>
+                  </section>
+                }
+              }
+
+              <!-- Listado de usuarios: estado de la cuenta y rol -->
+              @if (filterKinds().includes('users')) {
+                <section aria-label="Estado de la cuenta" class="space-y-1.5">
+                  <h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Estado</h3>
+                  <div class="flex flex-wrap gap-1.5">
+                    @for (o of activeChoices; track o.value) {
+                      <button type="button" (click)="active.set(active() === o.value ? '' : o.value)" [attr.aria-pressed]="active() === o.value" [class]="chip(active() === o.value)">{{ o.label }}</button>
+                    }
+                  </div>
+                </section>
+                @if (roleOptions().length) {
+                  <section class="space-y-1.5">
+                    <label for="exp-role" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Rol</label>
+                    <select id="exp-role" (change)="role.set($any($event.target).value)"
+                      class="h-10 w-full rounded-lg border border-outline bg-surface-container-lowest px-3 text-[13px] text-on-surface">
+                      <option value="" [selected]="!role()">Todos</option>
+                      @for (r of roleOptions(); track r.value) { <option [value]="r.value" [selected]="role() === r.value">{{ r.label }}</option> }
+                    </select>
+                  </section>
+                }
+              }
 
               <!-- Filtros de la pantalla -->
               @if (filterKinds().includes('statuses') && statusOptions().length) {
@@ -158,10 +221,6 @@ const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outli
                     <input type="checkbox" [checked]="includeSummary()" (change)="setSummary($any($event.target).checked)" class="h-4 w-4 accent-brand-accentDeep" />
                     Incluir resumen ejecutivo
                   </label>
-                  <label class="flex items-center gap-2 text-[13px]" [class]="includeSummary() ? 'text-on-surface' : 'text-on-surface-variant'">
-                    <input type="checkbox" [checked]="includeCharts() && includeSummary()" [disabled]="!includeSummary()" (change)="includeCharts.set($any($event.target).checked)" class="h-4 w-4 accent-brand-accentDeep" />
-                    Incluir gráficos
-                  </label>
                 </section>
               }
             </fieldset>
@@ -203,6 +262,12 @@ export class ExportDrawerComponent implements OnInit {
   readonly filterKinds = input<ExportFilterKind[]>(['statuses', 'priorities']);
   readonly statusOptions = input<ChoiceOption[]>([]);
   readonly priorityOptions = input<ChoiceOption[]>([]);
+  /** Especialidades disponibles (filtro `roster`). */
+  readonly specialtyOptions = input<string[]>([]);
+  /** Roles disponibles (filtro `users`). */
+  readonly roleOptions = input<ChoiceOption[]>([]);
+  /** `false` en listados sin fecha propia, como el de técnicos. */
+  readonly showPeriod = input(true);
   readonly closed = output<void>();
 
   readonly cards = FORMAT_CARDS;
@@ -216,6 +281,15 @@ export class ExportDrawerComponent implements OnInit {
   readonly priorities = signal<string[]>([]);
   readonly categoryCodes = signal<string[]>([]);
   readonly technicianIds = signal<number[]>([]);
+  readonly search = signal('');
+  readonly specialty = signal('');
+  readonly role = signal('');
+  readonly active = signal<NonNullable<ExportFilterValues['active']>>('');
+  readonly availability = signal<NonNullable<ExportFilterValues['availability']>>('');
+  readonly load = signal<NonNullable<ExportFilterValues['load']>>('');
+  readonly activeChoices = ACTIVE_OPTIONS;
+  readonly availabilityChoices = AVAILABILITY_OPTIONS;
+  readonly loadChoices = LOAD_OPTIONS;
   readonly selected = signal<string[]>([]);
   readonly includeSummary = signal(true);
   readonly includeCharts = signal(true);
@@ -234,6 +308,8 @@ export class ExportDrawerComponent implements OnInit {
   readonly filterValues = computed<ExportFilterValues>(() => ({
     statuses: this.statuses(), priorities: this.priorities(), categories: this.categoryCodes(),
     technicianIds: this.technicianIds(), dateFrom: this.dateFrom(), dateTo: this.dateTo(),
+    search: this.search(), specialty: this.specialty(), role: this.role(), active: this.active(),
+    availability: this.availability(), load: this.load(),
   }));
   /** Filtros del servidor, o `null` mientras el rango sea inválido (entonces no se consulta). */
   private readonly apiFilters = computed<ExportApiFilters | null>(() => (this.rangeError() ? null : toExportFilters(this.filterValues())));
@@ -301,6 +377,12 @@ export class ExportDrawerComponent implements OnInit {
       this.technicianIds.set(initial.technicianIds);
       this.dateFrom.set(initial.dateFrom);
       this.dateTo.set(initial.dateTo);
+      this.search.set(initial.search ?? '');
+      this.specialty.set(initial.specialty ?? '');
+      this.role.set(initial.role ?? '');
+      this.active.set(initial.active ?? '');
+      this.availability.set(initial.availability ?? '');
+      this.load.set(initial.load ?? '');
     }
     this.api.options(this.report()).subscribe({
       next: (options) => {

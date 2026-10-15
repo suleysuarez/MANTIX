@@ -1,6 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import {
-  ChangeDetectionStrategy, Component, ContentChild, Directive, TemplateRef, computed, effect, inject, input, signal,
+  ChangeDetectionStrategy, Component, ContentChild, Directive, TemplateRef, computed, effect, inject, input, output, signal,
 } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -16,6 +16,10 @@ export interface KanbanColumn<T> {
   total?: number;
   /** Punto de color de la cabecera (clase de Tailwind). */
   dot?: string;
+  /** Se está pidiendo la siguiente página de esta columna. */
+  loading?: boolean;
+  /** Texto que sustituye al de «columna vacía» (cargando, error, columna oculta por un filtro…). */
+  notice?: string;
 }
 
 export interface KanbanMove<T> {
@@ -88,7 +92,18 @@ const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outli
                 }
               </div>
             } @empty {
-              <p class="py-8 text-center text-[12px] italic text-on-surface-variant">{{ emptyText() }}</p>
+              <div class="flex flex-col items-center gap-1 py-8 text-center">
+                @if (emptyImage() && !column.notice) {
+                  <img [src]="emptyImage()" alt="" width="160" height="88" class="h-auto w-28 mix-blend-multiply" />
+                }
+                <p class="text-[12px] italic text-on-surface-variant">{{ column.notice ?? emptyText() }}</p>
+              </div>
+            }
+            @if (column.total !== undefined && column.total > column.items.length) {
+              <button type="button" (click)="loadMore.emit(column.id)" [disabled]="column.loading"
+                [class]="focus + ' w-full rounded-lg border border-brand-accentDeep bg-transparent px-3 py-2 text-[12px] font-semibold !text-brand-accentDeep hover:bg-surface-container disabled:opacity-50'">
+                {{ column.loading ? 'Cargando…' : 'Cargar más (' + (column.total - column.items.length) + ' restantes)' }}
+              </button>
             }
           </div>
         </section>
@@ -111,9 +126,13 @@ export class KanbanBoardComponent<T> {
   /** Mensaje cuando se suelta en una columna inválida; por defecto, uno genérico con los destinos permitidos. */
   readonly invalidMessage = input<((move: KanbanMove<T>, allowed: string[]) => string) | null>(null);
   readonly emptyText = input('Sin registros');
+  /** Ilustración decorativa de las columnas vacías (opcional). */
+  readonly emptyImage = input('');
   readonly ariaLabel = input('Tablero');
   readonly minColumnWidth = input(150);
   readonly disabled = input(false);
+  /** Pide la siguiente página de una columna paginada (solo se ofrece si `total` supera lo cargado). */
+  readonly loadMore = output<string>();
 
   @ContentChild(KanbanCardDirective) card?: KanbanCardDirective<T>;
 

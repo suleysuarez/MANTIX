@@ -20,8 +20,11 @@ export function dayString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Rango de un atajo; `custom` conserva el actual (lo decide el usuario). */
-export function shortcutRange(shortcut: RangeShortcut, today: Date): { from: string; to: string } | null {
+/**
+ * Rango de un atajo; `custom` conserva el actual (lo decide el usuario). Con `upcoming` los atajos
+ * miran hacia adelante (para lo programado): «7 días» son hoy y los 6 siguientes y «Este mes» llega a fin de mes.
+ */
+export function shortcutRange(shortcut: RangeShortcut, today: Date, upcoming = false): { from: string; to: string } | null {
   const end = dayString(today);
   switch (shortcut) {
     case 'all':
@@ -31,22 +34,26 @@ export function shortcutRange(shortcut: RangeShortcut, today: Date): { from: str
     case '7d':
     case '30d': {
       const days = shortcut === '7d' ? 6 : 29;
-      return { from: dayString(new Date(today.getFullYear(), today.getMonth(), today.getDate() - days)), to: end };
+      const other = dayString(new Date(today.getFullYear(), today.getMonth(), today.getDate() + (upcoming ? days : -days)));
+      return upcoming ? { from: end, to: other } : { from: other, to: end };
     }
     case 'month':
-      return { from: dayString(new Date(today.getFullYear(), today.getMonth(), 1)), to: end };
+      return {
+        from: dayString(new Date(today.getFullYear(), today.getMonth(), 1)),
+        to: upcoming ? dayString(new Date(today.getFullYear(), today.getMonth() + 1, 0)) : end,
+      };
     default:
       return null;
   }
 }
 
 /** Atajo que corresponde a un rango ya elegido (para abrir el filtro con lo que traía la pantalla). */
-export function shortcutOf(from: string, to: string, today: Date): RangeShortcut {
+export function shortcutOf(from: string, to: string, today: Date, upcoming = false): RangeShortcut {
   if (!from && !to) {
     return 'all';
   }
   for (const id of ['today', '7d', '30d', 'month'] as const) {
-    const range = shortcutRange(id, today);
+    const range = shortcutRange(id, today, upcoming);
     if (range && range.from === from && range.to === to) {
       return id;
     }
@@ -55,16 +62,16 @@ export function shortcutOf(from: string, to: string, today: Date): RangeShortcut
 }
 
 /**
- * Error del rango, en español, o `''` si es válido: fechas reales, la inicial no es futura,
+ * Error del rango, en español, o `''` si es válido: fechas reales, la inicial no es futura (salvo `allowFuture`),
  * la final no es anterior a la inicial y como máximo 366 días.
  */
-export function dateRangeError(from: string, to: string, today: Date = new Date()): string {
+export function dateRangeError(from: string, to: string, today: Date = new Date(), allowFuture = false): string {
   const start = from ? parseDay(from) : null;
   const end = to ? parseDay(to) : null;
   if ((from && !start) || (to && !end)) {
     return 'La fecha no existe en el calendario.';
   }
-  if (start && start.getTime() > today.getTime()) {
+  if (!allowFuture && start && start.getTime() > today.getTime()) {
     return 'La fecha inicial no puede ser futura.';
   }
   if (start && end) {

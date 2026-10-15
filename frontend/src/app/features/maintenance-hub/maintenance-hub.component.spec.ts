@@ -6,7 +6,7 @@ import { BehaviorSubject, of } from 'rxjs';
 import { addDays, dayKey, startOfDay, toLocalInput } from '../../core/calendar-utils';
 import { Equipment } from '../../core/equipment.service';
 import { LocalProfileService } from '../../core/local-profile.service';
-import { EMPTY_LIST_FILTERS, MaintenanceHubState, MaintenanceHubStore } from '../../core/maintenance-hub.store';
+import { EMPTY_LIST_FILTERS, MaintenanceHubState, MaintenanceHubStore, NO_RANGE } from '../../core/maintenance-hub.store';
 import { CalendarEvent, MaintenanceOverview } from '../../core/maintenance-overview.service';
 import { MaintenanceSchedule } from '../../core/schedules.service';
 import { Technician } from '../../core/technicians.service';
@@ -44,6 +44,7 @@ function state(overrides: Partial<MaintenanceHubState> = {}): MaintenanceHubStat
     events: [event('planned', TODAY), event('overdue', TODAY, { schedule_id: 2, title: 'Firmware' })],
     truncated: false, calendarLoading: false, calendarError: '',
     timeline: [event('overdue', addDays(TODAY, -2), { schedule_id: 2 }), event('planned', addDays(TODAY, 1), { schedule_id: 3 })],
+    range: NO_RANGE, rangeError: '',
     list: [], listTotal: 0, listPage: 1, listLoading: false, listError: '', filters: EMPTY_LIST_FILTERS,
     technicians: [{ id: 2, user_id: 2, full_name: 'Luis', is_available: true } as Technician],
     equipment: [
@@ -89,7 +90,7 @@ describe('MaintenanceHubComponent', () => {
     canManage = manage;
     subject = new BehaviorSubject(state());
     store = Object.assign(
-      jasmine.createSpyObj('MaintenanceHubStore', ['load', 'setView', 'setMode', 'navigate', 'goToday', 'selectDay', 'setPeriod', 'setFilters', 'clearFilters', 'setListPage', 'selectPlan', 'create', 'update', 'complete', 'exportAll']),
+      jasmine.createSpyObj('MaintenanceHubStore', ['load', 'setView', 'setMode', 'navigate', 'goToday', 'selectDay', 'setPeriod', 'setRange', 'setFilters', 'clearFilters', 'setListPage', 'selectPlan', 'create', 'update', 'complete', 'exportAll']),
       { state$: subject },
     );
     for (const method of ['create', 'update', 'complete'] as const) {
@@ -145,9 +146,70 @@ describe('MaintenanceHubComponent', () => {
       expect(timeline.indexOf('Vencidos')).toBeLessThan(timeline.indexOf('Mañana'));
       const pulse = host().querySelector('[aria-label="Pulso del mantenimiento"]')!.textContent!;
       expect(pulse).toContain('n = 10');
-      expect(pulse).toContain('pocos datos');
+      expect(pulse).toContain('Pocos datos');
+      expect(pulse).toContain('Resumen de actividad y cumplimiento');
+      expect(host().querySelector('[aria-label="Pulso del mantenimiento"] img')).toBeNull(); // sin logo
+      expect(host().querySelector('[aria-label="Periodo de las métricas"]')).toBeNull(); // sin filtro de periodo en el encabezado
       expect(pulse).toContain('66,7%');
       expect(pulse).toContain('50%');
+    });
+
+    describe('date range filter', () => {
+      const cell = (date: Date) =>
+        host().querySelector(`[aria-label^="${['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][date.getDay()]} ${date.getDate()}:"]`) as HTMLButtonElement;
+      // Mismo mes que HOY para que ambos días estén en la cuadrícula.
+      const other = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() === 1 ? 2 : 1);
+
+      it('sends the chosen range to the store through the shared filter, allowing upcoming dates', () => {
+        const from = host().querySelector('[aria-label="Filtro por fechas"] input[id$="-from"]') as HTMLInputElement;
+        expect(from.hasAttribute('max')).toBeFalse(); // upcoming: a future start is valid
+        click(button('Próx. 7 días'));
+        expect(store.setRange).toHaveBeenCalled();
+        const range = store.setRange.calls.mostRecent().args[0];
+        expect(range.from).toBe(dayKey(TODAY));
+      });
+
+      it('keeps markers and counts only for the days inside the range and dims the rest', () => {
+        const events = [event('planned', TODAY), event('planned', other, { schedule_id: 9, title: 'Otro' })];
+        const range = { from: dayKey(TODAY), to: dayKey(TODAY) };
+        render(state({ events, range }));
+        expect(cell(TODAY).getAttribute('aria-label')).toContain('1 servicios');
+        expect(cell(TODAY).disabled).toBeFalse();
+        if (other.getTime() !== TODAY.getTime()) {
+          expect(cell(other).disabled).toBeTrue();
+          expect(cell(other).getAttribute('aria-label')).toContain('0 servicios');
+          expect(cell(other).getAttribute('aria-label')).toContain('fuera del rango');
+          expect(cell(other).textContent).not.toContain('Otro');
+          expect(cell(other).className).toContain('opacity-40');
+        }
+        const status = host().querySelector('[aria-label="Filtro por fechas"] [role="status"]')!;
+        expect(status.textContent).toContain('1 servicio en el rango');
+      });
+
+      it('shows every service when there is no range', () => {
+        expect(cell(TODAY).getAttribute('aria-label')).toContain('2 servicios');
+        expect(host().querySelector('[aria-label="Filtro por fechas"] [role="status"]')).toBeNull();
+      });
+    });
+
+    it('keeps every number of «Servicios por fecha» inside its own card, centred (no inherited <dd> margin)', () => {
+      const pulse = host().querySelector('[aria-label="Pulso del mantenimiento"]')!;
+      for (const dd of Array.from(pulse.querySelectorAll('dd')) as HTMLElement[]) {
+        expect(getComputedStyle(dd).marginLeft).withContext(dd.textContent ?? '').toBe('0px');
+      }
+      const tiles = Array.from(pulse.querySelector('dl')!.children) as HTMLElement[]; // the three «Servicios por fecha» cards
+      expect(tiles.length).toBe(3);
+      for (const tile of tiles) {
+        const card = tile.getBoundingClientRect();
+        const number = tile.querySelector('dd')!.getBoundingClientRect();
+        expect(number.left).toBeGreaterThanOrEqual(card.left);
+        expect(number.right).toBeLessThanOrEqual(card.right + 0.5);
+        expect(number.top).toBeGreaterThanOrEqual(card.top);
+        expect(number.bottom).toBeLessThanOrEqual(card.bottom + 0.5);
+        const centre = (number.left + number.right) / 2;
+        expect(Math.abs(centre - (card.left + card.right) / 2)).toBeLessThan(2);
+      }
+      expect(pulse.querySelectorAll('.absolute').length).toBe(0);
     });
 
     it('says so when metrics or the timeline are unavailable instead of showing zeros', () => {
@@ -163,7 +225,8 @@ describe('MaintenanceHubComponent', () => {
 
     it('reports a calendar error', () => {
       render(state({ calendarError: 'No se pudo cargar el calendario.' }));
-      expect(host().querySelector('[role="alert"]')!.textContent).toContain('No se pudo cargar el calendario.');
+      const alerts = Array.from(host().querySelectorAll('[role="alert"]')).map((el) => el.textContent);
+      expect(alerts.some((text) => text?.includes('No se pudo cargar el calendario.'))).toBeTrue();
     });
 
     it('plays the hero video muted, decorative and without images', () => {

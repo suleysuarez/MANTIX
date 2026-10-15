@@ -24,6 +24,23 @@ describe('apiErrorMessage', () => {
       .toBe('La acción no se puede realizar en el estado actual del registro.');
   });
 
+  it('passes on the user-management rules in Spanish instead of the generic conflict', () => {
+    const msg = (detail: string) => apiErrorMessage(failure(409, { detail }), 'x');
+    expect(msg('no puedes desactivar tu propia cuenta')).toBe('No puedes desactivar tu propia cuenta.');
+    expect(msg('no se puede desactivar al último administrador activo')).toBe('No se puede desactivar al último administrador activo.');
+    expect(msg("ya existe un usuario con el correo 'a@x.com'")).toBe('Ya existe un usuario con ese correo.');
+    expect(msg('the sign-in service rejected the new password or is unavailable')).toContain('servicio de acceso');
+  });
+
+  it('explains the profile rules (e-mail locked, photo, password)', () => {
+    expect(apiErrorMessage(failure(403, { detail: 'tu correo no se puede modificar desde el perfil' }), 'x'))
+      .toBe('Tu correo es tu identidad de acceso y no se puede modificar desde el perfil.');
+    expect(apiErrorMessage(failure(403, { detail: 'only ADMIN' }), 'x')).toBe('No tienes permiso para realizar esta acción.');
+    expect(apiErrorMessage(failure(415, { detail: 'el archivo no es una imagen válida' }), 'x')).toContain('PNG o JPG');
+    expect(apiErrorMessage(failure(422, { detail: 'la foto es muy pequeña: mínimo 64×64 píxeles' }), 'x')).toContain('64×64');
+    expect(apiErrorMessage(failure(422, { detail: 'la contraseña actual no es correcta' }), 'x')).toBe('La contraseña actual no es correcta.');
+  });
+
   it('uses the screen fallback for anything that is not an HTTP error', () => {
     expect(apiErrorMessage(new Error('boom'), 'No se pudo guardar.')).toBe('No se pudo guardar.');
   });

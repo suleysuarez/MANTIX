@@ -1,10 +1,12 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 
 import { ClerkService } from '../core/clerk.service';
 import { LocalProfileService } from '../core/local-profile.service';
 import { NavItem, visibleNavItems } from '../core/nav-items';
+import { ProfileStore } from '../core/profile.store';
 import { NotificationsBellComponent } from './notifications-bell.component';
 
 const COLLAPSED_KEY = 'mantix.sidebar.collapsed';
@@ -78,10 +80,14 @@ function readCollapsed(): boolean {
         </div>
 
         <div class="flex flex-col gap-2 px-3">
-          <span class="px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/60" [class]="collapsed() ? 'lg:hidden' : ''">Cuenta</span>
-          <a routerLink="/cuenta" [title]="userName()" aria-label="Mi cuenta"
+          <span class="px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/60" [class]="collapsed() ? 'lg:hidden' : ''">Perfil</span>
+          <a routerLink="/perfil" [title]="userName()" aria-label="Mi perfil"
             class="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5 text-white transition-colors hover:bg-white/20" [class]="collapsed() ? 'lg:justify-center lg:px-0' : ''">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ADD7F6,#A2D2FF)] text-[13px] font-bold text-[#3E5C76]">{{ initials() }}</span>
+            @if (avatarUrl(); as photo) {
+              <img [src]="photo" alt="" width="36" height="36" class="h-9 w-9 shrink-0 rounded-full object-cover" />
+            } @else {
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ADD7F6,#A2D2FF)] text-[13px] font-bold text-[#3E5C76]">{{ initials() }}</span>
+            }
             <div class="min-w-0 flex-1" [class]="collapsed() ? 'lg:hidden' : ''">
               <p class="truncate text-[13px] font-semibold">{{ userName() }}</p>
               <p class="truncate text-[11px] text-[#CED4DA]">{{ userRole() }}</p>
@@ -103,7 +109,11 @@ function readCollapsed(): boolean {
             <div class="relative">
               <button type="button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-haspopup="menu" aria-label="Menú de usuario"
                 class="flex items-center gap-2 rounded-xl py-0.5 pl-0.5 pr-2 text-left transition-all duration-[250ms] ease-in-out hover:bg-[#ADD7F6]/20">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ADD7F6,#A2D2FF)] text-[12px] font-bold text-[#3E5C76]">{{ initials() }}</span>
+                @if (avatarUrl(); as photo) {
+                  <img [src]="photo" alt="" width="32" height="32" class="h-8 w-8 shrink-0 rounded-full object-cover" />
+                } @else {
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#ADD7F6,#A2D2FF)] text-[12px] font-bold text-[#3E5C76]">{{ initials() }}</span>
+                }
                 <span class="hidden min-w-0 flex-col md:flex">
                   <span class="max-w-[160px] truncate text-[13px] font-bold leading-4 text-[#3E5C76]">{{ userName() }}</span>
                   <span class="max-w-[160px] truncate text-[11px] leading-3 text-[#778DA9]">{{ userRole() }}</span>
@@ -120,8 +130,8 @@ function readCollapsed(): boolean {
                       <span class="mt-1.5 inline-block rounded-full bg-[#ADD7F6]/50 px-2 py-0.5 text-[10px] font-bold text-[#3E5C76]">{{ userRole() }}</span>
                     }
                   </div>
-                  <a routerLink="/cuenta" role="menuitem" class="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium !text-[#3E5C76] transition-colors hover:bg-[#ADD7F6]/20">
-                    <span class="material-symbols-outlined text-[18px] text-[#778DA9]">devices</span> Mi cuenta y sesiones activas
+                  <a routerLink="/perfil" role="menuitem" class="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium !text-[#3E5C76] transition-colors hover:bg-[#ADD7F6]/20">
+                    <span class="material-symbols-outlined text-[18px] text-[#778DA9]">account_circle</span> Mi perfil
                   </a>
                   <button type="button" role="menuitem" (click)="signOut()" class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-[#3E5C76] transition-colors hover:bg-[#ADD7F6]/20">
                     <span class="material-symbols-outlined text-[18px] text-[#D4A017]">logout</span> Cerrar sesión
@@ -145,6 +155,8 @@ export class AppShellComponent implements OnInit {
   private readonly clerk = inject(ClerkService);
   private readonly profile = inject(LocalProfileService);
   private readonly router = inject(Router);
+  private readonly profileStore = inject(ProfileStore);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly navItems = signal<NavItem[]>([]);
   readonly collapsed = signal(readCollapsed());
@@ -154,6 +166,7 @@ export class AppShellComponent implements OnInit {
   readonly userRole = signal('');
   readonly userEmail = signal('');
   readonly initials = signal('');
+  readonly avatarUrl = signal<string | null>(null);
 
   constructor() {
     this.router.events
@@ -197,5 +210,27 @@ export class AppShellComponent implements OnInit {
         .map((part) => part[0].toUpperCase())
         .join(''),
     );
+    this.followProfile();
+  }
+
+  /** El nombre y la foto del menú siguen a «Mi perfil»: un cambio se ve al instante. */
+  private followProfile(): void {
+    this.profileStore.state$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((state) => {
+      this.avatarUrl.set(state.avatarUrl);
+      const profile = state.profile;
+      if (!profile) {
+        return;
+      }
+      this.userName.set(profile.full_name);
+      this.initials.set(
+        profile.full_name
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0].toUpperCase())
+          .join(''),
+      );
+    });
+    this.profileStore.load();
   }
 }

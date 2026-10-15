@@ -56,7 +56,7 @@ const FIELD = `${FOCUS} mt-1 w-full rounded-lg border border-outline bg-surface-
             <select id="td-technician" #first formControlName="technician" [attr.aria-invalid]="shows('technician')" [class]="field">
               <option value="">Selecciona…</option>
               @for (t of technicians(); track t.id) {
-                <option [value]="t.id" [disabled]="!t.is_available">{{ t.full_name }}{{ t.is_available ? '' : ' (no disponible)' }}</option>
+                <option [value]="t.id" [disabled]="!t.is_available || t.is_active === false">{{ t.full_name }}{{ t.is_active === false ? ' (inactivo)' : t.is_available ? '' : ' (no disponible)' }}</option>
               }
             </select>
             <p class="min-h-4 text-[11px] text-error" role="alert">{{ message('technician') }}</p>

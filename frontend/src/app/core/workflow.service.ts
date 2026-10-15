@@ -13,6 +13,8 @@ export interface WorkflowState {
   allowed_targets: string[];
   requires: Requirement[];
   terminal: boolean;
+  /** Sigue esperando trabajo: es una columna de la bandeja de solicitudes pendientes. */
+  in_queue?: boolean;
 }
 
 /** Los estados del ticket y los pasos válidos entre ellos, leídos del servidor (no escritos aquí). */

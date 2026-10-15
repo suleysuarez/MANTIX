@@ -14,6 +14,14 @@ export interface ExportApiFilters {
   technician_ids?: number[];
   date_from?: string;
   date_to?: string;
+  // Listado de técnicos
+  search?: string;
+  specialty?: string;
+  /** Código del rol (listado de usuarios). */
+  role?: string;
+  is_active?: boolean;
+  is_available?: boolean;
+  load?: 'none' | 'low' | 'high';
 }
 
 export interface ExportRequest {

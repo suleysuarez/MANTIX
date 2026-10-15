@@ -12,6 +12,8 @@ import {
   MaintenanceOverviewService,
 } from './maintenance-overview.service';
 import { ActionResult } from './pending-requests.store';
+import { dateRangeError } from '../shared/date-range';
+import { dayBoundaryIso, parseDay } from '../features/reports/report-filters';
 import {
   MaintenanceSchedule,
   ScheduleHistory,
@@ -34,6 +36,14 @@ export interface ListFilters {
   sort: string;
 }
 
+/** Rango de fechas de los servicios (`yyyy-MM-dd`, vacío = sin límite). */
+export interface DateRangeValue {
+  from: string;
+  to: string;
+}
+
+export const NO_RANGE: DateRangeValue = { from: '', to: '' };
+
 export const LIST_PAGE_SIZE = 15;
 export const TIMELINE_DAYS = 30;
 
@@ -44,6 +54,10 @@ export interface MaintenanceHubState {
   anchor: Date;
   selectedDay: string | null;
   period: Period;
+  /** Rango que filtra el calendario (marcadores y conteos) y la lista; puede ser futuro. */
+  range: DateRangeValue;
+  /** Mensaje del rango inválido; con él no se consulta al servidor. */
+  rangeError: string;
   overview: MaintenanceOverview | null;
   overviewLoading: boolean;
   events: CalendarEvent[];
@@ -76,6 +90,8 @@ const INITIAL: MaintenanceHubState = {
   anchor: new Date(),
   selectedDay: null,
   period: '30d',
+  range: NO_RANGE,
+  rangeError: '',
   overview: null,
   overviewLoading: true,
   events: [],
@@ -158,12 +174,38 @@ export class MaintenanceHubStore {
     this.loadOverview();
   }
 
+  /**
+   * Filtra por fechas. El calendario se mueve al rango (a la semana si cabe en una, si no al mes de la
+   * fecha inicial) y la lista pide solo esos servicios. Un rango inválido solo muestra su error.
+   */
+  setRange(range: DateRangeValue): void {
+    const rangeError = dateRangeError(range.from, range.to, new Date(), true);
+    if (rangeError) {
+      this.patch({ rangeError });
+      return;
+    }
+    const start = parseDay(range.from) ?? parseDay(range.to);
+    const end = parseDay(range.to);
+    const days = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : null;
+    this.patch({
+      range,
+      rangeError: '',
+      selectedDay: null,
+      ...(start ? { anchor: startOfDay(start), mode: days !== null && days <= 7 ? ('week' as const) : ('month' as const) } : {}),
+    });
+    this.loadCalendar();
+    if (this.value.view === 'list' || this.value.list.length > 0) {
+      this.loadList(1);
+    }
+  }
+
   setFilters(changes: Partial<ListFilters>): void {
     this.patch({ filters: { ...this.value.filters, ...changes } });
     this.loadList(1);
   }
 
   clearFilters(): void {
+    this.setRange(NO_RANGE);
     this.setFilters(EMPTY_LIST_FILTERS);
   }
 
@@ -272,7 +314,17 @@ export class MaintenanceHubStore {
 
   private query(page: number): ScheduleQuery {
     const { search, technicianId, status, sort } = this.value.filters;
-    return { search: search.trim() || undefined, technicianId, status, sort, page, size: LIST_PAGE_SIZE };
+    const { from, to } = this.value.range;
+    return {
+      search: search.trim() || undefined,
+      technicianId,
+      status,
+      dueFrom: dayBoundaryIso(from, false) ?? undefined,
+      dueTo: dayBoundaryIso(to, true) ?? undefined,
+      sort,
+      page,
+      size: LIST_PAGE_SIZE,
+    };
   }
 
   private loadList(page: number): void {

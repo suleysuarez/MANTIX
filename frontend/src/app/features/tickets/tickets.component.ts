@@ -39,15 +39,8 @@ import { PaginationComponent } from '../../shared/pagination.component';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { KanbanBoardComponent, KanbanCardDirective, KanbanColumn, KanbanMove, KanbanOutcome } from '../kanban/kanban-board.component';
 import { Choice, TransitionDialogComponent } from '../kanban/transition-dialog.component';
+import { TransitionFlow } from '../kanban/transition-flow';
 import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
-
-const DIALOG_TITLES: Record<string, string> = {
-  triaged: 'Clasificar ticket',
-  assigned: 'Asignar técnico',
-  resolved: 'Resolver ticket',
-  cancelled: 'Cancelar ticket',
-};
-const DIALOG_CONFIRM: Record<string, string> = { triaged: 'Clasificar', assigned: 'Asignar', resolved: 'Resolver', cancelled: 'Cancelar ticket' };
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -181,31 +174,31 @@ interface TicketsView extends TicketsState {
         }
 
         <section class="space-y-3 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div class="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
-            <div class="relative md:col-span-3">
+          <div class="grid grid-cols-1 items-center gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div class="relative">
               <span class="material-symbols-outlined pointer-events-none absolute left-3 top-2.5 text-[20px] text-[#94A3B8]">search</span>
               <input #searchInput type="search" [value]="initialSearch" (input)="onSearch($any($event.target).value)" aria-label="Buscar tickets"
                 placeholder="Buscar por número, título o descripción…" class="h-10 pl-10" [class]="field" maxlength="100" />
             </div>
-            <select (change)="setFilter({ status: $any($event.target).value })" aria-label="Estado" class="h-10 md:col-span-2" [class]="field">
+            <select (change)="setFilter({ status: $any($event.target).value })" aria-label="Estado" class="h-10" [class]="field">
               <option value="">Estado: Todos</option>
               @for (option of statuses; track option) {
                 <option [value]="option" [selected]="option === vm.filters.status">{{ statusLabel(option) }}</option>
               }
             </select>
-            <select (change)="setFilter({ priority: $any($event.target).value })" aria-label="Prioridad" class="h-10 md:col-span-2" [class]="field">
+            <select (change)="setFilter({ priority: $any($event.target).value })" aria-label="Prioridad" class="h-10" [class]="field">
               <option value="">Prioridad: Todas</option>
               @for (option of priorities; track option) {
                 <option [value]="option" [selected]="option === vm.filters.priority">{{ priorityLabel(option) }}</option>
               }
             </select>
-            <app-date-range-filter class="md:col-span-5" label="Fecha de creación" [from]="vm.filters.dateFrom" [to]="vm.filters.dateTo"
-              (rangeChange)="setFilter({ dateFrom: $event.from, dateTo: $event.to })" />
             <button type="button" (click)="clearFilters()" [disabled]="!vm.hasFilters" title="Limpiar todos los filtros" aria-label="Limpiar filtros"
-              class="flex h-10 items-center justify-center rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 md:col-span-1">
+              class="flex h-10 w-10 items-center justify-center justify-self-end rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 sm:col-span-2 lg:col-span-1">
               <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>
             </button>
           </div>
+          <app-date-range-filter [inline]="true" label="Fecha de creación" [from]="vm.filters.dateFrom" [to]="vm.filters.dateTo"
+            (rangeChange)="setFilter({ dateFrom: $event.from, dateTo: $event.to })" />
           @if (vm.filterError) {
             <p class="rounded-lg bg-[#FEE2E2] px-3 py-2 text-[12px] text-[#991B1B]" role="alert">{{ vm.filterError }}</p>
           }
@@ -402,9 +395,9 @@ interface TicketsView extends TicketsState {
           </section>
         </aside>
 
-        @if (dialog(); as d) {
+        @if (flow.dialog(); as d) {
           <app-transition-dialog [title]="d.title" [subtitle]="d.subtitle" [confirmLabel]="d.confirm" [requires]="d.requires"
-            [categories]="categoryChoices()" [priorities]="priorityChoices" [technicians]="technicians()" [initial]="d.initial" [busy]="dialogBusy()"
+            [categories]="categoryChoices()" [priorities]="priorityChoices" [technicians]="technicians()" [initial]="d.initial" [busy]="flow.busy()"
             (confirmed)="d.answer($event)" (cancelled)="d.answer(null)" />
         }
         <app-toast-host />
@@ -530,16 +523,8 @@ export class TicketsComponent implements OnInit {
   readonly workflow = signal<WorkflowState[]>([]);
   readonly technicians = signal<Technician[]>([]);
   readonly categoryChoices = signal<Choice[]>([]);
-  readonly dialogBusy = signal(false);
-  /** Diálogo abierto por un paso que pide datos; `answer(null)` lo cancela. */
-  readonly dialog = signal<{
-    title: string;
-    subtitle: string;
-    confirm: string;
-    requires: WorkflowState['requires'];
-    initial: TransitionData;
-    answer: (data: TransitionData | null) => void;
-  } | null>(null);
+  /** Diálogo de los pasos que piden datos (el mismo flujo que en Solicitudes pendientes). */
+  readonly flow = new TransitionFlow();
   private columnsCache: { items: MaintenanceListItem[]; workflow: WorkflowState[]; columns: KanbanColumn<MaintenanceListItem>[] } | null = null;
 
   readonly ticketKey = (item: MaintenanceListItem): number => item.id;
@@ -573,32 +558,15 @@ export class TicketsComponent implements OnInit {
   /** Paso pedido desde el tablero: si el estado destino exige datos se piden antes; el servidor valida y, si rechaza, la tarjeta vuelve. */
   readonly moveTicket = (move: KanbanMove<MaintenanceListItem>): Observable<KanbanOutcome> => {
     const requires = this.workflow().find((state) => state.status === move.to)?.requires ?? [];
-    if (requires.length === 0) {
-      return this.execute(move, {});
-    }
-    return new Observable<KanbanOutcome>((subscriber) => {
-      const finish = (outcome: KanbanOutcome): void => {
-        this.dialogBusy.set(false);
-        this.dialog.set(null);
-        subscriber.next(outcome);
-        subscriber.complete();
-      };
-      this.dialog.set({
-        title: DIALOG_TITLES[move.to] ?? 'Completa los datos',
-        subtitle: `${move.item.ticket_number} pasará a «${statusMeta(move.to).label}».`,
-        confirm: DIALOG_CONFIRM[move.to] ?? 'Confirmar',
+    return this.flow.run(
+      {
+        to: move.to,
         requires,
+        subtitle: `${move.item.ticket_number} pasará a «${statusMeta(move.to).label}».`,
         initial: { category: move.item.category ?? '', priority: move.item.priority },
-        answer: (data) => {
-          if (!data) {
-            finish({ ok: false, cancelled: true });
-            return;
-          }
-          this.dialogBusy.set(true);
-          this.execute(move, data).subscribe(finish);
-        },
-      });
-    });
+      },
+      (data) => this.execute(move, data),
+    );
   };
 
   private execute(move: KanbanMove<MaintenanceListItem>, data: TransitionData): Observable<KanbanOutcome> {

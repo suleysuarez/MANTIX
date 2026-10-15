@@ -23,6 +23,24 @@ describe('export-model', () => {
     });
   });
 
+  describe('toExportFilters (technician roster)', () => {
+    it('sends nothing for empty roster values', () => {
+      expect(toExportFilters({ ...EMPTY_EXPORT_FILTERS, search: '  ', specialty: '', active: '', availability: '', load: '' })).toEqual({});
+    });
+
+    it('translates the roster filters to the server names, trimming the text', () => {
+      expect(toExportFilters({ ...EMPTY_EXPORT_FILTERS, search: ' ana ', specialty: 'Redes', active: 'inactive', availability: 'available', load: 'high' }))
+        .toEqual({ search: 'ana', specialty: 'Redes', is_active: false, is_available: true, load: 'high' });
+    });
+  });
+
+  describe('toExportFilters (users)', () => {
+    it('sends the role code and the account state, and nothing for empty values', () => {
+      expect(toExportFilters({ ...EMPTY_EXPORT_FILTERS, role: '  ', active: '' })).toEqual({});
+      expect(toExportFilters({ ...EMPTY_EXPORT_FILTERS, role: ' ADMIN ', active: 'active' })).toEqual({ role: 'ADMIN', is_active: true });
+    });
+  });
+
   describe('countMessage', () => {
     it('explains each situation', () => {
       expect(countMessage(1, 10_000, 2_000)).toEqual({ text: 'Se exportará 1 registro.', tone: 'ok' });

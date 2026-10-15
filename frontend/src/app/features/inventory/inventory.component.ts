@@ -3,26 +3,19 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
-import { Period } from '../../core/dashboard-kpis.service';
-import { saveBlob, reportFilename } from '../../core/download';
 import { InventoryItem, MovementKind } from '../../core/inventory.service';
 import { InventoryState, InventoryStore, PAGE_SIZE } from '../../core/inventory.store';
 import { LocalProfileService } from '../../core/local-profile.service';
-import { ToastService } from '../../core/toast.service';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { ImportModalComponent } from './import-modal.component';
 import { InventoryInsightsComponent } from './inventory-insights.component';
-import { CATEGORIES, STATUS_META, categoryIcon, categoryLabel, itemsToCsv, minMarker, money } from './inventory-ui';
+import { CATEGORIES, STATUS_META, categoryIcon, categoryLabel, minMarker, money, optionsOf } from './inventory-ui';
 import { ItemDetailPanelComponent } from './item-detail-panel.component';
 import { ItemFormModalComponent } from './item-form-modal.component';
 import { MovementModalComponent } from './movement-modal.component';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
-const PERIODS: { id: Period; label: string }[] = [
-  { id: '7d', label: '7 días' },
-  { id: '30d', label: '30 días' },
-  { id: '12m', label: '12 meses' },
-];
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep';
 const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowest px-3 py-2 text-[13px] text-on-surface ${FOCUS}`;
 
@@ -32,19 +25,19 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [AsyncPipe, InventoryInsightsComponent, ItemDetailPanelComponent, ItemFormModalComponent, MovementModalComponent, ImportModalComponent, ToastHostComponent, PaginationComponent],
+  imports: [AsyncPipe, InventoryInsightsComponent, ItemDetailPanelComponent, ItemFormModalComponent, MovementModalComponent, ImportModalComponent, ToastHostComponent, PaginationComponent, DateRangeFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-4">
         <!-- Encabezado con ilustración -->
-        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-6 md:px-8">
-          <div class="relative z-10 flex flex-col gap-4 md:max-w-[58%]">
+        <header class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-sidebar to-primary-container px-6 py-4 md:px-8 lg:min-h-[10rem]">
+          <div class="relative z-10 flex flex-col gap-2.5 md:max-w-[58%]">
             <span class="glass inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accentDeep">
               <span class="h-2 w-2 rounded-full bg-brand-mustard"></span> Repuestos y consumibles
             </span>
-            <h1 class="text-[26px] font-extrabold uppercase leading-tight tracking-tight text-white">Inventario <span class="text-brand-accentLight">al día</span></h1>
-            <p class="max-w-xl text-[14px] leading-relaxed text-brand-grey">Controla qué hay, qué se gasta en cada trabajo y qué toca reponer antes de quedarte sin stock.</p>
+            <h1 class="text-[24px] font-extrabold uppercase leading-tight tracking-tight text-white">Inventario <span class="text-brand-accentLight">al día</span></h1>
+            <p class="max-w-xl text-[13px] leading-snug text-brand-grey">Controla qué hay, qué se gasta en cada trabajo y qué toca reponer antes de quedarte sin stock.</p>
             <div class="flex flex-wrap items-center gap-3">
               @if (canManage()) {
                 <button type="button" (click)="modal.set({ kind: 'create' })" class="glass-btn flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
@@ -54,13 +47,6 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
                   <span class="material-symbols-outlined text-[18px]" aria-hidden="true">upload_file</span> Importar
                 </button>
               }
-              <div class="glass flex rounded-full p-0.5" role="group" aria-label="Periodo de las métricas">
-                @for (p of periods; track p.id) {
-                  <button type="button" (click)="store.setPeriod(p.id)" [attr.aria-pressed]="vm.period === p.id"
-                    class="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors active:scale-95"
-                    [class]="focus + (vm.period === p.id ? ' bg-brand-sidebar !text-white' : ' bg-transparent !text-brand-accentDeep hover:bg-surface-container')">{{ p.label }}</button>
-                }
-              </div>
             </div>
           </div>
           <!-- Ilustración animada; con «reducir movimiento» se queda en el primer fotograma. -->
@@ -91,7 +77,8 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
         }
 
         <!-- Barra de filtros (cristal) -->
-        <form class="glass grid grid-cols-1 gap-3 rounded-2xl p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem_auto]" role="search" aria-label="Filtros del inventario" (submit)="$event.preventDefault()">
+        <form class="glass space-y-2 rounded-2xl p-3" role="search" aria-label="Filtros del inventario" (submit)="$event.preventDefault()">
+         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem_auto]">
           <div>
             <label for="inv-search" class="sr-only">Buscar ítem</label>
             <input id="inv-search" type="search" [class]="field" placeholder="Buscar por SKU, nombre, proveedor o ubicación" maxlength="100" [value]="vm.filters.search" (input)="search$.next($any($event.target).value)" />
@@ -100,7 +87,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
             <label for="inv-category" class="sr-only">Categoría</label>
             <select id="inv-category" [class]="field" (change)="store.setFilters({ category: $any($event.target).value })">
               <option value="" [selected]="!vm.filters.category">Todas las categorías</option>
-              @for (c of categories; track c.code) { <option [value]="c.code" [selected]="vm.filters.category === c.code">{{ c.label }}</option> }
+              @for (c of categoryChoices(vm); track c.value) { <option [value]="c.value" [selected]="vm.filters.category === c.value">{{ c.label }}</option> }
             </select>
           </div>
           <div>
@@ -127,12 +114,44 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
               <button type="button" (click)="store.setView('table')" [attr.aria-pressed]="vm.view === 'table'" aria-label="Tabla"
                 [class]="focus + ' flex h-8 w-9 items-center justify-center rounded-full ' + (vm.view === 'table' ? 'bg-brand-sidebar !text-white' : 'bg-transparent !text-brand-accentDeep')"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">table_rows</span></button>
             </div>
-            <button type="button" (click)="exportCsv()" [disabled]="vm.total === 0" aria-label="Exportar CSV" title="Exportar los ítems filtrados a CSV"
-              [class]="focus + ' flex h-8 w-9 items-center justify-center rounded-full bg-transparent !text-brand-accentDeep hover:bg-surface-container-high disabled:opacity-40'"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">file_download</span></button>
+            <button type="button" (click)="advanced.set(!advanced())" [attr.aria-expanded]="advanced() || hasRanges(vm)" aria-controls="inv-ranges" aria-label="Filtros por rango" title="Rangos de stock, precio y fechas"
+              [class]="focus + ' flex h-8 items-center gap-1 rounded-full px-2 text-[12px] font-semibold ' + (advanced() || hasRanges(vm) ? 'bg-brand-sidebar !text-white' : 'bg-transparent !text-brand-accentDeep hover:bg-surface-container-high')"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">tune</span>Rangos</button>
             @if (hasFilters(vm)) {
               <button type="button" (click)="store.clearFilters()" [class]="focus + ' rounded-lg bg-transparent px-2 py-1 text-[12px] font-semibold !text-brand-accentDeep hover:bg-surface-container'">Limpiar</button>
             }
           </div>
+         </div>
+
+         @if (advanced() || hasRanges(vm)) {
+          <div id="inv-ranges" class="space-y-2 border-t border-brand-grey/50 pt-2">
+            <div class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+              <fieldset class="min-w-0">
+                <legend class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Stock (unidades)</legend>
+                <div class="mt-1 grid grid-cols-2 gap-2">
+                  <input type="text" inputmode="numeric" aria-label="Stock mínimo" placeholder="Mín." [class]="field" [value]="vm.filters.stockMin"
+                    [attr.aria-invalid]="!!vm.filterErrors.stock" (change)="store.setFilters({ stockMin: $any($event.target).value })" />
+                  <input type="text" inputmode="numeric" aria-label="Stock máximo" placeholder="Máx." [class]="field" [value]="vm.filters.stockMax"
+                    [attr.aria-invalid]="!!vm.filterErrors.stock" (change)="store.setFilters({ stockMax: $any($event.target).value })" />
+                </div>
+                <p class="min-h-4 text-[12px] text-error empty:hidden" role="alert">{{ vm.filterErrors.stock }}</p>
+              </fieldset>
+              <fieldset class="min-w-0">
+                <legend class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Precio unitario</legend>
+                <div class="mt-1 grid grid-cols-2 gap-2">
+                  <input type="text" inputmode="decimal" aria-label="Precio mínimo" placeholder="Mín." [class]="field" [value]="vm.filters.costMin"
+                    [attr.aria-invalid]="!!vm.filterErrors.cost" (change)="store.setFilters({ costMin: $any($event.target).value })" />
+                  <input type="text" inputmode="decimal" aria-label="Precio máximo" placeholder="Máx." [class]="field" [value]="vm.filters.costMax"
+                    [attr.aria-invalid]="!!vm.filterErrors.cost" (change)="store.setFilters({ costMax: $any($event.target).value })" />
+                </div>
+                <p class="min-h-4 text-[12px] text-error empty:hidden" role="alert">{{ vm.filterErrors.cost }}</p>
+              </fieldset>
+            </div>
+            <app-date-range-filter [inline]="true" label="Fecha de ingreso" [from]="vm.filters.createdFrom" [to]="vm.filters.createdTo"
+              (rangeChange)="store.setFilters({ createdFrom: $event.from, createdTo: $event.to })" />
+            <app-date-range-filter [inline]="true" label="Último movimiento" [from]="vm.filters.movedFrom" [to]="vm.filters.movedTo"
+              (rangeChange)="store.setFilters({ movedFrom: $event.from, movedTo: $event.to })" />
+          </div>
+         }
         </form>
 
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -211,7 +230,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
                                 <span class="block font-semibold text-on-surface">{{ item.name }}</span><span class="block font-mono text-[11px] text-on-surface-variant">{{ item.sku }}</span>
                               </button>
                             </th>
-                            <td class="px-3 py-2 text-on-surface">{{ categoryName(item.category) }}</td>
+                            <td class="px-3 py-2 text-on-surface">{{ categoryName(item.category, vm.options) }}</td>
                             <td class="px-3 py-2 text-right font-semibold text-on-surface">{{ item.stock }} <span class="font-normal text-on-surface-variant">{{ item.unit }}</span></td>
                             <td class="px-3 py-2 text-right text-on-surface-variant">{{ item.min_stock }} / {{ item.max_stock ?? '—' }}</td>
                             <td class="px-3 py-2 text-right text-on-surface">{{ fmt(item.stock_value) }}</td>
@@ -234,9 +253,6 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
                 <img src="assets/images/inventario-vacio.webp" alt="" width="540" height="456" class="h-auto w-48 mix-blend-multiply" />
                 <h2 class="text-[15px] font-bold text-on-surface">{{ hasFilters(vm) ? 'Ningún ítem coincide con los filtros' : 'Aún no hay ítems en el inventario' }}</h2>
                 <p class="max-w-sm text-[13px] text-on-surface-variant">{{ hasFilters(vm) ? 'Prueba con otra búsqueda o limpia los filtros.' : 'Crea el primero o impórtalos desde un archivo CSV o Excel.' }}</p>
-                @if (!hasFilters(vm) && canManage()) {
-                  <button type="button" (click)="modal.set({ kind: 'create' })" class="glass-btn mt-1 rounded-xl px-5 py-2 text-[13px] font-bold">Nuevo ítem</button>
-                }
               </div>
             }
           </section>
@@ -276,11 +292,9 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
 export class InventoryComponent implements OnInit {
   readonly store = inject(InventoryStore);
   private readonly profile = inject(LocalProfileService);
-  private readonly toasts = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly vm$ = this.store.state$;
-  readonly periods = PERIODS;
   readonly categories = CATEGORIES;
   readonly sorts = [
     { value: 'name', label: 'Nombre (A–Z)' },
@@ -302,6 +316,8 @@ export class InventoryComponent implements OnInit {
   readonly search$ = new Subject<string>();
   readonly canManage = signal(false);
   readonly canConsume = signal(false);
+  /** Panel de filtros por rango (stock, precio y fechas): cerrado por defecto para no engordar la barra. */
+  readonly advanced = signal(false);
   readonly modal = signal<Modal>(null);
   readonly quick = `${FOCUS} flex-1 rounded-lg border border-brand-accentDeep bg-transparent px-2 py-1.5 text-[12px] font-semibold !text-brand-accentDeep hover:bg-surface-container disabled:opacity-40`;
   readonly pageButton = `${FOCUS} rounded-full bg-transparent px-3 py-1 text-[12px] font-bold !text-brand-accentDeep hover:bg-surface-container-high disabled:opacity-40`;
@@ -328,7 +344,18 @@ export class InventoryComponent implements OnInit {
 
   hasFilters(vm: InventoryState): boolean {
     const f = vm.filters;
-    return !!(f.search.trim() || f.category || f.status);
+    return !!(f.search.trim() || f.category || f.status || this.hasRanges(vm));
+  }
+
+  hasRanges(vm: InventoryState): boolean {
+    const f = vm.filters;
+    return !!(f.stockMin || f.stockMax || f.costMin || f.costMax || f.createdFrom || f.createdTo || f.movedFrom || f.movedTo);
+  }
+
+  /** Categorías del filtro: las del servidor (con las que se hayan agregado) o, mientras llegan, las de fábrica. */
+  categoryChoices(vm: InventoryState): { value: string; label: string }[] {
+    const fromServer = optionsOf(vm.options, 'category');
+    return fromServer.length ? fromServer : CATEGORIES.map((c) => ({ value: c.code, label: c.label }));
   }
 
   readonly pageSize = PAGE_SIZE;
@@ -343,12 +370,5 @@ export class InventoryComponent implements OnInit {
 
   ariaSort(vm: InventoryState, field: string): 'ascending' | 'descending' | 'none' {
     return vm.filters.sort === field ? 'ascending' : vm.filters.sort === `-${field}` ? 'descending' : 'none';
-  }
-
-  exportCsv(): void {
-    this.store.exportAll().subscribe({
-      next: (items) => saveBlob(new Blob(['﻿' + itemsToCsv(items)], { type: 'text/csv;charset=utf-8' }), reportFilename('inventario', 'csv')),
-      error: () => this.toasts.error('No se pudo exportar el inventario. Inténtalo de nuevo.'),
-    });
   }
 }

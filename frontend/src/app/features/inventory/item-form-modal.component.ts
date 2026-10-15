@@ -1,13 +1,16 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, OnInit, inject, input, output, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Observable, map } from 'rxjs';
 
 import {
   fieldError, groupError, integerRange, maxNotBelowMin, optionalInteger, optionalMoney, optionalText,
   parseDecimal, requiredText,
 } from '../../core/form-validation';
-import { INVENTORY_LIMITS, InventoryItem, ItemCategory } from '../../core/inventory.service';
+import { INVENTORY_LIMITS, InventoryItem, ItemCategory, OptionKind } from '../../core/inventory.service';
 import { InventoryStore } from '../../core/inventory.store';
-import { CATEGORIES, skuValidator } from './inventory-ui';
+import { CreatableSelectComponent, SelectOption } from '../../shared/creatable-select.component';
+import { CATEGORIES, optionsOf, skuValidator } from './inventory-ui';
 
 /** Campos del servidor (snake_case) a controles del formulario. */
 const SERVER_FIELDS: Record<string, string> = {
@@ -22,7 +25,7 @@ const FIELD =
 @Component({
   selector: 'app-item-form-modal',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CreatableSelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="fixed inset-0 z-[55] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -45,9 +48,8 @@ const FIELD =
           </div>
           <div>
             <label for="if-category" [class]="label">Categoría *</label>
-            <select id="if-category" formControlName="category" [class]="field">
-              @for (c of categories; track c.code) { <option [value]="c.code">{{ c.label }}</option> }
-            </select>
+            <app-creatable-select class="mt-1" formControlName="category" ariaLabel="Categoría" placeholder="Selecciona una categoría"
+              [options]="choices('category')" [create]="creator('category')" [maxLength]="30" [invalid]="invalid('category')" />
             <p class="mt-1 min-h-[1rem] text-[12px] text-error" role="alert">{{ error('category') }}</p>
           </div>
           <div class="sm:col-span-2">
@@ -62,7 +64,8 @@ const FIELD =
           </div>
           <div>
             <label for="if-unit" [class]="label">Unidad *</label>
-            <input id="if-unit" type="text" formControlName="unit" [class]="field" [attr.aria-invalid]="invalid('unit')" aria-describedby="if-unit-err" />
+            <app-creatable-select class="mt-1" formControlName="unit" ariaLabel="Unidad" placeholder="Selecciona una unidad"
+              [options]="choices('unit')" [create]="creator('unit')" [minLength]="1" [maxLength]="20" [invalid]="invalid('unit')" />
             <p id="if-unit-err" class="mt-1 min-h-[1rem] text-[12px] text-error" role="alert">{{ error('unit') }}</p>
           </div>
           <div>
@@ -92,12 +95,14 @@ const FIELD =
           </div>
           <div>
             <label for="if-location" [class]="label">Ubicación</label>
-            <input id="if-location" type="text" formControlName="location" [class]="field" [attr.aria-invalid]="invalid('location')" aria-describedby="if-location-err" />
+            <app-creatable-select class="mt-1" formControlName="location" ariaLabel="Ubicación" placeholder="Sin ubicación"
+              [options]="choices('location')" [create]="creator('location')" [maxLength]="100" [invalid]="invalid('location')" />
             <p id="if-location-err" class="mt-1 min-h-[1rem] text-[12px] text-error" role="alert">{{ error('location') }}</p>
           </div>
           <div>
             <label for="if-supplier" [class]="label">Proveedor</label>
-            <input id="if-supplier" type="text" formControlName="supplier" [class]="field" [attr.aria-invalid]="invalid('supplier')" aria-describedby="if-supplier-err" />
+            <app-creatable-select class="mt-1" formControlName="supplier" ariaLabel="Proveedor" placeholder="Sin proveedor"
+              [options]="choices('supplier')" [create]="creator('supplier')" [maxLength]="150" [invalid]="invalid('supplier')" />
             <p id="if-supplier-err" class="mt-1 min-h-[1rem] text-[12px] text-error" role="alert">{{ error('supplier') }}</p>
           </div>
         </div>
@@ -125,21 +130,21 @@ export class ItemFormModalComponent implements OnInit {
   readonly firstField = viewChild<ElementRef<HTMLInputElement>>('firstField');
   readonly label = LABEL;
   readonly field = FIELD;
-  readonly categories = CATEGORIES;
+  private readonly state = toSignal(this.store.state$, { initialValue: null });
 
   readonly form = new FormGroup(
     {
       sku: new FormControl('', { nonNullable: true, validators: [skuValidator] }),
       name: new FormControl('', { nonNullable: true, validators: [requiredText(3, 200)] }),
       description: new FormControl('', { nonNullable: true, validators: [optionalText(2000)] }),
-      category: new FormControl<ItemCategory>('spare_part', { nonNullable: true, validators: [Validators.required] }),
-      unit: new FormControl('unidad', { nonNullable: true, validators: [requiredText(1, 20), Validators.pattern(/^[A-Za-zÁÉÍÓÚáéíóúÑñ0-9 ./]*$/)] }),
+      category: new FormControl<ItemCategory | null>('spare_part', { validators: [Validators.required] }),
+      unit: new FormControl<string | null>('unidad', { validators: [Validators.required] }),
       unitCost: new FormControl('', { nonNullable: true, validators: [optionalMoney(INVENTORY_LIMITS.maxCost)] }),
       initialStock: new FormControl<number | string>(0, { validators: [optionalInteger(0, INVENTORY_LIMITS.maxQuantity)] }),
       minStock: new FormControl<number | string>(0, { validators: [integerRange(0, INVENTORY_LIMITS.maxQuantity)] }),
       maxStock: new FormControl<number | string | null>(null, { validators: [optionalInteger(0, INVENTORY_LIMITS.maxQuantity)] }),
-      location: new FormControl('', { nonNullable: true, validators: [optionalText(100)] }),
-      supplier: new FormControl('', { nonNullable: true, validators: [optionalText(150)] }),
+      location: new FormControl<string | null>(null),
+      supplier: new FormControl<string | null>(null),
     },
     { validators: maxNotBelowMin('minStock', 'maxStock') },
   );
@@ -147,6 +152,24 @@ export class ItemFormModalComponent implements OnInit {
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.closed.emit();
+  }
+
+  /**
+   * Opciones de un desplegable: las del servidor y, si el ítem ya trae un valor que aún no figura
+   * (datos anteriores), ese también, para que se vea seleccionado.
+   */
+  choices(kind: OptionKind): SelectOption[] {
+    const list: SelectOption[] = optionsOf(this.state()?.options ?? [], kind);
+    if (kind === 'category' && list.length === 0) {
+      list.push(...CATEGORIES.map((c) => ({ value: c.code, label: c.label })));
+    }
+    const current = this.form.get(kind)?.value as string | null | undefined;
+    return current && !list.some((o) => o.value === current) ? [...list, { value: current, label: current }] : list;
+  }
+
+  /** Función que guarda un valor nuevo en el servidor (`+ Agregar nuevo`) y devuelve la opción creada. */
+  creator(kind: OptionKind): (name: string) => Observable<SelectOption> {
+    return (name) => this.store.createOption(kind, name).pipe(map((o) => ({ value: o.value, label: o.label })));
   }
 
   error = (name: string): string => fieldError(this.form.get(name));
@@ -160,8 +183,8 @@ export class ItemFormModalComponent implements OnInit {
       this.form.controls.initialStock.disable();
       this.form.patchValue({
         sku: item.sku, name: item.name, description: item.description ?? '', category: item.category, unit: item.unit,
-        unitCost: item.unit_cost, minStock: item.min_stock, maxStock: item.max_stock, location: item.location ?? '',
-        supplier: item.supplier ?? '',
+        unitCost: item.unit_cost, minStock: item.min_stock, maxStock: item.max_stock, location: item.location,
+        supplier: item.supplier,
       });
     }
     setTimeout(() => this.firstField()?.nativeElement.focus());
@@ -176,13 +199,13 @@ export class ItemFormModalComponent implements OnInit {
     const common = {
       name: v.name.trim(),
       description: v.description.trim() || null,
-      category: v.category,
-      unit: v.unit.trim(),
+      category: v.category ?? 'spare_part',
+      unit: (v.unit ?? '').trim(),
       unit_cost: parseDecimal(v.unitCost) ?? 0,
       min_stock: Number(v.minStock),
       max_stock: v.maxStock === null || String(v.maxStock).trim() === '' ? null : Number(v.maxStock),
-      location: v.location.trim() || null,
-      supplier: v.supplier.trim() || null,
+      location: v.location?.trim() || null,
+      supplier: v.supplier?.trim() || null,
     };
     const item = this.item();
     const call = item

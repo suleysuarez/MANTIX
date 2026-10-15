@@ -1,8 +1,11 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 
-import { ReportPreview } from '../../core/reports.service';
+import { PreviewColumn, ReportPreview } from '../../core/reports.service';
 import { formatChange } from '../dashboard/dashboard-format';
+
+/** Columnas que se ven en la tabla; el resto va al detalle expandible de cada fila. */
+export const MAX_VISIBLE_COLUMNS = 7;
 
 /** Vista previa del reporte: primeras filas, total, aviso de límite y comparativo con el periodo anterior. */
 @Component({
@@ -11,15 +14,18 @@ import { formatChange } from '../dashboard/dashboard-format';
   imports: [DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="rounded-2xl border border-brand-grey bg-surface-container-lowest" aria-label="Vista previa" [attr.aria-busy]="loading()">
-      <header class="flex flex-wrap items-start justify-between gap-2 border-b border-brand-grey px-4 py-3">
-        <div class="min-w-0">
-          <h2 class="text-[15px] font-bold text-on-surface">{{ preview()?.title ?? title() }}</h2>
-          <p class="text-[12px] text-on-surface-variant">{{ summary() }}</p>
+    <section aria-label="Vista previa" [attr.aria-busy]="loading()">
+      <header class="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-4">
+        <div class="flex min-w-0 items-center gap-3">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-accentLight/60 text-brand-accentDeep" aria-hidden="true"><span class="material-symbols-outlined text-[24px]">{{ icon() }}</span></span>
+          <div class="min-w-0">
+            <h2 class="break-words text-[16px] font-extrabold leading-tight text-brand-sidebar">{{ preview()?.title ?? title() }}</h2>
+            <p class="break-words text-[12px] text-on-surface-variant">{{ summary() }}
+              @if (preview(); as p) { · <span class="font-bold text-brand-accentDeep">{{ p.total_rows }}{{ p.truncated ? '+' : '' }} filas</span> }
+            </p>
+          </div>
         </div>
-        @if (preview(); as p) {
-          <span class="rounded-full bg-brand-accentLight/60 px-2.5 py-1 text-[12px] font-bold text-brand-accentDeep">{{ p.total_rows }}{{ p.truncated ? '+' : '' }} filas</span>
-        }
+        <div class="flex flex-wrap items-center gap-2"><ng-content select="[actions]" /></div>
       </header>
 
       @if (invalid()) {
@@ -47,19 +53,42 @@ import { formatChange } from '../dashboard/dashboard-format';
           </p>
         }
         @if (p.rows.length > 0) {
-          <div class="overflow-x-auto p-4 pt-3" [class.opacity-60]="loading()">
-            <table class="w-full min-w-[520px] border-collapse text-left text-[12px]">
+          @let shown = visible(p.columns);
+          @let extra = hidden(p.columns);
+          <!-- Sin deslizamiento horizontal: la tabla ocupa su ancho, las celdas largas saltan de línea y las columnas que no caben van al detalle de la fila. -->
+          <div class="p-4 pt-3" [class.opacity-60]="loading()">
+            <table class="w-full table-auto border-collapse text-left text-[12px]">
               <caption class="sr-only">Primeras filas de {{ p.title }}</caption>
               <thead>
                 <tr class="border-b border-brand-grey text-[11px] uppercase tracking-wider text-on-surface-variant">
-                  @for (col of p.columns; track col.key) { <th scope="col" class="whitespace-nowrap px-2 py-2 font-bold">{{ col.header }}</th> }
+                  @if (extra.length > 0) { <th scope="col" class="w-8 px-1 py-2"><span class="sr-only">Detalle</span></th> }
+                  @for (col of shown; track col.key) { <th scope="col" class="px-1.5 py-2 align-bottom font-bold leading-4">{{ col.header }}</th> }
                 </tr>
               </thead>
               <tbody>
                 @for (row of p.rows; track $index) {
-                  <tr class="border-b border-brand-grey/60 last:border-0">
-                    @for (col of p.columns; track col.key) { <td class="max-w-[14rem] truncate px-2 py-1.5 text-on-surface" [attr.title]="row[col.key]">{{ row[col.key] }}</td> }
+                  <tr class="border-b border-brand-grey/60 align-top last:border-0">
+                    @if (extra.length > 0) {
+                      <td class="px-1 py-1.5">
+                        <button type="button" (click)="toggle($index)" [attr.aria-expanded]="isOpen($index)" [attr.aria-label]="(isOpen($index) ? 'Ocultar' : 'Ver') + ' el detalle de la fila ' + ($index + 1)"
+                          class="flex h-6 w-6 items-center justify-center rounded-md bg-transparent !text-brand-accentDeep hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-accentDeep">
+                          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ isOpen($index) ? 'expand_less' : 'expand_more' }}</span>
+                        </button>
+                      </td>
+                    }
+                    @for (col of shown; track col.key) { <td class="break-words px-1.5 py-1.5 leading-4 text-on-surface [overflow-wrap:anywhere]" [attr.title]="row[col.key]">{{ row[col.key] }}</td> }
                   </tr>
+                  @if (extra.length > 0 && isOpen($index)) {
+                    <tr class="border-b border-brand-grey/60 bg-surface-container-low">
+                      <td [attr.colspan]="shown.length + 1" class="px-3 py-2">
+                        <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 md:grid-cols-3">
+                          @for (col of extra; track col.key) {
+                            <div class="min-w-0"><dt class="m-0 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{{ col.header }}</dt><dd class="m-0 ml-0 break-words text-[12px] text-on-surface [overflow-wrap:anywhere]">{{ row[col.key] || '—' }}</dd></div>
+                          }
+                        </dl>
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>
@@ -85,6 +114,8 @@ import { formatChange } from '../dashboard/dashboard-format';
 export class ReportPreviewComponent {
   readonly preview = input<ReportPreview | null>(null);
   readonly title = input('Vista previa');
+  /** Icono del reporte, junto al título. */
+  readonly icon = input('description');
   readonly summary = input('');
   readonly loading = input(false);
   readonly error = input('');
@@ -94,4 +125,27 @@ export class ReportPreviewComponent {
 
   readonly skeleton = [1, 2, 3, 4, 5];
   readonly change = formatChange;
+  /** Filas con el detalle abierto (las columnas que no caben en la tabla). */
+  private readonly open = signal<ReadonlySet<number>>(new Set());
+
+  /** Columnas esenciales: las primeras que caben en un escritorio común sin scroll (1366 px). */
+  visible(columns: readonly PreviewColumn[]): PreviewColumn[] {
+    return columns.slice(0, MAX_VISIBLE_COLUMNS);
+  }
+
+  hidden(columns: readonly PreviewColumn[]): PreviewColumn[] {
+    return columns.slice(MAX_VISIBLE_COLUMNS);
+  }
+
+  isOpen = (index: number): boolean => this.open().has(index);
+
+  toggle(index: number): void {
+    this.open.update((set) => {
+      const next = new Set(set);
+      if (!next.delete(index)) {
+        next.add(index);
+      }
+      return next;
+    });
+  }
 }

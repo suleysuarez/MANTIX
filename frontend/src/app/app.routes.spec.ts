@@ -15,6 +15,7 @@ import { ReportsComponent } from './features/reports/reports.component';
 import { SettingsComponent } from './features/settings/settings.component';
 import { TechniciansComponent } from './features/technicians/technicians.component';
 import { TicketsComponent } from './features/tickets/tickets.component';
+import { UsersComponent } from './features/users/users.component';
 
 const shell = routes.find((route) => route.path === '' && route.children)!;
 const children: Route[] = shell.children!;
@@ -30,6 +31,7 @@ const EXPECTED: Record<string, unknown> = {
   '/mantenimiento': MaintenanceHubComponent,
   '/inventario': InventoryComponent,
   '/reportes': ReportsComponent,
+  '/usuarios': UsersComponent,
   '/admin/pending-users': PendingUsersComponent,
   '/configuracion': SettingsComponent,
 };

@@ -1,16 +1,19 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 
-import { toCsv } from '../../core/csv';
 import {
   INVENTORY_LIMITS,
   InventoryItem,
+  InventoryOption,
   ItemCategory,
   MovementKind,
+  OptionKind,
   StockStatus,
 } from '../../core/inventory.service';
+import { dateRangeError } from '../../shared/date-range';
 
 /** Presentación y validación del inventario. Funciones puras, sin Angular salvo los validadores. */
 
+/** Categorías de fábrica con su icono; las que se agreguen usan el icono genérico. */
 export const CATEGORIES: { code: ItemCategory; label: string; icon: string }[] = [
   { code: 'spare_part', label: 'Repuesto', icon: 'memory' },
   { code: 'consumable', label: 'Consumible', icon: 'water_drop' },
@@ -19,8 +22,70 @@ export const CATEGORIES: { code: ItemCategory; label: string; icon: string }[] =
   { code: 'other', label: 'Otro', icon: 'category' },
 ];
 
-export const categoryLabel = (code: string): string => CATEGORIES.find((c) => c.code === code)?.label ?? code;
+/** Nombre de una categoría: el del servidor si ya llegó, el de fábrica o, al final, su código. */
+export const categoryLabel = (code: string, options: readonly InventoryOption[] = []): string =>
+  options.find((o) => o.kind === 'category' && o.value === code)?.label ?? CATEGORIES.find((c) => c.code === code)?.label ?? code;
 export const categoryIcon = (code: string): string => CATEGORIES.find((c) => c.code === code)?.icon ?? 'category';
+
+/** Opciones de un desplegable en el formato del selector con «+ Agregar nuevo». */
+export const optionsOf = (options: readonly InventoryOption[], kind: OptionKind): { value: string; label: string }[] =>
+  options.filter((o) => o.kind === kind).map((o) => ({ value: o.value, label: o.label }));
+
+/** Valores de los filtros por rango, tal como se escriben (vacío = sin límite). */
+export interface RangeFilters {
+  stockMin: string;
+  stockMax: string;
+  costMin: string;
+  costMax: string;
+  createdFrom: string;
+  createdTo: string;
+  movedFrom: string;
+  movedTo: string;
+}
+
+export interface RangeErrors {
+  stock: string;
+  cost: string;
+  created: string;
+  moved: string;
+}
+
+const NUMBER = /^\d+(\.\d{1,2})?$/;
+
+function numberError(value: string, label: string, integer: boolean, max: number): string {
+  const text = value.trim();
+  if (text === '') {
+    return '';
+  }
+  if (text.startsWith('-')) {
+    return `${label}: no puede ser negativo.`;
+  }
+  if (!NUMBER.test(text) || (integer && text.includes('.'))) {
+    return integer ? `${label}: escribe un número entero.` : `${label}: escribe un importe válido (máximo 2 decimales).`;
+  }
+  return Number(text) > max ? `${label}: no puede superar ${max.toLocaleString('es-MX')}.` : '';
+}
+
+/** Un par «mínimo / máximo»: cada valor válido y no negativo, y el mínimo no mayor que el máximo. */
+function pairError(low: string, high: string, label: string, integer: boolean, max: number): string {
+  const first = numberError(low, `${label} mínimo`, integer, max) || numberError(high, `${label} máximo`, integer, max);
+  if (first) {
+    return first;
+  }
+  return low.trim() !== '' && high.trim() !== '' && Number(low) > Number(high) ? `El ${label.toLowerCase()} mínimo no puede ser mayor que el máximo.` : '';
+}
+
+/** Errores de los filtros por rango, en español, uno por filtro (vacío = válido). Con errores no se consulta al servidor. */
+export function rangeErrors(f: RangeFilters): RangeErrors {
+  return {
+    stock: pairError(f.stockMin, f.stockMax, 'Stock', true, INVENTORY_LIMITS.maxQuantity),
+    cost: pairError(f.costMin, f.costMax, 'Precio', false, INVENTORY_LIMITS.maxCost),
+    created: dateRangeError(f.createdFrom, f.createdTo),
+    moved: dateRangeError(f.movedFrom, f.movedTo),
+  };
+}
+
+export const hasRangeErrors = (errors: RangeErrors): boolean => Object.values(errors).some((message) => message !== '');
 
 /** Etiquetas y clases por estado de stock; todas con contraste AA sobre su fondo. */
 export const STATUS_META: Record<StockStatus, { label: string; chip: string; bar: string }> = {
@@ -85,17 +150,9 @@ export const movementQuantity =
     return kind() === 'out' && value > available() ? { insufficient: { available: available() } } : null;
   };
 
-export function itemsToCsv(items: InventoryItem[]): string {
-  const headers = ['SKU', 'Nombre', 'Categoría', 'Unidad', 'Costo unitario', 'Stock', 'Mínimo', 'Máximo', 'Valor', 'Ubicación', 'Proveedor', 'Estado'];
-  const rows = items.map((item) => [
-    item.sku, item.name, categoryLabel(item.category), item.unit, item.unit_cost, item.stock, item.min_stock,
-    item.max_stock ?? '', item.stock_value, item.location ?? '', item.supplier ?? '',
-    !item.is_active ? 'Inactivo' : STATUS_META[item.status].label,
-  ]);
-  return toCsv([headers, ...rows]);
-}
-
 export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+/** Filas máximas por archivo (el servidor es quien lo hace cumplir). */
+export const IMPORT_MAX_ROWS = 5000;
 export const IMPORT_EXTENSIONS = ['.csv', '.xlsx'];
 
 /** Revisión previa de un archivo de importación: tipo y tamaño (el backend vuelve a validar). */

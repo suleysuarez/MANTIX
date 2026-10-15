@@ -235,7 +235,7 @@ describe('ExportDrawerComponent', () => {
       flush();
     }));
 
-    it('sends the PDF with the default columns, the summary and the charts', fakeAsync(() => {
+    it('sends the PDF with the default columns and the summary', fakeAsync(() => {
       create();
       settle();
       click(exportButton());
@@ -245,13 +245,14 @@ describe('ExportDrawerComponent', () => {
       flush();
     }));
 
-    it('turns the charts off with the summary', fakeAsync(() => {
+    it('offers no chart option in the PDF and turns the charts off with the summary', fakeAsync(() => {
       create();
       settle();
-      const [summary, charts] = Array.from(host().querySelectorAll('[aria-label="Contenido del PDF"] input')) as HTMLInputElement[];
-      summary.click();
+      const inputs = Array.from(host().querySelectorAll('[aria-label="Contenido del PDF"] input')) as HTMLInputElement[];
+      expect(inputs.length).toBe(1);
+      expect(host().textContent).not.toContain('Incluir gráficos');
+      inputs[0].click();
       fixture.detectChanges();
-      expect(charts.disabled).toBeTrue();
       click(exportButton());
       const request = api.export.calls.mostRecent().args[2];
       expect(request.include_summary).toBeFalse();
