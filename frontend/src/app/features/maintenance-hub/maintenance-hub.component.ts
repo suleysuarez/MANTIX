@@ -78,9 +78,10 @@ const DOT: Record<string, string> = {
               </div>
             </div>
           </div>
-          <!-- Ilustración en un panel claro: el dibujo trae su propio fondo casi blanco. -->
-          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-[3/2] overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:flex lg:items-center lg:justify-center" aria-hidden="true">
-            <img src="assets/images/mantenimiento-hero.svg" alt="" width="640" height="426" class="h-full w-full object-contain mix-blend-multiply" />
+          <!-- Ilustración animada; con «reducir movimiento» se queda en el primer fotograma. -->
+          <div class="pointer-events-none absolute inset-y-4 right-6 hidden aspect-video overflow-hidden rounded-2xl bg-surface-container-lowest shadow-lg lg:block" aria-hidden="true">
+            <video class="h-full w-full object-cover" src="assets/videos/mantenimiento1.mp4" poster="assets/videos/mantenimiento-poster.jpg"
+              [muted]="true" playsinline preload="auto" [loop]="!reduceMotion" [autoplay]="!reduceMotion"></video>
           </div>
         </header>
 
@@ -368,6 +369,8 @@ export class MaintenanceHubComponent implements OnInit {
   readonly weekdays = WEEKDAYS;
   readonly skeleton = [1, 2, 3, 4];
   readonly focus = FOCUS;
+  /** Respeta la preferencia del sistema: sin movimiento, el video no se reproduce. */
+  readonly reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   readonly field = FIELD;
   readonly dot = DOT;
   readonly dayLabel = dayLabel;
