@@ -483,7 +483,7 @@ describe('EquipmentDetailDrawerComponent', () => {
   it('links «Crear ticket» to the maintenance screen with the equipment preselected', () => {
     render({}, { canCreateTicket: true });
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('footer a')!;
-    expect(link.getAttribute('href')).toContain('/maintenance');
+    expect(link.getAttribute('href')).toContain('/tickets');
     expect(link.getAttribute('href')).toContain('equipmentId=1');
   });
 

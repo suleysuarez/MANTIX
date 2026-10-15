@@ -430,9 +430,9 @@ interface TicketsView extends TicketsState {
               <div class="space-y-4 p-6">
                 <label class="block text-[13px] font-semibold">Equipo tecnológico <span class="text-[#BA1A1A]">*</span>
                   <select name="equipment" required class="mt-1 h-11 font-normal" [class]="field">
-                    <option value="" disabled selected>Selecciona un equipo del inventario…</option>
+                    <option value="" disabled [selected]="!preselectedEquipmentId">Selecciona un equipo del inventario…</option>
                     @for (item of vm.equipment; track item.id) {
-                      <option [value]="item.id">{{ item.asset_tag }} · {{ item.brand }} {{ item.model }}</option>
+                      <option [value]="item.id" [selected]="item.id === preselectedEquipmentId">{{ item.asset_tag }} · {{ item.brand }} {{ item.model }}</option>
                     }
                   </select>
                 </label>
@@ -501,6 +501,10 @@ export class TicketsComponent implements OnInit {
   readonly initialSearch = '';
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
+  /** Enlaces de otras pantallas: `?status=` filtra la lista y `?equipmentId=` abre «Nuevo ticket» con ese equipo. */
+  private readonly query = this.route.snapshot.queryParamMap;
+  readonly preselectedEquipmentId = Number(this.query.get('equipmentId')) || null;
+
   readonly view = signal<'table' | 'kanban'>('table');
   readonly attentionOpen = signal(true);
   readonly createOpen = signal(false);
@@ -531,7 +535,14 @@ export class TicketsComponent implements OnInit {
       this.openTicket(id);
     });
     this.store.load();
+    const status = this.query.get('status') ?? '';
+    if (this.statuses.some((item) => item === status)) {
+      this.store.setFilters({ status });
+    }
     this.canCreate.set(await this.profile.can('maintenance.create'));
+    if (this.preselectedEquipmentId && this.canCreate()) {
+      this.createOpen.set(true);
+    }
     this.canManage.set(await this.profile.can('maintenance.manage'));
   }
 

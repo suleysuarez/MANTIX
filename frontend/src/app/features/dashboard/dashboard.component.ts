@@ -117,7 +117,7 @@ export interface ChartBar {
         <!-- 4 KPI -->
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores clave">
           @let k = state.kpis;
-          <app-kpi-card label="MTTR · mediana" icon="timer" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+          <app-kpi-card label="MTTR · mediana" icon="timer" link="/tickets" [queryParams]="{ status: 'resolved' }"
             [value]="k && k.mttr_hours.value !== null ? hours(k.mttr_hours.value) : null"
             [caption]="k ? mttrCaption(k.first_assignment_hours.value) : ''"
             [detail]="k && k.mttr_hours.value !== null ? central(k.mttr_hours) : ''"
@@ -128,7 +128,7 @@ export interface ChartBar {
             [n]="k ? k.mttr_hours.sample_size : null" [lowSample]="k?.mttr_hours?.low_sample ?? false"
             [series]="series(state.trends, 'mttr_hours')" />
 
-          <app-kpi-card label="Cumplimiento SLA" icon="verified" link="/maintenance" [queryParams]="{ status: 'resolved' }"
+          <app-kpi-card label="Cumplimiento SLA" icon="verified" link="/tickets" [queryParams]="{ status: 'resolved' }"
             [value]="k && k.sla_compliance_pct.value !== null ? pct(k.sla_compliance_pct.value) : null"
             [caption]="k ? slaCaption(k) : ''"
             [emptyText]="k && k.sla_compliance_pct.excluded_no_sla ? k.sla_compliance_pct.excluded_no_sla + ' resueltos sin SLA definido: no se miden' : 'Aún no hay tickets resueltos con SLA'"
@@ -143,7 +143,7 @@ export interface ChartBar {
             [changePct]="k?.availability?.change_pct ?? null" [tone]="tone(k?.availability?.change_pct ?? null, 'higher')"
             changeHint="vs. inicio del periodo" />
 
-          <app-kpi-card label="Backlog" icon="inbox" link="/maintenance"
+          <app-kpi-card label="Backlog" icon="inbox" link="/tickets"
             [value]="k ? '' + k.backlog.open : null" [caption]="k && k.backlog.open ? 'tickets abiertos' : 'Sin tickets abiertos'"
             [changePct]="k?.backlog?.change_pct ?? null" [tone]="tone(k?.backlog?.change_pct ?? null, 'lower')"
             changeHint="vs. inicio del periodo">
@@ -216,7 +216,7 @@ export interface ChartBar {
               <ul class="flex flex-col gap-2">
                 @for (item of state.topEquipment; track item.equipment_id) {
                   <li>
-                    <a routerLink="/maintenance" [queryParams]="{ equipmentId: item.equipment_id }"
+                    <a routerLink="/tickets" [queryParams]="{ equipmentId: item.equipment_id }"
                       [class]="'block rounded-lg px-1 py-0.5 !text-inherit transition-colors hover:bg-[#F1F5F9] ' + focus">
                       <div class="flex items-baseline justify-between gap-2 text-[12px]">
                         <span class="min-w-0 truncate font-semibold">{{ item.asset_tag }} <span class="font-normal text-[#64748B]">{{ item.brand }} {{ item.model }}</span></span>
@@ -326,7 +326,7 @@ export interface ChartBar {
               <ul class="flex flex-col gap-2">
                 @for (a of alerts.tickets; track a.id) {
                   <li>
-                    <a [routerLink]="['/maintenance', a.id]" [class]="rowClass + ' ' + focus">
+                    <a routerLink="/tickets" [queryParams]="{ ticket: a.id }" [class]="rowClass + ' ' + focus">
                       <span class="material-symbols-outlined mt-0.5 text-[18px]" [class]="a.reason === 'sla_at_risk' ? 'text-[#A16207]' : 'text-[#B45309]'" aria-hidden="true">confirmation_number</span>
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-[13px] font-semibold">{{ a.ticket_number }} · {{ a.title }}</p>
@@ -350,7 +350,7 @@ export interface ChartBar {
                 }
                 @for (s of alerts.schedules; track s.id) {
                   <li>
-                    <a routerLink="/maintenance" [class]="rowClass + ' ' + focus">
+                    <a routerLink="/tickets" [class]="rowClass + ' ' + focus">
                       <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#2563EB]" aria-hidden="true">event_busy</span>
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-[13px] font-semibold">{{ s.title }}</p>
