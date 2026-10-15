@@ -18,6 +18,8 @@ import { Equipment } from '../../core/equipment.service';
 import { LocalProfileService } from '../../core/local-profile.service';
 import { MaintenanceListItem, PRIORITIES, REQUEST_STATUSES } from '../../core/maintenance.service';
 import { TicketFilters, TicketOrder, TicketsState, TicketsStore, todayLocal } from '../../core/tickets.store';
+import { ChoiceOption, ExportDrawerComponent } from '../export/export-drawer.component';
+import { EMPTY_EXPORT_FILTERS, ExportFilterValues } from '../export/export-model';
 import { TicketChipComponent } from './ticket-chip.component';
 import { TicketDrawerComponent } from './ticket-drawer.component';
 import {
@@ -27,7 +29,6 @@ import {
   needingAttention,
   priorityMeta,
   statusMeta,
-  ticketsToCsv,
 } from './ticket-ui';
 
 const FIELD =
@@ -62,7 +63,7 @@ interface TicketsView extends TicketsState {
 @Component({
   selector: 'app-tickets',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent],
+  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -83,12 +84,18 @@ interface TicketsView extends TicketsState {
                 <span class="material-symbols-outlined text-[20px]">add</span> Nuevo ticket
               </button>
             }
-            <button type="button" (click)="exportCsv(vm)" [disabled]="vm.items.length === 0" title="Exporta los tickets de la página actual"
-              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed">
-              <span class="material-symbols-outlined text-[18px]">file_download</span> Exportar CSV
+            <button type="button" (click)="exportOpen.set(true)" title="Exporta a PDF o Excel con los filtros que quieras"
+              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35">
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">file_download</span> Exportar
             </button>
           </div>
         </header>
+
+        @if (exportOpen()) {
+          <app-export-drawer report="tickets" title="tickets" [initial]="exportInitial(vm)"
+            [filterKinds]="['statuses', 'priorities', 'technicians', 'categories']"
+            [statusOptions]="statusChoices" [priorityOptions]="priorityChoices" (closed)="exportOpen.set(false)" />
+        }
 
         @if (vm.error) {
           <p class="rounded-lg bg-[#FEE2E2] px-4 py-3 text-[13px] text-[#991B1B]" role="alert">{{ vm.error }}</p>
@@ -508,6 +515,9 @@ export class TicketsComponent implements OnInit {
   readonly view = signal<'table' | 'kanban'>('table');
   readonly attentionOpen = signal(true);
   readonly createOpen = signal(false);
+  readonly exportOpen = signal(false);
+  readonly statusChoices: ChoiceOption[] = REQUEST_STATUSES.map((value) => ({ value, label: statusMeta(value).label }));
+  readonly priorityChoices: ChoiceOption[] = PRIORITIES.map((value) => ({ value, label: priorityMeta(value).label }));
   readonly titleLength = signal(0);
   readonly createError = signal('');
   readonly canCreate = signal(false);
@@ -661,14 +671,16 @@ export class TicketsComponent implements OnInit {
     return equipment ? `${equipment.asset_tag} · ${equipment.brand} ${equipment.model}` : `Equipo #${equipmentId}`;
   }
 
-  exportCsv(vm: TicketsView): void {
-    const csv = ticketsToCsv(vm.items, (id) => this.equipmentLabel(vm, id));
-    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tickets-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  /** Los filtros de la pantalla son el punto de partida del panel de exportación. */
+  exportInitial(vm: TicketsView): ExportFilterValues {
+    const { status, priority, dateFrom, dateTo } = vm.filters;
+    return {
+      ...EMPTY_EXPORT_FILTERS,
+      statuses: status ? [status] : [],
+      priorities: priority ? [priority] : [],
+      dateFrom,
+      dateTo,
+    };
   }
 
   private toView(state: TicketsState): TicketsView {

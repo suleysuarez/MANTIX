@@ -16,8 +16,9 @@ describe('SettingsStore', () => {
   let latest: SettingsState;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj('SettingsService', ['health', 'categories', 'createCategory', 'updateCategory', 'deleteCategory', 'priorities', 'updatePriority']);
+    api = jasmine.createSpyObj('SettingsService', ['health', 'organization', 'categories', 'createCategory', 'updateCategory', 'deleteCategory', 'priorities', 'updatePriority']);
     api.health.and.returnValue(of({ overall: 'ok' } as SystemHealth));
+    api.organization.and.returnValue(of({ company_name: 'Mantix', legal_name: null, tax_id: null, configured: false, updated_at: null }));
     api.categories.and.returnValue(of([category()]));
     api.priorities.and.returnValue(of([priority]));
     TestBed.configureTestingModule({ providers: [SettingsStore, { provide: SettingsService, useValue: api }] });

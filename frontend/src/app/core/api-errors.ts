@@ -43,6 +43,18 @@ const BUSINESS_RULES: [RegExp, string][] = [
   [/cannot transition|not allowed/i, 'Ese cambio de estado no está permitido desde el estado actual.'],
 ];
 
+/** Reglas de validación (422) conocidas: la API explica en inglés lo que el usuario debe corregir. */
+const VALIDATION_RULES: [RegExp, string][] = [
+  [/date_to cannot be before date_from/i, 'La fecha final no puede ser anterior a la inicial.'],
+  [/range cannot exceed \d+ days/i, 'El rango de fechas no puede superar 366 días.'],
+  [/date_from cannot be in the future/i, 'La fecha inicial no puede ser futura.'],
+  [/nothing to export/i, 'No hay registros que coincidan con los filtros: no hay nada que exportar.'],
+  [/narrow the filters/i, 'Hay demasiados registros para exportar (máximo 10.000). Acota los filtros.'],
+  [/unknown columns/i, 'Alguna de las columnas elegidas no existe en este reporte.'],
+  [/choose at least one column/i, 'Elige al menos una columna.'],
+  [/cannot be exported yet/i, 'Este reporte todavía no se puede exportar.'],
+];
+
 function body(error: HttpErrorResponse): ApiErrorBody {
   return typeof error.error === 'object' && error.error !== null ? (error.error as ApiErrorBody) : {};
 }
@@ -56,6 +68,13 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
     return 'El servidor tuvo un problema. Inténtalo de nuevo más tarde.';
   }
   const { detail, code } = body(error);
+  if (error.status === 422) {
+    const text = [detail ?? '', ...(body(error).errors ?? []).map((item) => item.message)].join(' | ');
+    const rule = VALIDATION_RULES.find(([pattern]) => pattern.test(text));
+    if (rule) {
+      return rule[1];
+    }
+  }
   if (error.status === 409 && detail) {
     const rule = BUSINESS_RULES.find(([pattern]) => pattern.test(detail));
     if (rule) {

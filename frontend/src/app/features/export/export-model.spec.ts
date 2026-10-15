@@ -1,0 +1,71 @@
+import { EMPTY_EXPORT_FILTERS, countMessage, dayString, shortcutOf, shortcutRange, toExportFilters } from './export-model';
+
+describe('export-model', () => {
+  const today = new Date(2026, 9, 14, 12); // 14/10/2026
+
+  describe('shortcuts', () => {
+    it('resolves each shortcut to local days', () => {
+      expect(shortcutRange('all', today)).toEqual({ from: '', to: '' });
+      expect(shortcutRange('today', today)).toEqual({ from: '2026-10-14', to: '2026-10-14' });
+      expect(shortcutRange('7d', today)).toEqual({ from: '2026-10-08', to: '2026-10-14' });
+      expect(shortcutRange('30d', today)).toEqual({ from: '2026-09-15', to: '2026-10-14' });
+      expect(shortcutRange('month', today)).toEqual({ from: '2026-10-01', to: '2026-10-14' });
+      expect(shortcutRange('custom', today)).toBeNull();
+    });
+
+    it('crosses month and year boundaries', () => {
+      const early = new Date(2027, 0, 3);
+      expect(shortcutRange('7d', early)).toEqual({ from: '2026-12-28', to: '2027-01-03' });
+      expect(dayString(new Date(2026, 1, 9))).toBe('2026-02-09');
+    });
+
+    it('recognises the shortcut of a range already chosen on the screen', () => {
+      expect(shortcutOf('', '', today)).toBe('all');
+      expect(shortcutOf('2026-10-14', '2026-10-14', today)).toBe('today');
+      expect(shortcutOf('2026-10-08', '2026-10-14', today)).toBe('7d');
+      expect(shortcutOf('2026-10-01', '2026-10-14', today)).toBe('month');
+      expect(shortcutOf('2026-09-01', '2026-09-30', today)).toBe('custom');
+      expect(shortcutOf('2026-09-01', '', today)).toBe('custom');
+    });
+  });
+
+  describe('toExportFilters', () => {
+    it('sends only what was chosen', () => {
+      expect(toExportFilters(EMPTY_EXPORT_FILTERS)).toEqual({});
+      const filters = toExportFilters({
+        statuses: ['resolved'], priorities: ['high', 'low'], categories: ['hardware'], technicianIds: [4],
+        dateFrom: '2026-10-01', dateTo: '2026-10-14',
+      });
+      expect(filters.statuses).toEqual(['resolved']);
+      expect(filters.priorities).toEqual(['high', 'low']);
+      expect(filters.categories).toEqual(['hardware']);
+      expect(filters.technician_ids).toEqual([4]);
+      expect(new Date(filters.date_from!).getHours()).toBe(0);
+      expect(new Date(filters.date_to!).getHours()).toBe(23);
+    });
+
+    it('drops an impossible date instead of sending it', () => {
+      const filters = toExportFilters({ ...EMPTY_EXPORT_FILTERS, dateFrom: '2026-02-30', dateTo: 'basura' });
+      expect(filters.date_from).toBeUndefined();
+      expect(filters.date_to).toBeUndefined();
+    });
+  });
+
+  describe('countMessage', () => {
+    it('explains each situation', () => {
+      expect(countMessage(1, 10_000, 2_000)).toEqual({ text: 'Se exportará 1 registro.', tone: 'ok' });
+    });
+
+    it('says nothing matched, too many, large and normal', () => {
+      expect(countMessage(0, 10_000, 2_000).tone).toBe('error');
+      expect(countMessage(0, 10_000, 2_000).text).toContain('Ningún registro coincide');
+      expect(countMessage(12_500, 10_000, 2_000)).toEqual({
+        text: 'Son 12.500 registros y el máximo es 10.000. Acota los filtros para exportar.',
+        tone: 'error',
+      });
+      expect(countMessage(2_500, 10_000, 2_000).tone).toBe('warn');
+      expect(countMessage(2_500, 10_000, 2_000).text).toContain('puede tardar');
+      expect(countMessage(40, 10_000, 2_000)).toEqual({ text: 'Se exportarán 40 registros.', tone: 'ok' });
+    });
+  });
+});

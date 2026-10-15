@@ -6,12 +6,14 @@ import { HealthStatus } from '../../core/settings.service';
 import { SettingsStore } from '../../core/settings.store';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { CategoriesSectionComponent } from './categories-section.component';
+import { OrganizationSectionComponent } from './organization-section.component';
 import { PrioritiesSectionComponent } from './priorities-section.component';
 
-type Section = 'health' | 'categories' | 'priorities' | 'environment';
+type Section = 'health' | 'organization' | 'categories' | 'priorities' | 'environment';
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'health', label: 'Salud del sistema', icon: 'monitor_heart' },
+  { id: 'organization', label: 'Organización', icon: 'apartment' },
   { id: 'categories', label: 'Categorías', icon: 'category' },
   { id: 'priorities', label: 'Prioridades y SLA', icon: 'flag' },
   { id: 'environment', label: 'Parámetros', icon: 'tune' },
@@ -30,7 +32,7 @@ const STATUS: Record<HealthStatus | 'never', { label: string; symbol: string; to
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, CategoriesSectionComponent, PrioritiesSectionComponent, ToastHostComponent],
+  imports: [AsyncPipe, DatePipe, CategoriesSectionComponent, OrganizationSectionComponent, PrioritiesSectionComponent, ToastHostComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -133,6 +135,10 @@ const STATUS: Record<HealthStatus | 'never', { label: string; symbol: string; to
                   </div>
                 }
               </section>
+            }
+            @case ('organization') {
+              <app-organization-section [organization]="vm.organization" [loading]="vm.organizationLoading" [error]="vm.organizationError"
+                [saving]="vm.saving" [canManage]="canManage()" [serverErrors]="vm.fieldErrors" />
             }
             @case ('categories') {
               <app-categories-section [categories]="vm.categories" [loading]="vm.categoriesLoading" [error$]="vm.categoriesError"

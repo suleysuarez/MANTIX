@@ -30,7 +30,9 @@ const priorities: PriorityAdmin[] = [{ id: 2, code: 'high', name: 'Alta', descri
 function state(over: Partial<SettingsState> = {}): SettingsState {
   return {
     health, healthLoading: false, healthError: '', categories, categoriesLoading: false, categoriesError: '',
-    priorities, prioritiesLoading: false, prioritiesError: '', saving: false, fieldErrors: {}, ...over,
+    priorities, prioritiesLoading: false, prioritiesError: '', saving: false, fieldErrors: {},
+    organization: { company_name: 'Mantix', legal_name: null, tax_id: null, configured: false, updated_at: null },
+    organizationLoading: false, organizationError: '', ...over,
   };
 }
 
@@ -63,7 +65,7 @@ describe('SettingsComponent', () => {
   async function create(canManage = true, initial = state()) {
     subject = new BehaviorSubject(initial);
     store = Object.assign(
-      jasmine.createSpyObj('SettingsStore', ['loadAll', 'loadHealth', 'createCategory', 'renameCategory', 'toggleCategory', 'deleteCategory', 'updatePriority']),
+      jasmine.createSpyObj('SettingsStore', ['loadAll', 'loadHealth', 'saveOrganization', 'createCategory', 'renameCategory', 'toggleCategory', 'deleteCategory', 'updatePriority']),
       { state$: subject },
     );
     TestBed.configureTestingModule({
@@ -238,6 +240,54 @@ describe('SettingsComponent', () => {
     });
   });
 
+  describe('organization', () => {
+    beforeEach(async () => {
+      await create();
+      goTo('Organización');
+    });
+
+    const save = () => button('Guardar cambios') as HTMLButtonElement;
+
+    it('says that the defaults are in use until something is saved', () => {
+      expect(host().textContent).toContain('Aún no hay datos guardados');
+      expect((host().querySelector('#org-name') as HTMLInputElement).value).toBe('Mantix');
+    });
+
+    it('validates the name and the NIT and keeps save disabled until it is valid and changed', () => {
+      expect(save().disabled).toBeTrue(); // nothing changed yet
+      type('#org-name', 'A');
+      expect(host().querySelector('#org-name-err')!.textContent).toContain('al menos 2');
+      expect(save().disabled).toBeTrue();
+      type('#org-name', 'Majesa Café');
+      type('#org-nit', '12');
+      expect(host().querySelector('#org-nit-err')!.textContent).toContain('caracteres');
+      expect(save().disabled).toBeTrue();
+      type('#org-nit', '900.111.222-3');
+      expect(save().disabled).toBeFalse();
+    });
+
+    it('saves trimmed values and sends blank optionals as null', () => {
+      type('#org-name', '  Majesa Café ');
+      type('#org-legal', '   ');
+      type('#org-nit', ' 900.111.222-3 ');
+      click(save());
+      expect(store.saveOrganization).toHaveBeenCalledWith({ company_name: 'Majesa Café', legal_name: null, tax_id: '900.111.222-3' });
+    });
+
+    it('shows server errors and blocks a second submit while saving', () => {
+      type('#org-name', 'Majesa');
+      render(state({ fieldErrors: { tax_id: 'El formato no es válido.' }, saving: true }));
+      expect(host().querySelector('#org-nit-err')!.textContent).toContain('El formato no es válido.');
+      expect((button('Guardando') as HTMLButtonElement).disabled).toBeTrue();
+    });
+
+    it('loads what was saved and hides the saving form without permission', async () => {
+      render(state({ organization: { company_name: 'Majesa', legal_name: 'Majesa S.A.S.', tax_id: '900.111.222-3', configured: true, updated_at: '2026-10-15T00:00:00Z' } }));
+      expect((host().querySelector('#org-legal') as HTMLInputElement).value).toBe('Majesa S.A.S.');
+      expect(host().textContent).not.toContain('Aún no hay datos guardados');
+    });
+  });
+
   describe('permissions', () => {
     it('hides every write action without priorities.manage', async () => {
       await create(false);
@@ -246,6 +296,9 @@ describe('SettingsComponent', () => {
       expect(button('Renombrar')).toBeUndefined();
       goTo('Prioridades');
       expect(button('Editar')).toBeUndefined();
+      goTo('Organización');
+      expect(button('Guardar cambios')).toBeUndefined();
+      expect((host().querySelector('#org-name') as HTMLInputElement).disabled).toBeTrue();
     });
   });
 
@@ -253,7 +306,7 @@ describe('SettingsComponent', () => {
     create().then(() => undefined);
     flush();
     const buttons = Array.from(host().querySelectorAll('nav[aria-label="Secciones de configuración"] button'));
-    expect(buttons.length).toBe(4);
+    expect(buttons.length).toBe(5);
     for (const el of buttons) {
       const style = getComputedStyle(el);
       const background = style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : flatten(style.backgroundColor, '#ffffff');
