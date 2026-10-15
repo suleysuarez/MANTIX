@@ -19,6 +19,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'inventario:ver' },
   { label: 'Reportes', icon: 'monitoring', path: '/reportes', permission: 'reportes:ver' },
   { label: 'Usuarios', icon: 'manage_accounts', path: '/usuarios', permission: 'usuarios:ver' },
+  { label: 'Roles y permisos', icon: 'admin_panel_settings', path: '/roles', permission: 'usuarios:asignar' },
   { label: 'Usuarios pendientes', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'usuarios:asignar' },
   { label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'configuracion:ver' },
 ];

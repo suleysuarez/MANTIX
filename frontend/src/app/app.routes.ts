@@ -21,6 +21,7 @@ export const routes: Routes = [
       { path: 'cuenta', redirectTo: 'perfil', pathMatch: 'full' },
       { path: 'acceso-denegado', canActivate: [authorizedGuard], loadComponent: () => import('./features/errors/forbidden.component').then((m) => m.ForbiddenComponent) },
       { path: 'usuarios', canActivate: [permissionGuard('usuarios:ver')], loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
+      { path: 'roles', canActivate: [permissionGuard('usuarios:asignar')], loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent) },
       { path: 'admin/pending-users', canActivate: [permissionGuard('usuarios:asignar')], loadComponent: () => import('./features/admin/pending-users.component').then((m) => m.PendingUsersComponent) },
       { path: 'equipos', loadChildren: () => import('./features/equipos/equipos.routes').then((m) => m.EQUIPOS_ROUTES) },
       { path: 'tickets', canActivate: [permissionGuard('tickets:ver')], loadComponent: () => import('./features/tickets/tickets.component').then((m) => m.TicketsComponent) },
