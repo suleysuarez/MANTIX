@@ -10,6 +10,7 @@ import {
   MaintenanceRequestPayload,
   MaintenanceService,
 } from './maintenance.service';
+import { dateRangeError } from '../shared/date-range';
 
 export type TicketOrder = 'newest' | 'oldest' | 'priority';
 
@@ -86,17 +87,9 @@ export function todayLocal(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-/** Mensaje de error si los filtros son imposibles (rango invertido o fechas futuras); si no, `''`. */
+/** Mensaje de error si el rango de fechas es imposible; si no, `''`. */
 export function validateFilters(filters: TicketFilters): string {
-  const { dateFrom, dateTo } = filters;
-  const today = todayLocal();
-  if ((dateFrom && dateFrom > today) || (dateTo && dateTo > today)) {
-    return 'Las fechas del rango no pueden ser futuras: los tickets ya existen.';
-  }
-  if (dateFrom && dateTo && dateFrom > dateTo) {
-    return 'La fecha "desde" no puede ser posterior a la fecha "hasta".';
-  }
-  return '';
+  return dateRangeError(filters.dateFrom, filters.dateTo);
 }
 
 const LOAD_ERROR = 'No se pudieron cargar los tickets.';

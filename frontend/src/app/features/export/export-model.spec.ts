@@ -1,34 +1,6 @@
-import { EMPTY_EXPORT_FILTERS, countMessage, dayString, shortcutOf, shortcutRange, toExportFilters } from './export-model';
+import { EMPTY_EXPORT_FILTERS, countMessage, toExportFilters } from './export-model';
 
 describe('export-model', () => {
-  const today = new Date(2026, 9, 14, 12); // 14/10/2026
-
-  describe('shortcuts', () => {
-    it('resolves each shortcut to local days', () => {
-      expect(shortcutRange('all', today)).toEqual({ from: '', to: '' });
-      expect(shortcutRange('today', today)).toEqual({ from: '2026-10-14', to: '2026-10-14' });
-      expect(shortcutRange('7d', today)).toEqual({ from: '2026-10-08', to: '2026-10-14' });
-      expect(shortcutRange('30d', today)).toEqual({ from: '2026-09-15', to: '2026-10-14' });
-      expect(shortcutRange('month', today)).toEqual({ from: '2026-10-01', to: '2026-10-14' });
-      expect(shortcutRange('custom', today)).toBeNull();
-    });
-
-    it('crosses month and year boundaries', () => {
-      const early = new Date(2027, 0, 3);
-      expect(shortcutRange('7d', early)).toEqual({ from: '2026-12-28', to: '2027-01-03' });
-      expect(dayString(new Date(2026, 1, 9))).toBe('2026-02-09');
-    });
-
-    it('recognises the shortcut of a range already chosen on the screen', () => {
-      expect(shortcutOf('', '', today)).toBe('all');
-      expect(shortcutOf('2026-10-14', '2026-10-14', today)).toBe('today');
-      expect(shortcutOf('2026-10-08', '2026-10-14', today)).toBe('7d');
-      expect(shortcutOf('2026-10-01', '2026-10-14', today)).toBe('month');
-      expect(shortcutOf('2026-09-01', '2026-09-30', today)).toBe('custom');
-      expect(shortcutOf('2026-09-01', '', today)).toBe('custom');
-    });
-  });
-
   describe('toExportFilters', () => {
     it('sends only what was chosen', () => {
       expect(toExportFilters(EMPTY_EXPORT_FILTERS)).toEqual({});

@@ -16,11 +16,11 @@ import { ToastHostComponent } from '../../shared/toast-host.component';
 import { changeTone, formatChange, formatPct } from '../dashboard/dashboard-format';
 import { TicketChipComponent } from '../tickets/ticket-chip.component';
 import { priorityMeta } from '../tickets/ticket-ui';
-import { todayLocal } from '../../core/tickets.store';
 import {
   COLUMNS, WAIT_CLASSES, categoryLabel, formatWait, share, waitHours, waitTone,
 } from './pending-ui';
 import { RequestDetailPanelComponent } from './request-detail-panel.component';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: '7d', label: '7 días' },
@@ -34,7 +34,7 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
 @Component({
   selector: 'app-pending-requests',
   standalone: true,
-  imports: [AsyncPipe, TicketChipComponent, RequestDetailPanelComponent, ToastHostComponent],
+  imports: [AsyncPipe, TicketChipComponent, RequestDetailPanelComponent, ToastHostComponent, DateRangeFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -108,18 +108,8 @@ const FIELD = `w-full rounded-lg border border-outline bg-surface-container-lowe
                   <option value="priority" [selected]="vm.filters.order === 'priority'">Mayor prioridad primero</option>
                 </select>
               </div>
-              <fieldset class="space-y-1.5">
-                <legend class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Recibidas entre</legend>
-                <div class="grid grid-cols-2 gap-2">
-                  <label class="sr-only" for="q-from">Desde</label>
-                  <input id="q-from" type="date" [class]="field" [value]="vm.filters.dateFrom" [max]="today" aria-describedby="q-range-err"
-                    [attr.aria-invalid]="!!vm.filterError" (change)="store.setFilters({ dateFrom: $any($event.target).value })" />
-                  <label class="sr-only" for="q-to">Hasta</label>
-                  <input id="q-to" type="date" [class]="field" [value]="vm.filters.dateTo" [attr.aria-invalid]="!!vm.filterError"
-                    (change)="store.setFilters({ dateTo: $any($event.target).value })" />
-                </div>
-                <p id="q-range-err" class="min-h-4 text-[12px] text-error" role="alert">{{ vm.filterError }}</p>
-              </fieldset>
+              <app-date-range-filter label="Recibidas entre" [from]="vm.filters.dateFrom" [to]="vm.filters.dateTo"
+                (rangeChange)="store.setFilters({ dateFrom: $event.from, dateTo: $event.to })" />
               <label class="flex items-center gap-2 text-[13px] text-on-surface">
                 <input type="checkbox" [checked]="vm.filters.unassignedOnly" (change)="store.setFilters({ unassignedOnly: $any($event.target).checked })"
                   class="h-4 w-4 accent-brand-accentDeep" />
@@ -302,8 +292,6 @@ export class PendingRequestsComponent implements OnInit {
   readonly skeleton = [1, 2];
   readonly focus = FOCUS;
   readonly field = FIELD;
-  /** Tope del selector «desde»: las solicitudes recibidas no son futuras. */
-  readonly today = todayLocal();
   readonly search$ = new Subject<string>();
   /** Respeta la preferencia del sistema: sin movimiento, el video no se reproduce. */
   readonly reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;

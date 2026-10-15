@@ -2,7 +2,7 @@ import { AbstractControl, ValidationErrors } from '@angular/forms';
 
 import { formatHours } from '../dashboard/dashboard-format';
 import { QueueStatus } from '../../core/pending-requests.store';
-import { MAX_RANGE_DAYS, parseDay } from '../reports/report-filters';
+import { dateRangeError } from '../../shared/date-range';
 
 /** Presentación de la bandeja de triaje. Funciones puras, sin Angular. */
 
@@ -48,28 +48,8 @@ export const formatWait = (hours: number): string => formatHours(hours);
 
 export const MAX_CLASSIFY_NOTES = 500;
 
-const DAY_MS = 86_400_000;
-
-/** Rango «recibidas entre»: fechas reales, la inicial no es futura, fin ≥ inicio y como máximo 366 días. Vacío = sin error. */
-export function queueRangeError(from: string, to: string, today: Date = new Date()): string {
-  const start = from ? parseDay(from) : null;
-  const end = to ? parseDay(to) : null;
-  if ((from && !start) || (to && !end)) {
-    return 'La fecha no existe en el calendario.';
-  }
-  if (start && start.getTime() > today.getTime()) {
-    return 'La fecha inicial no puede ser futura.';
-  }
-  if (start && end) {
-    if (end < start) {
-      return 'La fecha final no puede ser anterior a la inicial.';
-    }
-    if ((end.getTime() - start.getTime()) / DAY_MS + 1 > MAX_RANGE_DAYS) {
-      return `El rango no puede superar ${MAX_RANGE_DAYS} días.`;
-    }
-  }
-  return '';
-}
+/** Rango «recibidas entre»: la misma regla de todos los filtros por fechas. */
+export const queueRangeError = dateRangeError;
 
 export const MIN_REASON = 5;
 export const MAX_REASON = 500;

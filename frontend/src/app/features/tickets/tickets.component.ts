@@ -31,6 +31,7 @@ import {
   statusMeta,
 } from './ticket-ui';
 import { PaginationComponent } from '../../shared/pagination.component';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -64,7 +65,7 @@ interface TicketsView extends TicketsState {
 @Component({
   selector: 'app-tickets',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent],
+  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent, DateRangeFilterComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -183,14 +184,8 @@ interface TicketsView extends TicketsState {
                 <option [value]="option" [selected]="option === vm.filters.priority">{{ priorityLabel(option) }}</option>
               }
             </select>
-            <div class="md:col-span-4">
-              <span class="mb-0.5 block text-[11px] font-semibold text-[#64748B]">Rango de fechas</span>
-              <div class="flex items-center gap-1">
-                <input type="date" [value]="vm.filters.dateFrom" [max]="vm.filters.dateTo || today" (change)="setFilter({ dateFrom: $any($event.target).value })" aria-label="Rango de fechas: desde" title="Desde" class="h-10 !px-2 text-[12px]" [class]="field" />
-                <span class="text-[12px] text-[#94A3B8]">-</span>
-                <input type="date" [value]="vm.filters.dateTo" [min]="vm.filters.dateFrom" [max]="today" (change)="setFilter({ dateTo: $any($event.target).value })" aria-label="Rango de fechas: hasta" title="Hasta" class="h-10 !px-2 text-[12px]" [class]="field" />
-              </div>
-            </div>
+            <app-date-range-filter class="md:col-span-5" label="Fecha de creación" [from]="vm.filters.dateFrom" [to]="vm.filters.dateTo"
+              (rangeChange)="setFilter({ dateFrom: $event.from, dateTo: $event.to })" />
             <button type="button" (click)="clearFilters()" [disabled]="!vm.hasFilters" title="Limpiar todos los filtros" aria-label="Limpiar filtros"
               class="flex h-10 items-center justify-center rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 md:col-span-1">
               <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>

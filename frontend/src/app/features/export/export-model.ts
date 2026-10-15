@@ -3,17 +3,6 @@ import { dayBoundaryIso } from '../reports/report-filters';
 
 /** Lógica pura del panel de exportación: atajos de fechas, filtros del servidor y textos. */
 
-export type RangeShortcut = 'all' | 'today' | '7d' | '30d' | 'month' | 'custom';
-
-export const SHORTCUTS: { id: RangeShortcut; label: string }[] = [
-  { id: 'all', label: 'Todo' },
-  { id: 'today', label: 'Hoy' },
-  { id: '7d', label: '7 días' },
-  { id: '30d', label: '30 días' },
-  { id: 'month', label: 'Este mes' },
-  { id: 'custom', label: 'Personalizado' },
-];
-
 export interface ExportFilterValues {
   statuses: string[];
   priorities: string[];
@@ -32,46 +21,6 @@ export const EMPTY_EXPORT_FILTERS: ExportFilterValues = {
   dateFrom: '',
   dateTo: '',
 };
-
-const pad = (value: number): string => String(value).padStart(2, '0');
-
-export function dayString(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** Rango de un atajo; `custom` conserva el actual (lo decide el usuario). */
-export function shortcutRange(shortcut: RangeShortcut, today: Date): { from: string; to: string } | null {
-  const end = dayString(today);
-  switch (shortcut) {
-    case 'all':
-      return { from: '', to: '' };
-    case 'today':
-      return { from: end, to: end };
-    case '7d':
-    case '30d': {
-      const days = shortcut === '7d' ? 6 : 29;
-      return { from: dayString(new Date(today.getFullYear(), today.getMonth(), today.getDate() - days)), to: end };
-    }
-    case 'month':
-      return { from: dayString(new Date(today.getFullYear(), today.getMonth(), 1)), to: end };
-    default:
-      return null;
-  }
-}
-
-/** Atajo que corresponde a un rango ya elegido (para abrir el panel con los filtros de la pantalla). */
-export function shortcutOf(from: string, to: string, today: Date): RangeShortcut {
-  if (!from && !to) {
-    return 'all';
-  }
-  for (const id of ['today', '7d', '30d', 'month'] as const) {
-    const range = shortcutRange(id, today);
-    if (range && range.from === from && range.to === to) {
-      return id;
-    }
-  }
-  return 'custom';
-}
 
 /** Filtros en el formato del servidor; lo vacío no se envía y una fecha inválida tampoco. */
 export function toExportFilters(values: ExportFilterValues): ExportApiFilters {

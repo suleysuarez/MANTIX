@@ -13,10 +13,9 @@ import { QueueService, RequestCategory } from '../../core/queue.service';
 import { readableError } from '../../core/reports.store';
 import { Technician, TechniciansService } from '../../core/technicians.service';
 import { ToastService } from '../../core/toast.service';
-import { queueRangeError } from '../pending-requests/pending-ui';
-import {
-  ExportFilterValues, FORMAT_CARDS, RangeShortcut, SHORTCUTS, countMessage, dayString, shortcutOf, shortcutRange, toExportFilters,
-} from './export-model';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
+import { dateRangeError } from '../../shared/date-range';
+import { ExportFilterValues, FORMAT_CARDS, countMessage, toExportFilters } from './export-model';
 
 export interface ChoiceOption {
   value: string;
@@ -32,7 +31,6 @@ type CountState =
   | ({ status: 'ready' } & ExportCount);
 
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep';
-const FIELD = `h-10 w-full rounded-lg border border-outline bg-surface-container-lowest px-3 text-[13px] text-on-surface ${FOCUS}`;
 
 /**
  * Panel lateral de exportación a PDF o Excel. Parte de los filtros de la pantalla que lo abre,
@@ -41,6 +39,7 @@ const FIELD = `h-10 w-full rounded-lg border border-outline bg-surface-container
 @Component({
   selector: 'app-export-drawer',
   standalone: true,
+  imports: [DateRangeFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(keydown.escape)': 'close()' },
   template: `
@@ -86,28 +85,7 @@ const FIELD = `h-10 w-full rounded-lg border border-outline bg-surface-container
               </div>
 
               <!-- Periodo -->
-              <section aria-label="Periodo" class="space-y-2">
-                <h3 class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Periodo (fecha de creación)</h3>
-                <div class="flex flex-wrap gap-1.5">
-                  @for (s of shortcuts; track s.id) {
-                    <button type="button" (click)="pickShortcut(s.id)" [attr.aria-pressed]="shortcut() === s.id"
-                      [class]="focus + ' rounded-full border px-3 py-1 text-[12px] font-semibold ' + (shortcut() === s.id ? 'border-brand-sidebar bg-brand-sidebar !text-white' : 'border-brand-grey bg-transparent !text-brand-accentDeep hover:bg-surface-container')">{{ s.label }}</button>
-                  }
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label for="exp-from" class="text-[11px] font-semibold text-on-surface-variant">Desde</label>
-                    <input id="exp-from" type="date" [class]="field" [value]="dateFrom()" [max]="today" aria-describedby="exp-range-err"
-                      [attr.aria-invalid]="!!rangeError()" (change)="setDate('from', $any($event.target).value)" />
-                  </div>
-                  <div>
-                    <label for="exp-to" class="text-[11px] font-semibold text-on-surface-variant">Hasta</label>
-                    <input id="exp-to" type="date" [class]="field" [value]="dateTo()" [attr.aria-invalid]="!!rangeError()"
-                      (change)="setDate('to', $any($event.target).value)" />
-                  </div>
-                </div>
-                <p id="exp-range-err" class="min-h-4 text-[12px] text-error" role="alert">{{ rangeError() }}</p>
-              </section>
+              <app-date-range-filter label="Periodo (fecha de creación)" [from]="dateFrom()" [to]="dateTo()" (rangeChange)="setRange($event)" />
 
               <!-- Filtros de la pantalla -->
               @if (filterKinds().includes('statuses') && statusOptions().length) {
@@ -228,14 +206,10 @@ export class ExportDrawerComponent implements OnInit {
   readonly closed = output<void>();
 
   readonly cards = FORMAT_CARDS;
-  readonly shortcuts = SHORTCUTS;
   readonly focus = FOCUS;
-  readonly field = FIELD;
-  readonly today = dayString(new Date());
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
 
   readonly format = signal<DocumentFormat>('pdf');
-  readonly shortcut = signal<RangeShortcut>('all');
   readonly dateFrom = signal('');
   readonly dateTo = signal('');
   readonly statuses = signal<string[]>([]);
@@ -256,7 +230,7 @@ export class ExportDrawerComponent implements OnInit {
   private lastFile: { blob: Blob; filename: string } | null = null;
 
   readonly columns = computed<ExportColumnInfo[]>(() => this.options()?.columns ?? []);
-  readonly rangeError = computed(() => queueRangeError(this.dateFrom(), this.dateTo()));
+  readonly rangeError = computed(() => dateRangeError(this.dateFrom(), this.dateTo()));
   readonly filterValues = computed<ExportFilterValues>(() => ({
     statuses: this.statuses(), priorities: this.priorities(), categories: this.categoryCodes(),
     technicianIds: this.technicianIds(), dateFrom: this.dateFrom(), dateTo: this.dateTo(),
@@ -327,7 +301,6 @@ export class ExportDrawerComponent implements OnInit {
       this.technicianIds.set(initial.technicianIds);
       this.dateFrom.set(initial.dateFrom);
       this.dateTo.set(initial.dateTo);
-      this.shortcut.set(shortcutOf(initial.dateFrom, initial.dateTo, new Date()));
     }
     this.api.options(this.report()).subscribe({
       next: (options) => {
@@ -353,18 +326,9 @@ export class ExportDrawerComponent implements OnInit {
     }`;
   }
 
-  pickShortcut(id: RangeShortcut): void {
-    this.shortcut.set(id);
-    const range = shortcutRange(id, new Date());
-    if (range) {
-      this.dateFrom.set(range.from);
-      this.dateTo.set(range.to);
-    }
-  }
-
-  setDate(side: 'from' | 'to', value: string): void {
-    (side === 'from' ? this.dateFrom : this.dateTo).set(value);
-    this.shortcut.set('custom');
+  setRange(range: { from: string; to: string }): void {
+    this.dateFrom.set(range.from);
+    this.dateTo.set(range.to);
   }
 
   toggle(target: { (): string[]; update: (fn: (v: string[]) => string[]) => void }, value: string): void {
