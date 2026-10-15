@@ -43,9 +43,11 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
                 <button type="button" (click)="modal.set({ kind: 'create' })" class="glass-btn flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                   <span class="material-symbols-outlined text-[20px]" aria-hidden="true">add</span> Nuevo ítem
                 </button>
-                <button type="button" (click)="modal.set({ kind: 'import' })" class="glass flex items-center gap-1.5 rounded-xl bg-transparent px-4 py-2.5 text-[13px] font-bold !text-brand-accentDeep transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+@if (canImport()) {
+                                <button type="button" (click)="modal.set({ kind: 'import' })" class="glass flex items-center gap-1.5 rounded-xl bg-transparent px-4 py-2.5 text-[13px] font-bold !text-brand-accentDeep transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                   <span class="material-symbols-outlined text-[18px]" aria-hidden="true">upload_file</span> Importar
                 </button>
+                }
               }
             </div>
           </div>
@@ -315,6 +317,7 @@ export class InventoryComponent implements OnInit {
   readonly fmt = money;
   readonly search$ = new Subject<string>();
   readonly canManage = signal(false);
+  readonly canImport = signal(false);
   readonly canConsume = signal(false);
   /** Panel de filtros por rango (stock, precio y fechas): cerrado por defecto para no engordar la barra. */
   readonly advanced = signal(false);
@@ -328,7 +331,8 @@ export class InventoryComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    const [manage, consume] = await Promise.all([this.profile.can('inventory.manage'), this.profile.can('inventory.consume')]);
+    const [manage, consume] = await Promise.all([this.profile.can('inventario:editar'), this.profile.can('inventario:consumir')]);
+    this.canImport.set(await this.profile.can('inventario:importar').catch(() => false));
     this.canManage.set(manage);
     this.canConsume.set(consume);
   }

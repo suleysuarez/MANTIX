@@ -297,7 +297,7 @@ export class PendingRequestsComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    this.canManage.set(await this.profile.can('maintenance.manage'));
+    this.canManage.set(await this.profile.can('solicitudes:editar'));
   }
 
   readonly requestKey = (item: MaintenanceListItem): number => item.id;

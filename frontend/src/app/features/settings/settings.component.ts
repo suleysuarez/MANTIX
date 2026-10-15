@@ -345,7 +345,7 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.loadAll();
-    void this.profile.can('priorities.manage').then((allowed) => this.canManage.set(allowed)).catch(() => this.canManage.set(false));
+    void this.profile.can('configuracion:editar').then((allowed) => this.canManage.set(allowed)).catch(() => this.canManage.set(false));
   }
 
   @HostListener('document:keydown.escape')

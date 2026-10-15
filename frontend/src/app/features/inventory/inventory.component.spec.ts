@@ -75,7 +75,7 @@ describe('InventoryComponent', () => {
 
   const importTemplate = jasmine.createSpy('importTemplate').and.callFake(() => of(new Blob(['xlsx'])));
 
-  async function create(permissions: string[] = ['inventory.manage', 'inventory.consume']) {
+  async function create(permissions: string[] = ['inventario:editar', 'inventario:importar', 'inventario:consumir']) {
     subject = new BehaviorSubject(state());
     store = Object.assign(
       jasmine.createSpyObj('InventoryStore', ['load', 'setView', 'setFilters', 'clearFilters', 'setPage', 'setPeriod', 'select', 'create', 'update', 'remove', 'move', 'importFile', 'createOption']),
@@ -221,14 +221,14 @@ describe('InventoryComponent', () => {
 
   describe('permissions', () => {
     it('shows every action to a manager', async () => {
-      await create(['inventory.manage', 'inventory.consume']);
+      await create(['inventario:editar', 'inventario:importar', 'inventario:consumir']);
       expect(button('Nuevo ítem')).not.toBeNull();
       expect(button('Importar')).not.toBeNull();
       expect(host().querySelector('button[aria-label="Nuevo ítem"]')).not.toBeNull();
     });
 
     it('lets a technician consume but not create, import or enter stock', async () => {
-      await create(['inventory.consume']);
+      await create(['inventario:consumir']);
       expect(button('Nuevo ítem')).toBeNull();
       expect(button('Importar')).toBeNull();
       expect(button('Entrada')).toBeNull();
@@ -490,7 +490,7 @@ describe('InventoryComponent', () => {
   });
 
   it('only offers consumption to someone who cannot manage the inventory', async () => {
-    await create(['inventory.consume']);
+    await create(['inventario:consumir']);
     click(Array.from(host().querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Consumir')!);
     const kinds = Array.from(host().querySelectorAll('form[role="dialog"] [role="group"] button')).map((b) => b.textContent?.trim());
     expect(kinds).toEqual(['Consumo']);

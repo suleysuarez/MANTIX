@@ -492,7 +492,7 @@ export class TechniciansComponent implements OnInit {
       }
     });
     this.store.load();
-    this.canManage.set(await this.profile.can('technicians.manage').catch(() => false));
+    this.canManage.set(await this.profile.can('tecnicos:editar').catch(() => false));
   }
 
   @HostListener('document:keydown.escape')

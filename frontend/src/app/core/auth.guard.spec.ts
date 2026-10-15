@@ -22,7 +22,7 @@ function runAuthorizedGuard(): Promise<unknown> {
 
 function runPermissionGuard(): Promise<unknown> {
   return TestBed.runInInjectionContext(() =>
-    permissionGuard('users.manage')({} as never, {} as never),
+    permissionGuard('usuarios:ver')({} as never, {} as never),
   ) as Promise<unknown>;
 }
 
@@ -107,7 +107,7 @@ describe('permission guard', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
-        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [{ code: 'users.manage' }] }) } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [{ code: 'usuarios:ver' }] }) } },
         { provide: Router, useValue: { createUrlTree: jasmine.createSpy() } },
       ],
     });
