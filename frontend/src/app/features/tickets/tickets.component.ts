@@ -94,10 +94,12 @@ interface TicketsView extends TicketsState {
                 <span class="material-symbols-outlined text-[20px]">add</span> Nuevo ticket
               </button>
             }
+            @if (canExport()) {
             <button type="button" (click)="exportOpen.set(true)" title="Exporta a PDF o Excel con los filtros que quieras"
               class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35">
               <span class="material-symbols-outlined text-[18px]" aria-hidden="true">file_download</span> Exportar
             </button>
+            }
           </div>
         </header>
 
@@ -506,6 +508,7 @@ export class TicketsComponent implements OnInit {
   readonly titleLength = signal(0);
   readonly createError = signal('');
   readonly canCreate = signal(false);
+  readonly canExport = signal(false);
   readonly canManage = signal(false);
   /** El ticket abierto vive en `?ticket=ID`, así el enlace al detalle se puede compartir. */
   readonly selectedId = toSignal(
@@ -608,6 +611,7 @@ export class TicketsComponent implements OnInit {
       this.store.setFilters({ status });
     }
     this.canCreate.set(await this.permissions.can('solicitudes:crear'));
+    this.canExport.set(await this.permissions.can('tickets:exportar'));
     if (this.preselectedEquipmentId && this.canCreate()) {
       this.createOpen.set(true);
     }

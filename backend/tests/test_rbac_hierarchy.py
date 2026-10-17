@@ -192,8 +192,8 @@ def test_every_permission_is_granted_to_somebody():
     assert granted == CATALOG_SET
 
 
-def test_the_chain_is_solicitante_tecnico_supervisor_administrador():
-    assert ROLE_PARENTS[TECHNICIAN] == EMPLOYEE
+def test_the_chain_is_tecnico_supervisor_administrador_and_the_solicitante_is_apart():
+    assert ROLE_PARENTS[TECHNICIAN] is None  # a technician does not file requests
     assert ROLE_PARENTS[SUPERVISOR] == TECHNICIAN
     assert ROLE_PARENTS[ADMIN] == SUPERVISOR
     assert ROLE_PARENTS[EMPLOYEE] is None and ROLE_PARENTS[AUDITOR] is None
@@ -238,10 +238,11 @@ def test_the_solicitante_only_creates_and_sees_what_is_theirs():
 def test_the_tecnico_works_assigned_tickets_but_does_not_assign_or_see_all():
     mine = effective_by_role()[TECHNICIAN]
     assert {
-        "solicitudes:crear",
         "tickets:ver_asignados",
         "tickets:cambiar_estado",
+        "tickets:exportar",
     } <= mine
+    assert "solicitudes:crear" not in mine and "tecnicos:ver" not in mine
     assert {"inventario:consumir", "equipos:ver", "mantenimiento:ver"} <= mine
     assert mine.isdisjoint({"tickets:asignar", "tickets:ver_todos", "inventario:crear"})
 
@@ -434,7 +435,10 @@ async def test_a_user_with_the_tecnico_role_gets_the_solicitante_permissions(
     loaded = await AuthRepository(migrated_session).get_user_by_email(user.email)
     assert loaded is not None
     context = AuthContext.from_user(loaded)
-    assert "solicitudes:crear" in context.permissions  # inherited from Solicitante
+    assert (
+        "solicitudes:crear" not in context.permissions
+    )  # a technician does not create tickets
+    assert "tickets:ver" in context.permissions  # its own copy of the basics
     assert "tickets:cambiar_estado" in context.permissions  # its own
     assert "usuarios:asignar" not in context.permissions
 

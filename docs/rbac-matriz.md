@@ -10,28 +10,28 @@ Alcance de datos: `ver` = solo lo propio, `ver_asignados` = lo asignado a la per
 
 | Permiso | Código | Solicitante | Técnico | Supervisor | Administrador | Auditor |
 |---|---|:-:|:-:|:-:|:-:|:-:|
-| Dashboard · Ver | `dashboard:ver` | ● | ○ | ○ | ○ | ● |
+| Dashboard · Ver | `dashboard:ver` | ● | ● | ○ | ○ | ● |
 | Dashboard · Ver todo | `dashboard:ver_todos` |  |  | ● | ○ | ● |
-| Equipos · Ver | `equipos:ver` | ● | ○ | ○ | ○ |  |
+| Equipos · Ver | `equipos:ver` | ● | ● | ○ | ○ |  |
 | Equipos · Crear | `equipos:crear` |  |  | ● | ○ |  |
 | Equipos · Editar | `equipos:editar` |  |  | ● | ○ |  |
 | Equipos · Asignar | `equipos:asignar` |  |  | ● | ○ |  |
 | Equipos · Adjuntar archivos | `equipos:adjuntar` |  |  | ● | ○ |  |
 | Equipos · Exportar | `equipos:exportar` |  |  | ● | ○ |  |
 | Equipos · Importar | `equipos:importar` |  |  |  | ● |  |
-| Solicitudes · Ver | `solicitudes:ver` | ● | ○ | ○ | ○ |  |
+| Solicitudes · Ver | `solicitudes:ver` | ● |  | ● | ○ |  |
 | Solicitudes · Ver todo | `solicitudes:ver_todos` |  |  | ● | ○ |  |
-| Solicitudes · Crear | `solicitudes:crear` | ● | ○ | ○ | ○ |  |
+| Solicitudes · Crear | `solicitudes:crear` | ● |  | ● | ○ |  |
 | Solicitudes · Editar | `solicitudes:editar` |  |  | ● | ○ |  |
 | Solicitudes · Aprobar o rechazar | `solicitudes:aprobar` |  |  | ● | ○ |  |
-| Tickets · Ver | `tickets:ver` | ● | ○ | ○ | ○ |  |
+| Tickets · Ver | `tickets:ver` | ● | ● | ○ | ○ |  |
 | Tickets · Ver lo asignado | `tickets:ver_asignados` |  | ● | ○ | ○ |  |
 | Tickets · Ver todo | `tickets:ver_todos` |  |  | ● | ○ |  |
 | Tickets · Editar | `tickets:editar` |  | ● | ○ | ○ |  |
 | Tickets · Asignar | `tickets:asignar` |  |  | ● | ○ |  |
 | Tickets · Cambiar estado | `tickets:cambiar_estado` |  | ● | ○ | ○ |  |
-| Tickets · Adjuntar archivos | `tickets:adjuntar` | ● | ○ | ○ | ○ |  |
-| Tickets · Exportar | `tickets:exportar` |  |  | ● | ○ |  |
+| Tickets · Adjuntar archivos | `tickets:adjuntar` | ● | ● | ○ | ○ |  |
+| Tickets · Exportar | `tickets:exportar` |  | ● | ● | ○ |  |
 | Técnicos · Ver | `tecnicos:ver` |  |  | ● | ○ |  |
 | Técnicos · Crear | `tecnicos:crear` |  |  | ● | ○ |  |
 | Técnicos · Editar | `tecnicos:editar` |  |  | ● | ○ |  |
@@ -53,8 +53,8 @@ Alcance de datos: `ver` = solo lo propio, `ver_asignados` = lo asignado a la per
 | Usuarios · Editar | `usuarios:editar` |  |  |  | ● |  |
 | Usuarios · Cambiar estado | `usuarios:cambiar_estado` |  |  |  | ● |  |
 | Usuarios · Asignar | `usuarios:asignar` |  |  |  | ● |  |
-| Perfil · Ver | `perfil:ver` | ● | ○ | ○ | ○ | ● |
-| Perfil · Editar | `perfil:editar` | ● | ○ | ○ | ○ | ● |
+| Perfil · Ver | `perfil:ver` | ● | ● | ○ | ○ | ● |
+| Perfil · Editar | `perfil:editar` | ● | ● | ○ | ○ | ● |
 | Configuración · Ver | `configuracion:ver` |  |  |  | ● |  |
 | Configuración · Editar | `configuracion:editar` |  |  |  | ● |  |
 | Auditoría · Ver | `auditoria:ver` |  |  |  | ● | ● |

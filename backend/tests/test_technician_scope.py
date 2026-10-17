@@ -167,3 +167,17 @@ async def test_the_plan_list_and_detail_are_limited_to_the_technician(world):
 def test_the_technician_no_longer_has_the_technicians_list_but_the_supervisor_does():
     assert "tecnicos:ver" not in effective_for_system_roles(TECHNICIAN)
     assert "tecnicos:ver" in effective_for_system_roles(SUPERVISOR)
+
+
+def test_a_technician_exports_tickets_but_cannot_create_them_or_export_other_reports():
+    from types import SimpleNamespace
+
+    from app.core.exceptions import ForbiddenError
+    from app.services.export import ExportService
+
+    tech = AuthContext.for_roles(SimpleNamespace(id=1), TECHNICIAN)
+    service = ExportService(None, None)  # type: ignore[arg-type]
+    assert service.options("tickets", tech).report == "tickets"
+    with pytest.raises(ForbiddenError):
+        service.options("technicians", tech)
+    assert "solicitudes:crear" not in tech.permissions

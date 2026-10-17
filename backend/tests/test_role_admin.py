@@ -47,13 +47,14 @@ async def test_the_roles_screen_shows_hierarchy_and_where_each_permission_comes_
     assert [
         v.depth
         for v in (views[EMPLOYEE], views[TECHNICIAN], views[SUPERVISOR], views[ADMIN])
-    ] == [1, 2, 3, 4]
-    assert views[TECHNICIAN].parent_name == views[EMPLOYEE].name
-    technician = {p.code: p for p in views[TECHNICIAN].effective}
-    assert technician["tickets:ver"].inherited is True
-    assert technician["tickets:ver"].source_role_id == roles[EMPLOYEE].id
+    ] == [1, 1, 2, 3]
+    assert views[TECHNICIAN].parent_name is None  # independent of the requester
+    supervisor = {p.code: p for p in views[SUPERVISOR].effective}
+    assert supervisor["tickets:ver"].inherited is True
+    assert supervisor["tickets:ver"].source_role_id == roles[TECHNICIAN].id
     assert all(p.inherited is False for p in views[EMPLOYEE].effective)
-    assert views[ADMIN].children_count == 0 and views[EMPLOYEE].children_count == 1
+    assert views[ADMIN].children_count == 0 and views[TECHNICIAN].children_count == 1
+    assert views[EMPLOYEE].children_count == 0
 
 
 async def test_a_custom_role_is_created_with_a_parent_and_its_own_grants(world):
@@ -112,7 +113,7 @@ async def test_a_cycle_is_refused(world):
 
 async def test_the_chain_cannot_grow_past_the_limit(world):
     service, admin, roles, *_ = world
-    parent = roles[TECHNICIAN].id  # depth 2
+    parent = roles[SUPERVISOR].id  # depth 2
     for n in range(MAX_DEPTH - 2):
         parent = (
             await service.create_role(
@@ -145,7 +146,7 @@ async def test_moving_a_role_changes_what_it_inherits_and_is_audited(world):
 
 async def test_system_roles_keep_their_place_and_cannot_go(world):
     service, admin, roles, *_ = world
-    tech = roles[TECHNICIAN]
+    tech = roles[SUPERVISOR]
     with pytest.raises(ConflictError, match="base"):
         await service.update_role(
             tech.id, RoleUpdateRequest(parent_role_id=None), admin
@@ -185,22 +186,19 @@ async def test_saving_the_same_permissions_writes_no_audit_entry(world):
     assert len(await audit_actions(session)) == count
 
 
-async def test_changing_a_base_role_never_touches_inheritance_of_others(world):
+async def test_removing_a_grant_from_a_role_reaches_the_roles_that_inherit_it(world):
     service, admin, roles, *_ = world
-    updated = await service.set_permissions(
-        roles[EMPLOYEE].id,
-        RolePermissionsRequest(
-            permissions=[
-                p
-                for p in (await service.list_roles())[0].own_permissions
-                if p != "perfil:ver"
-            ]
-        ),
-        admin,
-    )
-    assert "perfil:ver" not in updated.own_permissions
     views = {v.code: v for v in await service.list_roles()}
-    assert "perfil:ver" not in {p.code for p in views[TECHNICIAN].effective}
+    kept = [
+        p for p in views[TECHNICIAN].own_permissions if p != "tickets:cambiar_estado"
+    ]
+    updated = await service.set_permissions(
+        roles[TECHNICIAN].id, RolePermissionsRequest(permissions=kept), admin
+    )
+    assert "tickets:cambiar_estado" not in updated.own_permissions
+    views = {v.code: v for v in await service.list_roles()}
+    assert "tickets:cambiar_estado" not in {p.code for p in views[SUPERVISOR].effective}
+    assert "tickets:ver" in {p.code for p in views[SUPERVISOR].effective}
 
 
 async def test_administrator_is_untouchable_and_nobody_edits_a_role_they_hold(world):

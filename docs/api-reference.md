@@ -155,9 +155,9 @@
 | POST | `/reports/preview` | Preview a report with its filters | `reportes:ver` |
 | GET | `/reports/summary` | Export the operational summary | `reportes:exportar` |
 | GET | `/reports/tickets` | Export maintenance tickets | `reportes:exportar` |
-| POST | `/reports/{report}/export` | Export a report as PDF or Excel | `reportes:exportar` |
-| POST | `/reports/{report}/export/count` | How many records an export would contain | `reportes:exportar` |
-| GET | `/reports/{report}/export/options` | What a report export offers | `reportes:exportar` |
+| POST | `/reports/{report}/export` | Export a report as PDF or Excel | any signed-in user |
+| POST | `/reports/{report}/export/count` | How many records an export would contain | any signed-in user |
+| GET | `/reports/{report}/export/options` | What a report export offers | any signed-in user |
 
 ### schedules
 
@@ -229,9 +229,9 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 | `equipos:adjuntar` | yes | yes | - | - | - |
 | `equipos:exportar` | yes | yes | - | - | - |
 | `equipos:importar` | yes | - | - | - | - |
-| `solicitudes:ver` | yes | yes | yes | yes | - |
+| `solicitudes:ver` | yes | yes | - | yes | - |
 | `solicitudes:ver_todos` | yes | yes | - | - | - |
-| `solicitudes:crear` | yes | yes | yes | yes | - |
+| `solicitudes:crear` | yes | yes | - | yes | - |
 | `solicitudes:editar` | yes | yes | - | - | - |
 | `solicitudes:aprobar` | yes | yes | - | - | - |
 | `tickets:ver` | yes | yes | yes | yes | - |
@@ -241,7 +241,7 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 | `tickets:asignar` | yes | yes | - | - | - |
 | `tickets:cambiar_estado` | yes | yes | yes | - | - |
 | `tickets:adjuntar` | yes | yes | yes | yes | - |
-| `tickets:exportar` | yes | yes | - | - | - |
+| `tickets:exportar` | yes | yes | yes | - | - |
 | `tecnicos:ver` | yes | yes | - | - | - |
 | `tecnicos:crear` | yes | yes | - | - | - |
 | `tecnicos:editar` | yes | yes | - | - | - |
