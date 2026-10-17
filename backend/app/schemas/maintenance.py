@@ -136,6 +136,8 @@ class WorkflowState(BaseModel):
                 "requires": ["category", "priority"],
                 "terminal": False,
                 "in_queue": True,
+                "permission": "solicitudes:editar",
+                "can_enter": True,
             }
         }
     )
@@ -150,6 +152,14 @@ class WorkflowState(BaseModel):
     in_queue: bool = Field(
         default=False,
         description="True for statuses still waiting for work: the pending-requests columns",
+    )
+    permission: str = Field(
+        default="tickets:cambiar_estado",
+        description="Permission needed to move a ticket INTO this status",
+    )
+    can_enter: bool = Field(
+        default=False,
+        description="Whether the signed-in person holds `permission` (boards grey out the rest)",
     )
 
 
@@ -263,6 +273,13 @@ class MaintenanceRequestListItem(BaseModel):
     category: str | None = None
     status: str
     created_at: datetime
+    can_act: bool = Field(
+        default=False,
+        description=(
+            "Whether the signed-in person may work this ticket: they see every ticket, "
+            "or it is assigned to them. Boards only let these cards be dragged."
+        ),
+    )
 
 
 class MaintenanceRequestResponse(BaseModel):

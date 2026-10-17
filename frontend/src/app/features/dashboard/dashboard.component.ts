@@ -3,9 +3,11 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { RouterLink } from '@angular/router';
 
 import { Period, TrendsResponse } from '../../core/dashboard-kpis.service';
-import { DashboardState, DashboardStore } from '../../core/dashboard.store';
+import { DashboardMode, DashboardState, DashboardStore } from '../../core/dashboard.store';
 import { formatDate } from '../../core/equipment-status';
 import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
+import { priorityMeta, statusMeta } from '../tickets/ticket-ui';
 import {
   bucketLabel,
   changeTone,
@@ -107,13 +109,64 @@ export interface ChartBar {
           </div>
         </div>
 
-        @if (!state.loading && !state.kpis) {
+        @if (!state.loading && !state.kpis && mode() !== 'requester') {
           <p role="alert" class="rounded-xl bg-[#FEF3C7] px-4 py-3 text-[13px] font-medium text-[#92400E]">
             No se pudieron cargar los indicadores. Revisa tu conexión o tus permisos e inténtalo de nuevo.
             <button type="button" (click)="reload()" class="ml-2 bg-transparent p-0 font-bold underline">Reintentar</button>
           </p>
         }
 
+        <!-- Quien solo ve lo que pidió: el estado de sus solicitudes -->
+        @if (mode() === 'requester') {
+          <section class="grid grid-cols-1 gap-3 lg:grid-cols-3" aria-label="Mis solicitudes">
+            @let mine = state.mine;
+            @if (mine) {
+              <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
+                <div>
+                  <h2 class="text-[15px] font-bold">Mis solicitudes por estado</h2>
+                  <p class="text-[11px] text-[#64748B]">{{ mine.tickets.total }} en total · {{ mine.tickets.open }} abiertas@if (mine.tickets.overdue > 0) { · {{ mine.tickets.overdue }} fuera de plazo }</p>
+                </div>
+                @if (mine.tickets.by_status.length) {
+                  <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    @for (item of mine.tickets.by_status; track item.key) {
+                      <li class="flex items-center justify-between gap-2 rounded-xl bg-[#F8FAFC] px-3 py-2.5">
+                        <span class="flex min-w-0 items-center gap-2 text-[12px] font-semibold"><span [class]="'h-2 w-2 shrink-0 rounded-full ' + statusDot(item.key)" aria-hidden="true"></span><span class="truncate">{{ statusLabel(item.key) }}</span></span>
+                        <span class="text-[18px] font-extrabold text-[#0b1f3a]">{{ item.count }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="rounded-[14px] bg-[#F8FAFC] px-3 py-8 text-center text-[13px] text-[#64748B]">Aún no has creado solicitudes. Cuando reportes un problema, aquí verás cómo avanza.</p>
+                }
+              </div>
+              <div [class]="card + ' flex flex-col gap-3'">
+                <div>
+                  <h2 class="text-[15px] font-bold">Abiertas por prioridad</h2>
+                  <p class="text-[11px] text-[#64748B]">Lo que aún está en curso</p>
+                </div>
+                @if (mine.tickets.open_by_priority.length) {
+                  <ul class="flex flex-col gap-2">
+                    @for (item of mine.tickets.open_by_priority; track item.key) {
+                      <li class="flex items-center justify-between rounded-xl bg-[#F8FAFC] px-3 py-2.5 text-[13px]"><span class="font-semibold">{{ priorityLabel(item.key) }}</span><span class="font-extrabold text-[#0b1f3a]">{{ item.count }}</span></li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="rounded-[14px] bg-[#F0FDF4] px-3 py-6 text-center text-[12px] text-[#047857]">No tienes solicitudes abiertas.</p>
+                }
+                <a routerLink="/tickets" [class]="'mt-auto text-center text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver mis tickets</a>
+              </div>
+            } @else if (state.loading) {
+              <div class="h-40 animate-pulse rounded-[18px] bg-white motion-reduce:animate-none lg:col-span-3" role="status" aria-label="Cargando tus solicitudes"></div>
+            } @else {
+              <p role="alert" class="rounded-xl bg-[#FEF3C7] px-4 py-3 text-[13px] font-medium text-[#92400E] lg:col-span-3">
+                No se pudo cargar el estado de tus solicitudes.
+                <button type="button" (click)="reload()" class="ml-2 bg-transparent p-0 font-bold underline">Reintentar</button>
+              </p>
+            }
+          </section>
+        }
+
+        @if (mode() !== 'requester') {
         <!-- 4 KPI -->
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores clave">
           @let k = state.kpis;
@@ -163,7 +216,7 @@ export interface ChartBar {
 
         <!-- Gráficos -->
         <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <div [class]="card + ' flex flex-col gap-3 lg:col-span-2'">
+          <div [class]="card + ' flex flex-col gap-3 ' + (mode() === 'global' ? 'lg:col-span-2' : 'lg:col-span-3')">
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 class="text-[15px] font-bold">Tickets creados y resueltos</h2>
@@ -207,6 +260,7 @@ export interface ChartBar {
             }
           </div>
 
+          @if (mode() === 'global') {
           <div [class]="card + ' flex flex-col gap-3'">
             <div>
               <h2 class="text-[15px] font-bold">Equipos con más incidencias</h2>
@@ -235,13 +289,14 @@ export interface ChartBar {
               </p>
             }
           </div>
+          }
         </section>
 
         <section class="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div [class]="card + ' flex flex-col gap-3 lg:col-span-3'">
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h2 class="text-[15px] font-bold">Rendimiento del equipo técnico</h2>
+                <h2 class="text-[15px] font-bold">{{ mode() === 'technician' ? 'Mi carga y mi rendimiento' : 'Rendimiento del equipo técnico' }}</h2>
                 <p class="text-[11px] text-[#64748B]">{{ periodCaption(state.period) }} · ordenado por tickets abiertos (carga), no por desempeño</p>
               </div>
               <a routerLink="/technicians" [class]="'shrink-0 text-[12px] font-medium !text-[#2563EB] hover:underline ' + focus">Ver técnicos</a>
@@ -373,6 +428,8 @@ export interface ChartBar {
           </div>
         </section>
 
+        }
+
         <footer class="flex items-center justify-between gap-3 text-[11px] text-[#64748B]">
           <span class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[18px]">shield</span>
@@ -412,6 +469,7 @@ export interface ChartBar {
 export class DashboardComponent implements OnInit {
   private readonly store = inject(DashboardStore);
   private readonly profileService = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
 
   readonly state$ = this.store.state$;
   readonly card = CARD;
@@ -421,6 +479,11 @@ export class DashboardComponent implements OnInit {
   readonly chartW = CHART_W;
   readonly chartH = CHART_H;
   readonly userName = signal('');
+  /** Qué parte del dashboard corresponde a la persona (según sus permisos, no su nombre de rol). */
+  readonly mode = signal<DashboardMode>('global');
+  readonly statusLabel = (status: string): string => statusMeta(status).label;
+  readonly statusDot = (status: string): string => statusMeta(status).dot;
+  readonly priorityLabel = (priority: string): string => priorityMeta(priority).label;
 
   readonly pct = formatPct;
   readonly hours = formatHours;
@@ -432,7 +495,16 @@ export class DashboardComponent implements OnInit {
   readonly date = formatDate;
 
   async ngOnInit(): Promise<void> {
-    this.store.load();
+    await this.permissions.load();
+    // Quien ve toda la operación, quien trabaja lo asignado, o quien solo ve lo que pidió.
+    this.mode.set(
+      this.permissions.has('dashboard:ver_todos')
+        ? 'global'
+        : this.permissions.has('tickets:ver_asignados')
+          ? 'technician'
+          : 'requester',
+    );
+    this.store.load(undefined, this.mode());
     this.userName.set((await this.profileService.getProfile()).full_name);
   }
 

@@ -7,6 +7,7 @@ import { initials } from '../../core/equipment-status';
 import { LocalProfileService } from '../../core/local-profile.service';
 import { ManagedAccount } from '../../core/users.service';
 import { USERS_PAGE_SIZE, UsersState, UsersStore } from '../../core/users.store';
+import { RequiresPermissionDirective } from '../../shared/requires-permission.directive';
 import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 import { PaginationComponent } from '../../shared/pagination.component';
 import { ToastHostComponent } from '../../shared/toast-host.component';
@@ -34,7 +35,7 @@ type Modal =
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, DateRangeFilterComponent, PaginationComponent, ToastHostComponent, ExportDrawerComponent, UserFormModalComponent, PasswordModalComponent],
+  imports: [AsyncPipe, DatePipe, RequiresPermissionDirective, DateRangeFilterComponent, PaginationComponent, ToastHostComponent, ExportDrawerComponent, UserFormModalComponent, PasswordModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (vm$ | async; as vm) {
@@ -49,7 +50,7 @@ type Modal =
               <p class="max-w-xl text-[13px] leading-snug text-brand-grey">Registra a las personas, define qué puede hacer cada una y desactiva las cuentas que ya no deben entrar.</p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
-              <button type="button" (click)="modal.set({ kind: 'create' })" class="glass-btn flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              <button type="button" [requiresPermission]="'usuarios:crear'" (click)="modal.set({ kind: 'create' })" class="glass-btn flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                 <span class="material-symbols-outlined text-[20px]" aria-hidden="true">person_add</span> Nuevo usuario
               </button>
               <button type="button" (click)="exportOpen.set(true)" class="glass flex items-center gap-1.5 rounded-xl bg-transparent px-4 py-2.5 text-[13px] font-bold !text-brand-accentDeep transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
@@ -196,14 +197,14 @@ type Modal =
                       <td class="px-3 py-2 font-mono text-[12px] text-on-surface-variant">{{ u.created_at | date: 'dd/MM/yyyy' }}</td>
                       <td class="px-3 py-2">
                         <div class="flex justify-end gap-1">
-                          <button type="button" [class]="iconButton" [attr.aria-label]="'Editar a ' + u.full_name" title="Editar" (click)="modal.set({ kind: 'edit', user: u })">
+                          <button type="button" [class]="iconButton" [requiresPermission]="'usuarios:editar'" [attr.aria-label]="'Editar a ' + u.full_name" title="Editar" (click)="modal.set({ kind: 'edit', user: u })">
                             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
                           </button>
-                          <button type="button" [class]="iconButton" [attr.aria-label]="'Restablecer la contraseña de ' + u.full_name" title="Restablecer contraseña"
+                          <button type="button" [class]="iconButton" [requiresPermission]="'usuarios:editar'" [attr.aria-label]="'Restablecer la contraseña de ' + u.full_name" title="Restablecer contraseña"
                             [disabled]="!canReset(u)" (click)="modal.set({ kind: 'password', user: u })">
                             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">key</span>
                           </button>
-                          <button type="button" [class]="iconButton" [disabled]="isSelf(u)"
+                          <button type="button" [class]="iconButton" [requiresPermission]="'usuarios:cambiar_estado'" [disabled]="isSelf(u)"
                             [attr.aria-label]="(u.is_active ? 'Desactivar a ' : 'Activar a ') + u.full_name" [title]="isSelf(u) ? 'No puedes desactivar tu propia cuenta' : u.is_active ? 'Desactivar' : 'Activar'"
                             (click)="u.is_active ? modal.set({ kind: 'toggle', user: u }) : activate(u)">
                             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ u.is_active ? 'person_off' : 'person_check' }}</span>

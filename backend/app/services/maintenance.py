@@ -109,8 +109,9 @@ class MaintenanceService:
             raise UnprocessableError("date_from must not be after date_to")
         if date_from is not None and date_from > datetime.now(UTC):
             raise UnprocessableError("date_from cannot be in the future")
+        scope = await self.repository.scope_for(actor)
         page = await self.repository.list_requests(
-            scope=await self.repository.scope_for(actor),
+            scope=scope,
             status=status,
             priority=priority,
             category=category,
@@ -121,7 +122,20 @@ class MaintenanceService:
             date_to=date_to,
             params=params,
         )
-        return page.map(MaintenanceRequestListItem.model_validate)
+        # Which cards the person may work (drag on a board): all of them for someone who sees
+        # everything, otherwise those assigned to them.
+        assigned: set[int] = set()
+        if not scope.sees_everything and scope.technician_id is not None:
+            assigned = await self.repository.assigned_among(
+                scope.technician_id, [item.id for item in page.items]
+            )
+
+        def to_item(request: MaintenanceRequest) -> MaintenanceRequestListItem:
+            item = MaintenanceRequestListItem.model_validate(request)
+            item.can_act = scope.sees_everything or request.id in assigned
+            return item
+
+        return page.map(to_item)
 
     async def ensure_can_view(self, request_id: int, actor: AuthContext) -> None:
         """Raise unless `actor` may see the ticket (404 if it does not exist)."""

@@ -647,3 +647,40 @@ def test_the_published_permission_table_is_up_to_date():
     assert OUTPUT.read_text(encoding="utf-8") == build_markdown(), (
         "docs/rbac-matriz.md is stale: run `python -m scripts.rbac_matrix`"
     )
+
+
+async def test_assigned_among_returns_only_current_assignments_of_that_technician(
+    db_session,
+):
+    ana, eva, tec = await seed_tickets(db_session)
+    repo = MaintenanceRepository(db_session)
+    technician = await repo.get_technician_by_user_id(tec.id)
+    assert technician is not None
+    page = await repo.list_requests(scope=DataScope.everything())
+    ids = {r.ticket_number: r.id for r in page.items}
+
+    assigned = await repo.assigned_among(technician.id, list(ids.values()))
+
+    assert assigned == {ids["T-WORK"]}  # T-OLD was unassigned
+    assert await repo.assigned_among(technician.id, []) == set()
+    assert await repo.assigned_among(technician.id + 999, list(ids.values())) == set()
+
+
+async def test_the_dashboard_counts_only_what_a_requester_asked_for(db_session):
+    from app.repositories.dashboard import DashboardRepository
+
+    ana, eva, _tec = await seed_tickets(db_session)
+    repo = DashboardRepository(db_session)
+
+    everything = await repo.tickets_by_status()
+    mine = await repo.tickets_by_status(requester_id=ana.id)
+    eva_open = await repo.tickets_by_priority(requester_id=eva.id)
+
+    assert sum(row.count for row in everything) == 4
+    assert [(row.key, row.count) for row in mine] == [("submitted", 1)]
+    assert [(row.key, row.count) for row in eva_open] == [("low", 3)]
+    assert await repo.count_overdue(NOW_UTC, requester_id=ana.id) == 0
+    stats = await repo.resolution_stats(
+        date_from=NOW_UTC - timedelta(days=30), requester_id=ana.id
+    )
+    assert stats[0].resolved_count == 0

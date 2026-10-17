@@ -37,7 +37,7 @@ router = APIRouter(prefix="/maintenance/requests", tags=["maintenance"])
     ),
 )
 async def ticket_workflow(
-    _: AuthContext = Depends(require_permission("tickets:ver")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("tickets:ver")),  # noqa: B008
 ) -> list[WorkflowState]:
     return [
         WorkflowState(
@@ -47,6 +47,8 @@ async def ticket_workflow(
             requires=list(state.requires),
             terminal=state.is_terminal,
             in_queue=state.in_queue,
+            permission=state.permission,
+            can_enter=actor.has_permission(state.permission),
         )
         for state in TicketState.workflow()
     ]

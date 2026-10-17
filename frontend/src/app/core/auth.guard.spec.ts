@@ -128,6 +128,23 @@ describe('permission guard', () => {
   });
 });
 
+describe('permission guard with a role but without the permission', () => {
+  it('sends the person to the friendly 403 and tells it what was missing', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/acceso-denegado');
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ roles: [{ code: 'EMPLOYEE' }], permissions: [{ code: 'tickets:ver' }] }) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+
+    await TestBed.runInInjectionContext(() => permissionGuard('usuarios:ver')({} as never, {} as never));
+
+    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado'], { queryParams: { requiere: 'usuarios:ver' } });
+  });
+});
+
 describe('Clerk auth interceptor', () => {
   it('attaches only the Clerk session token to FastAPI requests', (done) => {
     TestBed.configureTestingModule({
@@ -186,7 +203,7 @@ describe('403 instead of silence', () => {
     const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/acceso-denegado');
     setup(createUrlTree, { roles: [{ code: 'TECHNICIAN' }], permissions: [] });
     await runPermissionGuard();
-    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado']);
+    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado'], { queryParams: { requiere: 'usuarios:ver' } });
   });
 
   it('sends a user with the permission but the wrong role to the 403 page', async () => {

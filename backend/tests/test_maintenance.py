@@ -142,6 +142,17 @@ class FakeMaintenanceRepository:
 
     visible_to = staticmethod(MaintenanceRepository.visible_to)
 
+    async def assigned_among(self, technician_id, request_ids):
+        return {
+            r.id
+            for r in self.requests.values()
+            if r.id in request_ids
+            and any(
+                x.technician_id == technician_id and x.unassigned_at is None
+                for x in r.ticket_assignments
+            )
+        }
+
     async def list_requests(
         self,
         *,
@@ -516,3 +527,50 @@ async def test_only_whoever_assigns_may_assign_or_reassign():
     supervisor = make_actor(1, role_codes=("SUPERVISOR",))
     assigned = await service.assign_technician(created.id, body, supervisor)
     assert assigned.status == "assigned"
+
+
+# -- which cards a person may work (drag on a board) -------------------------------------------
+
+
+async def list_for(service, actor):
+    result = await service.list_requests(
+        status=None, priority=None, equipment_id=None, actor=actor
+    )
+    return {item.ticket_number: item.can_act for item in result.items}
+
+
+@pytest.mark.asyncio
+async def test_a_supervisor_may_work_every_card():
+    service = service_with_fakes()
+    first = await create_ticket(service, requester_id=100)
+    second = await create_ticket(service, requester_id=200)
+    marks = await list_for(service, make_actor(1, role_codes=("SUPERVISOR",)))
+    assert marks == {first.ticket_number: True, second.ticket_number: True}
+
+
+@pytest.mark.asyncio
+async def test_a_technician_may_work_only_what_is_assigned_to_them():
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    mine = await create_ticket(service, requester_id=100)
+    other = await create_ticket(service, requester_id=100)
+    await service.assign_technician(
+        mine.id,
+        TicketAssignmentCreateRequest(technician_id=1),
+        make_actor(1, role_codes=("SUPERVISOR",)),
+    )
+    marks = await list_for(service, make_actor(10, role_codes=("TECHNICIAN",)))
+    # They see their own request too, but cannot work it unless it is assigned to them.
+    assert marks == {mine.ticket_number: True}
+    assert (
+        other.ticket_number not in marks
+    )  # not requested by them, not assigned: invisible
+
+
+@pytest.mark.asyncio
+async def test_a_requester_sees_their_cards_but_cannot_work_them():
+    service = service_with_fakes()
+    own = await create_ticket(service, requester_id=100)
+    await create_ticket(service, requester_id=200)
+    marks = await list_for(service, make_actor(100))
+    assert marks == {own.ticket_number: False}

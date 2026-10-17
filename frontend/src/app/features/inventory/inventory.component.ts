@@ -5,7 +5,7 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
 import { InventoryItem, MovementKind } from '../../core/inventory.service';
 import { InventoryState, InventoryStore, PAGE_SIZE } from '../../core/inventory.store';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { ImportModalComponent } from './import-modal.component';
 import { InventoryInsightsComponent } from './inventory-insights.component';
@@ -293,7 +293,7 @@ type Modal = { kind: 'create' } | { kind: 'edit' } | { kind: 'move'; move: Movem
 })
 export class InventoryComponent implements OnInit {
   readonly store = inject(InventoryStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly vm$ = this.store.state$;
@@ -331,8 +331,8 @@ export class InventoryComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    const [manage, consume] = await Promise.all([this.profile.can('inventario:editar'), this.profile.can('inventario:consumir')]);
-    this.canImport.set(await this.profile.can('inventario:importar').catch(() => false));
+    const [manage, consume] = await Promise.all([this.permissions.can('inventario:editar'), this.permissions.can('inventario:consumir')]);
+    this.canImport.set(await this.permissions.can('inventario:importar').catch(() => false));
     this.canManage.set(manage);
     this.canConsume.set(consume);
   }

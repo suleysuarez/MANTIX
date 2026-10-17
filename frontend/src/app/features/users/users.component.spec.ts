@@ -1,8 +1,10 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
 
 import { ExportService } from '../../core/export.service';
 import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { ManagedAccount } from '../../core/users.service';
 import { EMPTY_USER_FILTERS, UsersState, UsersStore } from '../../core/users.store';
 import { UsersComponent } from './users.component';
@@ -24,6 +26,12 @@ const state = (users: ManagedAccount[]): UsersState => ({
   summaryLoading: false, busy: false,
 });
 
+/** Quien administra usuarios: todos los permisos que las acciones de la pantalla piden. */
+function everything() {
+  const codes = new Set(['usuarios:ver', 'usuarios:crear', 'usuarios:editar', 'usuarios:cambiar_estado', 'usuarios:asignar']);
+  return { codes: signal<ReadonlySet<string>>(codes), has: (code: string) => codes.has(code), hasAny: (list: string[]) => list.some((c) => codes.has(c)), hasAll: (list: string[]) => list.every((c) => codes.has(c)), load: () => Promise.resolve() };
+}
+
 describe('UsersComponent', () => {
   let fixture: ComponentFixture<UsersComponent>;
   let store: jasmine.SpyObj<UsersStore>;
@@ -41,6 +49,7 @@ describe('UsersComponent', () => {
       providers: [
         { provide: UsersStore, useValue: store },
         { provide: LocalProfileService, useValue: { getProfile: () => Promise.resolve({ id: selfId }) } },
+        { provide: PermissionsService, useValue: everything() },
         { provide: ExportService, useValue: { options: () => of({ report: 'users', title: 'Usuarios', columns: [], formats: ['pdf', 'xlsx'], max_rows: 10000, warn_rows: 2000, max_range_days: 366 }), count: () => of({ total: 3, max_rows: 10000, warn_rows: 2000, over_limit: false, large: false }), export: () => of() } },
       ],
     });

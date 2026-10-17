@@ -9,13 +9,13 @@ import {
   PendingRequestsStore,
   isColumnHidden,
 } from '../../core/pending-requests.store';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { MaintenanceListItem } from '../../core/maintenance.service';
 import { ToastHostComponent } from '../../shared/toast-host.component';
 import { changeTone, formatChange, formatPct } from '../dashboard/dashboard-format';
 import { KanbanBoardComponent, KanbanCardDirective, KanbanColumn, KanbanMove, KanbanOutcome } from '../kanban/kanban-board.component';
 import { Choice, TransitionDialogComponent } from '../kanban/transition-dialog.component';
-import { TransitionFlow } from '../kanban/transition-flow';
+import { TransitionFlow, allowedTargets, permissionBlock } from '../kanban/transition-flow';
 import { statusMeta } from '../tickets/ticket-ui';
 import {
   WAIT_CLASSES, categoryLabel, columnText, formatWait, priorityTag, share, waitHours, waitTone,
@@ -265,7 +265,7 @@ export class PendingRequestsComponent implements OnInit {
   readonly store = inject(PendingRequestsStore);
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
 
   readonly vm$ = this.store.state$;
   private readonly state = toSignal(this.store.state$, { initialValue: null });
@@ -297,7 +297,7 @@ export class PendingRequestsComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    this.canManage.set(await this.profile.can('solicitudes:editar'));
+    this.canManage.set(await this.permissions.can('solicitudes:editar'));
   }
 
   readonly requestKey = (item: MaintenanceListItem): number => item.id;
@@ -331,10 +331,13 @@ export class PendingRequestsComponent implements OnInit {
   }
 
   /** Pasos válidos desde cada estado, tal como los define el State Pattern del servidor. */
-  readonly validTargets = (_item: MaintenanceListItem, from: string): string[] =>
-    this.state()?.workflow.find((state) => state.status === from)?.allowed_targets ?? [];
+  readonly validTargets = (item: MaintenanceListItem, from: string): string[] => allowedTargets(item, from, this.state()?.workflow ?? []);
 
   readonly invalidMove = (move: KanbanMove<MaintenanceListItem>, allowed: string[]): string => {
+    const blocked = permissionBlock(move.item, move.to, this.state()?.workflow ?? [], (status) => columnText(status).title);
+    if (blocked) {
+      return blocked;
+    }
     const label = (status: string): string => `«${columnText(status).title}»`;
     const next = allowed.length ? ` Desde ahí solo puede ir a ${allowed.map(label).join(', ')}.` : ' Ese estado es final.';
     return `No se puede pasar ${move.item.ticket_number} de ${label(move.from)} a ${label(move.to)}.${next}`;
