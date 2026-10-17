@@ -652,7 +652,7 @@ def test_the_published_permission_table_is_up_to_date():
 async def test_assigned_among_returns_only_current_assignments_of_that_technician(
     db_session,
 ):
-    ana, eva, tec = await seed_tickets(db_session)
+    _ana, _eva, tec = await seed_tickets(db_session)
     repo = MaintenanceRepository(db_session)
     technician = await repo.get_technician_by_user_id(tec.id)
     assert technician is not None

@@ -20,6 +20,18 @@ ReportKey = Literal[
     "inventory_items",
     "inventory_movements",
 ]
+#: Everything that can be exported and therefore appears in the history: the builder reports plus
+#: the technician roster and the user list, which have their own export.
+RunReportKey = Literal[
+    "equipment",
+    "tickets",
+    "summary",
+    "maintenance_plans",
+    "inventory_items",
+    "inventory_movements",
+    "technicians",
+    "users",
+]
 ExportFormat = Literal["csv", "xlsx", "pdf"]
 
 #: Longest date range a report may cover, and how many values a multi-select takes.
@@ -166,13 +178,13 @@ class ReportPreview(BaseModel):
 
 
 class UsedReport(BaseModel):
-    report: ReportKey
+    report: RunReportKey
     title: str
     count: int
 
 
 class LastExport(BaseModel):
-    report: ReportKey
+    report: RunReportKey
     title: str
     export_format: ExportFormat
     row_count: int
@@ -197,7 +209,7 @@ class ReportsOverview(BaseModel):
 
 class ReportRunResponse(BaseModel):
     id: int
-    report: ReportKey
+    report: RunReportKey
     title: str
     export_format: ExportFormat
     row_count: int

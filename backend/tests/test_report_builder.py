@@ -528,6 +528,26 @@ async def test_history_pages_through_the_runs():
     ].filters == {"statuses": ["closed"]}
 
 
+async def test_history_reads_the_exports_that_are_not_builder_reports():
+    """The technician roster and the user list export too; their runs must not break the history."""
+    svc = service()
+    svc.repository.recent_runs = lambda **_: _runs(
+        [
+            RunRow(1, "technicians", "pdf", 3, {}, "Ana", NOW),
+            RunRow(2, "users", "xlsx", 13, {}, "Ana", NOW),
+        ]
+    )
+    page = await svc.history(page=1, size=10)
+    assert [(item.report, item.title) for item in page.items] == [
+        ("technicians", "Técnicos"),
+        ("users", "Usuarios"),
+    ]
+
+
+async def _runs(rows):
+    return rows
+
+
 # -- HTTP -----------------------------------------------------------------------------------
 
 
