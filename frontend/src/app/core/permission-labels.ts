@@ -44,3 +44,13 @@ export function requiresText(codes: string | readonly string[]): string {
   const list = typeof codes === 'string' ? [codes] : codes;
   return `Requiere permiso de ${list.map(permissionLabel).join(' o ')}`;
 }
+
+/** «tickets» → «Tickets»; un recurso desconocido se muestra tal cual. */
+export function resourceLabel(resource: string): string {
+  return RESOURCES[resource] ?? resource;
+}
+
+/** «cambiar_estado» → «cambiar el estado»; una acción desconocida se muestra tal cual. */
+export function actionLabel(action: string): string {
+  return ACTIONS[action] ?? action;
+}

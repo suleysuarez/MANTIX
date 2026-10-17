@@ -10,6 +10,7 @@ import { DashboardComponent } from './features/dashboard/dashboard.component';
 import { ForbiddenComponent } from './features/errors/forbidden.component';
 import { InventoryComponent } from './features/inventory/inventory.component';
 import { MaintenanceHubComponent } from './features/maintenance-hub/maintenance-hub.component';
+import { RolesComponent } from './features/roles/roles.component';
 import { PendingRequestsComponent } from './features/pending-requests/pending-requests.component';
 import { ReportsComponent } from './features/reports/reports.component';
 import { SettingsComponent } from './features/settings/settings.component';
@@ -32,6 +33,7 @@ const EXPECTED: Record<string, unknown> = {
   '/inventario': InventoryComponent,
   '/reportes': ReportsComponent,
   '/usuarios': UsersComponent,
+  '/roles': RolesComponent,
   '/admin/pending-users': PendingUsersComponent,
   '/configuracion': SettingsComponent,
 };

@@ -55,6 +55,7 @@ from app.services.queue import QueueService
 from app.services.reminders import ReminderService
 from app.services.report import ReportService
 from app.services.report_builder import ReportBuilderService
+from app.services.role_admin import RoleAdminService
 from app.services.schedule import ScheduleService
 from app.services.settings import SystemSettingsService
 from app.services.technician import TechnicianService
@@ -232,6 +233,13 @@ def get_admin_user_service(
     notifications: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> AdminUserService:
     return AdminUserService(repository, audit, notifications)
+
+
+def get_role_admin_service(
+    repository: Annotated[AdminRepository, Depends(get_admin_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> RoleAdminService:
+    return RoleAdminService(repository, audit)
 
 
 def get_user_management_repository(

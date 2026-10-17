@@ -35,3 +35,10 @@ describe('visibleNavItems by permission (never by role name)', () => {
     expect(visibleNavItems([], ['SUPERVISOR']).map((item) => item.path)).not.toContain('/solicitudes');
   });
 });
+
+describe('visibleNavItems: roles and permissions screen', () => {
+  it('is only for whoever may assign roles', () => {
+    expect(visibleNavItems(['usuarios:ver', 'usuarios:editar']).map((item) => item.path)).not.toContain('/roles');
+    expect(visibleNavItems(['usuarios:asignar']).map((item) => item.path)).toContain('/roles');
+  });
+});
