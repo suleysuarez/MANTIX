@@ -76,7 +76,9 @@ async def test_user_search_filters_sorts_and_paginates(db_session):
     assert [u.id for u in (await repo.search(is_active=False)).items] == [luis.id]
     assert (await repo.search(search="gómez")).total == 1
     assert (await repo.search(search="E-1")).total == 1
-    assert (await repo.search(created_from=NOW + timedelta(days=1))).total == 0
+    # accounts get the database clock as creation time, so "tomorrow" is relative to the real now
+    tomorrow = datetime.now(UTC) + timedelta(days=1)
+    assert (await repo.search(created_from=tomorrow)).total == 0
 
     page = await repo.search(params=PageParams(page=2, size=2, sort="name"))
     assert page.total == 3 and [u.id for u in page.items] == [luis.id]
