@@ -749,10 +749,11 @@ async def test_preventive_schedule_reminds_once_and_rearms_on_completion(api):
         again["reminders_sent"] == 1
     )  # new date, reminder re-armed (goes to the creator)
 
-    listing = await api.get(
-        f"/maintenance/schedules?equipment_id={equipment['id']}", tech
-    )
+    url = f"/maintenance/schedules?equipment_id={equipment['id']}"
+    listing = await api.get(url, admin)
     assert [s["id"] for s in listing.json()] == [schedule_id]
+    # the plan is no longer assigned to the technician, who only sees plans assigned to them
+    assert (await api.get(url, tech)).json() == []
     sent = await api.get("/audit-logs?action=schedule.reminder_sent", admin)
     assert len(sent.json()) == 2 and sent.json()[0]["user"] is None
 

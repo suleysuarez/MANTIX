@@ -75,10 +75,24 @@ def _float(value: Any) -> float | None:
     return float(value) if value is not None else None
 
 
+def _mine(column: Any, technician_id: int | None) -> list[Any]:
+    """Restrict to one technician's work; no technician means no restriction."""
+    return [] if technician_id is None else [column == technician_id]
+
+
 class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
     model = MaintenanceRecord
 
-    async def work_mix(self, *, start: datetime, end: datetime) -> MixRow:
+    async def technician_id_for_user(self, user_id: int) -> int | None:
+        return (
+            await self.session.execute(
+                select(Technician.id).where(Technician.user_id == user_id)
+            )
+        ).scalar_one_or_none()
+
+    async def work_mix(
+        self, *, start: datetime, end: datetime, technician_id: int | None = None
+    ) -> MixRow:
         """Records started in `[start, end)` split into preventive, corrective, other."""
         record = MaintenanceRecord
         in_window = and_(record.started_at >= start, record.started_at < end)
@@ -90,25 +104,36 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                     func.count().filter(
                         record.work_type.not_in(("preventive", "corrective"))
                     ),
-                ).where(in_window)
+                ).where(in_window, *_mine(record.technician_id, technician_id))
             )
         ).one()
         return MixRow(preventive=row[0], corrective=row[1], other=row[2])
 
-    async def costs(self, *, start: datetime, end: datetime) -> CostRow:
+    async def costs(
+        self, *, start: datetime, end: datetime, technician_id: int | None = None
+    ) -> CostRow:
         record = MaintenanceRecord
         row = (
             await self.session.execute(
                 select(
                     func.coalesce(func.sum(record.total_cost), 0),
                     func.count().filter(record.total_cost > 0),
-                ).where(record.started_at >= start, record.started_at < end)
+                ).where(
+                    record.started_at >= start,
+                    record.started_at < end,
+                    *_mine(record.technician_id, technician_id),
+                )
             )
         ).one()
         return CostRow(total=Decimal(row[0] or 0), with_cost=row[1])
 
     async def compliance_weeks(
-        self, *, start: datetime, end: datetime, now: datetime
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        now: datetime,
+        technician_id: int | None = None,
     ) -> list[WeekRow]:
         """Services due per week in the window: those already done (on time or late)
         plus the active plans whose due date passed without being done."""
@@ -120,7 +145,15 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                     func.count(),
                     func.count().filter(ScheduleRun.completed_at <= ScheduleRun.due_at),
                 )
-                .where(ScheduleRun.due_at >= start, ScheduleRun.due_at < end)
+                .join(
+                    MaintenanceSchedule,
+                    MaintenanceSchedule.id == ScheduleRun.schedule_id,
+                )
+                .where(
+                    ScheduleRun.due_at >= start,
+                    ScheduleRun.due_at < end,
+                    *_mine(MaintenanceSchedule.technician_id, technician_id),
+                )
                 .group_by(done_week)
             )
         ).all()
@@ -133,6 +166,7 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                     MaintenanceSchedule.next_due_at >= start,
                     MaintenanceSchedule.next_due_at < end,
                     MaintenanceSchedule.next_due_at < now,
+                    *_mine(MaintenanceSchedule.technician_id, technician_id),
                 )
                 .group_by(overdue_week)
             )
@@ -152,7 +186,9 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
             for w in weeks
         ]
 
-    async def durations(self, *, start: datetime, end: datetime) -> DurationRow:
+    async def durations(
+        self, *, start: datetime, end: datetime, technician_id: int | None = None
+    ) -> DurationRow:
         """Real vs estimated hours of services completed in the window that have both."""
         row = (
             await self.session.execute(
@@ -170,6 +206,7 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                     ScheduleRun.completed_at < end,
                     ScheduleRun.actual_hours.is_not(None),
                     MaintenanceSchedule.estimated_hours.is_not(None),
+                    *_mine(MaintenanceSchedule.technician_id, technician_id),
                 )
             )
         ).one()
@@ -177,18 +214,29 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
             avg_actual=_float(row[0]), avg_estimated=_float(row[1]), count=row[2]
         )
 
-    async def reschedules(self, *, start: datetime, end: datetime) -> int:
+    async def reschedules(
+        self, *, start: datetime, end: datetime, technician_id: int | None = None
+    ) -> int:
         row = (
             await self.session.execute(
-                select(func.count()).where(
+                select(func.count())
+                .select_from(ScheduleReschedule)
+                .join(
+                    MaintenanceSchedule,
+                    MaintenanceSchedule.id == ScheduleReschedule.schedule_id,
+                )
+                .where(
                     ScheduleReschedule.changed_at >= start,
                     ScheduleReschedule.changed_at < end,
+                    *_mine(MaintenanceSchedule.technician_id, technician_id),
                 )
             )
         ).scalar_one()
         return int(row)
 
-    async def upcoming(self, now: datetime) -> UpcomingRow:
+    async def upcoming(
+        self, now: datetime, technician_id: int | None = None
+    ) -> UpcomingRow:
         plan = MaintenanceSchedule
         active = plan.is_active.is_(True)
         row = (
@@ -207,12 +255,14 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                             plan.next_due_at < now + timedelta(days=30),
                         )
                     ),
-                ).where(active)
+                ).where(active, *_mine(plan.technician_id, technician_id))
             )
         ).one()
         return UpcomingRow(overdue=row[0], next_7=row[1], next_30=row[2])
 
-    async def plans_due_before(self, end: datetime, *, limit: int) -> list[PlanRow]:
+    async def plans_due_before(
+        self, end: datetime, *, limit: int, technician_id: int | None = None
+    ) -> list[PlanRow]:
         """Active plans whose next service is at or before `end` (projected by the caller)."""
         plan = MaintenanceSchedule
         rows = (
@@ -229,7 +279,11 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                 .join(Equipment, Equipment.id == plan.equipment_id)
                 .outerjoin(Technician, Technician.id == plan.technician_id)
                 .outerjoin(User, User.id == Technician.user_id)
-                .where(plan.is_active.is_(True), plan.next_due_at < end)
+                .where(
+                    plan.is_active.is_(True),
+                    plan.next_due_at < end,
+                    *_mine(plan.technician_id, technician_id),
+                )
                 .order_by(plan.next_due_at)
                 .limit(limit)
             )
@@ -237,7 +291,12 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
         return [PlanRow(*row) for row in rows]
 
     async def runs_between(
-        self, start: datetime, end: datetime, *, limit: int
+        self,
+        start: datetime,
+        end: datetime,
+        *,
+        limit: int,
+        technician_id: int | None = None,
     ) -> list[DoneRow]:
         rows = (
             await self.session.execute(
@@ -259,7 +318,11 @@ class MaintenanceOverviewRepository(BaseRepository[MaintenanceRecord]):
                     Technician, Technician.id == MaintenanceSchedule.technician_id
                 )
                 .outerjoin(User, User.id == Technician.user_id)
-                .where(ScheduleRun.due_at >= start, ScheduleRun.due_at < end)
+                .where(
+                    ScheduleRun.due_at >= start,
+                    ScheduleRun.due_at < end,
+                    *_mine(MaintenanceSchedule.technician_id, technician_id),
+                )
                 .order_by(ScheduleRun.due_at)
                 .limit(limit)
             )

@@ -45,15 +45,15 @@ class FakeOverviewRepository:
         self.calls[name] = self.calls.get(name, 0) + 1
         return values[self.calls[name] - 1]
 
-    async def work_mix(self, *, start, end):
+    async def work_mix(self, *, start, end, technician_id=None):
         return self._next("mix", self.windows["mix"])
 
-    async def costs(self, *, start, end):
+    async def costs(self, *, start, end, technician_id=None):
         return self._next(
             "costs", [CostRow(Decimal("300.50"), 6), CostRow(Decimal(200), 3)]
         )
 
-    async def compliance_weeks(self, *, start, end, now):
+    async def compliance_weeks(self, *, start, end, now, technician_id=None):
         return self._next(
             "weeks",
             [
@@ -62,21 +62,21 @@ class FakeOverviewRepository:
             ],
         )
 
-    async def durations(self, *, start, end):
+    async def durations(self, *, start, end, technician_id=None):
         return self._next(
             "durations", [DurationRow(3.0, 2.0, 7), DurationRow(2.0, 2.0, 5)]
         )
 
-    async def reschedules(self, *, start, end):
+    async def reschedules(self, *, start, end, technician_id=None):
         return self._next("reschedules", [3, 6])
 
-    async def upcoming(self, now):
+    async def upcoming(self, now, technician_id=None):
         return UpcomingRow(overdue=2, next_7=4, next_30=9)
 
-    async def plans_due_before(self, end, *, limit):
+    async def plans_due_before(self, end, *, limit, technician_id=None):
         return self.overrides.get("plans", [])
 
-    async def runs_between(self, start, end, *, limit):
+    async def runs_between(self, start, end, *, limit, technician_id=None):
         return self.overrides.get("runs", [])
 
 
@@ -262,11 +262,11 @@ class StubOverviewService(MaintenanceOverviewService):
         super().__init__(FakeOverviewRepository())
         self.calls = []
 
-    async def overview(self, *, period, now=None):
+    async def overview(self, *, period, now=None, technician_id=None):
         self.calls.append(("overview", period))
         return await super().overview(period=period, now=NOW)
 
-    async def calendar(self, *, start, end, now=None):
+    async def calendar(self, *, start, end, now=None, technician_id=None):
         self.calls.append(("calendar", start, end))
         return await super().calendar(start=start, end=end, now=NOW)
 

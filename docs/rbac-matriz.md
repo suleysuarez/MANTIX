@@ -32,7 +32,7 @@ Alcance de datos: `ver` = solo lo propio, `ver_asignados` = lo asignado a la per
 | Tickets · Cambiar estado | `tickets:cambiar_estado` |  | ● | ○ | ○ |  |
 | Tickets · Adjuntar archivos | `tickets:adjuntar` | ● | ○ | ○ | ○ |  |
 | Tickets · Exportar | `tickets:exportar` |  |  | ● | ○ |  |
-| Técnicos · Ver | `tecnicos:ver` |  | ● | ○ | ○ |  |
+| Técnicos · Ver | `tecnicos:ver` |  |  | ● | ○ |  |
 | Técnicos · Crear | `tecnicos:crear` |  |  | ● | ○ |  |
 | Técnicos · Editar | `tecnicos:editar` |  |  | ● | ○ |  |
 | Técnicos · Exportar | `tecnicos:exportar` |  |  | ● | ○ |  |

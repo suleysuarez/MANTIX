@@ -4,6 +4,7 @@ from typing import Any
 from app.core.authz import AuthContext
 from app.core.exceptions import BusinessRuleError, NotFoundError, UnprocessableError
 from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.core.scope import ScopeKind
 from app.models.schedule import MaintenanceSchedule
 from app.repositories.base import Page
 from app.repositories.equipment import EquipmentRepository
@@ -59,9 +60,18 @@ class ScheduleService:
         self.technicians = technicians
         self.audit = audit
 
+    async def _own_technician(self, actor: AuthContext | None) -> int | None:
+        """Whoever sees only assigned work is limited to the plans assigned to them
+        (id -1 when they have no technician profile, so nothing matches)."""
+        if actor is None or actor.scope_kind("tickets") is not ScopeKind.ASSIGNED:
+            return None
+        technician = await self.technicians.get_by_user_id(actor.id)
+        return technician.id if technician is not None else -1
+
     async def list(
         self,
         *,
+        actor: AuthContext | None = None,
         equipment_id: int | None = None,
         is_active: bool | None = None,
         search: str | None = None,
@@ -79,6 +89,9 @@ class ScheduleService:
                 raise UnprocessableError(
                     f"the due date range cannot exceed {MAX_DUE_RANGE.days} days"
                 )
+        mine = await self._own_technician(actor)
+        if mine is not None:
+            technician_id = mine
         page = await self.repository.search(
             equipment_id=equipment_id,
             is_active=is_active,
@@ -91,8 +104,17 @@ class ScheduleService:
         )
         return page.map(self._response)
 
-    async def get(self, schedule_id: int) -> ScheduleResponse:
-        return self._response(await self._require(schedule_id))
+    async def get(
+        self, schedule_id: int, actor: AuthContext | None = None
+    ) -> ScheduleResponse:
+        schedule = await self._require(schedule_id)
+        await self._ensure_visible(schedule, actor)
+        return self._response(schedule)
+
+    async def _ensure_visible(self, schedule: Any, actor: AuthContext | None) -> None:
+        mine = await self._own_technician(actor)
+        if mine is not None and schedule.technician_id != mine:
+            raise NotFoundError("schedule not found")
 
     async def create(
         self,
@@ -238,8 +260,10 @@ class ScheduleService:
         await self.repository.commit()
         return self._response(await self._require(schedule_id))
 
-    async def history(self, schedule_id: int) -> ScheduleHistoryResponse:
-        await self._require(schedule_id)
+    async def history(
+        self, schedule_id: int, actor: AuthContext | None = None
+    ) -> ScheduleHistoryResponse:
+        await self._ensure_visible(await self._require(schedule_id), actor)
         runs, moves = await self.repository.history(schedule_id)
         return ScheduleHistoryResponse(
             runs=[

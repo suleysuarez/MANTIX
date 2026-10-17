@@ -41,10 +41,11 @@ async def list_schedules(
     due_to: AwareDatetime | None = DUE_TO,
     overdue: bool = OVERDUE,
     params: PageParams = Depends(page_params()),  # noqa: B008
-    _: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
     service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
 ) -> list[ScheduleResponse]:
     page = await service.list(
+        actor=actor,
         equipment_id=equipment_id,
         is_active=is_active,
         search=search,
@@ -102,10 +103,10 @@ async def run_reminders(
 )
 async def get_schedule(
     schedule_id: int,
-    _: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
     service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
 ) -> ScheduleResponse:
-    return await service.get(schedule_id)
+    return await service.get(schedule_id, actor)
 
 
 @router.patch(
@@ -150,7 +151,7 @@ async def complete_schedule(
 )
 async def schedule_history(
     schedule_id: int,
-    _: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
     service: ScheduleService = Depends(get_schedule_service),  # noqa: B008
 ) -> ScheduleHistoryResponse:
-    return await service.history(schedule_id)
+    return await service.history(schedule_id, actor)

@@ -255,7 +255,6 @@ ROLE_OWN_PERMISSIONS = MappingProxyType(
                 "mantenimiento:ver",
                 "inventario:ver",
                 "inventario:consumir",
-                "tecnicos:ver",
             }
         ),
         SUPERVISOR: frozenset(
@@ -267,6 +266,7 @@ ROLE_OWN_PERMISSIONS = MappingProxyType(
                 "tickets:ver_todos",
                 "tickets:asignar",
                 "tickets:exportar",
+                "tecnicos:ver",
                 "tecnicos:crear",
                 "tecnicos:editar",
                 "tecnicos:exportar",

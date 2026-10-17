@@ -242,7 +242,7 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 | `tickets:cambiar_estado` | yes | yes | yes | - | - |
 | `tickets:adjuntar` | yes | yes | yes | yes | - |
 | `tickets:exportar` | yes | yes | - | - | - |
-| `tecnicos:ver` | yes | yes | yes | - | - |
+| `tecnicos:ver` | yes | yes | - | - | - |
 | `tecnicos:crear` | yes | yes | - | - | - |
 | `tecnicos:editar` | yes | yes | - | - | - |
 | `tecnicos:exportar` | yes | yes | - | - | - |
