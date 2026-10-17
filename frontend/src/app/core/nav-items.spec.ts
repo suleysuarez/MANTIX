@@ -13,6 +13,11 @@ describe('visibleNavItems', () => {
   it('shows administration only with users.manage', () => {
     const paths = visibleNavItems(['equipment.read', 'users.manage']).map((item) => item.path);
     expect(paths).toContain('/admin/pending-users');
+    expect(paths).toContain('/usuarios');
+  });
+
+  it('hides the users screen from whoever cannot manage users', () => {
+    expect(visibleNavItems(['equipment.read', 'maintenance.read']).map((item) => item.path)).not.toContain('/usuarios');
   });
 });
 

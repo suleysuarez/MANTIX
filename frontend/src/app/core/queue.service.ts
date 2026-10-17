@@ -10,6 +10,13 @@ export interface RequestCategory {
   name: string;
 }
 
+/** Fila de la tabla de prioridades; `level` más alto = más urgente. */
+export interface PriorityRef {
+  code: string;
+  name: string;
+  level: number;
+}
+
 export interface CountItem {
   key: string;
   count: number;
@@ -66,5 +73,10 @@ export class QueueService {
 
   categories(): Observable<RequestCategory[]> {
     return this.http.get<RequestCategory[]>(`${this.url}/categories`);
+  }
+
+  /** Prioridades activas de la tabla del servidor, de la más a la menos urgente. */
+  priorities(): Observable<PriorityRef[]> {
+    return this.http.get<PriorityRef[]>(`${apiBaseUrl()}/priorities`);
   }
 }

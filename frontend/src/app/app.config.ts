@@ -1,6 +1,6 @@
 import { ApplicationConfig, inject, provideAppInitializer } from '@angular/core';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { Router, provideRouter } from '@angular/router';
+import { RedirectCommand, Router, provideRouter, withNavigationErrorHandler } from '@angular/router';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth.interceptor';
@@ -11,7 +11,11 @@ import { NotificationsStore } from './core/notifications.store';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(routes),
+    provideRouter(
+      routes,
+      // Una pantalla que no se puede descargar (versión vieja en caché) ya no deja el clic sin respuesta.
+      withNavigationErrorHandler(() => new RedirectCommand(inject(Router).parseUrl('/error-carga'))),
+    ),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideAppInitializer(async () => {
       // `inject()` solo es válido en la parte síncrona del initializer: se

@@ -1,7 +1,12 @@
 from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
-from app.core.exceptions import BusinessRuleError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    BusinessRuleError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+)
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.domain.ticket_state import TicketState
 from app.models.maintenance import MaintenanceRequest
@@ -9,6 +14,7 @@ from app.repositories.base import Page
 from app.repositories.maintenance import MaintenanceRepository
 from app.schemas.maintenance import (
     EquipmentSummary,
+    MaintenanceClassifyRequest,
     MaintenanceRecordCreate,
     MaintenanceRecordResponse,
     MaintenanceRequestCreate,
@@ -26,6 +32,7 @@ from app.services.notification import NotificationService
 
 #: Statuses from which a request can still be rejected (work has not started).
 REJECTABLE_STATUSES = ("submitted", "triaged", "assigned")
+CLASSIFIABLE_STATUSES = ("submitted", "triaged")
 
 
 class MaintenanceService:
@@ -98,22 +105,17 @@ class MaintenanceService:
         params: PageParams = DEFAULT_PAGE,
         actor: AuthContext,
     ) -> Page[MaintenanceRequestListItem]:
-        requested_by_user_id = None
-        technician_id = None
-        if not actor.is_elevated:
-            technician = await self.repository.get_technician_by_user_id(actor.id)
-            if technician is not None:
-                technician_id = technician.id
-            else:
-                requested_by_user_id = actor.id
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise UnprocessableError("date_from must not be after date_to")
+        if date_from is not None and date_from > datetime.now(UTC):
+            raise UnprocessableError("date_from cannot be in the future")
         page = await self.repository.list_requests(
+            scope=await self.repository.scope_for(actor),
             status=status,
             priority=priority,
             category=category,
             unassigned=unassigned,
             equipment_id=equipment_id,
-            requested_by_user_id=requested_by_user_id,
-            technician_id=technician_id,
             search=search,
             date_from=date_from,
             date_to=date_to,
@@ -177,6 +179,61 @@ class MaintenanceService:
         self.repository.expire_mutable_collections(request)
         return self._response(await self._reload(request_id))
 
+    async def classify_request(
+        self,
+        request_id: int,
+        payload: MaintenanceClassifyRequest,
+        actor: AuthContext,
+    ) -> MaintenanceRequestResponse:
+        """Set category and priority (both must be active catalog entries) and triage."""
+        request = await self._reload(request_id)
+        self._require_elevated(actor)
+        if request.status not in CLASSIFIABLE_STATUSES:
+            raise BusinessRuleError(
+                "only requests waiting for triage can be classified "
+                f"(current status: {request.status})"
+            )
+        if await self.repository.get_active_priority(payload.priority) is None:
+            raise UnprocessableError(
+                f"priority '{payload.priority}' not found or inactive"
+            )
+        if await self.repository.get_active_category(payload.category) is None:
+            raise UnprocessableError(
+                f"category '{payload.category}' not found or inactive"
+            )
+        old = {
+            "status": request.status,
+            "priority": request.priority,
+            "category": request.category,
+        }
+        await self.repository.update_fields(
+            request, {"priority": payload.priority, "category": payload.category}
+        )
+        self.audit.record(
+            user_id=actor.id,
+            action="maintenance.classified",
+            entity_type="maintenance_request",
+            entity_id=request_id,
+            old_values=old,
+            new_values={
+                "priority": payload.priority,
+                "category": payload.category,
+                "notes": payload.notes,
+            },
+        )
+        if request.status == "submitted":
+            # Commits the classification together with the status change.
+            return await self.transition_status(
+                request_id,
+                MaintenanceStatusTransitionRequest(
+                    status="triaged", notes=payload.notes
+                ),
+                actor,
+            )
+        await self.repository.commit()
+        self.repository.expire_mutable_collections(request)
+        return self._response(await self._reload(request_id))
+
     async def reject_request(
         self, request_id: int, reason: str, actor: AuthContext
     ) -> MaintenanceRequestResponse:
@@ -188,6 +245,14 @@ class MaintenanceService:
                 "only requests that have not started can be rejected "
                 f"(current status: {request.status})"
             )
+        self.audit.record(
+            user_id=actor.id,
+            action="maintenance.rejected",
+            entity_type="maintenance_request",
+            entity_id=request_id,
+            old_values={"status": request.status},
+            new_values={"reason": reason},
+        )
         return await self.transition_status(
             request_id,
             MaintenanceStatusTransitionRequest(
@@ -322,29 +387,21 @@ class MaintenanceService:
     async def _ensure_visible(
         self, request: MaintenanceRequest, actor: AuthContext
     ) -> None:
-        if actor.is_elevated:
-            return
-        technician = await self.repository.get_technician_by_user_id(actor.id)
-        if technician is not None and any(
-            assignment.technician_id == technician.id
-            for assignment in request.ticket_assignments
-        ):
-            return
-        if request.requested_by_user_id == actor.id:
-            return
-        raise ForbiddenError("not authorized to view this maintenance request")
+        scope = await self.repository.scope_for(actor)
+        if not self.repository.visible_to(request, scope):
+            raise ForbiddenError("not authorized to view this maintenance request")
 
     async def _require_can_act(
         self, request: MaintenanceRequest, actor: AuthContext
     ) -> None:
-        if actor.is_elevated:
+        scope = await self.repository.scope_for(actor)
+        if scope.sees_everything:
             return
-        technician = await self.repository.get_technician_by_user_id(actor.id)
         active = await self.repository.get_active_assignment(request.id)
         if (
-            technician is not None
+            scope.technician_id is not None
             and active is not None
-            and active.technician_id == technician.id
+            and active.technician_id == scope.technician_id
         ):
             return
         raise ForbiddenError(

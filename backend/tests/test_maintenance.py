@@ -10,6 +10,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.repositories.base import Page
+from app.repositories.maintenance import MaintenanceRepository
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRequestCreate,
@@ -135,9 +136,16 @@ class FakeMaintenanceRepository:
         # state directly, there's nothing to force a refresh of.
         pass
 
+    # The scope rules are the real repository's, so the service is tested against them.
+    async def scope_for(self, actor, resource="tickets"):
+        return await MaintenanceRepository.scope_for(self, actor, resource)
+
+    visible_to = staticmethod(MaintenanceRepository.visible_to)
+
     async def list_requests(
         self,
         *,
+        scope,
         status=None,
         priority=None,
         equipment_id=None,
@@ -146,7 +154,9 @@ class FakeMaintenanceRepository:
         params=None,
         **_filters,
     ):
-        items = list(self.requests.values())
+        items = [
+            item for item in self.requests.values() if self.visible_to(item, scope)
+        ]
         if status is not None:
             items = [item for item in items if item.status == status]
         if priority is not None:
@@ -235,6 +245,11 @@ class FakeMaintenanceRepository:
 
     async def list_records(self, request_id):
         return [record for record in self.records if record.request_id == request_id]
+
+    async def update_fields(self, entity, values):
+        for field, value in values.items():
+            setattr(entity, field, value)
+        return entity
 
     async def commit(self):
         self.committed = True

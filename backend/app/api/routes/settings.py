@@ -9,6 +9,8 @@ from app.schemas.settings import (
     CategoryAdmin,
     CategoryCreate,
     CategoryUpdate,
+    OrganizationResponse,
+    OrganizationUpdate,
     SystemHealth,
 )
 from app.services.settings import SystemSettingsService
@@ -93,3 +95,31 @@ async def delete_category(
 ) -> Response:
     await service.delete_category(category_id, actor)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/organization",
+    response_model=OrganizationResponse,
+    summary="Company shown in report headers",
+    description="Company name, legal name and tax id (NIT). ADMIN only.",
+)
+async def get_organization(
+    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
+) -> OrganizationResponse:
+    return await service.organization()
+
+
+@router.put(
+    "/organization",
+    response_model=OrganizationResponse,
+    summary="Set the company shown in report headers",
+    description="Replaces the three fields; blank optional ones are cleared. Audited.",
+    responses=error_responses(422),
+)
+async def update_organization(
+    payload: OrganizationUpdate,
+    actor: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
+) -> OrganizationResponse:
+    return await service.update_organization(payload, actor)

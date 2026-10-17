@@ -1,7 +1,7 @@
 import { FormControl } from '@angular/forms';
 
 import {
-  AGING_HOURS, STALE_HOURS, categoryLabel, formatWait, reasonError, reasonValidator, share, waitHours, waitTone,
+  AGING_HOURS, STALE_HOURS, categoryLabel, formatWait, queueRangeError, reasonError, reasonValidator, share, waitHours, waitTone,
 } from './pending-ui';
 
 describe('pending-ui', () => {
@@ -44,6 +44,25 @@ describe('pending-ui', () => {
       const control = new FormControl('Duplicado', reasonValidator);
       control.setErrors({ server: 'Debe tener al menos 5 caracteres.' });
       expect(reasonError(control)).toBe('Debe tener al menos 5 caracteres.');
+    });
+  });
+
+  describe('queueRangeError', () => {
+    const today = new Date(2026, 9, 14, 12);
+
+    it('accepts empty, one-sided, same-day and past ranges', () => {
+      for (const [from, to] of [['', ''], ['2026-10-01', ''], ['', '2026-10-14'], ['2026-10-05', '2026-10-05'], ['2026-10-14', '2026-10-14']]) {
+        expect(queueRangeError(from, to, today)).withContext(`${from}..${to}`).toBe('');
+      }
+    });
+
+    it('explains an inverted range, impossible dates, a future start and a range over 366 days', () => {
+      expect(queueRangeError('2026-10-10', '2026-10-01', today)).toBe('La fecha final no puede ser anterior a la inicial.');
+      expect(queueRangeError('2026-02-30', '', today)).toBe('La fecha no existe en el calendario.');
+      expect(queueRangeError('', '2026-13-01', today)).toBe('La fecha no existe en el calendario.');
+      expect(queueRangeError('2026-10-15', '', today)).toBe('La fecha inicial no puede ser futura.');
+      expect(queueRangeError('2025-01-01', '2026-01-02', today)).toBe('El rango no puede superar 366 días.');
+      expect(queueRangeError('2025-01-01', '2026-01-01', today)).toBe('');
     });
   });
 

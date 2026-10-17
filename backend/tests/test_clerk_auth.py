@@ -162,6 +162,7 @@ async def test_existing_clerk_link_is_preserved() -> None:
         full_name="Existing Profile",
         employee_code="E-3",
         is_active=True,
+        last_login_at=None,
         roles=[role()],
     )
     repository = FakeRepository(user=existing)
@@ -172,6 +173,58 @@ async def test_existing_clerk_link_is_preserved() -> None:
 
     assert user is existing
     assert repository.created is None
+
+
+class RecordingAudit:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(kwargs)
+
+
+def _signed_in(last_login_at):
+    return SimpleNamespace(
+        id=3,
+        clerk_user_id="user_clerk_123",
+        email="employee@example.com",
+        full_name="Existing Profile",
+        is_active=True,
+        last_login_at=last_login_at,
+        roles=[role()],
+    )
+
+
+@pytest.mark.asyncio
+async def test_sign_in_stamps_last_login_and_audits_once_per_session() -> None:
+    audit = RecordingAudit()
+    existing = _signed_in(None)
+    service = ClerkAuthService(object(), Settings(), audit)
+    service.repository = FakeRepository(user=existing)
+
+    await service.resolve_local_user(identity())
+    first = existing.last_login_at
+    await service.resolve_local_user(identity())  # same session: nothing new
+
+    assert first is not None
+    assert existing.last_login_at == first
+    assert [r["action"] for r in audit.records] == ["auth.login"]
+
+
+@pytest.mark.asyncio
+async def test_a_new_session_after_the_gap_is_recorded_again() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    audit = RecordingAudit()
+    old = datetime.now(UTC) - timedelta(hours=2)
+    existing = _signed_in(old)
+    service = ClerkAuthService(object(), Settings(), audit)
+    service.repository = FakeRepository(user=existing)
+
+    await service.resolve_local_user(identity())
+
+    assert existing.last_login_at > old
+    assert len(audit.records) == 1
 
 
 @pytest.mark.asyncio

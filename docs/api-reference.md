@@ -13,7 +13,6 @@
 | GET | `/admin/roles` | List roles | `users.manage` |
 | GET | `/admin/roles/matrix` | Role-permission matrix | `users.manage` |
 | GET | `/admin/users/pending` | List pending users | `users.manage` |
-| POST | `/admin/users/{user_id}/roles` | Assign roles | `users.manage` |
 | DELETE | `/admin/users/{user_id}/roles/{role_id}` | Revoke a role from a user | `users.manage` |
 
 ### attachments
@@ -79,6 +78,7 @@
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
 | POST | `/inventory/import` | Bulk-import stock items from CSV or Excel | `inventory.manage` |
+| GET | `/inventory/import/template` | Excel template for the import | `inventory.manage` |
 | GET | `/inventory/items` | List stock items | `inventory.read` |
 | POST | `/inventory/items` | Create a stock item | `inventory.manage` |
 | DELETE | `/inventory/items/{item_id}` | Delete a stock item | `inventory.manage` |
@@ -86,6 +86,8 @@
 | PATCH | `/inventory/items/{item_id}` | Update a stock item | `inventory.manage` |
 | GET | `/inventory/items/{item_id}/movements` | Movement history of an item, newest first | `inventory.read` |
 | POST | `/inventory/items/{item_id}/movements` | Register a stock movement | `inventory.consume` |
+| GET | `/inventory/options` | Values of the item drop-downs | `inventory.read` |
+| POST | `/inventory/options` | Add a value to an item drop-down | `inventory.manage` |
 | GET | `/inventory/overview` | Inventory metrics for the period | `inventory.read` |
 
 ### maintenance
@@ -98,9 +100,11 @@
 | GET | `/maintenance/queue/summary` | Pending-requests queue metrics | role `ADMIN`, `SUPERVISOR` |
 | GET | `/maintenance/requests` | List maintenance tickets | `maintenance.read` |
 | POST | `/maintenance/requests` | Create maintenance request | `maintenance.create` |
+| GET | `/maintenance/requests/workflow` | Ticket statuses and the moves between them | `maintenance.read` |
 | GET | `/maintenance/requests/{request_id}` | Get maintenance request | `maintenance.read` |
 | DELETE | `/maintenance/requests/{request_id}/assignment` | Unassign technician | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `maintenance.manage` |
+| POST | `/maintenance/requests/{request_id}/classify` | Classify (triage) a request | `maintenance.manage` |
 | GET | `/maintenance/requests/{request_id}/records` | List maintenance records | `maintenance.read` |
 | POST | `/maintenance/requests/{request_id}/records` | Add maintenance record | `maintenance.manage` |
 | POST | `/maintenance/requests/{request_id}/reject` | Reject a request that has not started | `maintenance.manage` |
@@ -122,6 +126,18 @@
 | POST | `/priorities` | Create a priority | `priorities.manage` |
 | PATCH | `/priorities/{priority_id}` | Update a priority | `priorities.manage` |
 
+### profile
+
+| Method | Path | Summary | Access |
+| --- | --- | --- | --- |
+| GET | `/profile` | My profile | any signed-in user |
+| PATCH | `/profile` | Edit my personal data | any signed-in user |
+| DELETE | `/profile/avatar` | Remove my photo | any signed-in user |
+| GET | `/profile/avatar` | My photo | any signed-in user |
+| PUT | `/profile/avatar` | Upload my photo | any signed-in user |
+| GET | `/profile/history` | My history | any signed-in user |
+| POST | `/profile/password` | Change my password | any signed-in user |
+
 ### reports
 
 | Method | Path | Summary | Access |
@@ -134,6 +150,9 @@
 | POST | `/reports/preview` | Preview a report with its filters | `reports.read` |
 | GET | `/reports/summary` | Export the operational summary | `reports.read` |
 | GET | `/reports/tickets` | Export maintenance tickets | `reports.read` |
+| POST | `/reports/{report}/export` | Export a report as PDF or Excel | `reports.read` |
+| POST | `/reports/{report}/export/count` | How many records an export would contain | `reports.read` |
+| GET | `/reports/{report}/export/options` | What a report export offers | `reports.read` |
 
 ### schedules
 
@@ -156,6 +175,8 @@
 | DELETE | `/settings/categories/{category_id}` | Delete an unused category | `priorities.manage` |
 | PATCH | `/settings/categories/{category_id}` | Rename or (de)activate a category | `priorities.manage` |
 | GET | `/settings/health` | System health | `users.manage` |
+| GET | `/settings/organization` | Company shown in report headers | `users.manage` |
+| PUT | `/settings/organization` | Set the company shown in report headers | `users.manage` |
 
 ### system
 
@@ -171,7 +192,22 @@
 | POST | `/technicians` | Create technician | `technicians.manage` |
 | PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
 
-Total: **86** endpoints.
+### users
+
+| Method | Path | Summary | Access |
+| --- | --- | --- | --- |
+| GET | `/admin/users` | List users | `users.manage` |
+| POST | `/admin/users` | Pre-register a user | `users.manage` |
+| GET | `/admin/users/summary` | Indicators of the Users screen | `users.manage` |
+| GET | `/admin/users/{user_id}` | Get a user | `users.manage` |
+| PATCH | `/admin/users/{user_id}` | Edit a user | `users.manage` |
+| POST | `/admin/users/{user_id}/activate` | Reactivate a user | `users.manage` |
+| POST | `/admin/users/{user_id}/deactivate` | Deactivate a user | `users.manage` |
+| POST | `/admin/users/{user_id}/password` | Set a new password for a user | `users.manage` |
+| POST | `/admin/users/{user_id}/roles` | Assign roles | `users.manage` |
+| PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `users.manage` |
+
+Total: **112** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

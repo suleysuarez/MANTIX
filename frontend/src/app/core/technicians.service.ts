@@ -12,6 +12,8 @@ export interface Technician {
   employee_code: string | null;
   specialization: string | null;
   is_available: boolean;
+  /** La cuenta de usuario está activa; a una inactiva no se le puede asignar trabajo. */
+  is_active?: boolean;
   hourly_rate: string | null;
   /** Alta del perfil: el primer evento de su historial. */
   created_at: string;

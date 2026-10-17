@@ -492,6 +492,9 @@ async def test_equipment_bulk_import_dry_run_then_real_then_duplicates(api):
         "total_rows": 2,
         "created": 0,
         "errors": [],
+        # Row counts only matter for the inventory import (skip-invalid mode).
+        "valid_rows": None,
+        "error_rows": None,
     }
     assert (await api.get("/equipment?search=IMP-", admin)).json() == []
 

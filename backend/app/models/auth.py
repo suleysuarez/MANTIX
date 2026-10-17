@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Identity,
@@ -42,6 +43,16 @@ class User(Base):
     )
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: Start of the user's latest session (refreshed at most every 30 minutes).
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True
+    )
+    #: Storage key and type of the profile photo (re-encoded by the server); null = initials.
+    avatar_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_media_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    avatar_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -96,6 +107,11 @@ class User(Base):
 
 class Role(Base):
     __tablename__ = "roles"
+    __table_args__ = (
+        CheckConstraint(
+            "parent_role_id IS NULL OR parent_role_id <> id", name="no_self_parent"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger, Identity(always=False), primary_key=True
@@ -106,10 +122,26 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: The five base roles: they cannot be deleted or renamed by code.
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    #: Inheritance: this role has everything its parent has (see `app.core.rbac`).
+    parent_role_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("roles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    #: Loaded together with the role (and so up the whole chain) because authorization needs
+    #: the ancestors on every request and async sessions cannot lazy-load.
+    parent: Mapped["Role | None"] = relationship(
+        "Role", remote_side="Role.id", lazy="selectin", join_depth=6
+    )
     user_roles: Mapped[list["UserRole"]] = relationship(
         "UserRole", back_populates="role", cascade="all, delete-orphan"
     )
@@ -129,6 +161,7 @@ class Role(Base):
         secondary="role_permissions",
         back_populates="roles",
         viewonly=True,
+        lazy="selectin",
     )
 
 
@@ -144,6 +177,9 @@ class Permission(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     module: Mapped[str] = mapped_column(String(50), nullable=False)
+    #: `recurso:accion` permissions carry both parts; legacy dotted ones have no action.
+    resource: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    action: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

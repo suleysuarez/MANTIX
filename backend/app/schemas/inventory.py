@@ -11,9 +11,13 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.text import collapse, normalise_unit, title_case
 from app.schemas.dashboard import Period
 
-Category = Literal["spare_part", "consumable", "accessory", "tool", "other"]
+#: A category code. The list of valid ones lives in `inventory_options` (people can add
+#: more), so the service checks it exists; the schema only fixes its shape.
+Category = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{1,29}$")]
+OptionKind = Literal["category", "unit", "location", "supplier"]
 MovementKind = Literal["in", "out", "adjust"]
 StockStatus = Literal["ok", "low", "out"]
 
@@ -47,18 +51,25 @@ class ItemFields(BaseModel):
     @field_validator("name", mode="before")
     @classmethod
     def _name(cls, value: str) -> str:
-        return value.strip() if isinstance(value, str) else value
+        """Trim, collapse spaces and write it as a title: «cable  de RED» -> «Cable de Red»."""
+        return title_case(value) if isinstance(value, str) else value
 
-    @field_validator("description", "location", "supplier", mode="before")
+    @field_validator("description", mode="before")
     @classmethod
     def _optional_text(cls, value: str | None) -> str | None:
         """Trim; a blank string means 'not set'."""
         return (_strip(value) or None) if isinstance(value, str) else value
 
+    @field_validator("location", "supplier", mode="before")
+    @classmethod
+    def _catalogue_text(cls, value: str | None) -> str | None:
+        """Locations and suppliers: collapsed spaces and title case; blank means 'not set'."""
+        return (title_case(value) or None) if isinstance(value, str) else value
+
     @field_validator("unit", mode="before")
     @classmethod
     def _unit(cls, value: str) -> str:
-        return value.strip() if isinstance(value, str) else value
+        return normalise_unit(value) if isinstance(value, str) else value
 
 
 class ItemCreate(ItemFields):
@@ -90,14 +101,14 @@ class ItemCreate(ItemFields):
     def _sku_format(cls, value: str) -> str:
         if not re.fullmatch(_SKU_PATTERN, value):
             raise ValueError(
-                "must be 3-40 characters: letters, digits, '.', '_' or '-'"
+                "debe tener de 3 a 40 caracteres: letras, números, '.', '_' o '-'"
             )
         return value
 
     @model_validator(mode="after")
     def _max_not_below_min(self) -> "ItemCreate":
         if self.max_stock is not None and self.max_stock < self.min_stock:
-            raise ValueError("max_stock cannot be below min_stock")
+            raise ValueError("el stock máximo no puede ser menor que el mínimo")
         return self
 
 
@@ -115,15 +126,25 @@ class ItemUpdate(BaseModel):
     supplier: str | None = Field(default=None, max_length=150)
     is_active: bool | None = None
 
-    @field_validator("name", "unit", mode="before")
+    @field_validator("name", mode="before")
     @classmethod
-    def _trim(cls, value: str | None) -> str | None:
-        return value.strip() if isinstance(value, str) else value
+    def _name(cls, value: str | None) -> str | None:
+        return title_case(value) if isinstance(value, str) else value
 
-    @field_validator("description", "location", "supplier", mode="before")
+    @field_validator("unit", mode="before")
+    @classmethod
+    def _unit(cls, value: str | None) -> str | None:
+        return normalise_unit(value) if isinstance(value, str) else value
+
+    @field_validator("description", mode="before")
     @classmethod
     def _optional_text(cls, value: str | None) -> str | None:
         return (_strip(value) or None) if isinstance(value, str) else value
+
+    @field_validator("location", "supplier", mode="before")
+    @classmethod
+    def _catalogue_text(cls, value: str | None) -> str | None:
+        return (title_case(value) or None) if isinstance(value, str) else value
 
 
 class ItemResponse(BaseModel):
@@ -211,6 +232,31 @@ class MovementResponse(BaseModel):
     request_id: int | None
     created_by: str | None
     created_at: datetime
+
+
+# -- options ------------------------------------------------------------------------
+
+
+class OptionResponse(BaseModel):
+    kind: OptionKind
+    value: str = Field(description="What items store (for a category, its code)")
+    label: str = Field(description="What people read")
+
+
+class OptionCreate(BaseModel):
+    """A new value for one of the item drop-downs; normalised like the item fields."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"kind": "supplier", "name": "Proveedor Andino"}}
+    )
+
+    kind: OptionKind
+    name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _collapse(cls, value: str) -> str:
+        return collapse(value) if isinstance(value, str) else value
 
 
 # -- overview -----------------------------------------------------------------------

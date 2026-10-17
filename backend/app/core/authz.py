@@ -8,12 +8,15 @@ of inspecting ORM role objects, so role knowledge lives in exactly one place.
 
 from dataclasses import dataclass, field
 
+from app.core.rbac import effective_for_roles
+from app.core.scope import ScopeKind, kind_from_permissions
 from app.models.auth import User
 
 ADMIN = "ADMIN"
 SUPERVISOR = "SUPERVISOR"
 TECHNICIAN = "TECHNICIAN"
 EMPLOYEE = "EMPLOYEE"
+AUDITOR = "AUDITOR"
 
 #: Roles that see and manage every ticket, not only their own.
 ELEVATED_ROLES = frozenset({ADMIN, SUPERVISOR})
@@ -27,17 +30,13 @@ class AuthContext:
 
     @classmethod
     def from_user(cls, user: User) -> "AuthContext":
-        """Build the context from the user's *active* roles and permissions."""
+        """Build the context from the user's *active* roles; each role brings its own
+        permissions and those of its ancestors (see `app.core.rbac`)."""
         active_roles = [role for role in user.roles if role.is_active]
         return cls(
             user=user,
             roles=frozenset(role.code for role in active_roles),
-            permissions=frozenset(
-                permission.code
-                for role in active_roles
-                for permission in role.permissions
-                if permission.is_active
-            ),
+            permissions=effective_for_roles(active_roles),
         )
 
     @property
@@ -53,3 +52,14 @@ class AuthContext:
 
     def has_permission(self, code: str) -> bool:
         return code in self.permissions
+
+    def scope_kind(self, resource: str) -> ScopeKind:
+        """How much of `resource` this person may see (decided by permissions)."""
+        kind = kind_from_permissions(resource, self.permissions)
+        if kind is not None:
+            return kind
+        # Legacy fallback for contexts built from the old dotted permissions only; it goes
+        # away together with those permissions at the end of the RBAC rollout.
+        if self.is_elevated:
+            return ScopeKind.ALL
+        return ScopeKind.ASSIGNED if self.has_role(TECHNICIAN) else ScopeKind.OWN

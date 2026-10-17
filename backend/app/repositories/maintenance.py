@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, select, text
+from sqlalchemy import Select, and_, false, or_, select, text
 from sqlalchemy.orm import selectinload
 
+from app.core.authz import AuthContext
 from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.core.scope import DataScope, ScopeKind
 from app.models.category import RequestCategory
 from app.models.equipment import Equipment
 from app.models.maintenance import (
@@ -107,9 +109,54 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         request: MaintenanceRequest | None = result.scalar_one_or_none()
         return request
 
+    async def scope_for(
+        self, actor: AuthContext, resource: str = "tickets"
+    ) -> DataScope:
+        """The slice of tickets `actor` may see, from their permissions (`app.core.scope`)."""
+        kind = actor.scope_kind(resource)
+        technician_id = None
+        if kind is ScopeKind.ASSIGNED:
+            technician = await self.get_technician_by_user_id(actor.id)
+            technician_id = technician.id if technician is not None else None
+        return DataScope(kind, user_id=actor.id, technician_id=technician_id)
+
+    @staticmethod
+    def _scope_clause(scope: DataScope) -> Any:
+        """SQL condition of a scope over `maintenance_requests`."""
+        if scope.kind is ScopeKind.ALL:
+            return None
+        if scope.kind is ScopeKind.NONE or scope.user_id is None:
+            return false()
+        mine = MaintenanceRequest.requested_by_user_id == scope.user_id
+        if scope.kind is ScopeKind.OWN or scope.technician_id is None:
+            return mine
+        assigned = MaintenanceRequest.ticket_assignments.any(
+            and_(
+                TicketAssignment.technician_id == scope.technician_id,
+                TicketAssignment.unassigned_at.is_(None),
+            )
+        )
+        return or_(mine, assigned)
+
+    @staticmethod
+    def visible_to(request: MaintenanceRequest, scope: DataScope) -> bool:
+        """The same rule as `_scope_clause`, for a ticket already loaded."""
+        if scope.kind is ScopeKind.ALL:
+            return True
+        if scope.kind is ScopeKind.NONE or scope.user_id is None:
+            return False
+        if request.requested_by_user_id == scope.user_id:
+            return True
+        return scope.kind is ScopeKind.ASSIGNED and any(
+            assignment.technician_id == scope.technician_id
+            and getattr(assignment, "unassigned_at", None) is None
+            for assignment in request.ticket_assignments
+        )
+
     async def list_requests(
         self,
         *,
+        scope: DataScope,
         status: str | None = None,
         priority: str | None = None,
         category: str | None = None,
@@ -123,6 +170,9 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[MaintenanceRequest]:
         query = select(MaintenanceRequest)
+        clause = self._scope_clause(scope)
+        if clause is not None:
+            query = query.where(clause)
         if status is not None:
             # Comma-separated list: `submitted,triaged,assigned` for the pending queue.
             statuses = [item.strip() for item in status.split(",") if item.strip()]

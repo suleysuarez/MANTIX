@@ -16,7 +16,7 @@ from app.models.equipment import (
     EquipmentType,
     Location,
 )
-from app.models.inventory import InventoryItem, InventoryMovement
+from app.models.inventory import InventoryItem, InventoryMovement, InventoryOption
 from app.models.maintenance import (
     MaintenanceRecord,
     MaintenanceRequest,
@@ -24,6 +24,7 @@ from app.models.maintenance import (
     TicketStatusHistory,
 )
 from app.models.notification import Notification
+from app.models.organization import OrganizationSettings
 from app.models.priority import Priority
 from app.models.report_run import ReportRun
 from app.models.schedule import MaintenanceSchedule, ScheduleReschedule, ScheduleRun
@@ -39,11 +40,13 @@ __all__ = [
     "EquipmentType",
     "InventoryItem",
     "InventoryMovement",
+    "InventoryOption",
     "Location",
     "MaintenanceRecord",
     "MaintenanceRequest",
     "MaintenanceSchedule",
     "Notification",
+    "OrganizationSettings",
     "Permission",
     "Priority",
     "ReportRun",

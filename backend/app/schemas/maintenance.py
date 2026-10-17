@@ -96,6 +96,13 @@ class MaintenanceRequestCreate(BaseModel):
         return value
 
 
+def _clean(value: str | None) -> str | None:
+    """Trimmed text; a blank string means "not provided"."""
+    if value is None:
+        return None
+    return value.strip() or None
+
+
 class MaintenanceStatusTransitionRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -108,8 +115,65 @@ class MaintenanceStatusTransitionRequest(BaseModel):
     )
 
     status: MaintenanceRequestStatus
-    notes: str | None = None
-    resolution_summary: str | None = None
+    notes: str | None = Field(default=None, max_length=500)
+    resolution_summary: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("notes", "resolution_summary")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return _clean(value)
+
+
+class WorkflowState(BaseModel):
+    """One status of the ticket lifecycle, as the State pattern defines it."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "triaged",
+                "order": 2,
+                "allowed_targets": ["assigned", "cancelled"],
+                "requires": ["category", "priority"],
+                "terminal": False,
+                "in_queue": True,
+            }
+        }
+    )
+
+    status: str
+    order: int
+    allowed_targets: list[str]
+    requires: list[str] = Field(
+        description="Data to ask for before moving a ticket into this status"
+    )
+    terminal: bool
+    in_queue: bool = Field(
+        default=False,
+        description="True for statuses still waiting for work: the pending-requests columns",
+    )
+
+
+class MaintenanceClassifyRequest(BaseModel):
+    """Triage: sets the category and priority, and moves a new request to `triaged`."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "category": "hardware",
+                "priority": "high",
+                "notes": "Needs an on-site visit",
+            }
+        }
+    )
+
+    category: MaintenanceCategory
+    priority: MaintenancePriority
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("notes")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return _clean(value)
 
 
 class MaintenanceRejectRequest(BaseModel):
@@ -133,8 +197,13 @@ class TicketAssignmentCreateRequest(BaseModel):
         json_schema_extra={"example": {"technician_id": 4, "notes": "On-site visit"}}
     )
 
-    technician_id: int
-    notes: str | None = None
+    technician_id: int = Field(gt=0)
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("notes")
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return _clean(value)
 
 
 class MaintenanceRecordCreate(BaseModel):

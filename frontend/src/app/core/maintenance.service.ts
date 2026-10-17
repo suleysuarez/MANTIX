@@ -141,6 +141,11 @@ export class MaintenanceService {
       );
   }
 
+  /** Triaje: fija categoría y prioridad (catálogos activos) y pasa una solicitud nueva a «clasificada». */
+  classify(id: number, body: { category: string; priority: string; notes: string | null }): Observable<MaintenanceRequest> {
+    return this.http.post<MaintenanceRequest>(`${this.url}/${id}/classify`, body);
+  }
+
   /** Rechaza una solicitud que no ha iniciado; el motivo queda en el historial. */
   reject(id: number, reason: string): Observable<MaintenanceRequest> {
     return this.http.post<MaintenanceRequest>(`${this.url}/${id}/reject`, { reason });

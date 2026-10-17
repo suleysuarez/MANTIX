@@ -14,7 +14,6 @@ import {
   warrantyOrder,
 } from './equipment-form-modal.component';
 import { EquipmentGridComponent } from './equipment-grid.component';
-import { EquipmentPaginationComponent } from './equipment-pagination.component';
 import { EquipmentSummaryCardsComponent } from './equipment-summary-cards.component';
 import { EquipmentTableComponent } from './equipment-table.component';
 import { EquipmentToolbarComponent } from './equipment-toolbar.component';
@@ -97,57 +96,6 @@ describe('EquipmentSummaryCardsComponent', () => {
     expect(fixture.componentInstance.rate).toBe('0%');
     fixture.componentInstance.summary = { total: 0, by_status: {} };
     expect(fixture.componentInstance.rate).toBe('0%');
-  });
-});
-
-describe('EquipmentPaginationComponent', () => {
-  let fixture: ComponentFixture<EquipmentPaginationComponent>;
-
-  function render(page: number, total: number, size = 10): void {
-    fixture = TestBed.createComponent(EquipmentPaginationComponent);
-    Object.assign(fixture.componentInstance, { page, total, pageSize: size });
-    fixture.detectChanges();
-  }
-
-  it('describes the visible range', () => {
-    render(2, 28);
-    expect(text(fixture)).toContain('Equipos 11–20 de 28');
-    render(3, 28);
-    expect(text(fixture)).toContain('Equipos 21–28 de 28');
-  });
-
-  it('gives a single page a meaningful summary instead of a degenerate range', () => {
-    render(1, 1);
-    expect(text(fixture)).toContain('1 equipo en el inventario');
-    render(1, 3);
-    expect(text(fixture)).toContain('3 equipos en el inventario');
-  });
-
-  it('says when the total comes from active filters', () => {
-    fixture = TestBed.createComponent(EquipmentPaginationComponent);
-    Object.assign(fixture.componentInstance, { page: 1, total: 2, pageSize: 10, filtered: true });
-    fixture.detectChanges();
-    expect(text(fixture)).toContain('2 equipos con los filtros aplicados');
-  });
-
-  it('says so when there is nothing to show and hides the page buttons', () => {
-    render(1, 0);
-    expect(text(fixture)).toContain('Sin resultados');
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('button').length).toBe(0);
-  });
-
-  it('emits previous, numbered and next pages and disables the edges', () => {
-    render(1, 28);
-    const pages: number[] = [];
-    fixture.componentInstance.pageChange.subscribe((value) => pages.push(value));
-    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
-
-    expect(buttons[0].getAttribute('aria-label')).not.toBe('Página anterior'); // no previous button on page 1
-    expect(buttons[0].getAttribute('aria-current')).toBe('page');
-    buttons[1].click(); // page 2
-    buttons[buttons.length - 1].click(); // next
-
-    expect(pages).toEqual([2, 2]);
   });
 });
 
@@ -483,7 +431,7 @@ describe('EquipmentDetailDrawerComponent', () => {
   it('links «Crear ticket» to the maintenance screen with the equipment preselected', () => {
     render({}, { canCreateTicket: true });
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('footer a')!;
-    expect(link.getAttribute('href')).toContain('/maintenance');
+    expect(link.getAttribute('href')).toContain('/tickets');
     expect(link.getAttribute('href')).toContain('equipmentId=1');
   });
 

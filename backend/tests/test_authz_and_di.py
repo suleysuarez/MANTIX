@@ -66,7 +66,9 @@ def test_service_providers_are_built_from_repository_providers():
     repo = SimpleNamespace()
     assert isinstance(providers.get_audit_service(repo), AuditService)
     assert isinstance(providers.get_notification_service(repo), NotificationService)
-    service = providers.get_auth_service(repo, SimpleNamespace())
+    service = providers.get_auth_service(
+        repo, SimpleNamespace(), providers.get_audit_service(repo)
+    )
     assert isinstance(service, ClerkAuthService)
     assert service.repository is repo
 

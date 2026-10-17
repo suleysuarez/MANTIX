@@ -77,18 +77,18 @@ describe('TicketsStore', () => {
 
     store.setFilters({ dateFrom: '2026-03-10', dateTo: '2026-03-01' });
 
-    expect(latest.filterError).toContain('"desde"');
+    expect(latest.filterError).toBe('La fecha final no puede ser anterior a la inicial.');
     expect(api.list.calls.count()).toBe(calls);
   });
 
-  it('rejects future dates and recovers once the range is valid', () => {
+  it('rejects a start in the future and recovers once the range is valid', () => {
     api.list.and.returnValue(of([]));
     store.load();
 
-    store.setFilters({ dateTo: '2999-01-01' });
-    expect(latest.filterError).toContain('futuras');
+    store.setFilters({ dateFrom: '2999-01-01' });
+    expect(latest.filterError).toBe('La fecha inicial no puede ser futura.');
 
-    store.setFilters({ dateTo: '2026-03-01' });
+    store.setFilters({ dateFrom: '2026-03-01' });
     expect(latest.filterError).toBe('');
   });
 

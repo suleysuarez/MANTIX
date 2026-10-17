@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,7 +24,15 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.auth import User
 
-CATEGORIES = ("spare_part", "consumable", "accessory", "tool", "other")
+#: The categories every installation starts with; more can be added from the item form.
+BUILT_IN_CATEGORIES = (
+    ("spare_part", "Repuesto"),
+    ("consumable", "Consumible"),
+    ("accessory", "Accesorio"),
+    ("tool", "Herramienta"),
+    ("other", "Otro"),
+)
+OPTION_KINDS = ("category", "unit", "location", "supplier")
 MOVEMENT_KINDS = ("in", "out", "adjust")
 
 
@@ -38,10 +47,8 @@ class InventoryItem(Base):
             "max_stock IS NULL OR max_stock >= min_stock", name="max_not_below_min"
         ),
         CheckConstraint("unit_cost >= 0", name="unit_cost_non_negative"),
-        CheckConstraint(
-            "category IN ('spare_part', 'consumable', 'accessory', 'tool', 'other')",
-            name="category_allowed",
-        ),
+        # Codes are stored in capitals, so the unique index on `sku` is also case-insensitive.
+        CheckConstraint("sku = upper(sku)", name="sku_upper_case"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -77,6 +84,33 @@ class InventoryItem(Base):
 
     movements: Mapped[list["InventoryMovement"]] = relationship(
         "InventoryMovement", back_populates="item"
+    )
+
+
+class InventoryOption(Base):
+    """A value of one of the item drop-downs (category, unit, location, supplier).
+
+    `value` is what items store (for a category, its code); `label` is what people read;
+    `key` is the folded label, so «Bodega A» and «bodega  a» cannot both exist.
+    """
+
+    __tablename__ = "inventory_options"
+    __table_args__ = (
+        UniqueConstraint("kind", "key", name="uq_inventory_options_kind_key"),
+        CheckConstraint(
+            "kind IN ('category', 'unit', 'location', 'supplier')", name="kind_allowed"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False), primary_key=True
+    )
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)
+    value: Mapped[str] = mapped_column(String(150), nullable=False)
+    label: Mapped[str] = mapped_column(String(150), nullable=False)
+    key: Mapped[str] = mapped_column(String(150), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
