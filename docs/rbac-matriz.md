@@ -2,7 +2,7 @@
 
 Generada con `python -m scripts.rbac_matrix` desde `app/core/permissions.py`: no se edita a mano.
 
-**Herencia:** Solicitante → Técnico → Supervisor → Administrador (cada uno hereda del anterior). Auditor no hereda nada.
+**Herencia:** Técnico → Supervisor → Administrador (cada uno hereda del anterior). Solicitante y Auditor no heredan nada.
 
 `●` lo concede el propio rol · `○` lo hereda de un rol anterior · vacío: no lo tiene.
 

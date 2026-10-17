@@ -85,44 +85,46 @@ Other building blocks: `core/authz.py` (`AuthContext`), `core/errors.py` (global
 
 **Authentication is delegated to Clerk.** The access token (a short-lived session JWT), its refresh, rotation and revocation are managed entirely by Clerk: Clerk issues sessions, silently renews short-lived tokens and revokes them on sign-out or from the Clerk dashboard. The API never issues or stores tokens; it verifies the `Authorization: Bearer <session JWT>` header with the Clerk SDK (signature, expiry and authorized parties) and maps the Clerk subject to a local user. Missing or invalid credentials return `401`. See [docs/authentication.md](docs/authentication.md).
 
-**Authorization is local.** Roles and permissions live in the database and are enforced by reusable dependencies:
+**Authorization is local.** Roles and permissions live in the database, as `resource:action` codes written in Spanish (for example `tickets:asignar`). Every endpoint declares what it needs with a reusable dependency, and services receive the resulting `AuthContext` as `actor`:
 
 ```python
-require_permission("equipment.manage")   # holds this permission
-require_role("ADMIN", "SUPERVISOR")      # holds one of these roles
+require_permission("tickets:asignar")   # holds this permission (own or inherited)
+require_authenticated()                  # any signed-in person (own profile, notifications)
 ```
 
-Both return an `AuthContext` that services receive as `actor`. Unauthorized callers get `403`. The first user to sign in becomes ADMIN; later users wait without a role until an administrator grants one.
+Unauthorized callers get `403`, and the denial is written to the audit trail (`AUDIT_DENIALS`). A test fails if an endpoint declares neither. The first user to sign in becomes ADMIN; later users wait without a role until an administrator grants one.
 
-| Permission | ADMIN | SUPERVISOR | TECHNICIAN | EMPLOYEE |
-| --- | :-: | :-: | :-: | :-: |
-| `equipment.read` | yes | yes | yes | yes |
-| `equipment.manage` | yes | yes | - | - |
-| `maintenance.read` | yes | yes | yes | yes |
-| `maintenance.create` | yes | yes | - | yes |
-| `maintenance.manage` | yes | yes | own tickets | - |
-| `technicians.manage` | yes | yes | - | - |
-| `schedules.manage` | yes | yes | - | - |
-| `dashboard.read` | yes | yes | own tickets | - |
-| `reports.read` | yes | yes | - | - |
-| `audit.read` | yes | yes | - | - |
-| `attachments.write` | yes | yes | yes | yes |
-| `priorities.manage` | yes | - | - | - |
-| `users.manage` | yes | - | - | - |
+**Roles and inheritance.** A role has the permissions it grants itself plus everything its parent grants. Cycles are refused and the chain is limited to 6 levels. Five base roles are seeded; administrators can create custom ones from the *Roles y permisos* screen.
 
-Ticket visibility: ADMIN/SUPERVISOR see all tickets, a TECHNICIAN the tickets assigned to them, an EMPLOYEE the tickets they requested. The matrix is generated into [docs/api-reference.md](docs/api-reference.md) together with the full endpoint list, and tests check it against every endpoint and against the migration seeds.
+| Role | Inherits from | What it is for |
+| --- | --- | --- |
+| Solicitante (`EMPLOYEE`) | - | Reports problems and follows its own requests and tickets. |
+| Técnico (`TECHNICIAN`) | - | Works the tickets and preventive plans assigned to it, sees only its own figures and exports its own tickets. |
+| Supervisor (`SUPERVISOR`) | Técnico | Sees and manages the whole operation: approves requests, assigns technicians, inventory, equipment, reports. |
+| Administrador (`ADMIN`) | Supervisor | Users, roles and permissions, settings, audit, imports. |
+| Auditor (`AUDITOR`) | - | Read-only: dashboard, reports and audit. |
+
+**Data scope** follows the permissions, not the role name: `ver` is what the person owns, `ver_asignados` what is assigned to them, `ver_todos` everything. Dashboards, maintenance figures, plans and exports are limited the same way. Sensitive fields (`hourly_rate`, `purchase_cost`) are removed from responses unless the person may edit them.
+
+**Rules for changing roles** (enforced in the backend): only whoever holds `usuarios:asignar` can; nobody changes their own roles; a role can only be given or taken by someone who already has every permission it carries; base roles cannot be deleted, deactivated or moved; Administrador cannot be edited; a role with users, or that is a parent, cannot be deleted. Every change is audited with its before and after values.
+
+The full matrix is generated into [docs/rbac-matriz.md](docs/rbac-matriz.md) (`python -m scripts.rbac_matrix`) and the endpoint list, with the permission of each one, into [docs/api-reference.md](docs/api-reference.md). Tests check both against the code and the migration seeds. The frontend asks `PermissionsService` and hides or disables what the person cannot use (`*hasPermission`, `[requiresPermission]`); that is a convenience, the backend decides.
 
 ## Features
 
 | Area | What it does |
 | --- | --- |
 | Equipment | Catalog, types, locations, custody history, status history, bulk import (CSV/Excel). |
-| Tickets | Create, assign, work records with costs, guarded state machine, history, notifications. |
+| Requests queue | Pending requests to classify, approve or reject, with queue metrics. |
+| Tickets | Create, assign, work records with costs, guarded state machine, Kanban board, history, notifications. |
 | Priorities | Managed catalog (`/priorities`) with SLA hours; tickets validate against it. |
-| Technicians | Profiles, availability, workload. |
-| Preventive maintenance | Recurring plans (`/maintenance/schedules`) and a scheduled reminder job. |
-| Dashboard | Tickets by status/priority, overdue vs SLA, mean/median resolution time, workload per technician, equipment with most failures. |
-| Reports | Equipment inventory, tickets and operational summary as CSV, Excel or PDF. |
+| Technicians | Profiles, availability, workload, hourly rate. |
+| Preventive maintenance | Recurring plans, calendar, compliance and cost metrics (`/maintenance/*`) and a scheduled reminder job. |
+| Inventory | Parts and supplies with movements, low-stock alerts, consumption by ticket and catalogues. |
+| Dashboard | KPIs against the previous period (MTTR, SLA compliance, first assignment, resolution rate, backlog by age, availability), trends, alerts and per-technician load. It adapts to the role: whole operation, own assigned work, or own requests. |
+| Reports | Report builder (CSV, Excel, PDF) with history, and PDF/Excel export panels for tickets, technicians and users. Each export is authorised by its own permission. |
+| Users and roles | Accounts, role assignment, pending users, and the *Roles y permisos* matrix with a "test as this role" preview. |
+| Settings | Organization, priorities (with SLA) and request categories. |
 | Audit | Who, what, when, IP, previous and new values (`/audit-logs`). |
 | Attachments | Tickets and equipment; validated by size, extension and file signature. |
 | Notifications | In-app inbox for assignments, status changes, role changes and reminders. |
@@ -149,6 +151,7 @@ All settings come from environment variables (`pydantic-settings`); nothing secr
 | `CLERK_SECRET_KEY` | Server-side key to verify session tokens | - |
 | `CLERK_PUBLISHABLE_KEY` | Public Clerk key | - |
 | `CLERK_AUTHORIZED_PARTIES` | Accepted `azp` origins | `http://localhost:4200` |
+| `AUDIT_DENIALS` | Write an audit entry for every `403` | `true` |
 | `RATE_LIMIT_PER_MINUTE` | Requests per IP per minute (`0` disables) | `120` |
 | `LOG_LEVEL` | Python log level | `INFO` |
 | `UPLOAD_DIR` | Where attachments are stored | `uploads` |
@@ -166,7 +169,7 @@ alembic revision --autogenerate -m "describe change"   # new migration (review i
 alembic check                                          # models and migrations agree?
 ```
 
-21 tables with foreign keys, check constraints, partial unique indexes and query indexes. Roles, permissions, priorities and equipment types are seeded by migrations. The domain design is in [docs/domain-model.md](docs/domain-model.md) (the implementation uses integer identity keys).
+29 tables with foreign keys, check constraints, partial unique indexes and query indexes. Roles, permissions, priorities and equipment types are seeded by migrations (`python -m scripts.seed_rbac` re-syncs the role catalogue idempotently). The domain design is in [docs/domain-model.md](docs/domain-model.md) (the implementation uses integer identity keys).
 
 ## Testing and quality
 
@@ -195,6 +198,19 @@ python -m scripts.api_docs
 
 Frontend: `npm run lint`, `npm run build`, `npm test` inside `frontend/`.
 
+### Demo data
+
+`backend/scripts/seed_demo.py` loads a year of realistic data (users per role, equipment, tickets with history and costs, inventory, preventive plans, audit) so the dashboard and reports have something to show. Everything it creates is marked `DEMO` (`DEMO-*` codes, `@demo.mantix.co` emails), and demo users cannot sign in because they do not exist in Clerk.
+
+```bash
+cd backend
+python -m scripts.seed_demo --yes            # add (prints the target database host first)
+python -m scripts.seed_demo --yes --reset    # remove the demo data and add it again
+python -m scripts.seed_demo --yes --remove   # remove only the demo data
+```
+
+Without `--yes` nothing is written.
+
 ## CI/CD
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
@@ -205,7 +221,9 @@ Frontend: `npm run lint`, `npm run build`, `npm test` inside `frontend/`.
 
 ## Further documentation
 
-- [docs/api-reference.md](docs/api-reference.md) - endpoints, role-permission matrix, ticket state diagram (generated)
+- [docs/api-reference.md](docs/api-reference.md) - endpoints with their permission, ticket state diagram (generated)
+- [docs/rbac-matriz.md](docs/rbac-matriz.md) - permissions per role, with inheritance (generated)
+- [docs/rbac-inventario.md](docs/rbac-inventario.md) - inventory of the endpoints and screens moved to the new permissions
 - [docs/architecture.md](docs/architecture.md) - architecture notes
 - [docs/authentication.md](docs/authentication.md) - Clerk integration
 - [docs/domain-model.md](docs/domain-model.md) - database design
