@@ -5,6 +5,7 @@ import pytest
 
 from app.core.exceptions import BusinessRuleError, InvalidTransitionError
 from app.domain.ticket_state import TicketState
+from tests.support import perm_objects
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -162,7 +163,7 @@ def test_workflow_endpoint_mirrors_the_state_machine_and_needs_read_permission()
         role = SimpleNamespace(
             code="ADMIN",
             is_active=True,
-            permissions=[SimpleNamespace(code=c, is_active=True) for c in permissions],
+            permissions=perm_objects(*permissions),
         )
         return SimpleNamespace(id=1, full_name="Ana", roles=[role])
 

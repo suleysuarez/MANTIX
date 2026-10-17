@@ -28,6 +28,7 @@ from app.services.maintenance_overview import (
     MAX_CALENDAR_DAYS,
     MaintenanceOverviewService,
 )
+from tests.support import perm_objects
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)  # a Wednesday
 MONDAY = datetime(2026, 10, 12, tzinfo=UTC)
@@ -278,9 +279,7 @@ def build_client(permissions):
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

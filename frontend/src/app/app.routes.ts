@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, authorizedGuard, permissionGuard, roleGuard } from './core/auth.guard';
+import { authGuard, authorizedGuard, permissionGuard } from './core/auth.guard';
 import { LoadErrorComponent } from './features/errors/load-error.component';
 
 /** Rutas del shell que no son entradas del menú (el test de rutas las exige explícitas). */
@@ -20,16 +20,16 @@ export const routes: Routes = [
       // «Cuenta» pasó a llamarse «Perfil»: se conservan los enlaces guardados.
       { path: 'cuenta', redirectTo: 'perfil', pathMatch: 'full' },
       { path: 'acceso-denegado', canActivate: [authorizedGuard], loadComponent: () => import('./features/errors/forbidden.component').then((m) => m.ForbiddenComponent) },
-      { path: 'usuarios', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
-      { path: 'admin/pending-users', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/admin/pending-users.component').then((m) => m.PendingUsersComponent) },
+      { path: 'usuarios', canActivate: [permissionGuard('usuarios:ver')], loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
+      { path: 'admin/pending-users', canActivate: [permissionGuard('usuarios:asignar')], loadComponent: () => import('./features/admin/pending-users.component').then((m) => m.PendingUsersComponent) },
       { path: 'equipos', loadChildren: () => import('./features/equipos/equipos.routes').then((m) => m.EQUIPOS_ROUTES) },
-      { path: 'tickets', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/tickets/tickets.component').then((m) => m.TicketsComponent) },
-      { path: 'solicitudes', canActivate: [roleGuard('maintenance.manage', 'ADMIN', 'SUPERVISOR')], loadComponent: () => import('./features/pending-requests/pending-requests.component').then((m) => m.PendingRequestsComponent) },
-      { path: 'technicians', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/technicians/technicians.component').then((m) => m.TechniciansComponent) },
-      { path: 'mantenimiento', canActivate: [permissionGuard('maintenance.read')], loadComponent: () => import('./features/maintenance-hub/maintenance-hub.component').then((m) => m.MaintenanceHubComponent) },
-      { path: 'inventario', canActivate: [permissionGuard('inventory.read')], loadComponent: () => import('./features/inventory/inventory.component').then((m) => m.InventoryComponent) },
-      { path: 'reportes', canActivate: [permissionGuard('reports.read')], loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
-      { path: 'configuracion', canActivate: [permissionGuard('users.manage')], loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
+      { path: 'tickets', canActivate: [permissionGuard('tickets:ver')], loadComponent: () => import('./features/tickets/tickets.component').then((m) => m.TicketsComponent) },
+      { path: 'solicitudes', canActivate: [permissionGuard('solicitudes:ver_todos')], loadComponent: () => import('./features/pending-requests/pending-requests.component').then((m) => m.PendingRequestsComponent) },
+      { path: 'technicians', canActivate: [permissionGuard('tecnicos:ver')], loadComponent: () => import('./features/technicians/technicians.component').then((m) => m.TechniciansComponent) },
+      { path: 'mantenimiento', canActivate: [permissionGuard('mantenimiento:ver')], loadComponent: () => import('./features/maintenance-hub/maintenance-hub.component').then((m) => m.MaintenanceHubComponent) },
+      { path: 'inventario', canActivate: [permissionGuard('inventario:ver')], loadComponent: () => import('./features/inventory/inventory.component').then((m) => m.InventoryComponent) },
+      { path: 'reportes', canActivate: [permissionGuard('reportes:ver')], loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
+      { path: 'configuracion', canActivate: [permissionGuard('configuracion:ver')], loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
       // Pantalla antigua «Mantenimientos»: era la lista y el detalle de solicitudes, que ahora es Tickets.
       // Se conservan los enlaces guardados; los parámetros de la consulta (?status=, ?equipmentId=) pasan solos.
       { path: 'maintenance', pathMatch: 'full', redirectTo: 'tickets' },

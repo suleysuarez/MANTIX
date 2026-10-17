@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.dependencies import require_permission
 from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_equipment_service
+from app.api.redaction import hide_one_unless, hide_unless
 from app.core.authz import AuthContext
 from app.core.pagination import PageParams
 from app.schemas.equipment import (
@@ -51,7 +52,7 @@ async def list_equipment(
         description="Matches asset tag, serial number, brand or model",
     ),
     params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentResponse]:
     page = await service.list_equipment(
@@ -63,7 +64,8 @@ async def list_equipment(
         params=params,
     )
     set_page_headers(response, page)
-    return page.items
+    # The purchase cost is only for whoever manages equipment.
+    return hide_unless(actor, "equipos:editar", page.items, "purchase_cost")
 
 
 @router.get(
@@ -73,7 +75,7 @@ async def list_equipment(
     description="Total and per-status counts for the whole catalog.",
 )
 async def equipment_summary(
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentSummaryResponse:
     return await service.summary()
@@ -87,7 +89,7 @@ async def equipment_summary(
 )
 async def custodian_candidates(
     search: str | None = Query(default=None, max_length=100),
-    _: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("equipos:asignar")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[CustodianCandidate]:
     return await service.custodian_candidates(search)
@@ -95,7 +97,7 @@ async def custodian_candidates(
 
 @router.get("/types", response_model=list[EquipmentTypeResponse])
 async def list_equipment_types(
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentTypeResponse]:
     return await service.list_types()
@@ -104,10 +106,12 @@ async def list_equipment_types(
 @router.get("/{equipment_id}", response_model=EquipmentResponse)
 async def get_equipment(
     equipment_id: int,
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentResponse:
-    return await service.get(equipment_id)
+    return hide_one_unless(
+        actor, "equipos:editar", await service.get(equipment_id), "purchase_cost"
+    )
 
 
 @router.post(
@@ -117,7 +121,7 @@ async def get_equipment(
 )
 async def create_equipment(
     payload: EquipmentCreate,
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:crear")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentResponse:
     return await service.create(payload, actor)
@@ -127,7 +131,7 @@ async def create_equipment(
 async def update_equipment(
     equipment_id: int,
     payload: EquipmentUpdate,
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:editar")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentResponse:
     return await service.update(equipment_id, payload, actor)
@@ -137,7 +141,7 @@ async def update_equipment(
 async def assign_equipment_location(
     equipment_id: int,
     payload: EquipmentLocationAssignRequest,
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:editar")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentResponse:
     return await service.assign_location(equipment_id, payload, actor)
@@ -147,7 +151,7 @@ async def assign_equipment_location(
 async def assign_equipment_custody(
     equipment_id: int,
     payload: EquipmentCustodyAssignRequest,
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:asignar")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> EquipmentResponse:
     return await service.assign_custody(equipment_id, payload, actor)
@@ -163,7 +167,7 @@ async def list_locations(
     response: Response,
     search: str | None = Query(default=None, max_length=100),
     params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[LocationResponse]:
     page = await service.list_locations(search=search, params=params)
@@ -176,7 +180,7 @@ async def list_locations(
 )
 async def create_location(
     payload: LocationCreate,
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:crear")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> LocationResponse:
     return await service.create_location(payload, actor)

@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
-from app.core.exceptions import ForbiddenError
 from app.repositories.queue import DecisionStats, QueueRepository
 from app.schemas.dashboard import CountItem, KpiValue, Period
 from app.schemas.queue import (
@@ -34,8 +33,10 @@ class QueueService:
 
     @staticmethod
     def _require_elevated(actor: AuthContext) -> None:
-        if not actor.is_elevated:
-            raise ForbiddenError("only ADMIN or SUPERVISOR can view the request queue")
+        actor.require(
+            "solicitudes:ver_todos",
+            "Solo quien gestiona solicitudes puede ver la cola.",
+        )
 
     async def categories(self) -> list[RequestCategoryResponse]:
         return [

@@ -23,12 +23,13 @@ from app.schemas.report_builder import (
     ReportPreviewRequest,
 )
 from app.services.report_builder import ReportBuilderService
+from tests.support import expand, perm_objects
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 ACTOR = AuthContext(
     user=SimpleNamespace(id=1, full_name="Ana"),
     roles=frozenset({"SUPERVISOR"}),
-    permissions=frozenset({"reports.read"}),
+    permissions=expand("reports.read"),
 )
 
 
@@ -553,9 +554,7 @@ def build_client(permissions):
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

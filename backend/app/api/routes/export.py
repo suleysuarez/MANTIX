@@ -19,7 +19,7 @@ from app.services.export import ExportService
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 Service = Annotated[ExportService, Depends(get_export_service)]
-Reader = Annotated[AuthContext, Depends(require_permission("reports.read"))]
+Reader = Annotated[AuthContext, Depends(require_permission("reportes:exportar"))]
 
 
 @router.get(

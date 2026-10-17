@@ -45,6 +45,9 @@ class AdminUserService:
 
         existing_role_ids = {user_role.role_id for user_role in user.user_roles}
         newly_added = [role for role in roles if role.id not in existing_role_ids]
+        assigned_by.ensure_can_change_roles(
+            newly_added or roles, target_user_id=user_id
+        )
 
         await self.repository.add_missing_roles(user, roles, assigned_by.id)
         if newly_added:
@@ -102,6 +105,7 @@ class AdminUserService:
         if user_role is None:
             raise NotFoundError("the user does not have that role")
         role = user_role.role
+        actor.ensure_can_change_roles([role], target_user_id=user_id)
         if role.code == ADMIN:
             if user_id == actor.id:
                 raise ConflictError("you cannot revoke your own ADMIN role")

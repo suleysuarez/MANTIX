@@ -22,9 +22,10 @@ from app.schemas.schedule import (
 )
 from app.services.reminders import ReminderService
 from app.services.schedule import ScheduleService
+from tests.support import perm_objects
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
-ACTOR = AuthContext(user=SimpleNamespace(id=9), roles=frozenset({"SUPERVISOR"}))
+ACTOR = AuthContext.for_roles(SimpleNamespace(id=9), "SUPERVISOR")
 
 
 # -- payload validation -----------------------------------------------------------------
@@ -599,10 +600,7 @@ def client():
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=code, is_active=True)
-                    for code in ("maintenance.read", "schedules.manage")
-                ],
+                permissions=perm_objects("maintenance.read", "schedules.manage"),
             )
         ],
     )

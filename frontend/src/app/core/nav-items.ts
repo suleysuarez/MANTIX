@@ -11,16 +11,16 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Dashboard', icon: 'home', path: '/dashboard' },
-  { label: 'Equipos', icon: 'desktop_windows', path: '/equipos', permission: 'equipment.read' },
-  { label: 'Tickets', icon: 'confirmation_number', path: '/tickets', permission: 'maintenance.read' },
-  { label: 'Solicitudes', icon: 'inbox', path: '/solicitudes', permission: 'maintenance.manage', roles: ['ADMIN', 'SUPERVISOR'] },
-  { label: 'Técnicos', icon: 'engineering', path: '/technicians', permission: 'maintenance.read' },
-  { label: 'Mantenimiento', icon: 'event_repeat', path: '/mantenimiento', permission: 'maintenance.read' },
-  { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'inventory.read' },
-  { label: 'Reportes', icon: 'monitoring', path: '/reportes', permission: 'reports.read' },
-  { label: 'Usuarios', icon: 'manage_accounts', path: '/usuarios', permission: 'users.manage' },
-  { label: 'Usuarios pendientes', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'users.manage' },
-  { label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'users.manage' },
+  { label: 'Equipos', icon: 'desktop_windows', path: '/equipos', permission: 'equipos:ver' },
+  { label: 'Tickets', icon: 'confirmation_number', path: '/tickets', permission: 'tickets:ver' },
+  { label: 'Solicitudes', icon: 'inbox', path: '/solicitudes', permission: 'solicitudes:ver_todos' },
+  { label: 'Técnicos', icon: 'engineering', path: '/technicians', permission: 'tecnicos:ver' },
+  { label: 'Mantenimiento', icon: 'event_repeat', path: '/mantenimiento', permission: 'mantenimiento:ver' },
+  { label: 'Inventario', icon: 'inventory_2', path: '/inventario', permission: 'inventario:ver' },
+  { label: 'Reportes', icon: 'monitoring', path: '/reportes', permission: 'reportes:ver' },
+  { label: 'Usuarios', icon: 'manage_accounts', path: '/usuarios', permission: 'usuarios:ver' },
+  { label: 'Usuarios pendientes', icon: 'how_to_reg', path: '/admin/pending-users', permission: 'usuarios:asignar' },
+  { label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'configuracion:ver' },
 ];
 
 /** Solo los enlaces que el usuario puede usar. Las rutas siguen protegidas por sus guards. */

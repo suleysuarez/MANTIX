@@ -2,7 +2,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 
-from app.api.dependencies import get_auth_context, require_permission
+from app.api.dependencies import require_authenticated, require_permission
 from app.api.providers import get_attachment_service
 from app.core.authz import AuthContext
 from app.core.errors import error_responses
@@ -28,7 +28,7 @@ _UPLOAD_NOTE = (
 async def upload_request_attachment(
     request_id: int,
     file: UploadFile = File(description="The file to attach"),  # noqa: B008
-    actor: AuthContext = Depends(require_permission("attachments.write")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("tickets:adjuntar")),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> AttachmentResponse:
     return await service.add_to_request(request_id, file, actor)
@@ -42,7 +42,7 @@ async def upload_request_attachment(
 )
 async def list_request_attachments(
     request_id: int,
-    actor: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("tickets:ver")),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> list[AttachmentResponse]:
     return await service.list_for_request(request_id, actor)
@@ -59,7 +59,7 @@ async def list_request_attachments(
 async def upload_equipment_attachment(
     equipment_id: int,
     file: UploadFile = File(description="The file to attach"),  # noqa: B008
-    actor: AuthContext = Depends(require_permission("attachments.write")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:adjuntar")),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> AttachmentResponse:
     return await service.add_to_equipment(equipment_id, file, actor)
@@ -73,7 +73,7 @@ async def upload_equipment_attachment(
 )
 async def list_equipment_attachments(
     equipment_id: int,
-    _: AuthContext = Depends(require_permission("equipment.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> list[AttachmentResponse]:
     return await service.list_for_equipment(equipment_id)
@@ -91,7 +91,7 @@ async def list_equipment_attachments(
 )
 async def download_attachment(
     attachment_id: int,
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_authenticated()),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> Response:
     file = await service.download(attachment_id, actor)
@@ -116,7 +116,7 @@ async def download_attachment(
 )
 async def delete_attachment(
     attachment_id: int,
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_authenticated()),  # noqa: B008
     service: AttachmentService = Depends(get_attachment_service),  # noqa: B008
 ) -> None:
     await service.delete(attachment_id, actor)

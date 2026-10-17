@@ -15,6 +15,7 @@ from app.core.text import collapse, fold, normalise_unit, slug, title_case
 from app.main import app
 from app.repositories.inventory import ItemRanges
 from app.schemas.inventory import ItemCreate, OptionCreate
+from tests.support import perm_objects
 from tests.test_inventory import (
     GOOD,
     MANAGER,
@@ -157,9 +158,7 @@ def _app_user(permissions):
             SimpleNamespace(
                 code="X",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

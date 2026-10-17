@@ -176,12 +176,12 @@ export class EquipmentListComponent implements OnInit {
     this.store.load();
     const can = (code: string) => this.profile.can(code).catch(() => false);
     const [manage, exportReports, attach, schedule, createTicket, readMaintenance] = await Promise.all([
-      can('equipment.manage'),
-      can('reports.read'),
-      can('attachments.write'),
-      can('schedules.manage'),
-      can('maintenance.create'),
-      can('maintenance.read'),
+      can('equipos:editar'),
+      can('reportes:exportar'),
+      can('equipos:adjuntar'),
+      can('mantenimiento:crear'),
+      can('solicitudes:crear'),
+      can('tickets:ver'),
     ]);
     this.abilities.set({ manage, exportReports, attach, schedule, createTicket, readMaintenance });
   }

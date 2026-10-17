@@ -604,11 +604,11 @@ export class TicketsComponent implements OnInit {
     if (this.statuses.some((item) => item === status)) {
       this.store.setFilters({ status });
     }
-    this.canCreate.set(await this.profile.can('maintenance.create'));
+    this.canCreate.set(await this.profile.can('solicitudes:crear'));
     if (this.preselectedEquipmentId && this.canCreate()) {
       this.createOpen.set(true);
     }
-    this.canManage.set(await this.profile.can('maintenance.manage'));
+    this.canManage.set(await this.profile.can('tickets:cambiar_estado'));
   }
 
   setFilter(changes: Partial<TicketFilters>): void {

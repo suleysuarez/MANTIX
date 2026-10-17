@@ -34,7 +34,7 @@ DAYS = Query(default=30, ge=1, le=365, description="Look-back window in days")
 )
 async def summary(
     days: int = DAYS,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> DashboardSummary:
     return await service.summary(actor, days=days)
@@ -48,7 +48,7 @@ async def summary(
 )
 async def workload(
     days: int = DAYS,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> WorkloadResponse:
     return await service.workload(actor, days=days)
@@ -62,7 +62,7 @@ async def workload(
 )
 async def resolution_times(
     days: int = DAYS,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> ResolutionTimesResponse:
     return await service.resolution_times(actor, days=days)
@@ -76,7 +76,7 @@ async def resolution_times(
 async def top_failing_equipment(
     days: int = DAYS,
     limit: int = Query(default=10, ge=1, le=50),
-    _: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("dashboard:ver_todos")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> FailingEquipmentResponse:
     return await service.top_failing_equipment(days=days, limit=limit)
@@ -97,7 +97,7 @@ async def top_failing_equipment(
 )
 async def kpis(
     period: Period = PERIOD,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> KpisResponse:
     return await service.kpis(actor, period=period)
@@ -115,7 +115,7 @@ async def kpis(
 )
 async def trends(
     period: Period = PERIOD,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> TrendsResponse:
     return await service.trends(actor, period=period)
@@ -132,7 +132,7 @@ async def trends(
     ),
 )
 async def alerts(
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> AlertsResponse:
     return await service.alerts(actor)
@@ -152,7 +152,7 @@ async def alerts(
 )
 async def technicians_performance(
     period: Period = PERIOD,
-    actor: AuthContext = Depends(require_permission("dashboard.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("dashboard:ver")),  # noqa: B008
     service: DashboardKpiService = Depends(get_dashboard_service),  # noqa: B008
 ) -> TechniciansPerformanceResponse:
     return await service.technicians(actor, period=period)

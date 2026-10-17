@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         default=10, ge=1, le=100, validation_alias="MAX_UPLOAD_MB"
     )
 
+    audit_denials: bool = Field(default=True, validation_alias="AUDIT_DENIALS")
     scheduler_enabled: bool = Field(default=True, validation_alias="SCHEDULER_ENABLED")
     reminder_interval_minutes: int = Field(
         default=60, ge=1, le=1440, validation_alias="REMINDER_INTERVAL_MINUTES"

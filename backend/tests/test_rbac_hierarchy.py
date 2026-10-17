@@ -313,10 +313,9 @@ def test_scope_kind_prefers_permissions_over_role_names():
     assert context("tickets:ver").scope_kind("tickets") is ScopeKind.OWN
 
 
-def test_legacy_contexts_without_new_permissions_keep_their_old_scope():
-    assert context(roles=[SUPERVISOR]).scope_kind("tickets") is ScopeKind.ALL
-    assert context(roles=[TECHNICIAN]).scope_kind("tickets") is ScopeKind.ASSIGNED
-    assert context(roles=[EMPLOYEE]).scope_kind("tickets") is ScopeKind.OWN
+def test_a_context_without_ticket_permissions_sees_nothing():
+    assert context(roles=[SUPERVISOR]).scope_kind("tickets") is ScopeKind.NONE
+    assert context("equipos:ver").scope_kind("tickets") is ScopeKind.NONE
 
 
 def ticket(requested_by, technician_id=None, *, active=True):

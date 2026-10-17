@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
-from app.api.dependencies import get_auth_context
+from app.api.dependencies import require_permission
 from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_profile_service
 from app.core.authz import AuthContext
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/profile", tags=["profile"])
     responses=error_responses(401),
 )
 async def get_profile(
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:ver")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> ProfileResponse:
     return await service.get(actor)
@@ -48,7 +48,7 @@ async def get_profile(
 )
 async def update_profile(
     payload: ProfileUpdate,
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:editar")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> ProfileResponse:
     return await service.update(payload, actor)
@@ -66,7 +66,7 @@ async def update_profile(
 )
 async def upload_avatar(
     file: UploadFile = File(...),  # noqa: B008
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:editar")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> ProfileResponse:
     return await service.set_avatar(file, actor)
@@ -79,7 +79,7 @@ async def upload_avatar(
     responses={200: {"content": {"image/jpeg": {}}}, **error_responses(404)},
 )
 async def download_avatar(
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:ver")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> Response:
     content, media_type = await service.avatar(actor)
@@ -99,7 +99,7 @@ async def download_avatar(
     summary="Remove my photo",
 )
 async def remove_avatar(
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:editar")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> ProfileResponse:
     return await service.remove_avatar(actor)
@@ -117,7 +117,7 @@ async def remove_avatar(
 )
 async def change_password(
     payload: PasswordChange,
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:editar")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> Response:
     await service.change_password(payload, actor)
@@ -141,7 +141,7 @@ async def history(
     date_from: datetime | None = Query(default=None),  # noqa: B008
     date_to: datetime | None = Query(default=None),  # noqa: B008
     params: PageParams = Depends(page_params(default_size=15)),  # noqa: B008
-    actor: AuthContext = Depends(get_auth_context),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("perfil:ver")),  # noqa: B008
     service: ProfileService = Depends(get_profile_service),  # noqa: B008
 ) -> list[HistoryEntry]:
     page = await service.history(

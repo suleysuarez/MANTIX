@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.access_audit import record_denial
 from app.core.exceptions import AppError
 
 logger = logging.getLogger("mantix.errors")
@@ -86,6 +87,8 @@ def error_body(
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+        if exc.status_code == status.HTTP_403_FORBIDDEN:
+            await record_denial(request, exc.detail)
         return JSONResponse(
             status_code=exc.status_code,
             content=error_body(request, detail=exc.detail, code=exc.code),
@@ -96,6 +99,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         detail = exc.detail if isinstance(exc.detail, str) else "request failed"
+        if exc.status_code == status.HTTP_403_FORBIDDEN:
+            await record_denial(request, detail)
         return JSONResponse(
             status_code=exc.status_code,
             content=error_body(

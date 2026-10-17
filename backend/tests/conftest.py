@@ -12,6 +12,8 @@ from collections.abc import AsyncIterator
 # Must be set before `app.main` is imported: many tests hammer the API from one IP.
 os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "0")
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+# Denied requests are audited in their own transaction; tests must not write to a database.
+os.environ.setdefault("AUDIT_DENIALS", "false")
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

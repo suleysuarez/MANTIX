@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
 from app.core.exceptions import ForbiddenError, UnprocessableError
+from app.core.scope import ScopeKind
 from app.exports.base import ExportContext, ExportDefinition, Scope
 from app.exports.formatting import local
 from app.exports.pdf import render_pdf
@@ -62,11 +63,9 @@ class ExportService:
 
     @staticmethod
     def _authorize(definition: ExportDefinition, actor: AuthContext) -> None:
-        """Some reports need a permission of their own on top of `reports.read`."""
+        """Some reports need a permission of their own on top of `reportes:exportar`."""
         if definition.permission and definition.permission not in actor.permissions:
-            raise ForbiddenError(
-                f"this report needs the {definition.permission} permission"
-            )
+            raise ForbiddenError("No tienes permiso para exportar este reporte.")
 
     def options(self, report: ExportReportKey) -> ExportOptions:
         definition = self._definition(report)
@@ -91,12 +90,14 @@ class ExportService:
         )
 
     async def _scope(self, actor: AuthContext) -> Scope:
-        """Admins and supervisors see everything; a technician their tickets; others their own."""
-        if actor.is_elevated:
+        """What the person may export is what they may see (`tickets:ver*`)."""
+        kind = actor.scope_kind("tickets")
+        if kind is ScopeKind.ALL:
             return Scope()
-        technician_id = await self.repository.technician_id_of(actor.id)
-        if technician_id is not None:
-            return Scope(technician_id=technician_id)
+        if kind is ScopeKind.ASSIGNED:
+            technician_id = await self.repository.technician_id_of(actor.id)
+            if technician_id is not None:
+                return Scope(technician_id=technician_id)
         return Scope(requester_id=actor.id)
 
     async def count(

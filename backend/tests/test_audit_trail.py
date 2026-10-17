@@ -14,6 +14,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.base import Page
 from app.schemas.audit import AuditLogResponse
 from app.services.audit import AuditService
+from tests.support import perm_objects
 
 
 def audit_row(**overrides):
@@ -101,7 +102,7 @@ def test_middleware_stores_request_info_for_the_request(monkeypatch):
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[SimpleNamespace(code="audit.read", is_active=True)],
+                permissions=perm_objects("audit.read"),
             )
         ],
     )
@@ -128,7 +129,7 @@ def client():
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[SimpleNamespace(code="audit.read", is_active=True)],
+                permissions=perm_objects("audit.read"),
             )
         ],
     )

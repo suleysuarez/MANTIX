@@ -312,3 +312,15 @@ ROLE_OWN_PERMISSIONS = MappingProxyType(
         ),
     }
 )
+
+
+def effective_for_system_roles(*role_codes: str) -> frozenset[str]:
+    """Permissions (new catalogue) of the given system roles, ancestors included."""
+    from app.core.rbac import effective
+
+    own = {role: frozenset(codes) for role, codes in ROLE_OWN_PERMISSIONS.items()}
+    parents = dict(ROLE_PARENTS)
+    result: frozenset[str] = frozenset()
+    for code in role_codes:
+        result |= effective(code, parents, own)
+    return result

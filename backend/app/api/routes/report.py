@@ -60,7 +60,7 @@ async def equipment_report(
     export_format: Format = "xlsx",
     status: str | None = Query(default=None),
     equipment_type_id: int | None = Query(default=None),
-    _: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("reportes:exportar")),  # noqa: B008
     service: ReportService = Depends(get_report_service),  # noqa: B008
 ) -> Response:
     return _download(
@@ -84,7 +84,7 @@ async def ticket_report(
     priority: str | None = Query(default=None),
     date_from: datetime | None = Query(default=None, description="Created at or after"),  # noqa: B008
     date_to: datetime | None = Query(default=None, description="Created at or before"),  # noqa: B008
-    _: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("reportes:exportar")),  # noqa: B008
     service: ReportService = Depends(get_report_service),  # noqa: B008
 ) -> Response:
     return _download(
@@ -108,7 +108,7 @@ async def ticket_report(
 async def summary_report(
     export_format: Format = "pdf",
     days: int = Query(default=30, ge=1, le=365),
-    actor: AuthContext = Depends(require_permission("reports.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("reportes:exportar")),  # noqa: B008
     service: ReportService = Depends(get_report_service),  # noqa: B008
 ) -> Response:
     return _download(
@@ -132,7 +132,7 @@ async def summary_report(
 async def import_equipment(
     file: UploadFile = File(description="CSV or XLSX file"),  # noqa: B008
     dry_run: bool = Query(default=False),
-    actor: AuthContext = Depends(require_permission("equipment.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("equipos:importar")),  # noqa: B008
     service: EquipmentImportService = Depends(get_equipment_import_service),  # noqa: B008
 ) -> ImportResult:
     filename = safe_filename(file.filename)

@@ -20,7 +20,7 @@ router = APIRouter(prefix="/priorities", tags=["priorities"])
 )
 async def list_priorities(
     include_inactive: bool = Query(default=False),
-    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("tickets:ver")),  # noqa: B008
     service: PriorityService = Depends(get_priority_service),  # noqa: B008
 ) -> list[PriorityResponse]:
     return await service.list(include_inactive=include_inactive)
@@ -35,7 +35,7 @@ async def list_priorities(
 )
 async def create_priority(
     payload: PriorityCreate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: PriorityService = Depends(get_priority_service),  # noqa: B008
 ) -> PriorityResponse:
     return await service.create(payload, actor)
@@ -52,7 +52,7 @@ async def create_priority(
 async def update_priority(
     priority_id: int,
     payload: PriorityUpdate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: PriorityService = Depends(get_priority_service),  # noqa: B008
 ) -> PriorityResponse:
     return await service.update(priority_id, payload, actor)

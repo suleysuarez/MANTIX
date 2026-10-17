@@ -35,17 +35,23 @@ from app.repositories.export import ExportRepository
 from app.schemas.export import ExportFilters, ExportRequest
 from app.services import export as export_module
 from app.services.export import ExportService, filename
+from tests.support import expand, perm_objects
 
 NOW = datetime(2026, 10, 14, 15, 0, tzinfo=UTC)
-ADMIN = AuthContext(
-    user=SimpleNamespace(id=1, full_name="Ana Pérez"),
-    roles=frozenset({"ADMIN"}),
-    permissions=frozenset({"reports.read"}),
-)
+ADMIN = AuthContext.for_roles(SimpleNamespace(id=1, full_name="Ana Pérez"), "ADMIN")
+#: Can export tickets (reportes + tickets:exportar) but only those assigned to them.
 TECHNICIAN = AuthContext(
     user=SimpleNamespace(id=7, full_name="Luis Gómez"),
     roles=frozenset({"TECHNICIAN"}),
-    permissions=frozenset({"reports.read"}),
+    permissions=expand(
+        "reportes:exportar", "tickets:exportar", "tickets:ver_asignados"
+    ),
+)
+#: Same export rights but only their own tickets (no technician profile).
+REQUESTER = AuthContext(
+    user=SimpleNamespace(id=7, full_name="Luis Gómez"),
+    roles=frozenset({"EMPLOYEE"}),
+    permissions=expand("reportes:exportar", "tickets:exportar", "tickets:ver"),
 )
 
 
@@ -458,7 +464,7 @@ async def test_each_role_exports_only_what_it_may_see():
     await tech_service.count(TECHNICIAN, "tickets", ExportFilters())
     assert tech_repo.scopes == [(None, 5)]
     other_service, other_repo = make_service(technician_id=None)
-    await other_service.count(TECHNICIAN, "tickets", ExportFilters())
+    await other_service.count(REQUESTER, "tickets", ExportFilters())
     assert other_repo.scopes == [(7, None)]
     assert isinstance(Scope(), Scope)
 
@@ -481,16 +487,20 @@ def user_row(n: int, **over: Any) -> dict[str, Any]:
 MANAGER = AuthContext(
     user=SimpleNamespace(id=1, full_name="Ana Pérez"),
     roles=frozenset({"ADMIN"}),
-    permissions=frozenset({"reports.read", "users.manage"}),
+    permissions=expand("reports.read", "users.manage"),
 )
 
 
 async def test_the_users_report_needs_users_manage_on_top_of_reports_read():
     service, _ = make_service(rows=[user_row(n) for n in range(1, 5)])
+    # A supervisor exports reports but does not manage users.
+    supervisor = AuthContext.for_roles(
+        SimpleNamespace(id=2, full_name="Sup"), "SUPERVISOR"
+    )
     with pytest.raises(ForbiddenError):
-        await service.count(ADMIN, "users", ExportFilters())
+        await service.count(supervisor, "users", ExportFilters())
     with pytest.raises(ForbiddenError):
-        await service.export(ADMIN, "users", "pdf", ExportRequest(), now=NOW)
+        await service.export(supervisor, "users", "pdf", ExportRequest(), now=NOW)
     assert (await service.count(MANAGER, "users", ExportFilters())).total == 4
 
 
@@ -544,9 +554,7 @@ def as_user(permissions, *, service=None):
             SimpleNamespace(
                 code="ADMIN",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )
@@ -558,7 +566,7 @@ def as_user(permissions, *, service=None):
 @pytest.fixture
 def client():
     service, _ = make_service()
-    as_user(["reports.read"], service=service)
+    as_user(["reports.read", "tickets:exportar"], service=service)
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
     app.dependency_overrides.clear()

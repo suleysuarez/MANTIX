@@ -21,6 +21,7 @@ from app.repositories.dashboard import (
     WorkloadRow,
 )
 from app.services.dashboard import DashboardService
+from tests.support import perm_objects
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 
@@ -218,7 +219,7 @@ class FakeDashboardRepository:
 
 
 def actor(*roles):
-    return AuthContext(user=SimpleNamespace(id=7), roles=frozenset(roles))
+    return AuthContext.for_roles(SimpleNamespace(id=7), *roles)
 
 
 async def test_supervisor_sees_everything_unscoped():
@@ -287,7 +288,7 @@ def client():
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[SimpleNamespace(code="dashboard.read", is_active=True)],
+                permissions=perm_objects("dashboard.read"),
             )
         ],
     )

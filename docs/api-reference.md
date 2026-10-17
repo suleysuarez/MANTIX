@@ -9,11 +9,11 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/admin/permissions` | List permissions | `users.manage` |
-| GET | `/admin/roles` | List roles | `users.manage` |
-| GET | `/admin/roles/matrix` | Role-permission matrix | `users.manage` |
-| GET | `/admin/users/pending` | List pending users | `users.manage` |
-| DELETE | `/admin/users/{user_id}/roles/{role_id}` | Revoke a role from a user | `users.manage` |
+| GET | `/admin/permissions` | List permissions | `configuracion:ver` |
+| GET | `/admin/roles` | List roles | `usuarios:ver` |
+| GET | `/admin/roles/matrix` | Role-permission matrix | `configuracion:ver` |
+| GET | `/admin/users/pending` | List pending users | `usuarios:ver` |
+| DELETE | `/admin/users/{user_id}/roles/{role_id}` | Revoke a role from a user | `usuarios:asignar` |
 
 ### attachments
 
@@ -21,162 +21,162 @@
 | --- | --- | --- | --- |
 | DELETE | `/attachments/{attachment_id}` | Delete an attachment | any signed-in user |
 | GET | `/attachments/{attachment_id}/download` | Download an attachment | any signed-in user |
-| GET | `/equipment/{equipment_id}/attachments` | List an equipment item's attachments | `equipment.read` |
-| POST | `/equipment/{equipment_id}/attachments` | Attach a file to equipment | `attachments.write` |
-| GET | `/maintenance/requests/{request_id}/attachments` | List a ticket's attachments | `maintenance.read` |
-| POST | `/maintenance/requests/{request_id}/attachments` | Attach a file to a ticket | `attachments.write` |
+| GET | `/equipment/{equipment_id}/attachments` | List an equipment item's attachments | `equipos:ver` |
+| POST | `/equipment/{equipment_id}/attachments` | Attach a file to equipment | `equipos:adjuntar` |
+| GET | `/maintenance/requests/{request_id}/attachments` | List a ticket's attachments | `tickets:ver` |
+| POST | `/maintenance/requests/{request_id}/attachments` | Attach a file to a ticket | `tickets:adjuntar` |
 
 ### audit
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/audit-logs` | Query the audit trail | `audit.read` |
+| GET | `/audit-logs` | Query the audit trail | `auditoria:ver` |
 
 ### authentication
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/auth/me` | Me | public |
+| GET | `/auth/me` | Me | any signed-in user |
 
 ### dashboard
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/dashboard/alerts` | What needs attention now | `dashboard.read` |
-| GET | `/dashboard/kpis` | Headline KPIs with period-over-period comparison | `dashboard.read` |
-| GET | `/dashboard/resolution-times` | Mean and median resolution time | `dashboard.read` |
-| GET | `/dashboard/summary` | Operational summary | `dashboard.read` |
-| GET | `/dashboard/technicians` | Technician performance for the period | `dashboard.read` |
-| GET | `/dashboard/top-failing-equipment` | Equipment with the most tickets | `dashboard.read` |
-| GET | `/dashboard/trends` | Time series behind the KPI sparklines | `dashboard.read` |
-| GET | `/dashboard/workload` | Workload per technician | `dashboard.read` |
+| GET | `/dashboard/alerts` | What needs attention now | `dashboard:ver` |
+| GET | `/dashboard/kpis` | Headline KPIs with period-over-period comparison | `dashboard:ver` |
+| GET | `/dashboard/resolution-times` | Mean and median resolution time | `dashboard:ver` |
+| GET | `/dashboard/summary` | Operational summary | `dashboard:ver` |
+| GET | `/dashboard/technicians` | Technician performance for the period | `dashboard:ver` |
+| GET | `/dashboard/top-failing-equipment` | Equipment with the most tickets | `dashboard:ver_todos` |
+| GET | `/dashboard/trends` | Time series behind the KPI sparklines | `dashboard:ver` |
+| GET | `/dashboard/workload` | Workload per technician | `dashboard:ver` |
 
 ### data-exchange
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| POST | `/imports/equipment` | Bulk-import equipment from CSV or Excel | `equipment.manage` |
+| POST | `/imports/equipment` | Bulk-import equipment from CSV or Excel | `equipos:importar` |
 
 ### equipment
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/equipment` | List equipment | `equipment.read` |
-| POST | `/equipment` | Create equipment | `equipment.manage` |
-| GET | `/equipment/custodian-candidates` | Search users who can hold equipment | `equipment.manage` |
-| GET | `/equipment/summary` | Equipment counts by status | `equipment.read` |
-| GET | `/equipment/types` | List equipment types | `equipment.read` |
-| GET | `/equipment/{equipment_id}` | Get equipment | `equipment.read` |
-| PATCH | `/equipment/{equipment_id}` | Update equipment | `equipment.manage` |
-| POST | `/equipment/{equipment_id}/custody` | Assign equipment custody | `equipment.manage` |
-| POST | `/equipment/{equipment_id}/location` | Assign equipment location | `equipment.manage` |
-| GET | `/locations` | List locations | `equipment.read` |
-| POST | `/locations` | Create location | `equipment.manage` |
+| GET | `/equipment` | List equipment | `equipos:ver` |
+| POST | `/equipment` | Create equipment | `equipos:crear` |
+| GET | `/equipment/custodian-candidates` | Search users who can hold equipment | `equipos:asignar` |
+| GET | `/equipment/summary` | Equipment counts by status | `equipos:ver` |
+| GET | `/equipment/types` | List equipment types | `equipos:ver` |
+| GET | `/equipment/{equipment_id}` | Get equipment | `equipos:ver` |
+| PATCH | `/equipment/{equipment_id}` | Update equipment | `equipos:editar` |
+| POST | `/equipment/{equipment_id}/custody` | Assign equipment custody | `equipos:asignar` |
+| POST | `/equipment/{equipment_id}/location` | Assign equipment location | `equipos:editar` |
+| GET | `/locations` | List locations | `equipos:ver` |
+| POST | `/locations` | Create location | `equipos:crear` |
 
 ### inventory
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| POST | `/inventory/import` | Bulk-import stock items from CSV or Excel | `inventory.manage` |
-| GET | `/inventory/import/template` | Excel template for the import | `inventory.manage` |
-| GET | `/inventory/items` | List stock items | `inventory.read` |
-| POST | `/inventory/items` | Create a stock item | `inventory.manage` |
-| DELETE | `/inventory/items/{item_id}` | Delete a stock item | `inventory.manage` |
-| GET | `/inventory/items/{item_id}` | Get a stock item | `inventory.read` |
-| PATCH | `/inventory/items/{item_id}` | Update a stock item | `inventory.manage` |
-| GET | `/inventory/items/{item_id}/movements` | Movement history of an item, newest first | `inventory.read` |
-| POST | `/inventory/items/{item_id}/movements` | Register a stock movement | `inventory.consume` |
-| GET | `/inventory/options` | Values of the item drop-downs | `inventory.read` |
-| POST | `/inventory/options` | Add a value to an item drop-down | `inventory.manage` |
-| GET | `/inventory/overview` | Inventory metrics for the period | `inventory.read` |
+| POST | `/inventory/import` | Bulk-import stock items from CSV or Excel | `inventario:importar` |
+| GET | `/inventory/import/template` | Excel template for the import | `inventario:importar` |
+| GET | `/inventory/items` | List stock items | `inventario:ver` |
+| POST | `/inventory/items` | Create a stock item | `inventario:crear` |
+| DELETE | `/inventory/items/{item_id}` | Delete a stock item | `inventario:eliminar` |
+| GET | `/inventory/items/{item_id}` | Get a stock item | `inventario:ver` |
+| PATCH | `/inventory/items/{item_id}` | Update a stock item | `inventario:editar` |
+| GET | `/inventory/items/{item_id}/movements` | Movement history of an item, newest first | `inventario:ver` |
+| POST | `/inventory/items/{item_id}/movements` | Register a stock movement | `inventario:consumir` |
+| GET | `/inventory/options` | Values of the item drop-downs | `inventario:ver` |
+| POST | `/inventory/options` | Add a value to an item drop-down | `inventario:crear` |
+| GET | `/inventory/overview` | Inventory metrics for the period | `inventario:ver` |
 
 ### maintenance
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/maintenance/calendar` | Preventive services in a date range | `maintenance.read` |
-| GET | `/maintenance/categories` | Active request categories | `maintenance.read` |
-| GET | `/maintenance/overview` | Maintenance metrics for the period | `maintenance.read` |
-| GET | `/maintenance/queue/summary` | Pending-requests queue metrics | role `ADMIN`, `SUPERVISOR` |
-| GET | `/maintenance/requests` | List maintenance tickets | `maintenance.read` |
-| POST | `/maintenance/requests` | Create maintenance request | `maintenance.create` |
-| GET | `/maintenance/requests/workflow` | Ticket statuses and the moves between them | `maintenance.read` |
-| GET | `/maintenance/requests/{request_id}` | Get maintenance request | `maintenance.read` |
-| DELETE | `/maintenance/requests/{request_id}/assignment` | Unassign technician | `maintenance.manage` |
-| POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `maintenance.manage` |
-| POST | `/maintenance/requests/{request_id}/classify` | Classify (triage) a request | `maintenance.manage` |
-| GET | `/maintenance/requests/{request_id}/records` | List maintenance records | `maintenance.read` |
-| POST | `/maintenance/requests/{request_id}/records` | Add maintenance record | `maintenance.manage` |
-| POST | `/maintenance/requests/{request_id}/reject` | Reject a request that has not started | `maintenance.manage` |
-| POST | `/maintenance/requests/{request_id}/status` | Transition maintenance request status | `maintenance.manage` |
+| GET | `/maintenance/calendar` | Preventive services in a date range | `mantenimiento:ver` |
+| GET | `/maintenance/categories` | Active request categories | `tickets:ver` |
+| GET | `/maintenance/overview` | Maintenance metrics for the period | `mantenimiento:ver` |
+| GET | `/maintenance/queue/summary` | Pending-requests queue metrics | `solicitudes:ver_todos` |
+| GET | `/maintenance/requests` | List maintenance tickets | `tickets:ver` |
+| POST | `/maintenance/requests` | Create maintenance request | `solicitudes:crear` |
+| GET | `/maintenance/requests/workflow` | Ticket statuses and the moves between them | `tickets:ver` |
+| GET | `/maintenance/requests/{request_id}` | Get maintenance request | `tickets:ver` |
+| DELETE | `/maintenance/requests/{request_id}/assignment` | Unassign technician | `tickets:asignar` |
+| POST | `/maintenance/requests/{request_id}/assignment` | Assign technician | `tickets:asignar` |
+| POST | `/maintenance/requests/{request_id}/classify` | Classify (triage) a request | `solicitudes:editar` |
+| GET | `/maintenance/requests/{request_id}/records` | List maintenance records | `tickets:ver` |
+| POST | `/maintenance/requests/{request_id}/records` | Add maintenance record | `tickets:editar` |
+| POST | `/maintenance/requests/{request_id}/reject` | Reject a request that has not started | `solicitudes:aprobar` |
+| POST | `/maintenance/requests/{request_id}/status` | Transition maintenance request status | `tickets:cambiar_estado` |
 
 ### notifications
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/notifications` | List notifications | public |
-| POST | `/notifications/read-all` | Mark all notifications read | public |
-| POST | `/notifications/{notification_id}/read` | Mark notification read | public |
+| GET | `/notifications` | List notifications | any signed-in user |
+| POST | `/notifications/read-all` | Mark all notifications read | any signed-in user |
+| POST | `/notifications/{notification_id}/read` | Mark notification read | any signed-in user |
 
 ### priorities
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/priorities` | List ticket priorities | `maintenance.read` |
-| POST | `/priorities` | Create a priority | `priorities.manage` |
-| PATCH | `/priorities/{priority_id}` | Update a priority | `priorities.manage` |
+| GET | `/priorities` | List ticket priorities | `tickets:ver` |
+| POST | `/priorities` | Create a priority | `configuracion:editar` |
+| PATCH | `/priorities/{priority_id}` | Update a priority | `configuracion:editar` |
 
 ### profile
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/profile` | My profile | any signed-in user |
-| PATCH | `/profile` | Edit my personal data | any signed-in user |
-| DELETE | `/profile/avatar` | Remove my photo | any signed-in user |
-| GET | `/profile/avatar` | My photo | any signed-in user |
-| PUT | `/profile/avatar` | Upload my photo | any signed-in user |
-| GET | `/profile/history` | My history | any signed-in user |
-| POST | `/profile/password` | Change my password | any signed-in user |
+| GET | `/profile` | My profile | `perfil:ver` |
+| PATCH | `/profile` | Edit my personal data | `perfil:editar` |
+| DELETE | `/profile/avatar` | Remove my photo | `perfil:editar` |
+| GET | `/profile/avatar` | My photo | `perfil:ver` |
+| PUT | `/profile/avatar` | Upload my photo | `perfil:editar` |
+| GET | `/profile/history` | My history | `perfil:ver` |
+| POST | `/profile/password` | Change my password | `perfil:editar` |
 
 ### reports
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/reports/catalog` | Report gallery | `reports.read` |
-| GET | `/reports/equipment` | Export the equipment inventory | `reports.read` |
-| POST | `/reports/generate` | Generate and download a report | `reports.read` |
-| GET | `/reports/history` | Recent exports, newest first | `reports.read` |
-| GET | `/reports/overview` | Report activity for the period | `reports.read` |
-| POST | `/reports/preview` | Preview a report with its filters | `reports.read` |
-| GET | `/reports/summary` | Export the operational summary | `reports.read` |
-| GET | `/reports/tickets` | Export maintenance tickets | `reports.read` |
-| POST | `/reports/{report}/export` | Export a report as PDF or Excel | `reports.read` |
-| POST | `/reports/{report}/export/count` | How many records an export would contain | `reports.read` |
-| GET | `/reports/{report}/export/options` | What a report export offers | `reports.read` |
+| GET | `/reports/catalog` | Report gallery | `reportes:ver` |
+| GET | `/reports/equipment` | Export the equipment inventory | `reportes:exportar` |
+| POST | `/reports/generate` | Generate and download a report | `reportes:exportar` |
+| GET | `/reports/history` | Recent exports, newest first | `reportes:ver` |
+| GET | `/reports/overview` | Report activity for the period | `reportes:ver` |
+| POST | `/reports/preview` | Preview a report with its filters | `reportes:ver` |
+| GET | `/reports/summary` | Export the operational summary | `reportes:exportar` |
+| GET | `/reports/tickets` | Export maintenance tickets | `reportes:exportar` |
+| POST | `/reports/{report}/export` | Export a report as PDF or Excel | `reportes:exportar` |
+| POST | `/reports/{report}/export/count` | How many records an export would contain | `reportes:exportar` |
+| GET | `/reports/{report}/export/options` | What a report export offers | `reportes:exportar` |
 
 ### schedules
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/maintenance/schedules` | List preventive-maintenance plans | `maintenance.read` |
-| POST | `/maintenance/schedules` | Create a preventive-maintenance plan | `schedules.manage` |
-| POST | `/maintenance/schedules/run-reminders` | Run the reminder job now | `schedules.manage` |
-| GET | `/maintenance/schedules/{schedule_id}` | Get a plan | `maintenance.read` |
-| PATCH | `/maintenance/schedules/{schedule_id}` | Update a plan | `schedules.manage` |
-| POST | `/maintenance/schedules/{schedule_id}/complete` | Mark the service as done | `schedules.manage` |
-| GET | `/maintenance/schedules/{schedule_id}/history` | Completions and reschedules of a plan | `maintenance.read` |
+| GET | `/maintenance/schedules` | List preventive-maintenance plans | `mantenimiento:ver` |
+| POST | `/maintenance/schedules` | Create a preventive-maintenance plan | `mantenimiento:crear` |
+| POST | `/maintenance/schedules/run-reminders` | Run the reminder job now | `mantenimiento:editar` |
+| GET | `/maintenance/schedules/{schedule_id}` | Get a plan | `mantenimiento:ver` |
+| PATCH | `/maintenance/schedules/{schedule_id}` | Update a plan | `mantenimiento:editar` |
+| POST | `/maintenance/schedules/{schedule_id}/complete` | Mark the service as done | `mantenimiento:editar` |
+| GET | `/maintenance/schedules/{schedule_id}/history` | Completions and reschedules of a plan | `mantenimiento:ver` |
 
 ### settings
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/settings/categories` | Request categories, with how many requests use each | `priorities.manage` |
-| POST | `/settings/categories` | Create a request category | `priorities.manage` |
-| DELETE | `/settings/categories/{category_id}` | Delete an unused category | `priorities.manage` |
-| PATCH | `/settings/categories/{category_id}` | Rename or (de)activate a category | `priorities.manage` |
-| GET | `/settings/health` | System health | `users.manage` |
-| GET | `/settings/organization` | Company shown in report headers | `users.manage` |
-| PUT | `/settings/organization` | Set the company shown in report headers | `users.manage` |
+| GET | `/settings/categories` | Request categories, with how many requests use each | `configuracion:ver` |
+| POST | `/settings/categories` | Create a request category | `configuracion:editar` |
+| DELETE | `/settings/categories/{category_id}` | Delete an unused category | `configuracion:editar` |
+| PATCH | `/settings/categories/{category_id}` | Rename or (de)activate a category | `configuracion:editar` |
+| GET | `/settings/health` | System health | `configuracion:ver` |
+| GET | `/settings/organization` | Company shown in report headers | `configuracion:ver` |
+| PUT | `/settings/organization` | Set the company shown in report headers | `configuracion:editar` |
 
 ### system
 
@@ -188,24 +188,24 @@
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/technicians` | List technicians | `maintenance.read` |
-| POST | `/technicians` | Create technician | `technicians.manage` |
-| PATCH | `/technicians/{technician_id}` | Update technician | `technicians.manage` |
+| GET | `/technicians` | List technicians | `tecnicos:ver` |
+| POST | `/technicians` | Create technician | `tecnicos:crear` |
+| PATCH | `/technicians/{technician_id}` | Update technician | `tecnicos:editar` |
 
 ### users
 
 | Method | Path | Summary | Access |
 | --- | --- | --- | --- |
-| GET | `/admin/users` | List users | `users.manage` |
-| POST | `/admin/users` | Pre-register a user | `users.manage` |
-| GET | `/admin/users/summary` | Indicators of the Users screen | `users.manage` |
-| GET | `/admin/users/{user_id}` | Get a user | `users.manage` |
-| PATCH | `/admin/users/{user_id}` | Edit a user | `users.manage` |
-| POST | `/admin/users/{user_id}/activate` | Reactivate a user | `users.manage` |
-| POST | `/admin/users/{user_id}/deactivate` | Deactivate a user | `users.manage` |
-| POST | `/admin/users/{user_id}/password` | Set a new password for a user | `users.manage` |
-| POST | `/admin/users/{user_id}/roles` | Assign roles | `users.manage` |
-| PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `users.manage` |
+| GET | `/admin/users` | List users | `usuarios:ver` |
+| POST | `/admin/users` | Pre-register a user | `usuarios:crear` |
+| GET | `/admin/users/summary` | Indicators of the Users screen | `usuarios:ver` |
+| GET | `/admin/users/{user_id}` | Get a user | `usuarios:ver` |
+| PATCH | `/admin/users/{user_id}` | Edit a user | `usuarios:editar` |
+| POST | `/admin/users/{user_id}/activate` | Reactivate a user | `usuarios:cambiar_estado` |
+| POST | `/admin/users/{user_id}/deactivate` | Deactivate a user | `usuarios:cambiar_estado` |
+| POST | `/admin/users/{user_id}/password` | Set a new password for a user | `usuarios:editar` |
+| POST | `/admin/users/{user_id}/roles` | Assign roles | `usuarios:asignar` |
+| PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `usuarios:asignar` |
 
 Total: **112** endpoints.
 
@@ -213,26 +213,58 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 
 ## Role-permission matrix
 
-| Permission | ADMIN | SUPERVISOR | TECHNICIAN | EMPLOYEE |
-| --- | --- | --- | --- | --- |
-| `attachments.write` | yes | yes | yes | yes |
-| `audit.read` | yes | yes | - | - |
-| `dashboard.read` | yes | yes | yes | - |
-| `equipment.manage` | yes | yes | - | - |
-| `equipment.read` | yes | yes | yes | yes |
-| `inventory.consume` | yes | yes | yes | - |
-| `inventory.manage` | yes | yes | - | - |
-| `inventory.read` | yes | yes | yes | - |
-| `maintenance.create` | yes | yes | - | yes |
-| `maintenance.manage` | yes | yes | yes | - |
-| `maintenance.read` | yes | yes | yes | yes |
-| `priorities.manage` | yes | - | - | - |
-| `reports.read` | yes | yes | - | - |
-| `schedules.manage` | yes | yes | - | - |
-| `technicians.manage` | yes | yes | - | - |
-| `users.manage` | yes | - | - | - |
+| Permission | ADMIN | SUPERVISOR | TECHNICIAN | EMPLOYEE | AUDITOR |
+| --- | --- | --- | --- | --- | --- |
+| `dashboard:ver` | yes | yes | yes | yes | yes |
+| `dashboard:ver_todos` | yes | yes | - | - | yes |
+| `equipos:ver` | yes | yes | yes | yes | - |
+| `equipos:crear` | yes | yes | - | - | - |
+| `equipos:editar` | yes | yes | - | - | - |
+| `equipos:asignar` | yes | yes | - | - | - |
+| `equipos:adjuntar` | yes | yes | - | - | - |
+| `equipos:exportar` | yes | yes | - | - | - |
+| `equipos:importar` | yes | - | - | - | - |
+| `solicitudes:ver` | yes | yes | yes | yes | - |
+| `solicitudes:ver_todos` | yes | yes | - | - | - |
+| `solicitudes:crear` | yes | yes | yes | yes | - |
+| `solicitudes:editar` | yes | yes | - | - | - |
+| `solicitudes:aprobar` | yes | yes | - | - | - |
+| `tickets:ver` | yes | yes | yes | yes | - |
+| `tickets:ver_asignados` | yes | yes | yes | - | - |
+| `tickets:ver_todos` | yes | yes | - | - | - |
+| `tickets:editar` | yes | yes | yes | - | - |
+| `tickets:asignar` | yes | yes | - | - | - |
+| `tickets:cambiar_estado` | yes | yes | yes | - | - |
+| `tickets:adjuntar` | yes | yes | yes | yes | - |
+| `tickets:exportar` | yes | yes | - | - | - |
+| `tecnicos:ver` | yes | yes | yes | - | - |
+| `tecnicos:crear` | yes | yes | - | - | - |
+| `tecnicos:editar` | yes | yes | - | - | - |
+| `tecnicos:exportar` | yes | yes | - | - | - |
+| `mantenimiento:ver` | yes | yes | yes | - | - |
+| `mantenimiento:crear` | yes | yes | - | - | - |
+| `mantenimiento:editar` | yes | yes | - | - | - |
+| `inventario:ver` | yes | yes | yes | - | - |
+| `inventario:crear` | yes | yes | - | - | - |
+| `inventario:editar` | yes | yes | - | - | - |
+| `inventario:eliminar` | yes | - | - | - | - |
+| `inventario:consumir` | yes | yes | yes | - | - |
+| `inventario:importar` | yes | - | - | - | - |
+| `inventario:exportar` | yes | yes | - | - | - |
+| `reportes:ver` | yes | yes | - | - | yes |
+| `reportes:exportar` | yes | yes | - | - | yes |
+| `usuarios:ver` | yes | - | - | - | - |
+| `usuarios:crear` | yes | - | - | - | - |
+| `usuarios:editar` | yes | - | - | - | - |
+| `usuarios:cambiar_estado` | yes | - | - | - | - |
+| `usuarios:asignar` | yes | - | - | - | - |
+| `perfil:ver` | yes | yes | yes | yes | yes |
+| `perfil:editar` | yes | yes | yes | yes | yes |
+| `configuracion:ver` | yes | - | - | - | - |
+| `configuracion:editar` | yes | - | - | - | - |
+| `auditoria:ver` | yes | - | - | - | yes |
 
-`maintenance.manage` for a TECHNICIAN only applies to tickets assigned to them; EMPLOYEE only sees tickets they requested; ADMIN and SUPERVISOR see all.
+Roles inherit: EMPLOYEE → TECHNICIAN → SUPERVISOR → ADMIN (AUDITOR stands alone). Data scope follows `ver` (own), `ver_asignados` (assigned to the person) and `ver_todos` (everything).
 
 ## Ticket state diagram
 

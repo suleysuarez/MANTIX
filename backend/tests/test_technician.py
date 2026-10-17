@@ -70,7 +70,7 @@ class FakeAudit:
         self.records.append(kwargs)
 
 
-ACTOR = AuthContext(user=SimpleNamespace(id=9), roles=frozenset({"ADMIN"}))
+ACTOR = AuthContext.for_roles(SimpleNamespace(id=9), "ADMIN")
 
 
 def service_with_fakes(users=None):

@@ -382,7 +382,7 @@ export class MaintenanceHubComponent implements OnInit {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((search) => this.store.setFilters({ search }));
     this.store.load();
-    this.canManage.set(await this.profile.can('schedules.manage'));
+    this.canManage.set(await this.profile.can('mantenimiento:crear'));
   }
 
   title(vm: MaintenanceHubState): string {

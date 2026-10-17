@@ -89,6 +89,7 @@ def _counts(counter: Counter[str], order: list[str]) -> list[SummaryLine]:
 
 class TechniciansExport(ExportDefinition):
     key = "technicians"
+    permission = "tecnicos:exportar"
     title = "Técnicos"
     columns = COLUMNS
     pdf_default = PDF_DEFAULT
