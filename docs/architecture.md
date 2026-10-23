@@ -4,53 +4,7 @@ Mantix is a single-page Angular application that talks to a FastAPI backend over
 
 ## Overview
 
-```mermaid
-flowchart TB
-    User(["Usuario<br/>navegador"])
-
-    subgraph FE["Frontend · Angular + Tailwind"]
-        direction TB
-        Smart["Componentes <b>Smart</b><br/>pantallas en features/ · cargan y coordinan datos"]
-        Dumb["Componentes <b>Dumb</b><br/>presentacionales · @Input / @Output"]
-        Rx["RxJS · Observer<br/>stores (BehaviorSubject) + servicios HTTP"]
-        Perm["PermissionsService<br/>*hasPermission · requiresPermission · guards"]
-        Int["authInterceptor<br/>Bearer token · 401 reintenta · 403 avisa"]
-        Smart --> Dumb
-        Smart --> Rx
-        Smart --> Perm
-        Rx --> Int
-    end
-
-    subgraph BE["Backend · FastAPI"]
-        direction TB
-        Api["API REST · app/api/routes<br/>validación Pydantic · require_permission"]
-        Svc["Capa de servicios · app/services<br/>reglas de negocio · alcance de datos · auditoría<br/><b>State Pattern</b> (ticket_state.py)"]
-        Repo["Repositorios · app/repositories<br/><b>Repository Pattern</b> · aíslan el SQL"]
-        DI["Inyección de dependencias<br/>providers.py"]
-        Jobs["Jobs en segundo plano<br/>recordatorios (APScheduler)"]
-        Api --> Svc --> Repo
-        DI -.-> Api
-        Jobs --> Svc
-    end
-
-    DB[("Neon PostgreSQL<br/>29 tablas")]
-    Files[("Archivos<br/>uploads/ · FileStorage")]
-    Clerk["Clerk<br/>autenticación + JWT de sesión"]
-
-    User --> FE
-    Int -- "HTTP / JSON" --> Api
-    Repo --> DB
-    Svc --> Files
-    User -. "inicio de sesión" .-> Clerk
-    Perm -. "token" .-> Clerk
-    Api -. "verifica el token" .-> Clerk
-
-    subgraph Ops["Operación"]
-        GH["GitHub<br/>control de versiones + CI"]
-        Dk["Docker<br/>contenedores y despliegue"]
-    end
-    GH -.-> Dk
-```
+![Arquitectura del proyecto Mantix](images/arquitectura-mantix.png)
 
 The browser never talks to the database. `DATABASE_URL` is consumed by the backend configuration and Alembic only; it is never part of the frontend. Files go to `uploads/` behind the `FileStorage` port, so the disk can be replaced by an object store without touching business code.
 
