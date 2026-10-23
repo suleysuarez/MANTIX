@@ -9,7 +9,7 @@ from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.pagination import DEFAULT_PAGE, PageParams
-from app.models.inventory import InventoryItem, InventoryMovement
+from app.models.inventory import InventoryItem, InventoryMovement, InventoryOption
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.repositories.base import BaseRepository, Page
 
@@ -75,8 +75,49 @@ class ReorderRow:
     max_stock: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class ItemRanges:
+    """Optional bounds for the item list; every pair is inclusive and may be one-sided."""
+
+    stock_min: int | None = None
+    stock_max: int | None = None
+    cost_min: Decimal | None = None
+    cost_max: Decimal | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    moved_from: datetime | None = None
+    moved_to: datetime | None = None
+
+
 class InventoryRepository(BaseRepository[InventoryItem]):
     model = InventoryItem
+
+    # -- drop-down options -------------------------------------------------------------
+
+    async def list_options(self, kind: str | None = None) -> list[InventoryOption]:
+        query = select(InventoryOption).order_by(
+            InventoryOption.kind, InventoryOption.label
+        )
+        if kind:
+            query = query.where(InventoryOption.kind == kind)
+        return list((await self.session.execute(query)).scalars().all())
+
+    async def option_by_key(self, kind: str, key: str) -> InventoryOption | None:
+        result = await self.session.execute(
+            select(InventoryOption).where(
+                InventoryOption.kind == kind, InventoryOption.key == key
+            )
+        )
+        found: InventoryOption | None = result.scalar_one_or_none()
+        return found
+
+    async def add_option(
+        self, *, kind: str, value: str, label: str, key: str
+    ) -> InventoryOption:
+        option = InventoryOption(kind=kind, value=value, label=label, key=key)
+        self.session.add(option)
+        await self.session.flush()
+        return option
 
     # -- items -------------------------------------------------------------------------
 
@@ -127,10 +168,13 @@ class InventoryRepository(BaseRepository[InventoryItem]):
         status: str | None = None,
         now: datetime,
         params: PageParams = DEFAULT_PAGE,
+        ranges: "ItemRanges | None" = None,
     ) -> Page[InventoryItem]:
         query: Select[Any] = select(InventoryItem)
         if category:
             query = query.where(InventoryItem.category == category)
+        if ranges is not None:
+            query = self._apply_ranges(query, ranges)
         stale_before = now - timedelta(days=STALE_DAYS)
         filters = {
             "out": and_(InventoryItem.is_active.is_(True), InventoryItem.stock == 0),
@@ -172,6 +216,22 @@ class InventoryRepository(BaseRepository[InventoryItem]):
         return await self.paginate(
             query, page=params.page, size=params.size, offset=params.offset
         )
+
+    @staticmethod
+    def _apply_ranges(query: Select[Any], r: "ItemRanges") -> Select[Any]:
+        """Stock and unit-cost ranges, and the dates an item was added / last moved."""
+        bounds = (
+            (InventoryItem.stock, r.stock_min, r.stock_max),
+            (InventoryItem.unit_cost, r.cost_min, r.cost_max),
+            (InventoryItem.created_at, r.created_from, r.created_to),
+            (_LAST_MOVEMENT, r.moved_from, r.moved_to),
+        )
+        for column, low, high in bounds:
+            if low is not None:
+                query = query.where(column >= low)
+            if high is not None:
+                query = query.where(column <= high)
+        return query
 
     async def last_movements(self, item_ids: list[int]) -> dict[int, datetime]:
         if not item_ids:

@@ -32,7 +32,7 @@ async def list_audit_logs(
     date_from: datetime | None = Query(default=None),  # noqa: B008
     date_to: datetime | None = Query(default=None),  # noqa: B008
     params: PageParams = Depends(page_params()),  # noqa: B008
-    _: AuthContext = Depends(require_permission("audit.read")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("auditoria:ver")),  # noqa: B008
     service: AuditService = Depends(get_audit_service),  # noqa: B008
 ) -> list[AuditLogResponse]:
     page = await service.search(

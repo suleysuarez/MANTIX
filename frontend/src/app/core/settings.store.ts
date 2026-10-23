@@ -2,7 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 
 import { apiErrorMessage, apiFieldErrors } from './api-errors';
-import { CategoryAdmin, PriorityAdmin, PriorityPayload, SettingsService, SystemHealth } from './settings.service';
+import {
+  CategoryAdmin, Organization, OrganizationPayload, PriorityAdmin, PriorityPayload, SettingsService, SystemHealth,
+} from './settings.service';
 import { ToastService } from './toast.service';
 
 export interface SettingsState {
@@ -15,6 +17,9 @@ export interface SettingsState {
   priorities: PriorityAdmin[];
   prioritiesLoading: boolean;
   prioritiesError: string;
+  organization: Organization | null;
+  organizationLoading: boolean;
+  organizationError: string;
   /** Alta o edición en curso: bloquea el doble envío. */
   saving: boolean;
   /** Errores de campo devueltos por el servidor (422/409), por nombre de campo. */
@@ -31,6 +36,9 @@ const INITIAL: SettingsState = {
   priorities: [],
   prioritiesLoading: true,
   prioritiesError: '',
+  organization: null,
+  organizationLoading: true,
+  organizationError: '',
   saving: false,
   fieldErrors: {},
 };
@@ -56,6 +64,7 @@ export class SettingsStore {
     this.loadHealth();
     this.loadCategories();
     this.loadPriorities();
+    this.loadOrganization();
   }
 
   loadHealth(): void {
@@ -80,6 +89,18 @@ export class SettingsStore {
       next: (priorities) => this.patch({ priorities, prioritiesLoading: false }),
       error: (error) => this.patch({ prioritiesLoading: false, prioritiesError: apiErrorMessage(error, 'No se pudieron cargar las prioridades.') }),
     });
+  }
+
+  loadOrganization(): void {
+    this.patch({ organizationLoading: true, organizationError: '' });
+    this.api.organization().subscribe({
+      next: (organization) => this.patch({ organization, organizationLoading: false }),
+      error: (error) => this.patch({ organizationLoading: false, organizationError: apiErrorMessage(error, 'No se pudieron cargar los datos de la organización.') }),
+    });
+  }
+
+  saveOrganization(body: OrganizationPayload): void {
+    this.run(() => this.api.saveOrganization(body), 'Datos de la organización guardados.', 'No se pudieron guardar los datos.', () => this.loadOrganization());
   }
 
   clearFieldErrors(): void {

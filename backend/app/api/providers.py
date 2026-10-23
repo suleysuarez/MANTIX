@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clerk_admin import set_clerk_password, verify_clerk_password
 from app.core.config import Settings, get_settings
 from app.core.storage import FileStorage, LocalFileStorage
 from app.db.session import get_db
@@ -21,17 +22,20 @@ from app.repositories.audit import AuditRepository
 from app.repositories.auth import AuthRepository
 from app.repositories.dashboard_kpis import DashboardKpiRepository
 from app.repositories.equipment import EquipmentRepository
+from app.repositories.export import ExportRepository
 from app.repositories.inventory import InventoryRepository
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.maintenance_overview import MaintenanceOverviewRepository
 from app.repositories.notification import NotificationRepository
 from app.repositories.priority import PriorityRepository
+from app.repositories.profile import ProfileRepository
 from app.repositories.queue import QueueRepository
 from app.repositories.report import ReportRepository
 from app.repositories.report_builder import ReportBuilderRepository
 from app.repositories.schedule import ScheduleRepository
 from app.repositories.settings import SettingsRepository
 from app.repositories.technician import TechnicianRepository
+from app.repositories.user_management import UserManagementRepository
 from app.services.admin import AdminUserService
 from app.services.attachment import AttachmentService
 from app.services.audit import AuditService
@@ -39,19 +43,23 @@ from app.services.auth import ClerkAuthService
 from app.services.dashboard_kpis import DashboardKpiService
 from app.services.data_import import EquipmentImportService
 from app.services.equipment import EquipmentService
+from app.services.export import ExportService
 from app.services.inventory import InventoryService
 from app.services.maintenance import MaintenanceService
 from app.services.maintenance_overview import MaintenanceOverviewService
 from app.services.notification import NotificationService
 from app.services.notification_inbox import NotificationInboxService
 from app.services.priority import PriorityService
+from app.services.profile import ProfileService
 from app.services.queue import QueueService
 from app.services.reminders import ReminderService
 from app.services.report import ReportService
 from app.services.report_builder import ReportBuilderService
+from app.services.role_admin import RoleAdminService
 from app.services.schedule import ScheduleService
 from app.services.settings import SystemSettingsService
 from app.services.technician import TechnicianService
+from app.services.user_management import UserManagementService
 
 Session = Depends(get_db)
 
@@ -157,8 +165,9 @@ def get_notification_service(
 def get_auth_service(
     repository: Annotated[AuthRepository, Depends(get_auth_repository)],
     settings: Annotated[Settings, Depends(get_settings)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> ClerkAuthService:
-    return ClerkAuthService(repository, settings)
+    return ClerkAuthService(repository, settings, audit)
 
 
 def get_notification_inbox_service(
@@ -226,6 +235,33 @@ def get_admin_user_service(
     return AdminUserService(repository, audit, notifications)
 
 
+def get_role_admin_service(
+    repository: Annotated[AdminRepository, Depends(get_admin_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> RoleAdminService:
+    return RoleAdminService(repository, audit)
+
+
+def get_user_management_repository(
+    session: AsyncSession = Session,
+) -> UserManagementRepository:
+    return UserManagementRepository(session)
+
+
+def get_user_management_service(
+    repository: Annotated[
+        UserManagementRepository, Depends(get_user_management_repository)
+    ],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    notifications: Annotated[NotificationService, Depends(get_notification_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> UserManagementService:
+    async def set_password(clerk_user_id: str, password: str) -> None:
+        await set_clerk_password(settings, clerk_user_id, password)
+
+    return UserManagementService(repository, audit, notifications, set_password)
+
+
 def get_priority_service(
     repository: Annotated[PriorityRepository, Depends(get_priority_repository)],
     audit: Annotated[AuditService, Depends(get_audit_service)],
@@ -254,6 +290,17 @@ def get_report_builder_service(
     audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> ReportBuilderService:
     return ReportBuilderService(repository, dashboard, audit)
+
+
+def get_export_repository(session: AsyncSession = Session) -> ExportRepository:
+    return ExportRepository(session)
+
+
+def get_export_service(
+    repository: Annotated[ExportRepository, Depends(get_export_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+) -> ExportService:
+    return ExportService(repository, audit)
 
 
 def get_equipment_import_service(
@@ -285,6 +332,28 @@ def get_attachment_service(
         audit,
         max_bytes=settings.max_upload_mb * 1024 * 1024,
     )
+
+
+def get_profile_repository(session: AsyncSession = Session) -> ProfileRepository:
+    return ProfileRepository(session)
+
+
+def get_profile_service(
+    repository: Annotated[ProfileRepository, Depends(get_profile_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
+    storage: Annotated[FileStorage, Depends(get_file_storage)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ProfileService:
+    async def verify(clerk_user_id: str, password: str) -> bool:
+        return await verify_clerk_password(settings, clerk_user_id, password)
+
+    async def change(clerk_user_id: str, password: str) -> None:
+        # The person keeps their current session; they close the others from the profile.
+        await set_clerk_password(
+            settings, clerk_user_id, password, sign_out_others=False
+        )
+
+    return ProfileService(repository, audit, storage, verify, change)
 
 
 def get_schedule_service(

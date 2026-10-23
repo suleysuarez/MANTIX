@@ -169,6 +169,19 @@ export interface FailingEquipmentResponse {
   equipment: FailingEquipment[];
 }
 
+/** Resumen operativo (`/dashboard/summary`): para quien solo ve lo suyo, el estado de sus solicitudes. */
+export interface DashboardSummary {
+  scope: 'all' | 'own';
+  window_days: number;
+  tickets: {
+    total: number;
+    open: number;
+    overdue: number;
+    by_status: { key: string; count: number }[];
+    open_by_priority: { key: string; count: number }[];
+  };
+}
+
 /** Indicadores calculados por el backend (`/dashboard/kpis`, `/trends`, `/alerts`). */
 @Injectable({ providedIn: 'root' })
 export class DashboardKpisService {
@@ -187,6 +200,10 @@ export class DashboardKpisService {
     return this.http.get<TechniciansPerformanceResponse>(`${this.url}/technicians`, {
       params: new HttpParams().set('period', period),
     });
+  }
+
+  summary(period: Period): Observable<DashboardSummary> {
+    return this.http.get<DashboardSummary>(`${this.url}/summary`, { params: new HttpParams().set('days', PERIOD_DAYS[period]) });
   }
 
   alerts(): Observable<AlertsResponse> {

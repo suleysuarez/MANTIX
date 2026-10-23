@@ -33,3 +33,10 @@ class ImportResult(BaseModel):
         description="Rows persisted (always 0 on a dry run or failure)"
     )
     errors: list[ImportRowError]
+    valid_rows: int | None = Field(
+        default=None,
+        description="Rows that passed validation (the summary before confirming)",
+    )
+    error_rows: int | None = Field(
+        default=None, description="Distinct rows with at least one problem"
+    )

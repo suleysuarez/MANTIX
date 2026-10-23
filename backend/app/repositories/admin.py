@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.models.auth import Permission, Role, User, UserRole
+from app.models.auth import Permission, Role, RolePermission, User, UserRole
 from app.repositories.base import BaseRepository
 
 
@@ -92,4 +92,102 @@ class AdminRepository(BaseRepository[User]):
 
     async def remove_user_role(self, user_role: UserRole) -> None:
         await self.session.delete(user_role)
+        await self.session.flush()
+
+    # -- roles administration ------------------------------------------------------------
+
+    async def list_all_roles(self) -> list[Role]:
+        """Every role, active or not, with fresh permissions (the matrix must not be stale)."""
+        result = await self.session.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .order_by(Role.id)
+            .execution_options(populate_existing=True)
+        )
+        return list(result.scalars().all())
+
+    async def user_counts(self) -> dict[int, int]:
+        result = await self.session.execute(
+            select(UserRole.role_id, func.count(func.distinct(UserRole.user_id)))
+            .join(User, User.id == UserRole.user_id)
+            .where(User.is_active.is_(True))
+            .group_by(UserRole.role_id)
+        )
+        return {role_id: int(total) for role_id, total in result.all()}
+
+    async def role_has_users(self, role_id: int) -> bool:
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(UserRole)
+            .where(UserRole.role_id == role_id)
+        )
+        return int(result.scalar_one()) > 0
+
+    async def get_role(self, role_id: int) -> Role | None:
+        result = await self.session.execute(
+            select(Role)
+            .options(selectinload(Role.permissions))
+            .where(Role.id == role_id)
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
+    async def role_name_taken(
+        self, name: str, *, exclude_id: int | None = None
+    ) -> bool:
+        query = (
+            select(func.count())
+            .select_from(Role)
+            .where(func.lower(Role.name) == name.lower())
+        )
+        if exclude_id is not None:
+            query = query.where(Role.id != exclude_id)
+        return int((await self.session.execute(query)).scalar_one()) > 0
+
+    async def role_code_taken(self, code: str) -> bool:
+        result = await self.session.execute(
+            select(func.count()).select_from(Role).where(Role.code == code)
+        )
+        return int(result.scalar_one()) > 0
+
+    async def catalogue_permissions(self, codes: list[str]) -> list[Permission]:
+        """Active `recurso:accion` permissions among `codes` (legacy dotted ones excluded)."""
+        result = await self.session.execute(
+            select(Permission).where(
+                Permission.code.in_(codes),
+                Permission.is_active.is_(True),
+                Permission.action.is_not(None),
+            )
+        )
+        return list(result.scalars().all())
+
+    async def add_role(self, role: Role) -> Role:
+        self.session.add(role)
+        await self.session.flush()
+        return role
+
+    async def set_catalogue_permissions(
+        self, role: Role, permissions: list[Permission]
+    ) -> None:
+        """Make the role's `recurso:accion` grants exactly `permissions`, leaving legacy ones."""
+        rows = await self.session.execute(
+            select(RolePermission, Permission.id)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(RolePermission.role_id == role.id, Permission.action.is_not(None))
+        )
+        wanted = {permission.id for permission in permissions}
+        present: set[int] = set()
+        for row, permission_id in rows.all():
+            if permission_id in wanted:
+                present.add(permission_id)
+            else:
+                await self.session.delete(row)
+        for permission_id in wanted - present:
+            self.session.add(
+                RolePermission(role_id=role.id, permission_id=permission_id)
+            )
+        await self.session.flush()
+
+    async def delete_role(self, role: Role) -> None:
+        await self.session.delete(role)
         await self.session.flush()

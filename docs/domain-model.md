@@ -386,176 +386,9 @@ The recommended normalized model consists of thirteen tables:
 
 The model uses UUID domain identifiers, managed lookup tables for extensible catalogs, PostgreSQL enums for stable workflows, explicit foreign keys, partial unique indexes for current assignments, and specific history tables for operational traceability.
 
-## 10. Mermaid ER diagram
+## 10. Entity-relationship diagram
 
-The diagram below contains only the proposed entities and relationships. Enum values are shown as attribute types so the diagram remains valid Mermaid `erDiagram` syntax and can be rendered by GitHub, Mermaid Live Editor, or a VS Code Mermaid extension.
-
-```mermaid
-erDiagram
-    USERS {
-        uuid id PK
-        string email UK
-        string display_name
-        string employee_code UK
-        string phone
-        boolean is_active
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    ROLES {
-        smallint id PK
-        string code UK
-        string name UK
-        string description
-    }
-
-    USER_ROLES {
-        uuid user_id PK, FK
-        smallint role_id PK, FK
-        timestamp assigned_at
-        uuid assigned_by_user_id FK
-    }
-
-    TECHNICIANS {
-        uuid user_id PK, FK
-        string employee_code UK
-        string specialization
-        boolean is_available
-        timestamp created_at
-    }
-
-    EQUIPMENT_TYPES {
-        smallint id PK
-        string code UK
-        string name UK
-        string description
-        boolean is_active
-    }
-
-    LOCATIONS {
-        uuid id PK
-        uuid parent_id FK
-        string kind
-        string name
-        string code UK
-        string description
-        boolean is_active
-    }
-
-    EQUIPMENT {
-        uuid id PK
-        string asset_tag UK
-        string serial_number UK
-        smallint equipment_type_id FK
-        string manufacturer
-        string model
-        string description
-        date purchase_date
-        decimal purchase_cost
-        date warranty_start_date
-        date warranty_end_date
-        string current_status
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    EQUIPMENT_ASSIGNMENTS {
-        uuid id PK
-        uuid equipment_id FK
-        uuid location_id FK
-        uuid assigned_user_id FK
-        timestamp assigned_at
-        timestamp released_at
-        uuid assigned_by_user_id FK
-        uuid released_by_user_id FK
-        string notes
-    }
-
-    EQUIPMENT_STATUS_HISTORY {
-        uuid id PK
-        uuid equipment_id FK
-        string from_status
-        string to_status
-        timestamp changed_at
-        uuid changed_by_user_id FK
-        string reason
-    }
-
-    MAINTENANCE_REQUESTS {
-        uuid id PK
-        string ticket_number UK
-        uuid equipment_id FK
-        uuid requested_by_user_id FK
-        string title
-        string description
-        string priority
-        string status
-        timestamp created_at
-        timestamp updated_at
-        timestamp resolved_at
-        timestamp closed_at
-        string resolution_summary
-    }
-
-    TICKET_ASSIGNMENTS {
-        uuid id PK
-        uuid request_id FK
-        uuid technician_user_id FK
-        timestamp assigned_at
-        timestamp unassigned_at
-        uuid assigned_by_user_id FK
-        string notes
-    }
-
-    TICKET_STATUS_HISTORY {
-        uuid id PK
-        uuid request_id FK
-        string from_status
-        string to_status
-        timestamp changed_at
-        uuid changed_by_user_id FK
-        string note
-    }
-
-    MAINTENANCE_RECORDS {
-        uuid id PK
-        uuid equipment_id FK
-        uuid request_id FK
-        uuid technician_user_id FK
-        timestamp started_at
-        timestamp completed_at
-        string work_type
-        string diagnosis
-        string actions_taken
-        string result
-        decimal parts_cost
-        string notes
-    }
-
-    USERS ||--o| TECHNICIANS : has
-    USERS ||--o{ USER_ROLES : receives
-    ROLES ||--o{ USER_ROLES : grants
-    USERS ||--o{ USER_ROLES : assigned_by
-    LOCATIONS ||--o{ LOCATIONS : contains
-    EQUIPMENT_TYPES ||--o{ EQUIPMENT : classifies
-    EQUIPMENT ||--o{ EQUIPMENT_ASSIGNMENTS : has
-    LOCATIONS ||--o{ EQUIPMENT_ASSIGNMENTS : hosts
-    USERS ||--o{ EQUIPMENT_ASSIGNMENTS : receives
-    USERS ||--o{ EQUIPMENT_ASSIGNMENTS : records
-    EQUIPMENT ||--o{ EQUIPMENT_STATUS_HISTORY : changes
-    USERS ||--o{ EQUIPMENT_STATUS_HISTORY : records
-    USERS ||--o{ MAINTENANCE_REQUESTS : creates
-    EQUIPMENT ||--o{ MAINTENANCE_REQUESTS : concerns
-    MAINTENANCE_REQUESTS ||--o{ TICKET_ASSIGNMENTS : has
-    TECHNICIANS ||--o{ TICKET_ASSIGNMENTS : handles
-    USERS ||--o{ TICKET_ASSIGNMENTS : assigns
-    MAINTENANCE_REQUESTS ||--o{ TICKET_STATUS_HISTORY : records
-    USERS ||--o{ TICKET_STATUS_HISTORY : changes
-    EQUIPMENT ||--o{ MAINTENANCE_RECORDS : receives
-    MAINTENANCE_REQUESTS ||--o{ MAINTENANCE_RECORDS : produces
-    TECHNICIANS ||--o{ MAINTENANCE_RECORDS : performs
-```
+The diagram of the initial design (13 entities, UUID keys) was superseded by the model as implemented. The current entity-relationship diagram, with its 29 tables, is in [section 12](#12-current-model-29-tables).
 
 ## References
 
@@ -570,3 +403,32 @@ erDiagram
 - `maintenance_schedules`: recurring preventive-maintenance plans per equipment (`interval_days`, `next_due_at`, `remind_days_before`), used by the scheduled reminder job.
 - `permissions` / `role_permissions` / `audit_logs` / `attachments` / `notifications`: authorization catalog, field-level audit trail, file metadata and in-app notifications, implemented as described in `docs/architecture.md`.
 - Added indexes: `maintenance_requests(status, priority, created_at)`, `maintenance_requests(equipment_id, created_at)`, `audit_logs(entity_type, entity_id)`, `audit_logs(created_at)`, `maintenance_schedules(is_active, next_due_at)`.
+
+## 12. Current model (29 tables)
+
+The first sections describe the initial design. This one is the model as implemented today, after the equipment, inventory, preventive-maintenance, reporting and RBAC work. Key columns only; every table also has audit-friendly timestamps. The domain keeps integer identity keys.
+
+**Groups**
+
+| Group | Tables |
+| --- | --- |
+| Access and roles | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `technicians` |
+| Equipment and places | `equipment_types`, `locations`, `equipment`, `equipment_location_history`, `equipment_custody_history`, `equipment_status_history` |
+| Tickets and maintenance | `priorities`, `request_categories`, `maintenance_requests`, `ticket_assignments`, `ticket_status_history`, `maintenance_records` |
+| Preventive maintenance | `maintenance_schedules`, `schedule_runs`, `schedule_reschedules` |
+| Inventory | `inventory_items`, `inventory_movements`, `inventory_options` |
+| Cross-cutting | `attachments`, `notifications`, `audit_logs`, `report_runs`, `organization_settings` |
+
+**What changed since the initial design**
+
+- `roles.parent_role_id` (self reference, `ON DELETE RESTRICT`, never its own parent) gives roles an inheritance chain, and `roles.is_system` marks the five base roles. `permissions.resource` and `permissions.action` carry the `recurso:accion` catalogue (the legacy dotted permissions stay until a final migration removes them).
+- `maintenance_requests.priority` and `.category` reference `priorities.code` and `request_categories.code` (both `ON UPDATE CASCADE`).
+- `equipment_assignments` became two histories: `equipment_location_history` and `equipment_custody_history`. The current location and custodian are the rows whose end date is empty; `equipment` itself stores neither.
+- Inventory keeps a running `stock` per item and, per movement, `stock_after`; movements can point to the ticket and work record that consumed them.
+- `audit_logs.old_values` and `new_values` and `report_runs.filters` are JSONB on purpose: they are snapshots, not normalised data.
+
+**Entity-relationship diagram**
+
+![Modelo de datos de Mantix (29 tablas)](images/modelo-de-datos.png)
+
+Every `user` foreign key that records *who did it* (`assigned_by_user_id`, `changed_by_user_id`, `created_by_user_id`, `moved_by_user_id`, `uploaded_by_user_id`) is `ON DELETE SET NULL`, so the history survives the account.

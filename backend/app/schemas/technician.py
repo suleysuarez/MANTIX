@@ -15,6 +15,8 @@ class TechnicianResponse(BaseModel):
     employee_code: str | None
     specialization: str | None
     is_available: bool
+    #: Whether the linked user account is active; boards only offer active technicians.
+    is_active: bool
     hourly_rate: Decimal | None
     #: When the profile was registered: the first event of its history.
     created_at: datetime

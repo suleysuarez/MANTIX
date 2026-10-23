@@ -12,23 +12,35 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, debounceTime, map } from 'rxjs';
+import { Observable, Subject, catchError, debounceTime, map, of, tap } from 'rxjs';
 
 import { Equipment } from '../../core/equipment.service';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
+import { apiErrorMessage } from '../../core/api-errors';
 import { MaintenanceListItem, PRIORITIES, REQUEST_STATUSES } from '../../core/maintenance.service';
+import { QueueService } from '../../core/queue.service';
+import { Technician, TechniciansService } from '../../core/technicians.service';
+import { TicketTransitionService } from '../../core/ticket-transitions.service';
+import { ToastService } from '../../core/toast.service';
+import { TransitionData, WorkflowService, WorkflowState } from '../../core/workflow.service';
 import { TicketFilters, TicketOrder, TicketsState, TicketsStore, todayLocal } from '../../core/tickets.store';
+import { ChoiceOption, ExportDrawerComponent } from '../export/export-drawer.component';
+import { EMPTY_EXPORT_FILTERS, ExportFilterValues } from '../export/export-model';
 import { TicketChipComponent } from './ticket-chip.component';
 import { TicketDrawerComponent } from './ticket-drawer.component';
 import {
-  KANBAN_STATUSES,
   countByStatus,
   isUnassigned,
   needingAttention,
   priorityMeta,
   statusMeta,
-  ticketsToCsv,
 } from './ticket-ui';
+import { PaginationComponent } from '../../shared/pagination.component';
+import { ToastHostComponent } from '../../shared/toast-host.component';
+import { KanbanBoardComponent, KanbanCardDirective, KanbanColumn, KanbanMove, KanbanOutcome } from '../kanban/kanban-board.component';
+import { Choice, TransitionDialogComponent } from '../kanban/transition-dialog.component';
+import { TransitionFlow, allowedTargets, permissionBlock } from '../kanban/transition-flow';
+import { DateRangeFilterComponent } from '../../shared/date-range-filter.component';
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -54,7 +66,6 @@ interface TicketsView extends TicketsState {
   counts: Record<string, number | undefined>;
   attention: MaintenanceListItem[];
   equipmentById: Map<number, Equipment>;
-  columns: { status: string; items: MaintenanceListItem[] }[];
   hasFilters: boolean;
 }
 
@@ -62,7 +73,7 @@ interface TicketsView extends TicketsState {
 @Component({
   selector: 'app-tickets',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent],
+  imports: [AsyncPipe, DatePipe, TicketChipComponent, TicketDrawerComponent, ExportDrawerComponent, PaginationComponent, DateRangeFilterComponent, KanbanBoardComponent, KanbanCardDirective, TransitionDialogComponent, ToastHostComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -83,12 +94,20 @@ interface TicketsView extends TicketsState {
                 <span class="material-symbols-outlined text-[20px]">add</span> Nuevo ticket
               </button>
             }
-            <button type="button" (click)="exportCsv(vm)" [disabled]="vm.items.length === 0" title="Exporta los tickets de la página actual"
-              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed">
-              <span class="material-symbols-outlined text-[18px]">file_download</span> Exportar CSV
+            @if (canExport()) {
+            <button type="button" (click)="exportOpen.set(true)" title="Exporta a PDF o Excel con los filtros que quieras"
+              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-bold !text-white transition-colors hover:bg-white/35">
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">file_download</span> Exportar
             </button>
+            }
           </div>
         </header>
+
+        @if (exportOpen()) {
+          <app-export-drawer report="tickets" title="tickets" [initial]="exportInitial(vm)"
+            [filterKinds]="['statuses', 'priorities', 'technicians', 'categories']"
+            [statusOptions]="statusChoices" [priorityOptions]="priorityChoices" (closed)="exportOpen.set(false)" />
+        }
 
         @if (vm.error) {
           <p class="rounded-lg bg-[#FEE2E2] px-4 py-3 text-[13px] text-[#991B1B]" role="alert">{{ vm.error }}</p>
@@ -157,37 +176,31 @@ interface TicketsView extends TicketsState {
         }
 
         <section class="space-y-3 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-          <div class="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
-            <div class="relative md:col-span-3">
+          <div class="grid grid-cols-1 items-center gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div class="relative">
               <span class="material-symbols-outlined pointer-events-none absolute left-3 top-2.5 text-[20px] text-[#94A3B8]">search</span>
               <input #searchInput type="search" [value]="initialSearch" (input)="onSearch($any($event.target).value)" aria-label="Buscar tickets"
                 placeholder="Buscar por número, título o descripción…" class="h-10 pl-10" [class]="field" maxlength="100" />
             </div>
-            <select (change)="setFilter({ status: $any($event.target).value })" aria-label="Estado" class="h-10 md:col-span-2" [class]="field">
+            <select (change)="setFilter({ status: $any($event.target).value })" aria-label="Estado" class="h-10" [class]="field">
               <option value="">Estado: Todos</option>
               @for (option of statuses; track option) {
                 <option [value]="option" [selected]="option === vm.filters.status">{{ statusLabel(option) }}</option>
               }
             </select>
-            <select (change)="setFilter({ priority: $any($event.target).value })" aria-label="Prioridad" class="h-10 md:col-span-2" [class]="field">
+            <select (change)="setFilter({ priority: $any($event.target).value })" aria-label="Prioridad" class="h-10" [class]="field">
               <option value="">Prioridad: Todas</option>
               @for (option of priorities; track option) {
                 <option [value]="option" [selected]="option === vm.filters.priority">{{ priorityLabel(option) }}</option>
               }
             </select>
-            <div class="md:col-span-4">
-              <span class="mb-0.5 block text-[11px] font-semibold text-[#64748B]">Rango de fechas</span>
-              <div class="flex items-center gap-1">
-                <input type="date" [value]="vm.filters.dateFrom" [max]="vm.filters.dateTo || today" (change)="setFilter({ dateFrom: $any($event.target).value })" aria-label="Rango de fechas: desde" title="Desde" class="h-10 !px-2 text-[12px]" [class]="field" />
-                <span class="text-[12px] text-[#94A3B8]">-</span>
-                <input type="date" [value]="vm.filters.dateTo" [min]="vm.filters.dateFrom" [max]="today" (change)="setFilter({ dateTo: $any($event.target).value })" aria-label="Rango de fechas: hasta" title="Hasta" class="h-10 !px-2 text-[12px]" [class]="field" />
-              </div>
-            </div>
             <button type="button" (click)="clearFilters()" [disabled]="!vm.hasFilters" title="Limpiar todos los filtros" aria-label="Limpiar filtros"
-              class="flex h-10 items-center justify-center rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 md:col-span-1">
+              class="flex h-10 w-10 items-center justify-center justify-self-end rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 sm:col-span-2 lg:col-span-1">
               <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>
             </button>
           </div>
+          <app-date-range-filter [inline]="true" label="Fecha de creación" [from]="vm.filters.dateFrom" [to]="vm.filters.dateTo"
+            (rangeChange)="setFilter({ dateFrom: $event.from, dateTo: $event.to })" />
           @if (vm.filterError) {
             <p class="rounded-lg bg-[#FEE2E2] px-3 py-2 text-[12px] text-[#991B1B]" role="alert">{{ vm.filterError }}</p>
           }
@@ -212,7 +225,6 @@ interface TicketsView extends TicketsState {
           </div>
         </section>
 
-        <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div class="min-w-0 space-y-4">
         <div class="flex items-center justify-between gap-3">
             <div>
@@ -264,13 +276,13 @@ interface TicketsView extends TicketsState {
               <table class="w-full border-collapse text-left">
                 <thead>
                   <tr class="border-b border-[#E9EEF5] bg-[#EEF4FA]/70 text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                    <th class="w-28 px-4 py-3">Ticket</th>
-                    <th class="min-w-[280px] px-4 py-3">Título y descripción</th>
-                    <th class="min-w-[200px] px-4 py-3">Equipo</th>
+                    <th class="px-4 py-3">Ticket</th>
+                    <th class="w-[34%] px-4 py-3">Título</th>
+                    <th class="w-[22%] px-4 py-3">Equipo</th>
                     <th class="px-3 py-3 text-center">Prioridad</th>
                     <th class="px-3 py-3 text-center">Estado</th>
                     <th class="px-4 py-3">Creado</th>
-                    <th class="w-16 px-3 py-3 text-right">Ver</th>
+                    <th class="px-3 py-3 text-right"><span class="sr-only">Ver</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -280,22 +292,22 @@ interface TicketsView extends TicketsState {
                         <span class="rounded border border-[#CED4DA] bg-[#EEF4FA]/70 px-2 py-1 font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
                       </td>
                       <td class="px-4 py-3">
-                        <p class="max-w-sm truncate text-[14px] font-bold">{{ item.title }}</p>
+                        <p class="line-clamp-2 break-words text-[14px] font-bold" [attr.title]="item.title">{{ item.title }}</p>
                         @if (unassigned(item.status)) {
                           <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-[#92400E]">
                             <span class="material-symbols-outlined text-[13px]">person_off</span> Sin asignar
                           </span>
                         }
                       </td>
-                      <td class="whitespace-nowrap px-4 py-3">
-                        <span class="inline-flex items-center gap-2 rounded-lg border border-[#CED4DA]/60 bg-[#EEF4FA]/60 px-2.5 py-1 text-[12px] font-medium">
+                      <td class="px-4 py-3">
+                        <span class="inline-flex max-w-full items-center gap-2 rounded-lg border border-[#CED4DA]/60 bg-[#EEF4FA]/60 px-2.5 py-1 text-[12px] font-medium" [attr.title]="equipmentLabel(vm, item.equipment_id)">
                           <span class="material-symbols-outlined text-[16px] text-[#457b9d]">devices</span>
-                          {{ equipmentLabel(vm, item.equipment_id) }}
+                          <span class="line-clamp-2 break-words">{{ equipmentLabel(vm, item.equipment_id) }}</span>
                         </span>
                       </td>
                       <td class="whitespace-nowrap px-3 py-3 text-center"><app-ticket-chip kind="priority" [value]="item.priority" /></td>
                       <td class="whitespace-nowrap px-3 py-3 text-center"><app-ticket-chip kind="status" [value]="item.status" /></td>
-                      <td class="whitespace-nowrap px-4 py-3 text-[12px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                      <td class="px-4 py-3 text-[12px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
                       <td class="px-3 py-3 text-right">
                         <button type="button" (click)="openTicket(item.id); $event.stopPropagation()" [attr.aria-label]="'Ver ' + item.ticket_number"
                           class="rounded-lg p-1.5 !text-[#64748B] transition-colors hover:bg-[#E9EEF5] hover:!text-[#0b1f3a]">
@@ -309,54 +321,30 @@ interface TicketsView extends TicketsState {
             </div>
           </div>
         } @else {
-          <div class="flex items-start gap-3 overflow-x-auto pb-2">
-            @for (column of vm.columns; track column.status) {
-              <section class="flex min-h-[320px] w-[270px] shrink-0 flex-col rounded-xl border border-[#E2E8F0] bg-[#EEF4FA]/60 p-3">
-                <div class="flex items-center justify-between border-b border-[#E9EEF5] pb-3">
-                  <span class="flex items-center gap-2 text-[14px] font-bold">
-                    <span class="h-2.5 w-2.5 rounded-full" [class]="statusDot(column.status)"></span>{{ statusLabel(column.status) }}
-                  </span>
-                  <span class="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold">{{ column.items.length }}</span>
+          <app-kanban-board ariaLabel="Tablero de tickets" [columns]="boardColumns(vm)" [key]="ticketKey" [label]="ticketLabel"
+            [validTargets]="validTargets" [handler]="moveTicket" [invalidMessage]="invalidMove" emptyText="Sin tickets" [minColumnWidth]="150">
+            <ng-template appKanbanCard let-item>
+              <article role="button" tabindex="0" (click)="openTicket(item.id)" (keydown.enter)="openTicket(item.id)"
+                class="cursor-pointer space-y-2 rounded-xl border border-[#E2E8F0] bg-white p-3 pr-9 shadow-sm transition-all hover:border-[#457b9d] hover:shadow-md">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                  <span class="font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
+                  <app-ticket-chip kind="priority" [value]="item.priority" />
                 </div>
-                <div class="flex-1 space-y-2 pt-2">
-                  @for (item of column.items; track item.id) {
-                    <article role="button" tabindex="0" (click)="openTicket(item.id)" (keydown.enter)="openTicket(item.id)" class="cursor-pointer space-y-2 rounded-xl border border-[#E2E8F0] bg-white p-3 transition-shadow hover:shadow-md">
-                      <div class="flex items-center justify-between">
-                        <span class="font-mono text-[12px] font-bold text-[#3E5C76]">{{ item.ticket_number }}</span>
-                        <app-ticket-chip kind="priority" [value]="item.priority" />
-                      </div>
-                      <p class="line-clamp-2 text-[13px] font-bold">{{ item.title }}</p>
-                      <p class="flex items-center gap-1 text-[11px] text-[#64748B]">
-                        <span class="material-symbols-outlined text-[14px] text-[#457b9d]">devices</span>
-                        <span class="truncate">{{ equipmentLabel(vm, item.equipment_id) }}</span>
-                      </p>
-                      <p class="border-t border-[#E9EEF5] pt-2 text-right text-[11px] text-[#94A3B8]">{{ item.created_at | date: 'dd/MM/yyyy' }}</p>
-                    </article>
-                  } @empty {
-                    <p class="py-8 text-center text-[12px] italic text-[#94A3B8]">Sin tickets</p>
-                  }
-                </div>
-              </section>
-            }
-          </div>
+                <p class="line-clamp-2 break-words text-[13px] font-bold" [attr.title]="item.title">{{ item.title }}</p>
+                <p class="flex items-start gap-1 text-[11px] text-[#64748B]">
+                  <span class="material-symbols-outlined text-[14px] text-[#457b9d]" aria-hidden="true">devices</span>
+                  <span class="line-clamp-2 break-words">{{ equipmentLabel(vm, item.equipment_id) }}</span>
+                </p>
+                <p class="border-t border-[#E9EEF5] pt-2 text-right text-[11px] text-[#64748B]">{{ item.created_at | date: 'dd/MM/yyyy' }}</p>
+              </article>
+            </ng-template>
+          </app-kanban-board>
         }
 
-        <nav class="flex items-center justify-end gap-3" aria-label="Páginas de tickets">
-          @if (vm.page > 0) {
-            <button type="button" (click)="page(vm.page - 1)" [disabled]="vm.loading"
-              class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-              <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-            </button>
-          }
-          <span class="text-[13px] font-semibold">Página {{ vm.page + 1 }}</span>
-          <button type="button" (click)="page(vm.page + 1)" [disabled]="!vm.hasNext || vm.loading"
-            class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-            Siguiente <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-          </button>
-        </nav>
+        <app-pagination noun="tickets" [page]="vm.page + 1" [pageSize]="vm.pageSize" [hasNext]="vm.hasNext" [loading]="vm.loading" (pageChange)="page($event - 1)" />
         </div>
 
-        <aside class="space-y-4">
+        <aside class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="flex items-center gap-2 text-[14px] font-bold text-[#0b1f3a]">
               <span class="material-symbols-outlined text-[18px] text-[#457b9d]">bar_chart</span> Resumen de tickets
@@ -408,7 +396,13 @@ interface TicketsView extends TicketsState {
             }
           </section>
         </aside>
-        </div>
+
+        @if (flow.dialog(); as d) {
+          <app-transition-dialog [title]="d.title" [subtitle]="d.subtitle" [confirmLabel]="d.confirm" [requires]="d.requires"
+            [categories]="categoryChoices()" [priorities]="priorityChoices" [technicians]="technicians()" [initial]="d.initial" [busy]="flow.busy()"
+            (confirmed)="d.answer($event)" (cancelled)="d.answer(null)" />
+        }
+        <app-toast-host />
 
         @if (createOpen()) {
           <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -430,9 +424,9 @@ interface TicketsView extends TicketsState {
               <div class="space-y-4 p-6">
                 <label class="block text-[13px] font-semibold">Equipo tecnológico <span class="text-[#BA1A1A]">*</span>
                   <select name="equipment" required class="mt-1 h-11 font-normal" [class]="field">
-                    <option value="" disabled selected>Selecciona un equipo del inventario…</option>
+                    <option value="" disabled [selected]="!preselectedEquipmentId">Selecciona un equipo del inventario…</option>
                     @for (item of vm.equipment; track item.id) {
-                      <option [value]="item.id">{{ item.asset_tag }} · {{ item.brand }} {{ item.model }}</option>
+                      <option [value]="item.id" [selected]="item.id === preselectedEquipmentId">{{ item.asset_tag }} · {{ item.brand }} {{ item.model }}</option>
                     }
                   </select>
                 </label>
@@ -480,7 +474,7 @@ interface TicketsView extends TicketsState {
 })
 export class TicketsComponent implements OnInit {
   private readonly store = inject(TicketsStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -501,18 +495,96 @@ export class TicketsComponent implements OnInit {
   readonly initialSearch = '';
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
+  /** Enlaces de otras pantallas: `?status=` filtra la lista y `?equipmentId=` abre «Nuevo ticket» con ese equipo. */
+  private readonly query = this.route.snapshot.queryParamMap;
+  readonly preselectedEquipmentId = Number(this.query.get('equipmentId')) || null;
+
   readonly view = signal<'table' | 'kanban'>('table');
   readonly attentionOpen = signal(true);
   readonly createOpen = signal(false);
+  readonly exportOpen = signal(false);
+  readonly statusChoices: ChoiceOption[] = REQUEST_STATUSES.map((value) => ({ value, label: statusMeta(value).label }));
+  readonly priorityChoices: ChoiceOption[] = PRIORITIES.map((value) => ({ value, label: priorityMeta(value).label }));
   readonly titleLength = signal(0);
   readonly createError = signal('');
   readonly canCreate = signal(false);
+  readonly canExport = signal(false);
   readonly canManage = signal(false);
   /** El ticket abierto vive en `?ticket=ID`, así el enlace al detalle se puede compartir. */
   readonly selectedId = toSignal(
     this.route.queryParamMap.pipe(map((params) => Number(params.get('ticket')) || null)),
     { initialValue: null },
   );
+
+  private readonly workflowApi = inject(WorkflowService);
+  private readonly transitions = inject(TicketTransitionService);
+  private readonly techniciansApi = inject(TechniciansService);
+  private readonly queueApi = inject(QueueService);
+  private readonly toasts = inject(ToastService);
+
+  /** Los estados y sus pasos válidos, tal como los define el servidor. */
+  readonly workflow = signal<WorkflowState[]>([]);
+  readonly technicians = signal<Technician[]>([]);
+  readonly categoryChoices = signal<Choice[]>([]);
+  /** Diálogo de los pasos que piden datos (el mismo flujo que en Solicitudes pendientes). */
+  readonly flow = new TransitionFlow();
+  private columnsCache: { items: MaintenanceListItem[]; workflow: WorkflowState[]; columns: KanbanColumn<MaintenanceListItem>[] } | null = null;
+
+  readonly ticketKey = (item: MaintenanceListItem): number => item.id;
+  readonly ticketLabel = (item: MaintenanceListItem): string => item.ticket_number;
+
+  /** Columnas del tablero: una por estado del servidor, con los tickets de la página. Se reutiliza el arreglo si nada cambió. */
+  boardColumns(vm: TicketsView): KanbanColumn<MaintenanceListItem>[] {
+    const workflow = this.workflow();
+    if (this.columnsCache?.items === vm.items && this.columnsCache.workflow === workflow) {
+      return this.columnsCache.columns;
+    }
+    const columns = workflow.map((state) => ({
+      id: state.status,
+      title: statusMeta(state.status).label,
+      dot: statusMeta(state.status).dot,
+      items: vm.items.filter((item) => item.status === state.status),
+    }));
+    this.columnsCache = { items: vm.items, workflow, columns };
+    return columns;
+  }
+
+  readonly validTargets = (item: MaintenanceListItem, from: string): string[] => allowedTargets(item, from, this.workflow());
+
+  readonly invalidMove = (move: KanbanMove<MaintenanceListItem>, allowed: string[]): string => {
+    const blocked = permissionBlock(move.item, move.to, this.workflow(), (status) => statusMeta(status).label);
+    if (blocked) {
+      return blocked;
+    }
+    const label = (status: string): string => `«${statusMeta(status).label}»`;
+    const next = allowed.length ? ` Desde ahí solo puede ir a ${allowed.map(label).join(', ')}.` : ' Ese estado es final.';
+    return `No se puede pasar ${move.item.ticket_number} de ${label(move.from)} a ${label(move.to)}.${next}`;
+  };
+
+  /** Paso pedido desde el tablero: si el estado destino exige datos se piden antes; el servidor valida y, si rechaza, la tarjeta vuelve. */
+  readonly moveTicket = (move: KanbanMove<MaintenanceListItem>): Observable<KanbanOutcome> => {
+    const requires = this.workflow().find((state) => state.status === move.to)?.requires ?? [];
+    return this.flow.run(
+      {
+        to: move.to,
+        requires,
+        subtitle: `${move.item.ticket_number} pasará a «${statusMeta(move.to).label}».`,
+        initial: { category: move.item.category ?? '', priority: move.item.priority },
+      },
+      (data) => this.execute(move, data),
+    );
+  };
+
+  private execute(move: KanbanMove<MaintenanceListItem>, data: TransitionData): Observable<KanbanOutcome> {
+    return this.transitions.move(move.item.id, move.from, move.to, data).pipe(
+      tap(() => {
+        this.toasts.success(`${move.item.ticket_number} pasó a «${statusMeta(move.to).label}».`);
+        this.store.refresh();
+      }),
+      map((): KanbanOutcome => ({ ok: true })),
+      catchError((error) => of<KanbanOutcome>({ ok: false, message: apiErrorMessage(error, 'No se pudo cambiar el estado del ticket.') })),
+    );
+  }
 
   unassigned = isUnassigned;
   statusLabel = (status: string): string => statusMeta(status).label;
@@ -531,8 +603,19 @@ export class TicketsComponent implements OnInit {
       this.openTicket(id);
     });
     this.store.load();
-    this.canCreate.set(await this.profile.can('maintenance.create'));
-    this.canManage.set(await this.profile.can('maintenance.manage'));
+    this.workflowApi.states().subscribe({ next: (states) => this.workflow.set(states), error: () => this.workflow.set([]) });
+    this.techniciansApi.list().subscribe({ next: (list) => this.technicians.set(list), error: () => this.technicians.set([]) });
+    this.queueApi.categories().subscribe({ next: (list) => this.categoryChoices.set(list.map((c) => ({ value: c.code, label: c.name }))), error: () => this.categoryChoices.set([]) });
+    const status = this.query.get('status') ?? '';
+    if (this.statuses.some((item) => item === status)) {
+      this.store.setFilters({ status });
+    }
+    this.canCreate.set(await this.permissions.can('solicitudes:crear'));
+    this.canExport.set(await this.permissions.can('tickets:exportar'));
+    if (this.preselectedEquipmentId && this.canCreate()) {
+      this.createOpen.set(true);
+    }
+    this.canManage.set(await this.permissions.can('tickets:cambiar_estado'));
   }
 
   setFilter(changes: Partial<TicketFilters>): void {
@@ -650,14 +733,16 @@ export class TicketsComponent implements OnInit {
     return equipment ? `${equipment.asset_tag} · ${equipment.brand} ${equipment.model}` : `Equipo #${equipmentId}`;
   }
 
-  exportCsv(vm: TicketsView): void {
-    const csv = ticketsToCsv(vm.items, (id) => this.equipmentLabel(vm, id));
-    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tickets-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  /** Los filtros de la pantalla son el punto de partida del panel de exportación. */
+  exportInitial(vm: TicketsView): ExportFilterValues {
+    const { status, priority, dateFrom, dateTo } = vm.filters;
+    return {
+      ...EMPTY_EXPORT_FILTERS,
+      statuses: status ? [status] : [],
+      priorities: priority ? [priority] : [],
+      dateFrom,
+      dateTo,
+    };
   }
 
   private toView(state: TicketsState): TicketsView {
@@ -671,7 +756,6 @@ export class TicketsComponent implements OnInit {
       counts: countByStatus(state.all),
       attention: needingAttention(state.all),
       equipmentById: this.lastEquipmentMap,
-      columns: KANBAN_STATUSES.map((s) => ({ status: s, items: state.items.filter((item) => item.status === s) })),
       hasFilters: !!(search || status || priority || dateFrom || dateTo),
     };
   }

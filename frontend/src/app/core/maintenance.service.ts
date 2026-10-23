@@ -21,6 +21,8 @@ export interface MaintenanceListItem {
   category?: string | null;
   status: string;
   created_at: string;
+  /** La persona puede trabajar este ticket (los ve todos o está asignado a ella): solo esos se arrastran. */
+  can_act?: boolean;
 }
 
 export interface TechnicianSummary {
@@ -139,6 +141,11 @@ export class MaintenanceService {
           return { items, total: Number.isFinite(total) && total >= items.length ? total : items.length };
         }),
       );
+  }
+
+  /** Triaje: fija categoría y prioridad (catálogos activos) y pasa una solicitud nueva a «clasificada». */
+  classify(id: number, body: { category: string; priority: string; notes: string | null }): Observable<MaintenanceRequest> {
+    return this.http.post<MaintenanceRequest>(`${this.url}/${id}/classify`, body);
   }
 
   /** Rechaza una solicitud que no ha iniciado; el motivo queda en el historial. */

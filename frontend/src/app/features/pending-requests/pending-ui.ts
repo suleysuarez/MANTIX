@@ -1,22 +1,52 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 
 import { formatHours } from '../dashboard/dashboard-format';
-import { QueueStatus } from '../../core/pending-requests.store';
+import { PriorityRef } from '../../core/queue.service';
+import { dateRangeError } from '../../shared/date-range';
+import { statusMeta } from '../tickets/ticket-ui';
 
 /** Presentación de la bandeja de triaje. Funciones puras, sin Angular. */
 
-export interface ColumnMeta {
-  status: QueueStatus;
-  title: string;
-  hint: string;
-  icon: string;
+/**
+ * Rótulo de cada columna. Qué estados son columnas lo decide el servidor (State Pattern); aquí solo
+ * se les da nombre en español. Un estado nuevo sin rótulo usa el nombre general del estado.
+ */
+const COLUMN_TEXT: Record<string, { title: string; hint: string }> = {
+  submitted: { title: 'Recibidas', hint: 'Esperan clasificación' },
+  triaged: { title: 'Clasificadas', hint: 'Esperan técnico' },
+  assigned: { title: 'Asignadas', hint: 'Con técnico, sin iniciar' },
+};
+
+export function columnText(status: string): { title: string; hint: string } {
+  return COLUMN_TEXT[status] ?? { title: statusMeta(status).label, hint: '' };
 }
 
-export const COLUMNS: readonly ColumnMeta[] = [
-  { status: 'submitted', title: 'Recibidas', hint: 'Esperan clasificación', icon: 'inbox' },
-  { status: 'triaged', title: 'Clasificadas', hint: 'Esperan técnico', icon: 'rule' },
-  { status: 'assigned', title: 'Asignadas', hint: 'Con técnico, sin iniciar', icon: 'person_check' },
-];
+/** Tonos de la etiqueta de prioridad, de la más a la menos urgente (contraste AA sobre su fondo). */
+const PRIORITY_TONES = [
+  'bg-error-container text-on-error-container',
+  'bg-secondary-fixed text-on-secondary-fixed',
+  'bg-brand-accentLight text-brand-accentDeep',
+  'bg-surface-container text-on-surface-variant',
+] as const;
+
+export interface PriorityTag {
+  label: string;
+  classes: string;
+}
+
+/**
+ * Etiqueta de una prioridad según la tabla del servidor: el nombre sale de ella y el tono, de su
+ * posición entre las prioridades activas (la de mayor `level` usa el más fuerte). Ningún código va fijo.
+ */
+export function priorityTag(code: string, priorities: readonly PriorityRef[]): PriorityTag {
+  const ranked = [...priorities].sort((a, b) => b.level - a.level);
+  const index = ranked.findIndex((p) => p.code === code);
+  if (index < 0) {
+    return { label: code, classes: PRIORITY_TONES[PRIORITY_TONES.length - 1] };
+  }
+  const tone = Math.min(Math.floor((index * PRIORITY_TONES.length) / ranked.length), PRIORITY_TONES.length - 1);
+  return { label: ranked[index].name, classes: PRIORITY_TONES[tone] };
+}
 
 /** Horas que una solicitud lleva en cola; nunca negativas (relojes desfasados). */
 export function waitHours(createdAt: string, now: Date = new Date()): number {
@@ -44,6 +74,11 @@ export const WAIT_CLASSES: Record<WaitTone, string> = {
 };
 
 export const formatWait = (hours: number): string => formatHours(hours);
+
+export const MAX_CLASSIFY_NOTES = 500;
+
+/** Rango «recibidas entre»: la misma regla de todos los filtros por fechas. */
+export const queueRangeError = dateRangeError;
 
 export const MIN_REASON = 5;
 export const MAX_REASON = 500;

@@ -10,6 +10,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.repositories.base import Page
+from app.repositories.maintenance import MaintenanceRepository
 from app.schemas.maintenance import (
     MaintenanceRecordCreate,
     MaintenanceRequestCreate,
@@ -35,8 +36,8 @@ def make_technician(technician_id, user_id, full_name="Tech"):
     )
 
 
-def make_actor(user_id, role_codes=()):
-    return AuthContext(user=SimpleNamespace(id=user_id), roles=frozenset(role_codes))
+def make_actor(user_id, role_codes=("EMPLOYEE",)):
+    return AuthContext.for_roles(SimpleNamespace(id=user_id), *role_codes)
 
 
 class FakeAudit:
@@ -135,9 +136,27 @@ class FakeMaintenanceRepository:
         # state directly, there's nothing to force a refresh of.
         pass
 
+    # The scope rules are the real repository's, so the service is tested against them.
+    async def scope_for(self, actor, resource="tickets"):
+        return await MaintenanceRepository.scope_for(self, actor, resource)
+
+    visible_to = staticmethod(MaintenanceRepository.visible_to)
+
+    async def assigned_among(self, technician_id, request_ids):
+        return {
+            r.id
+            for r in self.requests.values()
+            if r.id in request_ids
+            and any(
+                x.technician_id == technician_id and x.unassigned_at is None
+                for x in r.ticket_assignments
+            )
+        }
+
     async def list_requests(
         self,
         *,
+        scope,
         status=None,
         priority=None,
         equipment_id=None,
@@ -146,7 +165,9 @@ class FakeMaintenanceRepository:
         params=None,
         **_filters,
     ):
-        items = list(self.requests.values())
+        items = [
+            item for item in self.requests.values() if self.visible_to(item, scope)
+        ]
         if status is not None:
             items = [item for item in items if item.status == status]
         if priority is not None:
@@ -235,6 +256,11 @@ class FakeMaintenanceRepository:
 
     async def list_records(self, request_id):
         return [record for record in self.records if record.request_id == request_id]
+
+    async def update_fields(self, entity, values):
+        for field, value in values.items():
+            setattr(entity, field, value)
+        return entity
 
     async def commit(self):
         self.committed = True
@@ -424,3 +450,127 @@ async def test_employee_only_lists_own_tickets():
 
     assert result.total == 1
     assert result.items[0].ticket_number == own_ticket.ticket_number
+
+
+# -- who may take a ticket to each state (on top of the transition being valid) ---------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target", "technician_may"),
+    [
+        ("in_progress", True),
+        ("waiting", True),
+        ("resolved", True),
+        ("closed", True),
+        ("cancelled", False),  # rejecting or cancelling is the supervisor's call
+    ],
+)
+async def test_each_target_state_needs_its_own_permission(target, technician_may):
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    created = await create_ticket(service)
+    supervisor = make_actor(1, role_codes=("SUPERVISOR",))
+    await service.assign_technician(
+        created.id, TicketAssignmentCreateRequest(technician_id=1), supervisor
+    )
+    actor = make_actor(10, role_codes=("TECHNICIAN",))
+    payload = MaintenanceStatusTransitionRequest(
+        status=target, resolution_summary="done", reason="duplicado"
+    )
+    # Walk the ticket to a state from which `target` is valid.
+    steps = {
+        "waiting": ["in_progress"],
+        "resolved": ["in_progress"],
+        "closed": ["in_progress", "resolved"],
+    }
+    for step in steps.get(target, []):
+        await service.transition_status(
+            created.id,
+            MaintenanceStatusTransitionRequest(status=step, resolution_summary="ok"),
+            actor,
+        )
+    if technician_may:
+        done = await service.transition_status(created.id, payload, actor)
+        assert done.status == target
+    else:
+        with pytest.raises(ForbiddenError, match="no puede mover"):
+            await service.transition_status(created.id, payload, actor)
+        # ...but the supervisor can, even though the ticket is not theirs.
+        done = await service.transition_status(created.id, payload, supervisor)
+        assert done.status == target
+
+
+@pytest.mark.asyncio
+async def test_a_requester_cannot_move_their_own_ticket():
+    service = service_with_fakes()
+    created = await create_ticket(service, requester_id=100)
+    with pytest.raises(ForbiddenError):
+        await service.transition_status(
+            created.id,
+            MaintenanceStatusTransitionRequest(status="cancelled", reason="x"),
+            make_actor(100),
+        )
+
+
+@pytest.mark.asyncio
+async def test_only_whoever_assigns_may_assign_or_reassign():
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    created = await create_ticket(service)
+    body = TicketAssignmentCreateRequest(technician_id=1)
+    for role in ("TECHNICIAN", "EMPLOYEE"):
+        with pytest.raises(ForbiddenError):
+            await service.assign_technician(
+                created.id, body, make_actor(10, role_codes=(role,))
+            )
+    supervisor = make_actor(1, role_codes=("SUPERVISOR",))
+    assigned = await service.assign_technician(created.id, body, supervisor)
+    assert assigned.status == "assigned"
+
+
+# -- which cards a person may work (drag on a board) -------------------------------------------
+
+
+async def list_for(service, actor):
+    result = await service.list_requests(
+        status=None, priority=None, equipment_id=None, actor=actor
+    )
+    return {item.ticket_number: item.can_act for item in result.items}
+
+
+@pytest.mark.asyncio
+async def test_a_supervisor_may_work_every_card():
+    service = service_with_fakes()
+    first = await create_ticket(service, requester_id=100)
+    second = await create_ticket(service, requester_id=200)
+    marks = await list_for(service, make_actor(1, role_codes=("SUPERVISOR",)))
+    assert marks == {first.ticket_number: True, second.ticket_number: True}
+
+
+@pytest.mark.asyncio
+async def test_a_technician_may_work_only_what_is_assigned_to_them():
+    tech = make_technician(1, user_id=10)
+    service = service_with_fakes(technicians=[tech])
+    mine = await create_ticket(service, requester_id=100)
+    other = await create_ticket(service, requester_id=100)
+    await service.assign_technician(
+        mine.id,
+        TicketAssignmentCreateRequest(technician_id=1),
+        make_actor(1, role_codes=("SUPERVISOR",)),
+    )
+    marks = await list_for(service, make_actor(10, role_codes=("TECHNICIAN",)))
+    # They see their own request too, but cannot work it unless it is assigned to them.
+    assert marks == {mine.ticket_number: True}
+    assert (
+        other.ticket_number not in marks
+    )  # not requested by them, not assigned: invisible
+
+
+@pytest.mark.asyncio
+async def test_a_requester_sees_their_cards_but_cannot_work_them():
+    service = service_with_fakes()
+    own = await create_ticket(service, requester_id=100)
+    await create_ticket(service, requester_id=200)
+    marks = await list_for(service, make_actor(100))
+    assert marks == {own.ticket_number: False}

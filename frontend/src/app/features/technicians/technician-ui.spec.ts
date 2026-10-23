@@ -1,12 +1,12 @@
 import { Technician, TechnicianWorkload } from '../../core/technicians.service';
 import {
-  EMPTY_TECHNICIAN_FILTERS, TechnicianFilters, allSpecialties, filterTechnicians, specialties, summarize,
-  technicianStatus, techniciansToCsv, validateTechnicianInput,
+  EMPTY_TECHNICIAN_FILTERS, TechnicianFilters, allSpecialties, filterTechnicians, hasTechnicianFilters, specialties, summarize,
+  technicianStatus, validateTechnicianInput,
 } from './technician-ui';
 
 const tech = (id: number, name: string, overrides: Partial<Technician> = {}): Technician => ({
   id, user_id: id + 100, full_name: name, email: `${name.split(' ')[0].toLowerCase()}@mantix.io`,
-  employee_code: null, specialization: null, is_available: true, hourly_rate: null,
+  employee_code: null, specialization: null, is_available: true, is_active: true, hourly_rate: null,
   created_at: '2026-01-01T00:00:00Z', ...overrides,
 });
 const load = (id: number, open: number, resolved: number): TechnicianWorkload =>
@@ -49,6 +49,24 @@ describe('technician-ui', () => {
     expect(ids(filterTechnicians(all, loads, filters({ specialty: 'Hardware' })))).toEqual([1, 3]);
   });
 
+  it('filters by account state, availability and load', () => {
+    const inactive = tech(4, 'Inés Mora', { is_active: false });
+    const team = [...all, inactive];
+    expect(ids(filterTechnicians(team, loads, filters({ active: 'inactive' })))).toEqual([4]);
+    expect(ids(filterTechnicians(team, loads, filters({ active: 'active' }))).sort()).toEqual([1, 2, 3]);
+    expect(ids(filterTechnicians(team, loads, filters({ availability: 'unavailable' })))).toEqual([3]);
+    expect(ids(filterTechnicians(team, loads, filters({ load: 'low' })))).toEqual([1]); // 2 open tickets
+    expect(ids(filterTechnicians(team, loads, filters({ load: 'none' }))).sort()).toEqual([2, 3, 4]);
+    expect(ids(filterTechnicians(team, { ...loads, 2: load(2, 5, 0) }, filters({ load: 'high' })))).toEqual([2]);
+    expect(ids(filterTechnicians(team, loads, filters({ availability: 'available', load: 'none', active: 'active' })))).toEqual([2]);
+  });
+
+  it('knows whether any filter is applied', () => {
+    expect(hasTechnicianFilters(EMPTY_TECHNICIAN_FILTERS)).toBeFalse();
+    expect(hasTechnicianFilters(filters({ load: 'high' }))).toBeTrue();
+    expect(hasTechnicianFilters(filters({ order: 'name' }))).toBeFalse();
+  });
+
   it('orders by availability, load and resolved tickets', () => {
     expect(ids(filterTechnicians(all, loads, filters({})))).toEqual([2, 1, 3]);
     expect(ids(filterTechnicians(all, loads, filters({ order: 'load' })))).toEqual([2, 3, 1]);
@@ -70,13 +88,5 @@ describe('technician-ui', () => {
     expect(validateTechnicianInput({ userId: 1, specialization: '', rate: '1.234' }, true)).toContain('dos decimales');
     expect(validateTechnicianInput({ userId: 1, specialization: '', rate: '1e12' }, true)).toContain('máximo');
     expect(validateTechnicianInput({ userId: 1, specialization: 'Redes', rate: '25.50' }, true)).toBe('');
-  });
-
-  it('exports a CSV with escaped cells', () => {
-    const csv = techniciansToCsv([tech(1, 'Ana "A" Ruiz', { specialization: 'Redes, VoIP' })], {});
-    const lines = csv.split('\r\n');
-    expect(lines[0]).toContain('Nombre,Código');
-    expect(lines[1]).toContain('"Ana ""A"" Ruiz"');
-    expect(lines[1]).toContain('"Redes, VoIP"');
   });
 });

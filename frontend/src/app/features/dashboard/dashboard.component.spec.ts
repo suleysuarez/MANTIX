@@ -5,12 +5,13 @@ import { BehaviorSubject } from 'rxjs';
 
 import { DashboardState, DashboardStore } from '../../core/dashboard.store';
 import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { TRANSITION_STYLES } from '../tickets/ticket-ui';
 import { WCAG_AA, contrastRatio } from './contrast';
 import { DashboardComponent } from './dashboard.component';
 
 const state = (overrides: Partial<DashboardState> = {}): DashboardState => ({
-  loading: false, period: '30d', kpis: null, trends: null, alerts: null, topEquipment: null, technicians: null,
+  loading: false, period: '30d', mode: 'global', mine: null, kpis: null, trends: null, alerts: null, topEquipment: null, technicians: null,
   ...overrides,
 });
 
@@ -35,6 +36,7 @@ describe('DashboardComponent period selector', () => {
         provideRouter([]),
         { provide: DashboardStore, useValue: { state$: subject.asObservable(), load: () => undefined } },
         { provide: LocalProfileService, useValue: { getProfile: () => Promise.resolve({ full_name: '' }) } },
+        { provide: PermissionsService, useValue: { load: () => Promise.resolve(), has: () => true } },
       ],
     });
   });
@@ -113,6 +115,7 @@ describe('DashboardComponent technician table and hero', () => {
           useValue: { state$: new BehaviorSubject(state({ technicians })).asObservable(), load: () => undefined },
         },
         { provide: LocalProfileService, useValue: { getProfile: () => Promise.resolve({ full_name: '' }) } },
+        { provide: PermissionsService, useValue: { load: () => Promise.resolve(), has: () => true } },
       ],
     });
     const fixture = TestBed.createComponent(DashboardComponent);

@@ -56,6 +56,17 @@ export interface PriorityAdmin {
   is_active: boolean;
 }
 
+export interface Organization {
+  company_name: string;
+  /** `false` mientras se usan los valores por defecto. */
+  configured: boolean;
+  updated_at: string | null;
+}
+
+export interface OrganizationPayload {
+  company_name: string;
+}
+
 export interface PriorityPayload {
   name?: string;
   description?: string | null;
@@ -87,6 +98,14 @@ export class SettingsService {
 
   deleteCategory(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/settings/categories/${id}`);
+  }
+
+  organization(): Observable<Organization> {
+    return this.http.get<Organization>(`${this.base}/settings/organization`);
+  }
+
+  saveOrganization(body: OrganizationPayload): Observable<Organization> {
+    return this.http.put<Organization>(`${this.base}/settings/organization`, body);
   }
 
   priorities(): Observable<PriorityAdmin[]> {

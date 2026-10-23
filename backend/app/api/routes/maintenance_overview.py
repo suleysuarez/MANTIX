@@ -31,10 +31,12 @@ RANGE_END = Query(description="End of the range (timezone-aware, exclusive)")
 )
 async def maintenance_overview(
     period: Period = PERIOD,
-    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
     service: MaintenanceOverviewService = Depends(get_maintenance_overview_service),  # noqa: B008
 ) -> MaintenanceOverview:
-    return await service.overview(period=period)
+    return await service.overview(
+        period=period, technician_id=await service.technician_scope(actor)
+    )
 
 
 @router.get(
@@ -44,13 +46,16 @@ async def maintenance_overview(
     description=(
         f"Planned, overdue and done occurrences of the preventive plans. The range "
         f"is at most {MAX_CALENDAR_DAYS} days. Occurrences after a plan's next date "
-        "are projected one interval apart."
+        "are projected one interval apart. Someone who only sees assigned work gets "
+        "only the plans assigned to them."
     ),
 )
 async def maintenance_calendar(
     start: AwareDatetime = RANGE_START,
     end: AwareDatetime = RANGE_END,
-    _: AuthContext = Depends(require_permission("maintenance.read")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("mantenimiento:ver")),  # noqa: B008
     service: MaintenanceOverviewService = Depends(get_maintenance_overview_service),  # noqa: B008
 ) -> CalendarResponse:
-    return await service.calendar(start=start, end=end)
+    return await service.calendar(
+        start=start, end=end, technician_id=await service.technician_scope(actor)
+    )

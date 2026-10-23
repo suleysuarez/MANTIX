@@ -5,12 +5,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EquipmentDetailStore } from '../../core/equipment-detail.store';
 import { Attachment, Equipment, ReportFormat } from '../../core/equipment.service';
 import { EquipmentFilters, EquipmentStore, EquipmentView, SaveRequest } from '../../core/equipment.store';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { SchedulePayload } from '../../core/schedules.service';
 import { EquipmentDetailDrawerComponent } from './equipment-detail-drawer.component';
 import { EquipmentFormModalComponent } from './equipment-form-modal.component';
 import { EquipmentGridComponent } from './equipment-grid.component';
-import { EquipmentPaginationComponent } from './equipment-pagination.component';
+import { PaginationComponent } from '../../shared/pagination.component';
 import { EquipmentSummaryCardsComponent } from './equipment-summary-cards.component';
 import { EquipmentTableComponent } from './equipment-table.component';
 import { EquipmentToolbarComponent } from './equipment-toolbar.component';
@@ -46,7 +46,7 @@ const NO_ABILITIES: Abilities = {
     EquipmentDetailDrawerComponent,
     EquipmentFormModalComponent,
     EquipmentGridComponent,
-    EquipmentPaginationComponent,
+    PaginationComponent,
     EquipmentSummaryCardsComponent,
     EquipmentTableComponent,
     EquipmentToolbarComponent,
@@ -112,7 +112,7 @@ const NO_ABILITIES: Abilities = {
             <app-equipment-grid [equipment]="state.items" [loading]="state.loading" [filtered]="isFiltered(state.filters)"
               [canManage]="abilities().manage" (view)="view($event)" (edit)="openEdit($event)" />
           }
-          <app-equipment-pagination [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
+          <app-pagination noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
         </section>
 
         <footer class="flex items-center justify-between !border-t !border-slate-200/80 pb-2 pt-4 text-[11px] text-slate-400">
@@ -160,7 +160,7 @@ const NO_ABILITIES: Abilities = {
 export class EquipmentListComponent implements OnInit {
   private readonly store = inject(EquipmentStore);
   private readonly detailStore = inject(EquipmentDetailStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly state$ = this.store.state$;
@@ -174,14 +174,14 @@ export class EquipmentListComponent implements OnInit {
     this.store.saved$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.closeForm());
     this.detailStore.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.store.refresh());
     this.store.load();
-    const can = (code: string) => this.profile.can(code).catch(() => false);
+    const can = (code: string) => this.permissions.can(code).catch(() => false);
     const [manage, exportReports, attach, schedule, createTicket, readMaintenance] = await Promise.all([
-      can('equipment.manage'),
-      can('reports.read'),
-      can('attachments.write'),
-      can('schedules.manage'),
-      can('maintenance.create'),
-      can('maintenance.read'),
+      can('equipos:editar'),
+      can('reportes:exportar'),
+      can('equipos:adjuntar'),
+      can('mantenimiento:crear'),
+      can('solicitudes:crear'),
+      can('tickets:ver'),
     ]);
     this.abilities.set({ manage, exportReports, attach, schedule, createTicket, readMaintenance });
   }

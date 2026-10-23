@@ -33,17 +33,18 @@ from app.repositories.inventory import (
 )
 from app.schemas.inventory import ItemCreate, ItemUpdate, MovementCreate
 from app.services.inventory import InventoryService
+from tests.support import expand, perm_objects
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 MANAGER = AuthContext(
     user=SimpleNamespace(id=1, full_name="Ana"),
     roles=frozenset({"SUPERVISOR"}),
-    permissions=frozenset({"inventory.read", "inventory.manage", "inventory.consume"}),
+    permissions=expand("inventory.read", "inventory.manage", "inventory.consume"),
 )
 TECHNICIAN = AuthContext(
     user=SimpleNamespace(id=2, full_name="Luis"),
     roles=frozenset({"TECHNICIAN"}),
-    permissions=frozenset({"inventory.read", "inventory.consume"}),
+    permissions=expand("inventory.read", "inventory.consume"),
 )
 
 
@@ -84,7 +85,7 @@ def item_payload(**overrides):
         {"min_stock": 10, "max_stock": 5},  # max below min
         {"unit": ""},
         {"unit": "u@"},
-        {"category": "furniture"},
+        {"category": "Not A Code"},  # a code is lower-case letters, digits and _
         {"description": "x" * 2001},
         {"min_stock": 1.5},
     ],
@@ -142,7 +143,7 @@ def test_movement_payload_accepts_signed_adjustments_and_trims_notes():
 
 def test_update_payload_trims_and_allows_clearing_optional_fields():
     update = ItemUpdate(name="  Nuevo nombre ", location="  ")
-    assert update.name == "Nuevo nombre" and update.location is None
+    assert update.name == "Nuevo Nombre" and update.location is None
     with pytest.raises(ValidationError):
         ItemUpdate(unit_cost="-1")
 
@@ -162,6 +163,43 @@ class FakeInventoryRepository:
 
     async def find_skus(self, skus):
         return {i.sku for i in self.items.values() if i.sku in skus}
+
+    # drop-down options: the five built-in categories are there from the start
+    options = None
+
+    def _options(self):
+        if self.options is None:
+            self.options = [
+                SimpleNamespace(
+                    id=n, kind="category", value=code, label=label, key=label.lower()
+                )
+                for n, (code, label) in enumerate(
+                    [
+                        ("spare_part", "Repuesto"),
+                        ("consumable", "Consumible"),
+                        ("accessory", "Accesorio"),
+                        ("tool", "Herramienta"),
+                        ("other", "Otro"),
+                    ],
+                    start=1,
+                )
+            ]
+        return self.options
+
+    async def list_options(self, kind=None):
+        return [o for o in self._options() if kind in (None, o.kind)]
+
+    async def option_by_key(self, kind, key):
+        return next(
+            (o for o in self._options() if (o.kind, o.key) == (kind, key)), None
+        )
+
+    async def add_option(self, *, kind, value, label, key):
+        option = SimpleNamespace(
+            id=len(self._options()) + 1, kind=kind, value=value, label=label, key=key
+        )
+        self.options.append(option)
+        return option
 
     async def add_and_flush(self, item):
         item.id = len(self.items) + 1
@@ -299,7 +337,7 @@ async def test_create_normalises_the_sku_and_records_the_initial_stock_in_the_le
         12,
         "Carga inicial",
     )
-    assert svc.audit.records[0]["action"] == "inventory.item_created"
+    assert "inventory.item_created" in [r["action"] for r in svc.audit.records]
 
 
 async def test_create_without_initial_stock_leaves_the_ledger_empty():
@@ -336,9 +374,9 @@ async def test_level_uses_twice_the_minimum_when_there_is_no_maximum():
 
 async def test_update_checks_the_maximum_against_the_stored_minimum():
     svc, item = await stocked(min_stock=5, max_stock=40)
-    with pytest.raises(UnprocessableError, match="max_stock"):
+    with pytest.raises(UnprocessableError, match="stock máximo"):
         await svc.update(item.id, ItemUpdate(max_stock=3), MANAGER)
-    with pytest.raises(UnprocessableError, match="max_stock"):
+    with pytest.raises(UnprocessableError, match="stock máximo"):
         await svc.update(item.id, ItemUpdate(min_stock=50), MANAGER)
     updated = await svc.update(
         item.id, ItemUpdate(min_stock=8, max_stock=None, name="Nuevo nombre"), MANAGER
@@ -590,9 +628,9 @@ async def test_import_is_all_or_nothing_and_reports_each_error_with_its_row():
         result.success is False and result.created == 0 and svc.repository.items == {}
     )
     by_row = {(e.row, e.field) for e in result.errors}
-    assert (3, "unit_cost") in by_row and (5, "initial_stock") in by_row
+    assert (3, "unit_cost") in by_row and (5, "stock") in by_row
     assert any(
-        e.row == 6 and e.field == "sku" and "duplicate" in e.message
+        e.row == 6 and e.field == "sku" and "repetido" in e.message
         for e in result.errors
     )
     assert any(e.row == 4 for e in result.errors)
@@ -603,7 +641,7 @@ async def test_import_rejects_skus_that_already_exist_and_missing_columns():
     result = await svc.import_items(
         csv_rows({**GOOD, "sku": "ssd-512"}), MANAGER, dry_run=False
     )
-    assert any("already exists" in e.message for e in result.errors)
+    assert any("ya existe" in e.message for e in result.errors)
     missing = await svc.import_items(csv_rows({"sku": "A-1"}), MANAGER, dry_run=False)
     assert "name" in missing.errors[0].message
 
@@ -633,7 +671,7 @@ class StubInventoryService:
         self.calls.append(("overview", period))
         return await service().overview(period=period, now=NOW)
 
-    async def import_items(self, rows, actor, *, dry_run):
+    async def import_items(self, rows, actor, *, dry_run, skip_invalid=False):
         self.calls.append(("import", len(rows), dry_run))
         return await service().import_items(rows, actor, dry_run=True)
 
@@ -646,9 +684,7 @@ def build_client(permissions):
             SimpleNamespace(
                 code="TECHNICIAN",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=c, is_active=True) for c in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )
@@ -688,7 +724,7 @@ def test_list_endpoint_forwards_filters_and_rejects_unknown_ones(client):
         and kwargs["status"] == "low"
     )
     assert client.get("/inventory/items?status=broken").status_code == 422
-    assert client.get("/inventory/items?category=furniture").status_code == 422
+    assert client.get("/inventory/items?category=Bad%20Code").status_code == 422
 
 
 def test_create_endpoint_returns_201_and_validates_numbers(client):

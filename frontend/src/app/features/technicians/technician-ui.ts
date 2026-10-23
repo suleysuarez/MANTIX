@@ -4,10 +4,20 @@ import { Technician, TechnicianWorkload } from '../../core/technicians.service';
 export type TechnicianStatus = 'free' | 'busy' | 'unavailable';
 export type TechnicianOrder = 'availability' | 'load' | 'resolved' | 'name';
 
+/** Cuenta de usuario activa o inactiva. */
+export type ActiveFilter = '' | 'active' | 'inactive';
+export type AvailabilityFilter = '' | 'available' | 'unavailable';
+/** Tickets abiertos: ninguno, 1 a 2, o 3 o más. */
+export type LoadFilter = '' | 'none' | 'low' | 'high';
+
 export interface TechnicianFilters {
   search: string;
+  /** Combinación disponibilidad + carga que ponen las tarjetas de resumen. */
   status: '' | TechnicianStatus;
   specialty: string;
+  active: ActiveFilter;
+  availability: AvailabilityFilter;
+  load: LoadFilter;
   order: TechnicianOrder;
 }
 
@@ -15,8 +25,39 @@ export const EMPTY_TECHNICIAN_FILTERS: TechnicianFilters = {
   search: '',
   status: '',
   specialty: '',
+  active: '',
+  availability: '',
+  load: '',
   order: 'availability',
 };
+
+export const ACTIVE_OPTIONS: { value: Exclude<ActiveFilter, ''>; label: string }[] = [
+  { value: 'active', label: 'Activo' },
+  { value: 'inactive', label: 'Inactivo' },
+];
+export const AVAILABILITY_OPTIONS: { value: Exclude<AvailabilityFilter, ''>; label: string }[] = [
+  { value: 'available', label: 'Disponible' },
+  { value: 'unavailable', label: 'No disponible' },
+];
+export const LOAD_OPTIONS: { value: Exclude<LoadFilter, ''>; label: string }[] = [
+  { value: 'none', label: 'Sin tickets' },
+  { value: 'low', label: '1 a 2 tickets' },
+  { value: 'high', label: '3 o más tickets' },
+];
+
+/** Una cuenta sin dato (listas antiguas) se considera activa. */
+export const isActiveAccount = (technician: Technician): boolean => technician.is_active !== false;
+
+export function hasTechnicianFilters(filters: TechnicianFilters): boolean {
+  return !!(filters.search || filters.status || filters.specialty || filters.active || filters.availability || filters.load);
+}
+
+function loadBucket(open: number): Exclude<LoadFilter, ''> {
+  if (open === 0) {
+    return 'none';
+  }
+  return open <= 2 ? 'low' : 'high';
+}
 
 export interface StatusStyle {
   label: string;
@@ -92,6 +133,15 @@ export function filterTechnicians(
       return false;
     }
     if (specialty && !specialties(technician).some((item) => normalize(item) === specialty)) {
+      return false;
+    }
+    if (filters.active && isActiveAccount(technician) !== (filters.active === 'active')) {
+      return false;
+    }
+    if (filters.availability && technician.is_available !== (filters.availability === 'available')) {
+      return false;
+    }
+    if (filters.load && loadBucket(open(technician)) !== filters.load) {
       return false;
     }
     if (!query) {
@@ -172,26 +222,4 @@ export function validateTechnicianInput(input: TechnicianInput, creating: boolea
     }
   }
   return '';
-}
-
-function csvCell(value: string | number): string {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-export function techniciansToCsv(technicians: readonly Technician[], loads: Loads): string {
-  const header = [
-    'Nombre', 'Código', 'Correo', 'Especialización', 'Estado', 'Tickets abiertos', 'Resueltos', 'Tarifa por hora',
-  ];
-  const rows = technicians.map((t) => [
-    t.full_name,
-    t.employee_code ?? '',
-    t.email,
-    t.specialization ?? '',
-    STATUS_STYLES[technicianStatus(t, loads)].label,
-    loads[t.id]?.open_tickets ?? '',
-    loads[t.id]?.resolved_in_window ?? '',
-    t.hourly_rate ?? '',
-  ]);
-  return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 }

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -5,6 +6,9 @@ from typing import Any
 
 from app.core.authz import AuthContext
 from app.core.exceptions import UnprocessableError
+from app.exports.generic import build_generic_export
+from app.exports.pdf import render_pdf
+from app.exports.xlsx import render_xlsx
 from app.repositories.base import Page
 from app.repositories.report import MAX_EXPORT_ROWS
 from app.repositories.report_builder import ReportBuilderRepository, RunRow
@@ -264,6 +268,15 @@ def _human(report: str, filters: ReportFilters) -> str:
     return " · ".join(parts) or "Sin filtros"
 
 
+def _period(filters: ReportFilters) -> str:
+    """The date range of a report as shown in its metadata block."""
+    if filters.date_from or filters.date_to:
+        start = f"{filters.date_from:%d/%m/%Y}" if filters.date_from else "…"
+        end = f"{filters.date_to:%d/%m/%Y}" if filters.date_to else "…"
+        return f"{start} – {end}"
+    return f"Últimos {filters.days} días" if filters.days else "Todo el historial"
+
+
 class ReportBuilderService:
     """Report gallery: catalog, filtered preview with comparison, export and activity."""
 
@@ -427,13 +440,28 @@ class ReportBuilderService:
             raise UnprocessableError(
                 f"the report has more than {MAX_EXPORT_ROWS} rows; narrow the filters"
             )
-        table = ReportTable(
-            dataset.title,
-            dataset.columns,
-            rows,
-            subtitle=_human(dataset.key, request.filters),
-        )
-        content = exporter.render(table)
+        if request.export_format == "csv":
+            table = ReportTable(
+                dataset.title,
+                dataset.columns,
+                rows,
+                subtitle=_human(dataset.key, request.filters),
+            )
+            content = exporter.render(table)
+        else:
+            # PDF and Excel share the Mantix document layout used by every report.
+            document = build_generic_export(
+                key=dataset.key,
+                title=dataset.title,
+                dataset_columns=dataset.columns,
+                rows=rows,
+                generated_by=actor.user.full_name,
+                generated_at=now,
+                filters=_human(dataset.key, request.filters),
+                period=_period(request.filters),
+            )
+            render = render_pdf if request.export_format == "pdf" else render_xlsx
+            content = await asyncio.to_thread(render, document, generated_at=now)
         filters = request.filters.model_dump(mode="json", exclude_none=True)
         run = self.repository.record_run(
             report_key=dataset.key,
@@ -503,7 +531,9 @@ class ReportBuilderService:
     @staticmethod
     def _title(key: str) -> str:
         dataset = DATASETS.get(key)
-        return dataset.title if dataset else key
+        if dataset:
+            return dataset.title
+        return {"technicians": "Técnicos", "users": "Usuarios"}.get(key, key)
 
     def _last(self, run: RunRow | None) -> LastExport | None:
         if run is None:

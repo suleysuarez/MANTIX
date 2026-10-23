@@ -14,13 +14,16 @@ import { BehaviorSubject, combineLatest, map } from 'rxjs';
 
 import { initials } from '../../core/equipment-status';
 import { CustodianCandidate } from '../../core/equipment.service';
-import { LocalProfileService } from '../../core/local-profile.service';
+import { PermissionsService } from '../../core/permissions.service';
 import { Technician } from '../../core/technicians.service';
 import { TechniciansState, TechniciansStore } from '../../core/technicians.store';
 import { CustodianPickerComponent } from '../equipos/custodian-picker.component';
 import { TechnicianDrawerComponent, TechnicianEdit } from './technician-drawer.component';
 import {
+  ACTIVE_OPTIONS,
+  AVAILABILITY_OPTIONS,
   EMPTY_TECHNICIAN_FILTERS,
+  LOAD_OPTIONS,
   MAX_SPECIALIZATION,
   ORDER_OPTIONS,
   PAGE_SIZE,
@@ -30,12 +33,16 @@ import {
   TechnicianSummary,
   allSpecialties,
   filterTechnicians,
+  hasTechnicianFilters,
+  isActiveAccount,
   specialties,
   summarize,
   technicianStatus,
-  techniciansToCsv,
   validateTechnicianInput,
 } from './technician-ui';
+import { PaginationComponent } from '../../shared/pagination.component';
+import { ExportDrawerComponent } from '../export/export-drawer.component';
+import { ExportFilterValues } from '../export/export-model';
 
 const FIELD =
   'w-full rounded-lg border border-[#CED4DA] bg-[#F7FAFC] px-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#457b9d] focus:outline-none';
@@ -56,7 +63,7 @@ interface TechniciansView extends TechniciansState {
 @Component({
   selector: 'app-technicians',
   standalone: true,
-  imports: [AsyncPipe, CurrencyPipe, CustodianPickerComponent, TechnicianDrawerComponent],
+  imports: [AsyncPipe, CurrencyPipe, CustodianPickerComponent, TechnicianDrawerComponent, PaginationComponent, ExportDrawerComponent],
   template: `
     @if (vm$ | async; as vm) {
       <div class="space-y-5">
@@ -73,9 +80,9 @@ interface TechniciansView extends TechniciansState {
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-3">
-            <button type="button" (click)="exportCsv(vm)" [disabled]="vm.filtered.length === 0" title="Exporta los técnicos que coinciden con los filtros"
-              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-medium !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed">
-              <span class="material-symbols-outlined text-[18px]">download</span> Exportar CSV
+            <button type="button" (click)="exportOpen.set(true)" [disabled]="vm.technicians.length === 0" title="Exporta los técnicos a PDF o Excel"
+              class="flex items-center gap-1.5 rounded-lg border border-white/50 bg-white/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-md px-5 py-2.5 text-[13px] font-medium !text-white transition-colors hover:bg-white/35 disabled:cursor-not-allowed disabled:opacity-60">
+              <span class="material-symbols-outlined text-[18px]">download</span> Exportar
             </button>
             @if (canManage()) {
               <button type="button" (click)="openCreate()"
@@ -146,26 +153,38 @@ interface TechniciansView extends TechniciansState {
         </div>
 
         <section class="space-y-3 rounded-xl border border-[#E2E8F0] bg-white p-4">
-          <div class="grid grid-cols-1 items-center gap-2 md:grid-cols-12">
-            <div class="relative md:col-span-5">
+          <div class="grid grid-cols-1 items-center gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto]">
+            <div class="relative">
               <span class="material-symbols-outlined pointer-events-none absolute left-3 top-2.5 text-[20px] text-[#94A3B8]">search</span>
               <input type="search" [value]="vm.filters.search" (input)="setFilter({ search: $any($event.target).value })" aria-label="Buscar técnicos"
                 placeholder="Buscar por nombre, especialidad, código o correo…" class="h-10 pl-10" [class]="field" maxlength="100" />
             </div>
-            <select (change)="setFilter({ status: $any($event.target).value })" aria-label="Estado" class="h-10 md:col-span-3" [class]="field">
-              <option value="" [selected]="!vm.filters.status">Estado: Todos</option>
-              @for (option of statuses; track option) {
-                <option [value]="option" [selected]="option === vm.filters.status">{{ statusLabel(option) }}</option>
+            <select (change)="setFilter({ active: $any($event.target).value })" aria-label="Estado de la cuenta" class="h-10" [class]="field">
+              <option value="" [selected]="!vm.filters.active">Estado: Todos</option>
+              @for (option of activeOptions; track option.value) {
+                <option [value]="option.value" [selected]="option.value === vm.filters.active">{{ option.label }}</option>
               }
             </select>
-            <select (change)="setFilter({ specialty: $any($event.target).value })" aria-label="Especialidad" class="h-10 md:col-span-3" [class]="field">
+            <select (change)="setFilter({ specialty: $any($event.target).value })" aria-label="Especialidad" class="h-10" [class]="field">
               <option value="" [selected]="!vm.filters.specialty">Especialidad: Todas</option>
               @for (option of vm.specialties; track option) {
                 <option [value]="option" [selected]="option === vm.filters.specialty">{{ option }}</option>
               }
             </select>
+            <select (change)="setFilter({ availability: $any($event.target).value })" aria-label="Disponibilidad" class="h-10" [class]="field">
+              <option value="" [selected]="!vm.filters.availability">Disponibilidad: Todas</option>
+              @for (option of availabilityOptions; track option.value) {
+                <option [value]="option.value" [selected]="option.value === vm.filters.availability">{{ option.label }}</option>
+              }
+            </select>
+            <select (change)="setFilter({ load: $any($event.target).value })" aria-label="Carga de tickets" class="h-10" [class]="field">
+              <option value="" [selected]="!vm.filters.load">Carga: Todas</option>
+              @for (option of loadOptions; track option.value) {
+                <option [value]="option.value" [selected]="option.value === vm.filters.load">{{ option.label }}</option>
+              }
+            </select>
             <button type="button" (click)="clearFilters()" [disabled]="!vm.hasFilters" title="Limpiar todos los filtros" aria-label="Limpiar filtros"
-              class="flex h-10 items-center justify-center rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 md:col-span-1">
+              class="flex h-10 w-10 items-center justify-center justify-self-end rounded-lg border border-[#CED4DA] bg-[#F7FAFC] !text-[#64748B] transition-colors hover:bg-[#E9EEF5] disabled:opacity-40 sm:col-span-2 lg:col-span-1">
               <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>
             </button>
           </div>
@@ -217,89 +236,131 @@ interface TechniciansView extends TechniciansState {
             }
           </div>
         } @else if (view() === 'cards') {
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             @for (item of vm.pageItems; track item.id) {
-              <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm transition-shadow hover:shadow-md">
-                <div class="space-y-3 p-5">
-                  <div class="flex items-center gap-3">
-                    <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#ADD7F6,#A2D2FF)] text-[18px] font-bold text-[#3E5C76]">{{ initialsOf(item.full_name) }}</span>
-                    <div class="min-w-0">
-                      <div class="flex flex-wrap items-center gap-1.5">
-                        <h2 class="truncate text-[16px] font-bold text-[#0b1f3a]">{{ item.full_name }}</h2>
-                        @if (item.employee_code) {
-                          <span class="rounded bg-[#EEF4FA] px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#64748B]">{{ item.employee_code }}</span>
-                        }
-                      </div>
-                      <p class="truncate text-[12px] text-[#64748B]">{{ item.specialization || 'Sin especialización registrada' }}</p>
-                    </div>
-                  </div>
-                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" [class]="styleOf(vm, item).chip">
-                    <span class="h-2 w-2 rounded-full" [class]="styleOf(vm, item).dot"></span>
-                    {{ statusText(vm, item) }}
-                  </span>
-                  @if (tagsOf(item).length > 0) {
-                    <div class="flex flex-wrap gap-1.5">
-                      @for (tag of tagsOf(item).slice(0, 4); track tag) {
-                        <span class="rounded bg-[#E9EEF5] px-2 py-0.5 text-[11px] font-semibold text-[#0b1f3a]">{{ tag }}</span>
+              <article class="flex flex-col gap-5 rounded-2xl border border-brand-accentLight/70 bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgba(62,92,118,0.08)] transition-shadow hover:shadow-[0_10px_28px_rgba(62,92,118,0.14)]">
+                <div class="flex items-start gap-4">
+                  <span class="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl bg-brand-accentLight text-[26px] font-extrabold text-brand-accentDeep" aria-hidden="true">{{ initialsOf(item.full_name) }}</span>
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <div class="flex flex-wrap items-center gap-x-2">
+                      <h2 class="min-w-0 break-words text-[20px] font-extrabold leading-tight text-brand-sidebar">{{ item.full_name }}</h2>
+                      @if (item.employee_code) {
+                        <span class="rounded bg-surface-container px-1.5 py-0.5 font-mono text-[11px] font-bold text-on-surface-variant">{{ item.employee_code }}</span>
                       }
                     </div>
-                  }
-                  <p class="flex items-center gap-2 text-[12px] text-[#64748B]">
-                    <span class="material-symbols-outlined text-[16px]">mail</span>
-                    <a [href]="'mailto:' + item.email" class="truncate !text-[#64748B] hover:underline">{{ item.email }}</a>
+                    @if (canManage()) {
+                      <button type="button" (click)="toggleAvailability(item); $event.stopPropagation()" [attr.aria-label]="toggleLabel(item)" [attr.title]="toggleLabel(item)" [disabled]="vm.saving"
+                        class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[13px] font-bold transition-[filter] hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep disabled:opacity-60" [class]="styleOf(vm, item).chip">
+                        <span class="h-2.5 w-2.5 rounded-full" [class]="styleOf(vm, item).dot"></span>{{ statusText(vm, item) }}<span class="material-symbols-outlined text-[16px]" aria-hidden="true">sync_alt</span>
+                      </button>
+                    } @else {
+                      <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[13px] font-bold" [class]="styleOf(vm, item).chip">
+                        <span class="h-2.5 w-2.5 rounded-full" [class]="styleOf(vm, item).dot"></span>{{ statusText(vm, item) }}
+                      </span>
+                    }
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="flex flex-wrap gap-2">
+                    @for (tag of tagsOf(item).slice(0, 4); track tag) {
+                      <span class="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-brand-accentLight/50 px-2.5 py-1 text-[13px] font-semibold text-brand-accentDeep">
+                        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">settings</span><span class="min-w-0 break-words">{{ capitalize(tag) }}</span>
+                      </span>
+                    } @empty {
+                      <span class="text-[13px] text-on-surface-variant">Sin especialización registrada</span>
+                    }
+                  </div>
+                  <p class="flex items-center gap-2 text-[13px] text-on-surface-variant">
+                    <span class="material-symbols-outlined text-[20px] text-brand-accentDeep" aria-hidden="true">mail</span>
+                    <a [href]="'mailto:' + item.email" class="min-w-0 break-all !text-on-surface-variant hover:underline">{{ item.email }}</a>
                   </p>
                 </div>
-                <div class="space-y-3 bg-[#EEF4FA]/60 p-4">
-                  <dl class="grid grid-cols-3 gap-2 text-center">
-                    <div><dd class="text-[16px] font-bold text-[#0b1f3a]">{{ vm.hasWorkload ? (vm.workload[item.id]?.open_tickets ?? 0) : '—' }}</dd><dt class="text-[10px] font-bold uppercase text-[#64748B]">Abiertos</dt></div>
-                    <div><dd class="text-[16px] font-bold text-[#0b1f3a]">{{ vm.hasWorkload ? (vm.workload[item.id]?.resolved_in_window ?? 0) : '—' }}</dd><dt class="text-[10px] font-bold uppercase text-[#64748B]">Resueltos</dt></div>
-                    <div><dd class="text-[16px] font-bold text-[#0b1f3a]">{{ item.hourly_rate ? (item.hourly_rate | currency) : '—' }}</dd><dt class="text-[10px] font-bold uppercase text-[#64748B]">Tarifa/h</dt></div>
-                  </dl>
-                  <button type="button" (click)="openTechnician(item.id)"
-                    class="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold !text-[#0b1f3a] shadow-sm transition-colors hover:bg-[#E9EEF5]">
-                    <span class="material-symbols-outlined text-[16px]">visibility</span> Ver ficha técnica
-                  </button>
+
+                <div class="space-y-4 border-t border-brand-accentLight/70 pt-5">
+                  <div class="grid grid-cols-2 divide-x divide-brand-grey/60">
+                    <div class="flex min-w-0 items-center justify-center gap-3 pr-3">
+                      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-accentLight/50 text-brand-accentDeep" aria-hidden="true"><span class="material-symbols-outlined text-[24px]">folder_open</span></span>
+                      <dl class="m-0 min-w-0">
+                        <dd class="m-0 text-[22px] font-extrabold leading-6 text-brand-sidebar">{{ vm.hasWorkload ? (vm.workload[item.id]?.open_tickets ?? 0) : '—' }}</dd>
+                        <dt class="m-0 text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">Abiertos</dt>
+                      </dl>
+                    </div>
+                    <div class="flex min-w-0 items-center justify-center gap-3 pl-3">
+                      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-accentLight/50 text-brand-accentDeep" aria-hidden="true"><span class="material-symbols-outlined text-[24px]">task_alt</span></span>
+                      <dl class="m-0 min-w-0">
+                        <dd class="m-0 text-[22px] font-extrabold leading-6 text-brand-sidebar">{{ vm.hasWorkload ? (vm.workload[item.id]?.resolved_in_window ?? 0) : '—' }}</dd>
+                        <dt class="m-0 text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">Resueltos</dt>
+                      </dl>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between gap-3 rounded-xl border border-brand-mustard/40 bg-secondary-fixed/50 px-4 py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary-fixed text-on-secondary-fixed" aria-hidden="true"><span class="material-symbols-outlined text-[24px]">paid</span></span>
+                      <span class="text-[11px] font-bold uppercase tracking-wide text-on-secondary-fixed">Tarifa por hora</span>
+                    </div>
+                    <dl class="m-0"><dd class="m-0 whitespace-nowrap text-[22px] font-extrabold leading-6 text-brand-sidebar">{{ item.hourly_rate ? (item.hourly_rate | currency) : '—' }}</dd></dl>
+                  </div>
                 </div>
+
+                <button type="button" (click)="openTechnician(item.id)"
+                  class="flex w-full items-center justify-between rounded-xl border border-brand-accentLight bg-brand-accentLight/40 px-4 py-3 text-[15px] font-bold !text-brand-sidebar transition-colors hover:bg-brand-accentLight/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep">
+                  <span class="w-5" aria-hidden="true"></span>
+                  <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[22px]" aria-hidden="true">visibility</span> Ver ficha técnica</span>
+                  <span class="material-symbols-outlined w-5 text-[20px] text-brand-slate" aria-hidden="true">chevron_right</span>
+                </button>
               </article>
             }
           </div>
         } @else {
           <div class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
             <div class="overflow-x-auto">
-              <table class="w-full border-collapse text-left">
+              <table class="w-full border-collapse text-center">
                 <thead>
-                  <tr class="border-b border-[#E9EEF5] bg-[#EEF4FA]/70 text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                    <th class="px-4 py-3">Técnico</th>
-                    <th class="px-4 py-3">Código</th>
-                    <th class="px-4 py-3">Estado</th>
-                    <th class="min-w-[180px] px-4 py-3">Especialidad</th>
-                    <th class="px-3 py-3 text-center">Abiertos</th>
-                    <th class="px-3 py-3 text-center">Resueltos</th>
-                    <th class="px-3 py-3 text-right">Tarifa/h</th>
-                    <th class="w-16 px-3 py-3 text-right">Ver</th>
+                  <tr class="text-[11px] font-bold uppercase tracking-wider">
+                    <th scope="col" class="bg-brand-accentDeep px-4 py-3 text-left !text-white">Técnico</th>
+                    <th scope="col" class="bg-brand-grey px-3 py-3 !text-brand-navy">Código</th>
+                    <th scope="col" class="bg-brand-accentLight px-3 py-3 !text-brand-navy">Estado</th>
+                    <th scope="col" class="bg-brand-accentSky px-4 py-3 text-left !text-brand-navy">Especialidad</th>
+                    <th scope="col" class="bg-brand-slate px-3 py-3 !text-brand-navy">Disponibilidad</th>
+                    <th scope="col" class="bg-brand-mustard px-3 py-3 !text-brand-navy">Abiertos</th>
+                    <th scope="col" class="bg-brand-accentLight px-3 py-3 !text-brand-navy">Resueltos</th>
+                    <th scope="col" class="bg-brand-accentSky px-3 py-3 !text-brand-navy">Tarifa/h</th>
+                    <th scope="col" class="bg-brand-grey px-3 py-3 !text-brand-navy"><span class="sr-only">Ver</span><span aria-hidden="true">Ver</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (item of vm.pageItems; track item.id) {
                     <tr tabindex="0" (click)="openTechnician(item.id)" (keydown.enter)="openTechnician(item.id)"
                       class="cursor-pointer border-b border-[#E9EEF5]/70 transition-colors hover:bg-[#EEF4FA]/60">
-                      <td class="px-4 py-3">
+                      <td class="px-4 py-3 text-left">
                         <div class="flex items-center gap-3">
                           <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ADD7F6] text-[12px] font-bold text-[#3E5C76]">{{ initialsOf(item.full_name) }}</span>
-                          <span class="min-w-0"><span class="block truncate text-[14px] font-bold">{{ item.full_name }}</span><span class="block truncate text-[12px] text-[#64748B]">{{ item.email }}</span></span>
+                          <span class="min-w-0"><span class="block break-words text-[14px] font-bold">{{ item.full_name }}</span><span class="block break-all text-[12px] text-[#64748B]">{{ item.email }}</span></span>
                         </div>
                       </td>
-                      <td class="whitespace-nowrap px-4 py-3 font-mono text-[12px] text-[#64748B]">{{ item.employee_code || '—' }}</td>
-                      <td class="whitespace-nowrap px-4 py-3">
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" [class]="styleOf(vm, item).chip">
-                          <span class="h-1.5 w-1.5 rounded-full" [class]="styleOf(vm, item).dot"></span>{{ statusText(vm, item) }}
-                        </span>
+                      <td class="whitespace-nowrap px-3 py-3 font-mono text-[12px] text-[#64748B]">{{ item.employee_code || '—' }}</td>
+                      <td class="whitespace-nowrap px-3 py-3">
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold"
+                          [class]="isActive(item) ? 'bg-[#D1FAE5] text-[#065F46]' : 'bg-[#E2E8F0] text-[#475569]'">{{ isActive(item) ? 'Activo' : 'Inactivo' }}</span>
                       </td>
-                      <td class="px-4 py-3 text-[13px] text-[#1E293B]">{{ item.specialization || '—' }}</td>
-                      <td class="px-3 py-3 text-center text-[13px] font-bold">{{ vm.hasWorkload ? (vm.workload[item.id]?.open_tickets ?? 0) : '—' }}</td>
-                      <td class="px-3 py-3 text-center text-[13px] font-bold">{{ vm.hasWorkload ? (vm.workload[item.id]?.resolved_in_window ?? 0) : '—' }}</td>
-                      <td class="whitespace-nowrap px-3 py-3 text-right font-mono text-[12px]">{{ item.hourly_rate ? (item.hourly_rate | currency) : '—' }}</td>
-                      <td class="px-3 py-3 text-right">
+                      <td class="px-4 py-3 text-left text-[13px] text-[#1E293B]">{{ item.specialization || '—' }}</td>
+                      <td class="px-3 py-3">
+                        @if (canManage()) {
+                          <button type="button" (click)="toggleAvailability(item); $event.stopPropagation()" [attr.aria-label]="toggleLabel(item)" [attr.title]="toggleLabel(item)" [disabled]="vm.saving"
+                            class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[12px] font-bold transition-[filter] hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep disabled:opacity-60" [class]="styleOf(vm, item).chip">
+                            <span class="h-1.5 w-1.5 rounded-full" [class]="styleOf(vm, item).dot"></span>{{ statusText(vm, item) }}<span class="material-symbols-outlined text-[16px]" aria-hidden="true">sync_alt</span>
+                          </button>
+                        } @else {
+                          <span class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[12px] font-bold" [class]="styleOf(vm, item).chip">
+                            <span class="h-1.5 w-1.5 rounded-full" [class]="styleOf(vm, item).dot"></span>{{ statusText(vm, item) }}
+                          </span>
+                        }
+                      </td>
+                      <td class="px-3 py-3 text-[13px] font-bold">{{ vm.hasWorkload ? (vm.workload[item.id]?.open_tickets ?? 0) : '—' }}</td>
+                      <td class="px-3 py-3 text-[13px] font-bold">{{ vm.hasWorkload ? (vm.workload[item.id]?.resolved_in_window ?? 0) : '—' }}</td>
+                      <td class="whitespace-nowrap px-3 py-3 font-mono text-[12px]">{{ item.hourly_rate ? (item.hourly_rate | currency) : '—' }}</td>
+                      <td class="px-3 py-3">
                         <button type="button" (click)="openTechnician(item.id); $event.stopPropagation()" [attr.aria-label]="'Ver ficha de ' + item.full_name"
                           class="rounded-lg p-1.5 !text-[#64748B] transition-colors hover:bg-[#E9EEF5] hover:!text-[#0b1f3a]">
                           <span class="material-symbols-outlined text-[18px]">visibility</span>
@@ -314,22 +375,7 @@ interface TechniciansView extends TechniciansState {
         }
 
         @if (vm.pages > 1) {
-          <nav class="flex items-center justify-between gap-3" aria-label="Páginas de técnicos">
-            <span class="text-[12px] text-[#64748B]">Técnicos <strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + 1 }}</strong>–<strong class="text-[#1E293B]">{{ (vm.page - 1) * pageSize + vm.pageItems.length }}</strong> de {{ vm.filtered.length }}</span>
-            <div class="flex items-center gap-3">
-              @if (vm.page > 1) {
-                <button type="button" (click)="setPage(vm.page - 1)"
-                  class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5]">
-                  <span class="material-symbols-outlined text-[18px]">chevron_left</span> Anterior
-                </button>
-              }
-              <span class="text-[13px] font-semibold">Página {{ vm.page }} de {{ vm.pages }}</span>
-              <button type="button" (click)="setPage(vm.page + 1)" [disabled]="vm.page === vm.pages"
-                class="flex h-8 items-center gap-1 rounded-lg border border-[#CED4DA] bg-white px-2.5 text-[13px] !text-[#1E293B] transition-colors hover:bg-[#E9EEF5] disabled:cursor-not-allowed disabled:opacity-50">
-                Siguiente <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-              </button>
-            </div>
-          </nav>
+          <app-pagination noun="técnicos" [page]="vm.page" [pageSize]="pageSize" [total]="vm.filtered.length" (pageChange)="setPage($event)" />
         }
 
         @if (createOpen()) {
@@ -376,6 +422,11 @@ interface TechniciansView extends TechniciansState {
           </div>
         }
 
+        @if (exportOpen()) {
+          <app-export-drawer report="technicians" title="técnicos" [initial]="exportInitial(vm)" [filterKinds]="['roster']"
+            [showPeriod]="false" [specialtyOptions]="vm.specialties" (closed)="exportOpen.set(false)" />
+        }
+
         @if (selectedTechnician(vm); as selected) {
           <app-technician-drawer
             [technician]="selected"
@@ -397,7 +448,7 @@ interface TechniciansView extends TechniciansState {
 })
 export class TechniciansComponent implements OnInit {
   private readonly store = inject(TechniciansStore);
-  private readonly profile = inject(LocalProfileService);
+  private readonly permissions = inject(PermissionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -409,6 +460,10 @@ export class TechniciansComponent implements OnInit {
   );
   readonly statuses: TechnicianStatus[] = ['free', 'busy', 'unavailable'];
   readonly orders = ORDER_OPTIONS;
+  readonly activeOptions = ACTIVE_OPTIONS;
+  readonly availabilityOptions = AVAILABILITY_OPTIONS;
+  readonly loadOptions = LOAD_OPTIONS;
+  readonly isActive = isActiveAccount;
   readonly field = FIELD;
   readonly pageSize = PAGE_SIZE;
   readonly maxSpecialization = MAX_SPECIALIZATION;
@@ -416,6 +471,7 @@ export class TechniciansComponent implements OnInit {
 
   readonly view = signal<'cards' | 'table'>('cards');
   readonly createOpen = signal(false);
+  readonly exportOpen = signal(false);
   readonly createError = signal('');
   readonly candidate = signal<CustodianCandidate | null>(null);
   readonly canManage = signal(false);
@@ -436,7 +492,7 @@ export class TechniciansComponent implements OnInit {
       }
     });
     this.store.load();
-    this.canManage.set(await this.profile.can('technicians.manage').catch(() => false));
+    this.canManage.set(await this.permissions.can('tecnicos:editar').catch(() => false));
   }
 
   @HostListener('document:keydown.escape')
@@ -486,6 +542,20 @@ export class TechniciansComponent implements OnInit {
     void this.router.navigate([], { relativeTo: this.route, queryParams: { technician: null }, queryParamsHandling: 'merge' });
   }
 
+  /** Un clic en la disponibilidad la invierte: «No disponible» pasa a disponible y viceversa (el servidor valida el permiso). */
+  toggleAvailability(technician: Technician): void {
+    this.store.setAvailability(technician, !technician.is_available);
+  }
+
+  toggleLabel(technician: Technician): string {
+    return technician.is_available ? `Marcar a ${technician.full_name} como no disponible` : `Marcar a ${technician.full_name} como disponible`;
+  }
+
+  /** «hardware» -> «Hardware»: solo la primera letra, sin tocar el resto. */
+  capitalize(text: string): string {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
   setAvailability(technician: Technician, isAvailable: boolean): void {
     this.store.setAvailability(technician, isAvailable);
   }
@@ -527,14 +597,23 @@ export class TechniciansComponent implements OnInit {
     });
   }
 
-  exportCsv(vm: TechniciansView): void {
-    const csv = techniciansToCsv(vm.filtered, vm.workload);
-    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tecnicos-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  /** El panel de exportación parte de los filtros de la pantalla (las tarjetas de resumen se traducen a disponibilidad y carga). */
+  exportInitial(vm: TechniciansView): ExportFilterValues {
+    const { filters } = vm;
+    const fromCard = {
+      free: { availability: 'available', load: 'none' },
+      busy: { availability: 'available', load: '' },
+      unavailable: { availability: 'unavailable', load: '' },
+    } as const;
+    const card = filters.status ? fromCard[filters.status] : null;
+    return {
+      statuses: [], priorities: [], categories: [], technicianIds: [], dateFrom: '', dateTo: '',
+      search: filters.search,
+      specialty: filters.specialty,
+      active: filters.active,
+      availability: filters.availability || card?.availability || '',
+      load: filters.load || card?.load || '',
+    };
   }
 
   private toView(state: TechniciansState, filters: TechnicianFilters, requestedPage: number): TechniciansView {
@@ -550,7 +629,7 @@ export class TechniciansComponent implements OnInit {
       pages,
       summary: summarize(state.technicians, state.workload),
       specialties: allSpecialties(state.technicians),
-      hasFilters: !!(filters.search || filters.status || filters.specialty),
+      hasFilters: hasTechnicianFilters(filters),
     };
   }
 }

@@ -60,7 +60,23 @@ describe('ReportsComponent', () => {
     fixture.detectChanges();
   };
   const button = (text: string) => Array.from(host().querySelectorAll('button')).find((b) => b.textContent?.includes(text)) ?? null;
-  const chip = (label: string) => Array.from(host().querySelectorAll('fieldset button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+  /** El filtro de opciones múltiples es un desplegable: se abre y se marca la opción por su nombre. */
+  const menuButton = () => host().querySelector('button[aria-haspopup="listbox"]') as HTMLButtonElement;
+  const optionBox = (label: string) =>
+    Array.from(host().querySelectorAll('[role="listbox"] label')).find((l) => l.textContent?.trim() === label)?.querySelector('input') as HTMLInputElement;
+  const choose = (label: string) => {
+    if (!host().querySelector('[role="listbox"]')) {
+      click(menuButton());
+    }
+    click(optionBox(label));
+  };
+  const isChosen = (label: string) => optionBox(label)?.checked ?? false;
+  const chooseFormat = (value: string) => {
+    const select = host().querySelector('#rb-format') as HTMLSelectElement;
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+  };
   const exportButton = () => Array.from(host().querySelectorAll('button')).find((b) => b.textContent?.includes('Exportar')) as HTMLButtonElement;
   const type = (selector: string, value: string) => {
     const input = host().querySelector(selector) as HTMLInputElement;
@@ -147,9 +163,11 @@ describe('ReportsComponent', () => {
   describe('builder', () => {
     beforeEach(() => create());
 
-    it('shows only the filters of the selected report', () => {
+    it('shows only the filters of the selected report, as drop-downs that start on «Todos»', () => {
       expect(host().querySelector('[aria-label="Constructor de filtros"]')!.textContent).toContain('Creados entre');
-      expect(chip('Cerrado')).toBeDefined();
+      expect(menuButton().textContent).toContain('Todos');
+      click(menuButton());
+      expect(optionBox('Cerrado')).toBeDefined();
       render(state({ selected: 'equipment' }));
       expect(host().querySelector('[aria-label="Constructor de filtros"]')!.textContent).not.toContain('Creados entre');
       expect(host().textContent).not.toContain('Comparar con el periodo anterior');
@@ -157,17 +175,19 @@ describe('ReportsComponent', () => {
 
     it('asks for the preview as soon as the report is shown, and again (debounced) when a filter changes', fakeAsync(() => {
       expect(store.requestPreview).toHaveBeenCalledTimes(1);
-      click(chip('Cerrado'));
-      click(chip('Resuelto'));
+      choose('Cerrado');
+      choose('Resuelto');
       expect(store.requestPreview).toHaveBeenCalledTimes(1);
       tick(350);
       expect(store.requestPreview).toHaveBeenCalledTimes(2);
       const [values, compare] = store.requestPreview.calls.mostRecent().args;
       expect(values.statuses).toEqual(['closed', 'resolved']);
       expect(compare).toBeFalse();
-      expect(chip('Cerrado').getAttribute('aria-pressed')).toBe('true');
-      click(chip('Cerrado'));
+      expect(isChosen('Cerrado')).toBeTrue();
+      expect(menuButton().textContent).toContain('2 seleccionados');
+      choose('Cerrado');
       tick(350);
+      expect(menuButton().textContent).toContain('Resuelto');
       expect(store.requestPreview.calls.mostRecent().args[0].statuses).toEqual(['resolved']);
     }));
 
@@ -209,24 +229,36 @@ describe('ReportsComponent', () => {
       expect(host().textContent).toContain('Mismo número de días justo antes del rango.');
     }));
 
-    it('clears the filters', fakeAsync(() => {
-      click(chip('Cerrado'));
+    it('clears the filters with «Limpiar filtros»', fakeAsync(() => {
+      choose('Cerrado');
       tick(350);
-      click(button('Limpiar'));
-      expect(chip('Cerrado').getAttribute('aria-pressed')).toBe('false');
+      expect(menuButton().textContent).toContain('Cerrado');
+      click(button('Limpiar filtros'));
+      expect(menuButton().textContent).toContain('Todos');
     }));
+
+    it('closes the drop-down with Escape or a click outside', () => {
+      click(menuButton());
+      expect(host().querySelector('[role="listbox"]')).not.toBeNull();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+      expect(host().querySelector('[role="listbox"]')).toBeNull();
+      click(menuButton());
+      click(host().querySelector('header h1'));
+      expect(host().querySelector('[role="listbox"]')).toBeNull();
+    });
   });
 
   describe('export', () => {
     beforeEach(() => create());
 
     it('exports in the chosen format with the current filters', fakeAsync(() => {
-      click(chip('Cerrado'));
+      choose('Cerrado');
       tick(350);
       expect(exportButton().textContent).toContain('Exportar Excel');
       click(exportButton());
       expect(store.export).toHaveBeenCalledWith('xlsx', jasmine.objectContaining({ statuses: ['closed'] }));
-      click(button('PDF'));
+      chooseFormat('pdf');
       expect(exportButton().textContent).toContain('Exportar PDF');
       click(exportButton());
       expect(store.export.calls.mostRecent().args[0]).toBe('pdf');
@@ -287,16 +319,104 @@ describe('ReportsComponent', () => {
     });
   });
 
+  describe('layout', () => {
+    beforeEach(() => create());
+    const wide = (columns: number, text = 'Valor largo de la celda con varias palabras y un identificador-sin-espacios-muy-largo-123456789') => {
+      const cols = Array.from({ length: columns }, (_, i) => ({ key: `c${i}`, header: `Columna ${i + 1}` }));
+      const row = Object.fromEntries(cols.map((c) => [c.key, text]));
+      return preview({ columns: cols, rows: [row, row], total_rows: 2 });
+    };
+
+    it('shows the report gallery as a grid of equal tiles, not a tall side column', () => {
+      const nav = host().querySelector('nav[aria-label="Galería de reportes"]')!;
+      expect(getComputedStyle(nav).display).toBe('grid');
+      const [a, b] = Array.from(nav.querySelectorAll('button')).map((el) => el.getBoundingClientRect());
+      expect(Math.abs(a.height - b.height)).toBeLessThan(1);
+      expect(Math.abs(a.width - b.width)).toBeLessThan(1);
+    });
+
+    it('has the filters panel (with the format and «Limpiar filtros») beside the report panel that holds the preview and the export', () => {
+      const filters = host().querySelector('section[aria-label="Constructor de filtros"]') as HTMLElement;
+      const panel = host().querySelector('section[aria-label="Reporte y exportaciones"]') as HTMLElement;
+      expect(filters.textContent).toContain('Selecciona los criterios para tu reporte.');
+      expect(filters.querySelector('#rb-format')).not.toBeNull();
+      expect(filters.textContent).toContain('Limpiar filtros');
+      expect(panel.contains(host().querySelector('section[aria-label="Vista previa"]'))).toBeTrue();
+      expect(panel.textContent).toContain('Vista previa');
+      expect(panel.contains(exportButton())).toBeTrue();
+      expect(filters.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('asks for the preview again with the «Vista previa» button', () => {
+      store.requestPreview.calls.reset();
+      click(button('Vista previa'));
+      expect(store.requestPreview).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the four activity cards at the same size', () => {
+      const cards = Array.from(host().querySelectorAll('[aria-label="Actividad de reportes"] dl > div')).map((el) => el.getBoundingClientRect());
+      expect(cards.length).toBe(4);
+      expect(Math.max(...cards.map((c) => c.width)) - Math.min(...cards.map((c) => c.width))).toBeLessThan(1);
+    });
+
+    it('shows the whole table with no horizontal scroll, wrapping long cells', () => {
+      render(state({ preview: wide(7) }));
+      const section = host().querySelector('section[aria-label="Vista previa"]') as HTMLElement;
+      expect(section.querySelector('.overflow-x-auto')).toBeNull();
+      expect(section.innerHTML).not.toContain('min-w-[');
+      const table = section.querySelector('table') as HTMLElement;
+      expect(table.scrollWidth).toBeLessThanOrEqual(section.clientWidth);
+      expect(section.scrollWidth).toBeLessThanOrEqual(section.clientWidth + 1);
+      const cell = table.querySelector('tbody td') as HTMLElement;
+      expect(getComputedStyle(cell).whiteSpace).not.toBe('nowrap');
+      expect(getComputedStyle(cell).textOverflow).not.toBe('ellipsis');
+      expect(table.querySelector('tbody button[aria-expanded]')).toBeNull(); // 7 columns: no detail needed
+    });
+
+    it('keeps the essential columns and moves the rest to an expandable detail per row', () => {
+      render(state({ preview: wide(12, 'dato') }));
+      const section = host().querySelector('section[aria-label="Vista previa"]') as HTMLElement;
+      expect(Array.from(section.querySelectorAll('thead th')).filter((th) => th.textContent!.startsWith('Columna')).length).toBe(7);
+      expect(section.textContent).not.toContain('Columna 8');
+      const toggle = section.querySelector('tbody button[aria-expanded="false"]') as HTMLButtonElement;
+      expect(toggle.getAttribute('aria-label')).toBe('Ver el detalle de la fila 1');
+      click(toggle);
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      const detail = section.querySelector('tbody dl')!;
+      expect(detail.textContent).toContain('Columna 8');
+      expect(detail.textContent).toContain('Columna 12');
+      expect(detail.querySelectorAll('dt').length).toBe(5);
+      click(toggle);
+      expect(section.querySelector('tbody dl')).toBeNull();
+      expect(section.scrollWidth).toBeLessThanOrEqual(section.clientWidth + 1);
+    });
+  });
+
   describe('history', () => {
     beforeEach(() => create());
 
-    it('lists recent exports and pages through them', () => {
+    it('lists the latest exports inside the report panel, and «Ver todas» opens the paged history', () => {
       const table = host().querySelector('section[aria-label="Exportaciones recientes"]')!;
+      expect(host().querySelector('section[aria-label="Reporte y exportaciones"]')!.contains(table)).toBeTrue();
       expect(table.textContent).toContain('Tickets de mantenimiento');
       expect(table.textContent).toContain('Excel');
-      expect(table.textContent).toContain('12 en total');
+      expect(table.textContent).toContain('12 exportaciones');
+      expect(table.textContent).not.toContain('Exportaciones 1–8 de 12');
+      click(Array.from(table.querySelectorAll('button')).find((b) => b.textContent?.includes('Ver todas'))!);
+      expect(table.textContent).toContain('Exportaciones 1–8 de 12');
       click(Array.from(table.querySelectorAll('button')).find((b) => b.textContent?.includes('Siguiente'))!);
       expect(store.loadHistory).toHaveBeenCalledWith(2);
+    });
+
+    it('shows at most five recent rows before «Ver todas»', () => {
+      const many = Array.from({ length: 8 }, (_, i) => ({ ...run, id: i + 1 }));
+      render(state({ history: many, historyTotal: 8 }));
+      const rows = () => host().querySelectorAll('section[aria-label="Exportaciones recientes"] tbody tr').length;
+      expect(rows()).toBe(5);
+      click(button('Ver todas'));
+      expect(rows()).toBe(8);
+      click(button('Ver menos'));
+      expect(rows()).toBe(5);
     });
 
     it('says so when nothing has been exported', () => {
@@ -309,7 +429,7 @@ describe('ReportsComponent', () => {
     beforeEach(() => create());
 
     it('keeps the export button, the format toggle and the filter chips legible', fakeAsync(() => {
-      click(chip('Cerrado'));
+      choose('Cerrado');
       tick(350);
       const ratio = (el: Element, backdrop = '#ffffff') => {
         const style = getComputedStyle(el);
@@ -317,7 +437,7 @@ describe('ReportsComponent', () => {
         return contrastRatio(flatten(style.color), background);
       };
       expect(ratio(exportButton())).toBeGreaterThanOrEqual(WCAG_AA);
-      for (const el of Array.from(host().querySelectorAll('fieldset button, [role="group"] button'))) {
+      for (const el of Array.from(host().querySelectorAll('[role="group"] button, button[aria-haspopup="listbox"]'))) {
         expect(ratio(el)).withContext(el.textContent ?? '').toBeGreaterThanOrEqual(WCAG_AA);
       }
     }));

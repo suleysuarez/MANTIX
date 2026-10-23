@@ -12,6 +12,8 @@ import {
   MaintenanceOverviewService,
 } from './maintenance-overview.service';
 import { ActionResult } from './pending-requests.store';
+import { dateRangeError } from '../shared/date-range';
+import { dayBoundaryIso, parseDay } from '../features/reports/report-filters';
 import {
   MaintenanceSchedule,
   ScheduleHistory,
@@ -21,6 +23,7 @@ import {
   ScheduleUpdatePayload,
   SchedulesService,
 } from './schedules.service';
+import { PermissionsService } from './permissions.service';
 import { Technician, TechniciansService } from './technicians.service';
 import { ToastService } from './toast.service';
 
@@ -34,6 +37,14 @@ export interface ListFilters {
   sort: string;
 }
 
+/** Rango de fechas de los servicios (`yyyy-MM-dd`, vacío = sin límite). */
+export interface DateRangeValue {
+  from: string;
+  to: string;
+}
+
+export const NO_RANGE: DateRangeValue = { from: '', to: '' };
+
 export const LIST_PAGE_SIZE = 15;
 export const TIMELINE_DAYS = 30;
 
@@ -44,6 +55,10 @@ export interface MaintenanceHubState {
   anchor: Date;
   selectedDay: string | null;
   period: Period;
+  /** Rango que filtra el calendario (marcadores y conteos) y la lista; puede ser futuro. */
+  range: DateRangeValue;
+  /** Mensaje del rango inválido; con él no se consulta al servidor. */
+  rangeError: string;
   overview: MaintenanceOverview | null;
   overviewLoading: boolean;
   events: CalendarEvent[];
@@ -76,6 +91,8 @@ const INITIAL: MaintenanceHubState = {
   anchor: new Date(),
   selectedDay: null,
   period: '30d',
+  range: NO_RANGE,
+  rangeError: '',
   overview: null,
   overviewLoading: true,
   events: [],
@@ -105,6 +122,7 @@ export class MaintenanceHubStore {
   private readonly overviewApi = inject(MaintenanceOverviewService);
   private readonly schedules = inject(SchedulesService);
   private readonly techniciansApi = inject(TechniciansService);
+  private readonly permissions = inject(PermissionsService);
   private readonly equipmentApi = inject(EquipmentService);
   private readonly toasts = inject(ToastService);
   private readonly subject = new BehaviorSubject<MaintenanceHubState>({ ...INITIAL, anchor: startOfDay(new Date()) });
@@ -121,7 +139,8 @@ export class MaintenanceHubStore {
 
   load(): void {
     forkJoin({
-      technicians: this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))),
+      // Quien no puede ver a los técnicos no los pide (el servidor respondería 403).
+      technicians: this.permissions.has('tecnicos:ver') ? this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))) : of([] as Technician[]),
       equipment: this.equipmentApi.listAll().pipe(catchError(() => of([] as Equipment[]))),
     }).subscribe((lookups) => this.patch(lookups));
     this.refresh();
@@ -158,12 +177,38 @@ export class MaintenanceHubStore {
     this.loadOverview();
   }
 
+  /**
+   * Filtra por fechas. El calendario se mueve al rango (a la semana si cabe en una, si no al mes de la
+   * fecha inicial) y la lista pide solo esos servicios. Un rango inválido solo muestra su error.
+   */
+  setRange(range: DateRangeValue): void {
+    const rangeError = dateRangeError(range.from, range.to, new Date(), true);
+    if (rangeError) {
+      this.patch({ rangeError });
+      return;
+    }
+    const start = parseDay(range.from) ?? parseDay(range.to);
+    const end = parseDay(range.to);
+    const days = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : null;
+    this.patch({
+      range,
+      rangeError: '',
+      selectedDay: null,
+      ...(start ? { anchor: startOfDay(start), mode: days !== null && days <= 7 ? ('week' as const) : ('month' as const) } : {}),
+    });
+    this.loadCalendar();
+    if (this.value.view === 'list' || this.value.list.length > 0) {
+      this.loadList(1);
+    }
+  }
+
   setFilters(changes: Partial<ListFilters>): void {
     this.patch({ filters: { ...this.value.filters, ...changes } });
     this.loadList(1);
   }
 
   clearFilters(): void {
+    this.setRange(NO_RANGE);
     this.setFilters(EMPTY_LIST_FILTERS);
   }
 
@@ -272,7 +317,17 @@ export class MaintenanceHubStore {
 
   private query(page: number): ScheduleQuery {
     const { search, technicianId, status, sort } = this.value.filters;
-    return { search: search.trim() || undefined, technicianId, status, sort, page, size: LIST_PAGE_SIZE };
+    const { from, to } = this.value.range;
+    return {
+      search: search.trim() || undefined,
+      technicianId,
+      status,
+      dueFrom: dayBoundaryIso(from, false) ?? undefined,
+      dueTo: dayBoundaryIso(to, true) ?? undefined,
+      sort,
+      page,
+      size: LIST_PAGE_SIZE,
+    };
   }
 
   private loadList(page: number): void {

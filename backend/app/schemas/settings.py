@@ -125,3 +125,30 @@ class CategoryUpdate(BaseModel):
         if len(value) < 3:
             raise ValueError("the name must have at least 3 characters")
         return value
+
+
+# -- organization (report header) ---------------------------------------------------------
+
+DEFAULT_COMPANY = "Mantix"
+
+
+class OrganizationResponse(BaseModel):
+    company_name: str
+    configured: bool = Field(description="False while the default is in use")
+    updated_at: datetime | None
+
+
+class OrganizationUpdate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"example": {"company_name": "Mantix"}}
+    )
+
+    company_name: str = Field(min_length=2, max_length=150)
+
+    @field_validator("company_name")
+    @classmethod
+    def _company_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) < 2:
+            raise ValueError("the company name must have at least 2 characters")
+        return value

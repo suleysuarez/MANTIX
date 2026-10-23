@@ -1,13 +1,13 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.api import providers
-from app.api.dependencies import get_authenticated_user, require_role
+from app.api.dependencies import get_authenticated_user
 from app.core.authz import AuthContext
 from app.core.exceptions import InvalidTransitionError
+from app.core.scope import ScopeKind
 from app.main import app
 from app.schemas.maintenance import MaintenanceStatusTransitionRequest
 from app.services.audit import AuditService
@@ -34,39 +34,31 @@ def make_user(*roles):
 def test_context_only_counts_active_roles():
     context = AuthContext.from_user(make_user(("ADMIN", False), ("EMPLOYEE", True)))
     assert context.roles == {"EMPLOYEE"}
-    assert not context.is_elevated
+    assert not context.has_permission("usuarios:asignar")
 
 
 @pytest.mark.parametrize(
-    ("roles", "elevated"),
+    ("roles", "kind"),
     [
-        (("ADMIN",), True),
-        (("SUPERVISOR",), True),
-        (("TECHNICIAN",), False),
-        ((), False),
+        (("ADMIN",), ScopeKind.ALL),
+        (("SUPERVISOR",), ScopeKind.ALL),
+        (("TECHNICIAN",), ScopeKind.ASSIGNED),
+        (("EMPLOYEE",), ScopeKind.OWN),
+        ((), ScopeKind.NONE),
     ],
 )
-def test_is_elevated_depends_only_on_admin_or_supervisor(roles, elevated):
-    context = AuthContext(user=SimpleNamespace(id=1), roles=frozenset(roles))
-    assert context.is_elevated is elevated
-
-
-async def test_require_role_allows_listed_roles_and_rejects_others():
-    dependency = require_role("ADMIN", "SUPERVISOR")
-    supervisor = AuthContext(
-        user=SimpleNamespace(id=1), roles=frozenset({"SUPERVISOR"})
-    )
-    assert await dependency(supervisor) is supervisor
-    with pytest.raises(HTTPException) as error:
-        await dependency(AuthContext(user=SimpleNamespace(id=2), roles=frozenset()))
-    assert error.value.status_code == 403
+def test_ticket_scope_comes_from_the_permissions_of_the_roles(roles, kind):
+    context = AuthContext.for_roles(SimpleNamespace(id=1), *roles)
+    assert context.scope_kind("tickets") is kind
 
 
 def test_service_providers_are_built_from_repository_providers():
     repo = SimpleNamespace()
     assert isinstance(providers.get_audit_service(repo), AuditService)
     assert isinstance(providers.get_notification_service(repo), NotificationService)
-    service = providers.get_auth_service(repo, SimpleNamespace())
+    service = providers.get_auth_service(
+        repo, SimpleNamespace(), providers.get_audit_service(repo)
+    )
     assert isinstance(service, ClerkAuthService)
     assert service.repository is repo
 

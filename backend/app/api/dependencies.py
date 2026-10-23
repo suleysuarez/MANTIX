@@ -16,7 +16,10 @@ async def get_authenticated_user(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> User:
     identity = verify_clerk_request(request, settings)
-    return await service.resolve_local_user(identity)
+    user = await service.resolve_local_user(identity)
+    # Lets the 403 handler say who was denied (see `app.core.access_audit`).
+    request.state.auth_user_id = user.id
+    return user
 
 
 async def get_auth_context(
@@ -25,7 +28,9 @@ async def get_auth_context(
     return AuthContext.from_user(user)
 
 
-def _forbidden(detail: str = "insufficient permissions") -> HTTPException:
+def _forbidden(
+    detail: str = "No tienes permiso para realizar esta acción.",
+) -> HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -36,24 +41,41 @@ class RequirePermission:
         self.code = code
 
     async def __call__(
-        self, context: Annotated[AuthContext, Depends(get_auth_context)]
+        self,
+        request: Request,
+        context: Annotated[AuthContext, Depends(get_auth_context)],
     ) -> AuthContext:
         if not context.has_permission(self.code):
+            request.state.denied_permission = self.code
             raise _forbidden()
         return context
 
 
-class RequireRole:
-    """Dependency: the caller must hold at least one of `codes`."""
+class AuthenticatedOnly:
+    """Marker: the route needs a signed-in person and nothing more, on purpose.
 
-    def __init__(self, *codes: str):
-        self.codes = frozenset(codes)
+    Used where there is no single permission to ask for (the person's own notifications and
+    `/auth/me`) or where the rule depends on the record (attachments: the permission of the
+    ticket or equipment they belong to, checked by the service). Declaring it explicitly lets a
+    test tell "open to every signed-in person" from "forgot to protect".
+    """
+
+
+class RequireSession(AuthenticatedOnly):
+    """Dependency returning the signed-in `User`."""
+
+    async def __call__(
+        self, user: Annotated[User, Depends(get_authenticated_user)]
+    ) -> User:
+        return user
+
+
+class RequireAuthenticated(AuthenticatedOnly):
+    """Dependency returning the signed-in person's `AuthContext`."""
 
     async def __call__(
         self, context: Annotated[AuthContext, Depends(get_auth_context)]
     ) -> AuthContext:
-        if not context.has_role(*self.codes):
-            raise _forbidden("insufficient role")
         return context
 
 
@@ -61,5 +83,9 @@ def require_permission(permission_code: str) -> RequirePermission:
     return RequirePermission(permission_code)
 
 
-def require_role(*role_codes: str) -> RequireRole:
-    return RequireRole(*role_codes)
+def require_session() -> RequireSession:
+    return RequireSession()
+
+
+def require_authenticated() -> RequireAuthenticated:
+    return RequireAuthenticated()

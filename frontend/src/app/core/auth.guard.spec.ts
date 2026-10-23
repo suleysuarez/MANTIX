@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
 
-import { authGuard, authorizedGuard, guestGuard, permissionGuard } from './auth.guard';
+import { authGuard, authorizedGuard, guestGuard, permissionGuard, roleGuard } from './auth.guard';
 import { authInterceptor } from './auth.interceptor';
 import { ClerkService } from './clerk.service';
 import { LocalProfileService } from './local-profile.service';
@@ -22,7 +22,7 @@ function runAuthorizedGuard(): Promise<unknown> {
 
 function runPermissionGuard(): Promise<unknown> {
   return TestBed.runInInjectionContext(() =>
-    permissionGuard('users.manage')({} as never, {} as never),
+    permissionGuard('usuarios:ver')({} as never, {} as never),
   ) as Promise<unknown>;
 }
 
@@ -107,7 +107,7 @@ describe('permission guard', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
-        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [{ code: 'users.manage' }] }) } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ permissions: [{ code: 'usuarios:ver' }] }) } },
         { provide: Router, useValue: { createUrlTree: jasmine.createSpy() } },
       ],
     });
@@ -125,6 +125,23 @@ describe('permission guard', () => {
     });
     await runPermissionGuard();
     expect(createUrlTree).toHaveBeenCalledWith(['/auth/pending']);
+  });
+});
+
+describe('permission guard with a role but without the permission', () => {
+  it('sends the person to the friendly 403 and tells it what was missing', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/acceso-denegado');
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo({ roles: [{ code: 'EMPLOYEE' }], permissions: [{ code: 'tickets:ver' }] }) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+
+    await TestBed.runInInjectionContext(() => permissionGuard('usuarios:ver')({} as never, {} as never));
+
+    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado'], { queryParams: { requiere: 'usuarios:ver' } });
   });
 });
 
@@ -165,5 +182,39 @@ describe('guest guard', () => {
     });
     await TestBed.runInInjectionContext(() => guestGuard({} as never, {} as never));
     expect(createUrlTree).toHaveBeenCalledWith(['/dashboard']);
+  });
+});
+
+describe('403 instead of silence', () => {
+  function setup(createUrlTree: jasmine.Spy, profile: unknown): void {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ClerkService, useValue: { initialize: jasmine.createSpy().and.resolveTo(), isSignedIn: true } },
+        { provide: LocalProfileService, useValue: { getProfile: jasmine.createSpy().and.resolveTo(profile) } },
+        { provide: Router, useValue: { createUrlTree } },
+      ],
+    });
+  }
+
+  const runRole = () =>
+    TestBed.runInInjectionContext(() => roleGuard('maintenance.manage', 'ADMIN', 'SUPERVISOR')({} as never, {} as never));
+
+  it('sends a user with a role but without the permission to the 403 page', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/acceso-denegado');
+    setup(createUrlTree, { roles: [{ code: 'TECHNICIAN' }], permissions: [] });
+    await runPermissionGuard();
+    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado'], { queryParams: { requiere: 'usuarios:ver' } });
+  });
+
+  it('sends a user with the permission but the wrong role to the 403 page', async () => {
+    const createUrlTree = jasmine.createSpy('createUrlTree').and.returnValue('/acceso-denegado');
+    setup(createUrlTree, { roles: [{ code: 'TECHNICIAN' }], permissions: [{ code: 'maintenance.manage' }] });
+    expect(await runRole()).toBe('/acceso-denegado' as never);
+    expect(createUrlTree).toHaveBeenCalledWith(['/acceso-denegado']);
+  });
+
+  it('lets the right role through', async () => {
+    setup(jasmine.createSpy(), { roles: [{ code: 'SUPERVISOR' }], permissions: [{ code: 'maintenance.manage' }] });
+    expect(await runRole()).toBeTrue();
   });
 });

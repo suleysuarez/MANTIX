@@ -37,6 +37,18 @@ class TicketState:
     notifies_requester: ClassVar[bool] = False
     #: Whether entering this state needs an active technician assignment.
     requires_technician: ClassVar[bool] = False
+    #: Position in the workflow, for boards that draw one column per state.
+    order: ClassVar[int] = 0
+    #: Data a person must supply to move a ticket into this state (the screen asks for it
+    #: before sending the change): `category`, `priority`, `technician`,
+    #: `resolution_summary`, `reason`.
+    requires: ClassVar[tuple[str, ...]] = ()
+    #: Whether a ticket in this state is still waiting for work to start: these states are
+    #: the columns of the pending-requests queue.
+    in_queue: ClassVar[bool] = False
+    #: Permission a person needs to move a ticket INTO this state (who may do it, on top of
+    #: the transition being valid). The ticket must also be in their data scope.
+    permission: ClassVar[str] = "tickets:cambiar_estado"
 
     _registry: ClassVar[dict[str, "TicketState"]] = {}
 
@@ -51,6 +63,11 @@ class TicketState:
             return TicketState._registry[status]
         except KeyError:
             raise BusinessRuleError(f"unknown ticket status '{status}'") from None
+
+    @staticmethod
+    def workflow() -> list["TicketState"]:
+        """Every state in workflow order (what a board draws as columns)."""
+        return sorted(TicketState._registry.values(), key=lambda state: state.order)
 
     @property
     def is_terminal(self) -> bool:
@@ -112,32 +129,46 @@ class TicketState:
 
 class Submitted(TicketState):
     status = "submitted"
+    order = 1
+    in_queue = True
     allowed_targets = frozenset({"triaged", "assigned", "cancelled"})
 
 
 class Triaged(TicketState):
     status = "triaged"
+    permission = "solicitudes:editar"
+    order = 2
+    in_queue = True
+    requires = ("category", "priority")
     allowed_targets = frozenset({"assigned", "cancelled"})
 
 
 class Assigned(TicketState):
     status = "assigned"
+    permission = "tickets:asignar"
+    order = 3
+    in_queue = True
+    requires = ("technician",)
     allowed_targets = frozenset({"in_progress", "cancelled"})
     requires_technician = True
 
 
 class InProgress(TicketState):
     status = "in_progress"
+    order = 4
     allowed_targets = frozenset({"waiting", "resolved", "cancelled"})
 
 
 class Waiting(TicketState):
     status = "waiting"
+    order = 5
     allowed_targets = frozenset({"in_progress", "cancelled"})
 
 
 class Resolved(TicketState):
     status = "resolved"
+    order = 6
+    requires = ("resolution_summary",)
     allowed_targets = frozenset({"closed", "in_progress"})
     notifies_requester = True
 
@@ -155,6 +186,7 @@ class Resolved(TicketState):
 
 class Closed(TicketState):
     status = "closed"
+    order = 7
     notifies_requester = True
 
     def on_enter(
@@ -169,3 +201,6 @@ class Closed(TicketState):
 
 class Cancelled(TicketState):
     status = "cancelled"
+    permission = "solicitudes:aprobar"
+    order = 8
+    requires = ("reason",)

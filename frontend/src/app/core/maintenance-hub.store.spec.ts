@@ -1,3 +1,4 @@
+import { PermissionsService } from './permissions.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject, defer, of, throwError } from 'rxjs';
@@ -44,6 +45,7 @@ describe('MaintenanceHubStore', () => {
         { provide: MaintenanceOverviewService, useValue: overview },
         { provide: SchedulesService, useValue: schedules },
         { provide: TechniciansService, useValue: technicians },
+        { provide: PermissionsService, useValue: { has: () => true } },
         { provide: EquipmentService, useValue: equipment },
       ],
     });
@@ -184,5 +186,82 @@ describe('MaintenanceHubStore', () => {
     schedules.listPage.calls.reset();
     store.exportAll().subscribe();
     expect(schedules.listPage.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({ status: 'overdue', size: 500, page: 1 }));
+  });
+
+  describe('date range', () => {
+    beforeEach(() => {
+      store.load();
+      overview.calendar.calls.reset();
+      schedules.listPage.calls.reset();
+    });
+
+    it('moves the calendar to the range: a short one shows its week, a long one its month', () => {
+      store.setRange({ from: '2027-03-10', to: '2027-03-14' });
+      expect(latest.mode).toBe('week');
+      expect(dayKey(latest.anchor)).toBe('2027-03-10');
+      expect(latest.range).toEqual({ from: '2027-03-10', to: '2027-03-14' });
+      expect(overview.calendar).toHaveBeenCalledTimes(1);
+      store.setRange({ from: '2027-03-01', to: '2027-03-31' });
+      expect(latest.mode).toBe('month');
+    });
+
+    it('accepts a range in the future (scheduled services) and a one-sided one', () => {
+      store.setRange({ from: '2027-05-01', to: '' });
+      expect(latest.rangeError).toBe('');
+      expect(dayKey(latest.anchor)).toBe('2027-05-01');
+      store.setRange({ from: '', to: '2027-05-20' });
+      expect(latest.rangeError).toBe('');
+      expect(dayKey(latest.anchor)).toBe('2027-05-20');
+    });
+
+    it('refuses an inverted, impossible or oversized range without querying the server', () => {
+      store.setRange({ from: '2027-03-20', to: '2027-03-10' });
+      expect(latest.rangeError).toBe('La fecha final no puede ser anterior a la inicial.');
+      expect(latest.range).toEqual({ from: '', to: '' });
+      store.setRange({ from: '2027-02-30', to: '' });
+      expect(latest.rangeError).toBe('La fecha no existe en el calendario.');
+      store.setRange({ from: '2027-01-01', to: '2028-06-01' });
+      expect(latest.rangeError).toContain('366');
+      expect(overview.calendar).not.toHaveBeenCalled();
+    });
+
+    it('asks for the plans only inside the range once the list is in use', () => {
+      store.setView('list');
+      schedules.listPage.calls.reset();
+      store.setRange({ from: '2027-03-01', to: '2027-03-31' });
+      const query = schedules.listPage.calls.mostRecent().args[0]!;
+      expect(new Date(query.dueFrom!).getDate()).toBe(1);
+      expect(new Date(query.dueTo!).getHours()).toBe(23);
+      expect(query.page).toBe(1);
+    });
+
+    it('clearing the filters also clears the range', () => {
+      store.setRange({ from: '2027-03-01', to: '2027-03-31' });
+      store.clearFilters();
+      expect(latest.range).toEqual({ from: '', to: '' });
+    });
+  });
+});
+
+describe('MaintenanceHubStore without permission to see technicians', () => {
+  it('does not ask for them (the server would answer 403 and the person would see an error)', () => {
+    const technicians = jasmine.createSpyObj('TechniciansService', ['list']);
+    const overview = jasmine.createSpyObj('MaintenanceOverviewService', ['overview', 'calendar']);
+    const equipment = jasmine.createSpyObj('EquipmentService', ['listAll']);
+    overview.overview.and.returnValue(of({ period: '30d' } as MaintenanceOverview));
+    overview.calendar.and.returnValue(of({ generated_at: '', start: '', end: '', truncated: false, events: [] }));
+    equipment.listAll.and.returnValue(of([]));
+    TestBed.configureTestingModule({
+      providers: [
+        MaintenanceHubStore,
+        { provide: MaintenanceOverviewService, useValue: overview },
+        { provide: SchedulesService, useValue: jasmine.createSpyObj('SchedulesService', ['listPage']) },
+        { provide: TechniciansService, useValue: technicians },
+        { provide: EquipmentService, useValue: equipment },
+        { provide: PermissionsService, useValue: { has: () => false } },
+      ],
+    });
+    TestBed.inject(MaintenanceHubStore).load();
+    expect(technicians.list).not.toHaveBeenCalled();
   });
 });

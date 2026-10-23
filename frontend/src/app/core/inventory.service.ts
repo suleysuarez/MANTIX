@@ -5,7 +5,16 @@ import { Observable, map } from 'rxjs';
 import { apiBaseUrl } from './api.config';
 import { Period } from './dashboard-kpis.service';
 
-export type ItemCategory = 'spare_part' | 'consumable' | 'accessory' | 'tool' | 'other';
+/** Código de una categoría: las 5 de fábrica y las que se agreguen desde el formulario. */
+export type ItemCategory = string;
+export type OptionKind = 'category' | 'unit' | 'location' | 'supplier';
+
+/** Valor de uno de los desplegables del ítem (`value` es lo que se guarda; `label`, lo que se lee). */
+export interface InventoryOption {
+  kind: OptionKind;
+  value: string;
+  label: string;
+}
 export type StockStatus = 'ok' | 'low' | 'out';
 export type ItemStatusFilter = '' | 'ok' | 'low' | 'out' | 'stale' | 'active' | 'inactive';
 export type MovementKind = 'in' | 'out' | 'adjust';
@@ -81,6 +90,15 @@ export interface ItemQuery {
   search?: string;
   category?: ItemCategory | '';
   status?: ItemStatusFilter;
+  /** Rangos (inclusivos, pueden ser de un solo lado): stock, costo unitario y fechas ISO de ingreso / último movimiento. */
+  stockMin?: number;
+  stockMax?: number;
+  costMin?: number;
+  costMax?: number;
+  createdFrom?: string;
+  createdTo?: string;
+  movedFrom?: string;
+  movedTo?: string;
   sort?: string;
   /** Base 1. */
   page?: number;
@@ -167,6 +185,9 @@ export interface ImportResult {
   total_rows: number;
   created: number;
   errors: ImportRowError[];
+  /** Filas que pasaron la validación y filas con al menos un problema (el resumen previo). */
+  valid_rows?: number | null;
+  error_rows?: number | null;
 }
 
 /** Inventario de repuestos y consumibles (`/inventory`). */
@@ -186,6 +207,15 @@ export class InventoryService {
     }
     if (query.status) {
       params = params.set('status', query.status);
+    }
+    const ranges: [string, string | number | undefined][] = [
+      ['stock_min', query.stockMin], ['stock_max', query.stockMax], ['cost_min', query.costMin], ['cost_max', query.costMax],
+      ['created_from', query.createdFrom], ['created_to', query.createdTo], ['moved_from', query.movedFrom], ['moved_to', query.movedTo],
+    ];
+    for (const [name, value] of ranges) {
+      if (value !== undefined) {
+        params = params.set(name, value);
+      }
     }
     if (query.sort) {
       params = params.set('sort', query.sort);
@@ -240,10 +270,29 @@ export class InventoryService {
     return this.http.get<InventoryOverview>(`${this.url}/overview`, { params: new HttpParams().set('period', period) });
   }
 
-  /** Importación todo-o-nada; con `dryRun` solo valida. */
-  importFile(file: File, dryRun: boolean): Observable<ImportResult> {
+  /** Plantilla de importación en Excel (con el mismo estilo que los demás archivos de Mantix). */
+  importTemplate(): Observable<Blob> {
+    return this.http.get(`${this.url}/import/template`, { responseType: 'blob' });
+  }
+
+  /** Valores de los desplegables (categorías, unidades, ubicaciones y proveedores). */
+  options(): Observable<InventoryOption[]> {
+    return this.http.get<InventoryOption[]>(`${this.url}/options`);
+  }
+
+  /** Agrega un valor a un desplegable; el servidor lo normaliza y rechaza los repetidos (409). */
+  createOption(kind: OptionKind, name: string): Observable<InventoryOption> {
+    return this.http.post<InventoryOption>(`${this.url}/options`, { kind, name });
+  }
+
+  /**
+   * Importación fila por fila. Con `dryRun` solo valida y resume. Por defecto es todo-o-nada; con
+   * `skipInvalid` importa las filas válidas y reporta las demás.
+   */
+  importFile(file: File, dryRun: boolean, skipInvalid = false): Observable<ImportResult> {
     const body = new FormData();
     body.append('file', file, file.name);
-    return this.http.post<ImportResult>(`${this.url}/import`, body, { params: new HttpParams().set('dry_run', dryRun) });
+    const params = new HttpParams().set('dry_run', dryRun).set('skip_invalid', skipInvalid);
+    return this.http.post<ImportResult>(`${this.url}/import`, body, { params });
   }
 }

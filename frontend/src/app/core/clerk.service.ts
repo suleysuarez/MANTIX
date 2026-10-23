@@ -39,6 +39,16 @@ export class ClerkService {
     return this.clerk?.session?.getToken() ?? null;
   }
 
+  /** Pide un token nuevo a Clerk saltándose el caché (tras un 401); `null` si ya no hay sesión. */
+  async refreshToken(): Promise<string | null> {
+    await this.initialize();
+    try {
+      return (await this.clerk?.session?.getToken({ skipCache: true })) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Sesiones activas del usuario (dispositivos donde sigue conectado) y cuál es la actual. */
   async getActiveSessions(): Promise<{ sessions: ClerkSession[]; currentId: string | null }> {
     await this.initialize();

@@ -24,6 +24,23 @@ describe('apiErrorMessage', () => {
       .toBe('La acción no se puede realizar en el estado actual del registro.');
   });
 
+  it('passes on the user-management rules in Spanish instead of the generic conflict', () => {
+    const msg = (detail: string) => apiErrorMessage(failure(409, { detail }), 'x');
+    expect(msg('no puedes desactivar tu propia cuenta')).toBe('No puedes desactivar tu propia cuenta.');
+    expect(msg('no se puede desactivar al último administrador activo')).toBe('No se puede desactivar al último administrador activo.');
+    expect(msg("ya existe un usuario con el correo 'a@x.com'")).toBe('Ya existe un usuario con ese correo.');
+    expect(msg('the sign-in service rejected the new password or is unavailable')).toContain('servicio de acceso');
+  });
+
+  it('explains the profile rules (e-mail locked, photo, password)', () => {
+    expect(apiErrorMessage(failure(403, { detail: 'tu correo no se puede modificar desde el perfil' }), 'x'))
+      .toBe('Tu correo es tu identidad de acceso y no se puede modificar desde el perfil.');
+    expect(apiErrorMessage(failure(403, { detail: 'only ADMIN' }), 'x')).toBe('No tienes permiso para realizar esta acción.');
+    expect(apiErrorMessage(failure(415, { detail: 'el archivo no es una imagen válida' }), 'x')).toContain('PNG o JPG');
+    expect(apiErrorMessage(failure(422, { detail: 'la foto es muy pequeña: mínimo 64×64 píxeles' }), 'x')).toContain('64×64');
+    expect(apiErrorMessage(failure(422, { detail: 'la contraseña actual no es correcta' }), 'x')).toBe('La contraseña actual no es correcta.');
+  });
+
   it('uses the screen fallback for anything that is not an HTTP error', () => {
     expect(apiErrorMessage(new Error('boom'), 'No se pudo guardar.')).toBe('No se pudo guardar.');
   });
@@ -45,5 +62,33 @@ describe('apiFieldErrors', () => {
     expect(apiFieldErrors(failure(409, { errors: [{ field: 'a', message: 'm', type: 'missing' }] }))).toEqual({});
     expect(apiFieldErrors(failure(422, 'plain text'))).toEqual({});
     expect(apiFieldErrors(new Error('x'))).toEqual({});
+  });
+});
+
+describe('apiErrorMessage: export validation (422)', () => {
+  const unprocessable = (detail: string, errors?: { field: string; message: string; type: string }[]) =>
+    new HttpErrorResponse({ status: 422, error: { code: 'unprocessable', detail, errors } });
+
+  it('explains each rule of an export in Spanish', () => {
+    const cases: [string, string][] = [
+      ['no records match the filters; nothing to export', 'No hay registros que coincidan con los filtros: no hay nada que exportar.'],
+      ['the export has 12000 records and the limit is 10000; narrow the filters', 'Hay demasiados registros para exportar (máximo 10.000). Acota los filtros.'],
+      ['unknown columns: nope', 'Alguna de las columnas elegidas no existe en este reporte.'],
+      ["the report 'equipment' cannot be exported yet", 'Este reporte todavía no se puede exportar.'],
+    ];
+    for (const [detail, message] of cases) {
+      expect(apiErrorMessage(unprocessable(detail), 'x')).toBe(message);
+    }
+  });
+
+  it('reads the range rules out of the field errors', () => {
+    const range = (message: string) => unprocessable('validation error', [{ field: 'filters', message, type: 'value_error' }]);
+    expect(apiErrorMessage(range('Value error, date_to cannot be before date_from'), 'x')).toBe('La fecha final no puede ser anterior a la inicial.');
+    expect(apiErrorMessage(range('Value error, the date range cannot exceed 366 days'), 'x')).toBe('El rango de fechas no puede superar 366 días.');
+    expect(apiErrorMessage(range('Value error, date_from cannot be in the future'), 'x')).toBe('La fecha inicial no puede ser futura.');
+  });
+
+  it('keeps the generic message for any other 422 and never leaks the server text', () => {
+    expect(apiErrorMessage(unprocessable('something internal'), 'x')).toBe('Revisa los campos marcados.');
   });
 });

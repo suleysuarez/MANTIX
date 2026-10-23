@@ -1,9 +1,8 @@
 import { FormControl } from '@angular/forms';
 
-import { csvCell, toCsv } from '../../core/csv';
 import { InventoryItem } from '../../core/inventory.service';
 import {
-  itemsToCsv, minMarker, money, movementQuantity, skuValidator, validateImportFile,
+  categoryLabel, hasRangeErrors, minMarker, money, movementQuantity, optionsOf, rangeErrors, skuValidator, validateImportFile,
 } from './inventory-ui';
 import { integerRange, maxNotBelowMin, optionalInteger, optionalMoney, fieldError } from '../../core/form-validation';
 import { FormGroup } from '@angular/forms';
@@ -129,17 +128,6 @@ describe('inventory ui', () => {
     expect(money(1234.5)).toBe('1,234.50');
   });
 
-  it('exports the filtered items as CSV and neutralises formulas', () => {
-    const csv = itemsToCsv([item(), item({ name: '=cmd|calc', stock: 0, status: 'out', is_active: false })]);
-    const lines = csv.split('\r\n');
-    expect(lines[0].startsWith('SKU,Nombre,Categoría')).toBeTrue();
-    expect(lines[1]).toContain('SSD 512 GB');
-    expect(lines[2]).toContain("'=cmd|calc");
-    expect(lines[2].endsWith('Inactivo')).toBeTrue();
-    expect(csvCell('a,b')).toBe('"a,b"');
-    expect(toCsv([['a', 'b']])).toBe('a,b');
-  });
-
   describe('validateImportFile', () => {
     it('accepts csv and xlsx within 5 MB', () => {
       expect(validateImportFile({ name: 'items.csv', size: 100 })).toBe('');
@@ -150,6 +138,54 @@ describe('inventory ui', () => {
       expect(validateImportFile({ name: 'sin-extension', size: 10 })).toBe('Solo se admiten archivos .csv o .xlsx.');
       expect(validateImportFile({ name: 'a.csv', size: 0 })).toBe('El archivo está vacío.');
       expect(validateImportFile({ name: 'a.csv', size: 5 * 1024 * 1024 + 1 })).toBe('El archivo supera los 5 MB permitidos.');
+    });
+  });
+
+  describe('range filters', () => {
+    const none = { stockMin: '', stockMax: '', costMin: '', costMax: '', createdFrom: '', createdTo: '', movedFrom: '', movedTo: '' };
+
+    it('accepts empty, one-sided and coherent ranges', () => {
+      expect(hasRangeErrors(rangeErrors(none))).toBeFalse();
+      expect(hasRangeErrors(rangeErrors({ ...none, stockMin: '5' }))).toBeFalse();
+      expect(hasRangeErrors(rangeErrors({ ...none, stockMin: '5', stockMax: '5', costMin: '0', costMax: '99.5' }))).toBeFalse();
+    });
+
+    it('rejects negatives, non-numbers and wrong decimals in Spanish', () => {
+      expect(rangeErrors({ ...none, stockMin: '-1' }).stock).toBe('Stock mínimo: no puede ser negativo.');
+      expect(rangeErrors({ ...none, stockMax: '2.5' }).stock).toBe('Stock máximo: escribe un número entero.');
+      expect(rangeErrors({ ...none, stockMax: 'abc' }).stock).toBe('Stock máximo: escribe un número entero.');
+      expect(rangeErrors({ ...none, costMax: '1.234' }).cost).toBe('Precio máximo: escribe un importe válido (máximo 2 decimales).');
+      expect(rangeErrors({ ...none, costMin: '-0.5' }).cost).toBe('Precio mínimo: no puede ser negativo.');
+      expect(rangeErrors({ ...none, stockMin: '2000000' }).stock).toContain('no puede superar');
+    });
+
+    it('requires the minimum not to exceed the maximum', () => {
+      expect(rangeErrors({ ...none, stockMin: '10', stockMax: '4' }).stock).toBe('El stock mínimo no puede ser mayor que el máximo.');
+      expect(rangeErrors({ ...none, costMin: '9.99', costMax: '1' }).cost).toBe('El precio mínimo no puede ser mayor que el máximo.');
+    });
+
+    it('validates the entry and movement dates with the shared rule', () => {
+      expect(rangeErrors({ ...none, createdFrom: '2026-10-10', createdTo: '2026-10-01' }).created).toBe('La fecha final no puede ser anterior a la inicial.');
+      expect(rangeErrors({ ...none, movedFrom: '2026-02-30' }).moved).toBe('La fecha no existe en el calendario.');
+      expect(hasRangeErrors(rangeErrors({ ...none, createdFrom: '2026-10-01', createdTo: '2026-10-10' }))).toBeFalse();
+    });
+  });
+
+  describe('options', () => {
+    const options = [
+      { kind: 'category' as const, value: 'equipo_de_red', label: 'Equipo de Red' },
+      { kind: 'supplier' as const, value: 'Acme', label: 'Acme' },
+    ];
+
+    it('names categories from the server, then the built-in ones, then the code', () => {
+      expect(categoryLabel('equipo_de_red', options)).toBe('Equipo de Red');
+      expect(categoryLabel('tool', options)).toBe('Herramienta');
+      expect(categoryLabel('zzz', options)).toBe('zzz');
+    });
+
+    it('filters the options of one drop-down', () => {
+      expect(optionsOf(options, 'supplier')).toEqual([{ value: 'Acme', label: 'Acme' }]);
+      expect(optionsOf(options, 'unit')).toEqual([]);
     });
   });
 });

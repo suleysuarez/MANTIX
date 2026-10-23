@@ -1,8 +1,9 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 
-import { InventoryItem, InventoryOverview, Movement } from '../../core/inventory.service';
+import { ImportResult, InventoryItem, InventoryOption, InventoryOverview, InventoryService, Movement } from '../../core/inventory.service';
 import { EMPTY_FILTERS, InventoryState, InventoryStore } from '../../core/inventory.store';
 import { LocalProfileService } from '../../core/local-profile.service';
 import { WCAG_AA, contrastRatio, flatten } from '../dashboard/contrast';
@@ -29,9 +30,17 @@ const overview = {
   ],
 } as unknown as InventoryOverview;
 
+const OPTIONS: InventoryOption[] = [
+  { kind: 'category', value: 'spare_part', label: 'Repuesto' }, { kind: 'category', value: 'tool', label: 'Herramienta' },
+  { kind: 'unit', value: 'unidad', label: 'unidad' }, { kind: 'unit', value: 'caja', label: 'caja' },
+  { kind: 'location', value: 'Bodega A', label: 'Bodega A' },
+  { kind: 'supplier', value: 'Proveedor Andino', label: 'Proveedor Andino' },
+];
+const NO_ERRORS = { stock: '', cost: '', created: '', moved: '' };
+
 function state(overrides: Partial<InventoryState> = {}): InventoryState {
   return {
-    view: 'grid', filters: EMPTY_FILTERS, items: [item(), item({ id: 2, sku: 'RAM-8', name: 'RAM 8 GB', stock: 0, status: 'out', level_pct: 0 })],
+    view: 'grid', filters: EMPTY_FILTERS, filterErrors: NO_ERRORS, options: OPTIONS, items: [item(), item({ id: 2, sku: 'RAM-8', name: 'RAM 8 GB', stock: 0, status: 'out', level_pct: 0 })],
     total: 30, page: 1, loading: false, error: '', period: '30d', overview, overviewLoading: false, selectedId: null,
     item: null, movements: [], movementsTotal: 0, detailLoading: false, detailError: '', busy: false, ...overrides,
   };
@@ -64,10 +73,12 @@ describe('InventoryComponent', () => {
   };
   const message = (id: string) => host().querySelector(`#${id}`)!.textContent!.trim();
 
-  async function create(permissions: string[] = ['inventory.manage', 'inventory.consume']) {
+  const importTemplate = jasmine.createSpy('importTemplate').and.callFake(() => of(new Blob(['xlsx'])));
+
+  async function create(permissions: string[] = ['inventario:editar', 'inventario:importar', 'inventario:consumir']) {
     subject = new BehaviorSubject(state());
     store = Object.assign(
-      jasmine.createSpyObj('InventoryStore', ['load', 'setView', 'setFilters', 'clearFilters', 'setPage', 'setPeriod', 'select', 'create', 'update', 'remove', 'move', 'importFile', 'exportAll']),
+      jasmine.createSpyObj('InventoryStore', ['load', 'setView', 'setFilters', 'clearFilters', 'setPage', 'setPeriod', 'select', 'create', 'update', 'remove', 'move', 'importFile', 'createOption']),
       { state$: subject },
     );
     for (const method of ['create', 'update', 'remove', 'move'] as const) {
@@ -76,6 +87,7 @@ describe('InventoryComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: InventoryStore, useValue: store },
+        { provide: InventoryService, useValue: { importTemplate } },
         { provide: LocalProfileService, useValue: { can: (p: string) => Promise.resolve(permissions.includes(p)) } },
       ],
     });
@@ -131,10 +143,10 @@ describe('InventoryComponent', () => {
     });
 
     it('paginates on the server and shows the range', () => {
-      expect(host().querySelector('nav[aria-label="Paginación"]')!.textContent).toContain('1–2 de 30');
+      expect(host().querySelector('nav[aria-label="Paginación de ítems"]')!.textContent).toContain('Ítems 1–12 de 30');
       click(button('Siguiente'));
       expect(store.setPage).toHaveBeenCalledWith(2);
-      expect(button('Anterior')!.disabled).toBeTrue();
+      expect(button('Anterior')).toBeNull(); // first page: nothing to go back to
     });
 
     it('sends category and status filters to the server', () => {
@@ -180,6 +192,18 @@ describe('InventoryComponent', () => {
       expect(host().querySelector('img[src$="inventario-vacio.webp"]')).not.toBeNull();
     });
 
+    it('does not repeat the «Nuevo ítem» button inside the empty state: only the header one remains', () => {
+      render(state({ items: [], total: 0 }));
+      const empty = host().querySelector('section[aria-label="Ítems"]')!;
+      expect(Array.from(empty.querySelectorAll('button')).some((b) => b.textContent?.includes('Nuevo ítem'))).toBeFalse();
+      expect(host().querySelectorAll('header button').length).toBeGreaterThan(0);
+      expect(Array.from(host().querySelectorAll('header button')).some((b) => b.textContent?.includes('Nuevo ítem'))).toBeTrue();
+    });
+
+    it('has no period buttons in the header (the pulse keeps its default period)', () => {
+      expect(host().querySelector('[aria-label="Periodo de las métricas"]')).toBeNull();
+    });
+
     it('offers to clear filters when they leave nothing', () => {
       render(state({ items: [], total: 0, filters: { ...EMPTY_FILTERS, status: 'low' } }));
       expect(host().textContent).toContain('Ningún ítem coincide con los filtros');
@@ -197,14 +221,14 @@ describe('InventoryComponent', () => {
 
   describe('permissions', () => {
     it('shows every action to a manager', async () => {
-      await create(['inventory.manage', 'inventory.consume']);
+      await create(['inventario:editar', 'inventario:importar', 'inventario:consumir']);
       expect(button('Nuevo ítem')).not.toBeNull();
       expect(button('Importar')).not.toBeNull();
       expect(host().querySelector('button[aria-label="Nuevo ítem"]')).not.toBeNull();
     });
 
     it('lets a technician consume but not create, import or enter stock', async () => {
-      await create(['inventory.consume']);
+      await create(['inventario:consumir']);
       expect(button('Nuevo ítem')).toBeNull();
       expect(button('Importar')).toBeNull();
       expect(button('Entrada')).toBeNull();
@@ -222,6 +246,50 @@ describe('InventoryComponent', () => {
     });
   });
 
+  describe('range filters', () => {
+    beforeEach(() => create());
+    const open = () => click(button('Rangos'));
+    const field = (label: string) => host().querySelector(`#inv-ranges input[aria-label="${label}"]`) as HTMLInputElement;
+    const change = (label: string, value: string) => {
+      const el = field(label);
+      el.value = value;
+      el.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
+
+    it('keeps the panel closed until asked, so the filter bar stays slim', () => {
+      expect(host().querySelector('#inv-ranges')).toBeNull();
+      open();
+      expect(host().querySelector('#inv-ranges')).not.toBeNull();
+    });
+
+    it('sends stock and price ranges to the store', () => {
+      open();
+      change('Stock mínimo', '2');
+      expect(store.setFilters).toHaveBeenCalledWith({ stockMin: '2' });
+      change('Precio máximo', '99.5');
+      expect(store.setFilters).toHaveBeenCalledWith({ costMax: '99.5' });
+    });
+
+    it('offers entry-date and last-movement filters with the shared date component', () => {
+      open();
+      const labels = Array.from(host().querySelectorAll('#inv-ranges app-date-range-filter legend')).map((l) => l.textContent!.trim());
+      expect(labels).toEqual(['Fecha de ingreso', 'Último movimiento']);
+    });
+
+    it('shows each range error under its field', () => {
+      render(state({ filterErrors: { ...NO_ERRORS, stock: 'Stock mínimo: no puede ser negativo.', cost: 'El precio mínimo no puede ser mayor que el máximo.' }, filters: { ...EMPTY_FILTERS, stockMin: '-1' } }));
+      const alerts = Array.from(host().querySelectorAll('#inv-ranges [role="alert"]')).map((a) => a.textContent!.trim()).filter(Boolean);
+      expect(alerts).toEqual(['Stock mínimo: no puede ser negativo.', 'El precio mínimo no puede ser mayor que el máximo.']);
+    });
+
+    it('opens by itself when a range is active and counts as an active filter', () => {
+      render(state({ filters: { ...EMPTY_FILTERS, costMin: '10' } }));
+      expect(host().querySelector('#inv-ranges')).not.toBeNull();
+      expect(button('Limpiar')).not.toBeNull();
+    });
+  });
+
   describe('item form', () => {
     beforeEach(async () => {
       await create();
@@ -230,7 +298,7 @@ describe('InventoryComponent', () => {
 
     const submit = () => host().querySelector('form[role="dialog"] button[type="submit"]') as HTMLButtonElement;
     const fill = (overrides: Record<string, string> = {}) => {
-      const values: Record<string, string> = { '#if-sku': 'ssd-512', '#if-name': 'SSD 512 GB', '#if-unit': 'unidad', '#if-min': '5', ...overrides };
+      const values: Record<string, string> = { '#if-sku': 'ssd-512', '#if-name': 'SSD 512 GB', '#if-min': '5', ...overrides };
       for (const [selector, value] of Object.entries(values)) {
         type(selector, value);
       }
@@ -265,11 +333,68 @@ describe('InventoryComponent', () => {
       expect(message('if-min-err')).toBe('Debe ser un número entero.');
       fill({ '#if-min': '5', '#if-initial': '-4' });
       expect(message('if-initial-err')).toBe('Debe ser al menos 0.');
-      fill({ '#if-initial': '0', '#if-unit': 'u@' });
-      expect(message('if-unit-err')).toBe('Contiene caracteres no permitidos.');
+      fill({ '#if-initial': '0', '#if-min': '', '#if-sku': 'ab' });
       expect(submit().disabled).toBeTrue();
       click(submit());
       expect(store.create).not.toHaveBeenCalled();
+    });
+
+    describe('drop-downs with «+ Agregar nuevo»', () => {
+      const select = (label: string) => host().querySelector(`form[role="dialog"] select[aria-label="${label}"]`) as HTMLSelectElement;
+      const choose = (label: string, value: string) => {
+        const el = select(label);
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
+        fixture.detectChanges();
+      };
+      const typeNew = (label: string, text: string) => {
+        choose(label, '__new__');
+        const input = host().querySelector(`form[role="dialog"] input[aria-label="Agregar nuevo"]`) as HTMLInputElement;
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+        click(Array.from(host().querySelectorAll('form[role="dialog"] button')).find((b) => b.textContent?.trim() === 'Guardar') ?? null);
+      };
+
+      it('uses the server lists for category, unit, location and supplier', () => {
+        const labels = (label: string) => Array.from(select(label).options).map((o) => o.textContent!.trim());
+        expect(labels('Categoría')).toEqual(['Selecciona una categoría', 'Repuesto', 'Herramienta', '+ Agregar nuevo']);
+        expect(labels('Unidad')).toContain('caja');
+        expect(labels('Ubicación')).toContain('Bodega A');
+        expect(labels('Proveedor')).toContain('Proveedor Andino');
+      });
+
+      it('saves a new supplier in the backend, lists it at once and leaves it selected', () => {
+        store.createOption.and.returnValue(of({ kind: 'supplier', value: 'Acme Ltda', label: 'Acme Ltda' }));
+        typeNew('Proveedor', 'acme   ltda');
+        expect(store.createOption).toHaveBeenCalledWith('supplier', 'acme ltda');
+        expect(Array.from(select('Proveedor').options).some((o) => o.textContent!.trim() === 'Acme Ltda' && o.selected)).toBeTrue();
+        fill();
+        click(submit());
+        expect(store.create.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({ supplier: 'Acme Ltda' }));
+      });
+
+      it('does not duplicate a value that exists in another case: it selects the existing one', () => {
+        typeNew('Ubicación', 'BODEGA  a');
+        expect(store.createOption).not.toHaveBeenCalled();
+        expect(select('Ubicación').value).toBe('Bodega A');
+      });
+
+      it('shows the server message when the value already exists (409) and keeps the field open', () => {
+        store.createOption.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409, error: { code: 'conflict', detail: 'ya existe «Caja Grande» en esta lista' } })));
+        typeNew('Unidad', 'caja grande');
+        const alerts = Array.from(host().querySelectorAll('form[role="dialog"] [role="alert"]')).map((a) => a.textContent!.trim()).filter(Boolean);
+        expect(alerts.length).toBe(1);
+        expect(alerts[0]).toContain('ya existe en la lista');
+      });
+
+      it('lets a new category be created and used by the item', () => {
+        store.createOption.and.returnValue(of({ kind: 'category', value: 'equipo_de_red', label: 'Equipo de Red' }));
+        typeNew('Categoría', 'equipo de red');
+        fill();
+        click(submit());
+        expect(store.create.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({ category: 'equipo_de_red' }));
+      });
     });
 
     it('rejects a maximum below the minimum', () => {
@@ -365,7 +490,7 @@ describe('InventoryComponent', () => {
   });
 
   it('only offers consumption to someone who cannot manage the inventory', async () => {
-    await create(['inventory.consume']);
+    await create(['inventario:consumir']);
     click(Array.from(host().querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Consumir')!);
     const kinds = Array.from(host().querySelectorAll('form[role="dialog"] [role="group"] button')).map((b) => b.textContent?.trim());
     expect(kinds).toEqual(['Consumo']);
@@ -433,7 +558,7 @@ describe('InventoryComponent', () => {
       fixture.detectChanges();
     };
     const validate = () => button('Validar') as HTMLButtonElement;
-    const importBtn = () => Array.from(host().querySelectorAll('form[role="dialog"] button, section[role="dialog"] button')).find((b) => b.textContent?.trim() === 'Importar') as HTMLButtonElement;
+    const importBtn = () => Array.from(host().querySelectorAll('form[role="dialog"] button, section[role="dialog"] button')).find((b) => /^Importar( \(\d+\))?$/.test(b.textContent?.trim() ?? '')) as HTMLButtonElement;
 
     it('rejects a wrong type, an empty file and an oversized one before sending anything', () => {
       choose(new File(['x'], 'virus.exe'));
@@ -450,38 +575,88 @@ describe('InventoryComponent', () => {
 
     it('validates first, then only allows the real import after a clean dry run', () => {
       const file = new File(['sku,name\nA-1,Algo'], 'items.csv');
-      store.importFile.and.returnValue(of({ dry_run: true, success: true, total_rows: 1, created: 0, errors: [] }));
+      store.importFile.and.returnValue(of({ dry_run: true, success: true, total_rows: 1, created: 0, errors: [], valid_rows: 1, error_rows: 0 }));
       choose(file);
       expect(importBtn().disabled).toBeTrue();
       click(validate());
-      expect(store.importFile).toHaveBeenCalledWith(file, true);
-      expect(host().textContent).toContain('1 filas válidas');
+      expect(store.importFile).toHaveBeenCalledWith(file, true, false);
+      expect(host().textContent).toContain('Todas las filas son válidas');
       expect(importBtn().disabled).toBeFalse();
-      store.importFile.and.returnValue(of({ dry_run: false, success: true, total_rows: 1, created: 1, errors: [] }));
+      store.importFile.and.returnValue(of({ dry_run: false, success: true, total_rows: 1, created: 1, errors: [], valid_rows: 1, error_rows: 0 }));
       click(importBtn());
-      expect(store.importFile).toHaveBeenCalledWith(file, false);
+      expect(store.importFile).toHaveBeenCalledWith(file, false, false);
     });
 
-    it('lists the row errors and keeps the import disabled', () => {
-      store.importFile.and.returnValue(of({
-        dry_run: true, success: false, total_rows: 3, created: 0,
-        errors: [{ row: 2, field: 'unit_cost', message: 'Input should be greater than or equal to 0' }, { row: 4, field: null, message: 'duplicate' }],
-      }));
+    const mixed = (valid: number): ImportResult => ({
+      dry_run: true, success: false, total_rows: valid + 2, created: 0, valid_rows: valid, error_rows: 2,
+      errors: [{ row: 3, field: 'unit_cost', message: 'debe ser mayor o igual a 0' }, { row: 5, field: 'sku', message: 'código repetido' }],
+    });
+    const validOnly = () => button('Importar solo las') as HTMLButtonElement;
+
+    it('summarises valid rows and rows with errors, listing each problem by row and column', () => {
+      store.importFile.and.returnValue(of(mixed(3)));
       choose(new File(['x'], 'items.csv'));
       click(validate());
-      const alert = host().querySelector('[role="alert"].bg-error-container')!;
-      expect(alert.textContent).toContain('2 problema(s) en 3 filas');
-      expect(alert.textContent).toContain('Fila 2');
-      expect(importBtn().disabled).toBeTrue();
+      const summary = host().querySelector('[aria-label="Resumen de la validación"]')!;
+      expect(summary.textContent).toContain('5Filas leídas');
+      expect(summary.textContent).toContain('3Válidas');
+      expect(summary.textContent).toContain('2Con errores');
+      const rows = Array.from(summary.querySelectorAll('tbody tr')).map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => td.textContent!.trim()));
+      expect(rows).toEqual([['3', 'unit_cost', 'debe ser mayor o igual a 0'], ['5', 'sku', 'código repetido']]);
+      expect(importBtn()).toBeUndefined(); // con errores no hay «Importar» todo-o-nada
+    });
+
+    it('imports nothing by default; the valid rows only go in after an explicit confirmation', () => {
+      const file = new File(['x'], 'items.csv');
+      store.importFile.and.returnValue(of(mixed(3)));
+      choose(file);
+      click(validate());
+      expect(validOnly().disabled).toBeTrue(); // sin confirmar
+      click(validOnly());
+      expect(store.importFile).toHaveBeenCalledTimes(1); // solo la validación
+      click(host().querySelector('section[aria-label="Resumen de la validación"] input[type=checkbox]'));
+      expect(validOnly().disabled).toBeFalse();
+      store.importFile.and.returnValue(of({ ...mixed(3), dry_run: false, success: true, created: 3 }));
+      click(validOnly());
+      expect(store.importFile).toHaveBeenCalledWith(file, false, true);
+    });
+
+    it('offers no import when no row is valid', () => {
+      store.importFile.and.returnValue(of(mixed(0)));
+      choose(new File(['x'], 'items.csv'));
+      click(validate());
+      expect(host().textContent).toContain('Ninguna fila es válida');
+      expect(host().querySelector('section[aria-label="Resumen de la validación"] input[type=checkbox]')).toBeNull();
+      expect(validOnly().disabled).toBeTrue();
+    });
+
+    it('downloads the Excel template from the server, and says so when it fails', () => {
+      click(button('Descargar plantilla'));
+      expect(importTemplate).toHaveBeenCalledTimes(1);
+      importTemplate.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      click(button('Descargar plantilla'));
+      expect(host().ownerDocument.body.textContent).toContain('No se pudo descargar la plantilla');
+    });
+
+    it('states the limits and has the template download inside the dialog', () => {
+      const dialog = host().querySelector('section[role="dialog"]')!;
+      expect(dialog.textContent).toContain('.csv o .xlsx');
+      expect(dialog.textContent).toContain('5 MB');
+      expect(dialog.textContent).toContain('5,000 filas');
+      expect(dialog.textContent).toContain('sku y name');
+      expect(Array.from(dialog.querySelectorAll('button')).some((b) => b.textContent?.includes('Descargar plantilla'))).toBeTrue();
+      // el botón suelto de descarga/exportación CSV ya no existe en la pantalla
+      expect(host().querySelector('button[aria-label="Exportar CSV"]')).toBeNull();
     });
 
     it('discards the previous validation when another file is chosen', () => {
-      store.importFile.and.returnValue(of({ dry_run: true, success: true, total_rows: 1, created: 0, errors: [] }));
+      store.importFile.and.returnValue(of({ dry_run: true, success: true, total_rows: 1, created: 0, errors: [], valid_rows: 1, error_rows: 0 }));
       choose(new File(['x'], 'a.csv'));
       click(validate());
       expect(importBtn().disabled).toBeFalse();
       choose(new File(['y'], 'b.csv'));
       expect(importBtn().disabled).toBeTrue();
+      expect(host().querySelector('[aria-label="Resumen de la validación"]')).toBeNull();
     });
   });
 

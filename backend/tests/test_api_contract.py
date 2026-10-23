@@ -13,13 +13,14 @@ from app.main import app
 from app.repositories.base import Page
 from app.schemas.priority import PriorityCreate, PriorityUpdate
 from app.services.priority import PriorityService
+from tests.support import perm_objects
 
 
 def role(code, *permissions):
     return SimpleNamespace(
         code=code,
         is_active=True,
-        permissions=[SimpleNamespace(code=p, is_active=True) for p in permissions],
+        permissions=perm_objects(*permissions),
     )
 
 
@@ -211,7 +212,7 @@ def priority_service():
     return PriorityService(FakePriorityRepository(), FakeAudit())
 
 
-ACTOR = AuthContext(user=SimpleNamespace(id=9), roles=frozenset({"ADMIN"}))
+ACTOR = AuthContext.for_roles(SimpleNamespace(id=9), "ADMIN")
 
 
 async def test_priority_create_audits_and_rejects_duplicates():

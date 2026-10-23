@@ -11,23 +11,27 @@ import {
   MaintenanceRequest,
   MaintenanceService,
 } from './maintenance.service';
-import { QueueService, QueueSummary, RequestCategory } from './queue.service';
+import { PriorityRef, QueueService, QueueSummary, RequestCategory } from './queue.service';
 import { Technician, TechniciansService } from './technicians.service';
+import { TicketTransitionService } from './ticket-transitions.service';
 import { ToastService } from './toast.service';
+import { TransitionData, WorkflowService, WorkflowState } from './workflow.service';
+import { queueRangeError } from '../features/pending-requests/pending-ui';
+import { dayBoundaryIso } from '../features/reports/report-filters';
+import { statusMeta } from '../features/tickets/ticket-ui';
 
-/** Columnas de la bandeja: lo que aún espera trabajo, en el orden del flujo. */
-export const QUEUE_STATUSES = ['submitted', 'triaged', 'assigned'] as const;
-export type QueueStatus = (typeof QUEUE_STATUSES)[number];
-
-export type QueueOrder = 'oldest' | 'newest' | 'priority';
+export type QueueOrder = 'newest' | 'priority';
 
 export interface QueueFilters {
   search: string;
   priority: string;
   category: string;
-  /** `true`: solo solicitudes sin técnico (enviadas y clasificadas). */
+  /** `true`: solo solicitudes sin técnico (las que aún no están en un estado que lo exige). */
   unassignedOnly: boolean;
   order: QueueOrder;
+  /** Recibidas desde / hasta, como `yyyy-MM-dd` (vacío: sin límite). */
+  dateFrom: string;
+  dateTo: string;
 }
 
 export interface QueueColumn {
@@ -41,12 +45,20 @@ export interface QueueColumn {
 
 export interface PendingRequestsState {
   filters: QueueFilters;
-  columns: Record<QueueStatus, QueueColumn>;
+  /** Mensaje del rango de fechas inválido; con él no se consulta al servidor. */
+  filterError: string;
+  /** Estados que son columnas (los marca el State Pattern del servidor), en el orden del flujo. */
+  statuses: string[];
+  /** Todo el flujo: de aquí salen los pasos válidos y lo que pide cada uno. */
+  workflow: WorkflowState[];
+  columns: Record<string, QueueColumn>;
   period: Period;
   /** `null`: no disponible (falló o sin permiso); la pantalla lo dice en vez de mostrar ceros. */
   summary: QueueSummary | null;
   summaryLoading: boolean;
   categories: RequestCategory[];
+  /** Tabla de prioridades del servidor: nombres y tono de las etiquetas salen de aquí. */
+  priorities: PriorityRef[];
   technicians: Technician[];
   equipmentById: Map<number, Equipment>;
   loading: boolean;
@@ -65,10 +77,12 @@ export interface ActionResult {
   fieldErrors: Record<string, string>;
 }
 
+/** Resultado de arrastrar una tarjeta; coincide con lo que espera el tablero compartido. */
+export type MoveResult = { ok: true } | { ok: false; message: string };
+
 export const PAGE_SIZE = 15;
 
 const SORT: Record<QueueOrder, string> = {
-  oldest: 'created_at',
   newest: '-created_at',
   priority: '-priority',
 };
@@ -78,18 +92,24 @@ export const EMPTY_FILTERS: QueueFilters = {
   priority: '',
   category: '',
   unassignedOnly: false,
-  order: 'oldest',
+  order: 'newest',
+  dateFrom: '',
+  dateTo: '',
 };
 
 const emptyColumn = (): QueueColumn => ({ items: [], total: 0, page: 0, loading: false, failed: false });
 
 const INITIAL: PendingRequestsState = {
   filters: EMPTY_FILTERS,
-  columns: { submitted: emptyColumn(), triaged: emptyColumn(), assigned: emptyColumn() },
+  filterError: '',
+  statuses: [],
+  workflow: [],
+  columns: {},
   period: '30d',
   summary: null,
   summaryLoading: true,
   categories: [],
+  priorities: [],
   technicians: [],
   equipmentById: new Map(),
   loading: true,
@@ -101,10 +121,14 @@ const INITIAL: PendingRequestsState = {
   busy: false,
 };
 
-/** Columnas que el filtro «solo sin asignar» deja vacías: las asignadas ya tienen técnico. */
-export function isColumnHidden(status: QueueStatus, filters: QueueFilters): boolean {
-  return filters.unassignedOnly && status === 'assigned';
+/** Columnas que el filtro «solo sin técnico» deja vacías: las que exigen técnico ya lo tienen. */
+export function isColumnHidden(status: string, filters: QueueFilters, workflow: readonly WorkflowState[]): boolean {
+  return filters.unassignedOnly && !!workflow.find((state) => state.status === status)?.requires.includes('technician');
 }
+
+/** Estados de la bandeja a partir del flujo del servidor. */
+export const queueStatuses = (workflow: readonly WorkflowState[]): string[] =>
+  workflow.filter((state) => state.in_queue).sort((a, b) => a.order - b.order).map((state) => state.status);
 
 /** Observer pattern store de la bandeja de solicitudes pendientes. */
 @Injectable({ providedIn: 'root' })
@@ -113,6 +137,8 @@ export class PendingRequestsStore {
   private readonly queue = inject(QueueService);
   private readonly technicians = inject(TechniciansService);
   private readonly equipment = inject(EquipmentService);
+  private readonly workflowApi = inject(WorkflowService);
+  private readonly transitions = inject(TicketTransitionService);
   private readonly toasts = inject(ToastService);
   private readonly subject = new BehaviorSubject<PendingRequestsState>(INITIAL);
 
@@ -129,14 +155,27 @@ export class PendingRequestsStore {
   load(): void {
     this.patch({ loading: true, error: '' });
     forkJoin({
+      workflow: this.workflowApi.states().pipe(catchError(() => of(null))),
       categories: this.queue.categories().pipe(catchError(() => of([] as RequestCategory[]))),
+      priorities: this.queue.priorities().pipe(catchError(() => of([] as PriorityRef[]))),
       technicians: this.technicians.list().pipe(catchError(() => of([] as Technician[]))),
       equipment: this.equipment.listAll().pipe(catchError(() => of([] as Equipment[]))),
-    }).subscribe(({ categories, technicians, equipment }) => {
+    }).subscribe(({ workflow, categories, priorities, technicians, equipment }) => {
+      if (workflow === null) {
+        this.workflowApi.reset();
+      }
+      const states = workflow ?? [];
+      const statuses = queueStatuses(states);
       this.patch({
+        workflow: states,
+        statuses,
+        columns: Object.fromEntries(statuses.map((status) => [status, emptyColumn()])),
         categories,
+        priorities,
         technicians,
         equipmentById: new Map(equipment.map((item) => [item.id, item])),
+        error: workflow === null ? 'No se pudo cargar el flujo de estados de las solicitudes.' : '',
+        loading: workflow !== null,
       });
       this.reloadColumns();
       this.loadSummary();
@@ -144,8 +183,12 @@ export class PendingRequestsStore {
   }
 
   setFilters(changes: Partial<QueueFilters>): void {
-    this.patch({ filters: { ...this.value.filters, ...changes } });
-    this.reloadColumns();
+    const filters = { ...this.value.filters, ...changes };
+    const filterError = queueRangeError(filters.dateFrom, filters.dateTo);
+    this.patch({ filters, filterError });
+    if (!filterError) {
+      this.reloadColumns();
+    }
   }
 
   clearFilters(): void {
@@ -157,9 +200,9 @@ export class PendingRequestsStore {
     this.loadSummary();
   }
 
-  loadMore(status: QueueStatus): void {
+  loadMore(status: string): void {
     const column = this.value.columns[status];
-    if (column.loading || column.items.length >= column.total) {
+    if (!column || column.loading || column.items.length >= column.total) {
       return;
     }
     this.fetchColumn(status, column.page + 1, true);
@@ -184,9 +227,9 @@ export class PendingRequestsStore {
     });
   }
 
-  /** Clasifica la solicitud (enviada → clasificada). */
-  triage(id: number): Observable<ActionResult> {
-    return this.run(this.maintenance.transition(id, 'triaged', null, null), id, 'Solicitud clasificada.');
+  /** Clasifica la solicitud: categoría y prioridad del catálogo, y pasa de enviada a clasificada. */
+  classify(id: number, body: { category: string; priority: string; notes: string | null }): Observable<ActionResult> {
+    return this.run(this.maintenance.classify(id, body), id, 'Solicitud clasificada.');
   }
 
   assign(id: number, technicianId: number): Observable<ActionResult> {
@@ -195,6 +238,27 @@ export class PendingRequestsStore {
 
   reject(id: number, reason: string): Observable<ActionResult> {
     return this.run(this.maintenance.reject(id, reason), id, 'Solicitud rechazada.');
+  }
+
+  /**
+   * Cambia el estado de una tarjeta arrastrada. El servidor valida el paso (State Pattern) y deja el
+   * historial de estados y la auditoría; aquí, si lo acepta, la tarjeta se queda en su nueva columna
+   * mientras se recarga, y si lo rechaza el tablero la devuelve a su sitio con el mensaje.
+   */
+  move(item: MaintenanceListItem, from: string, to: string, data: TransitionData): Observable<MoveResult> {
+    return this.transitions.move(item.id, from, to, data).pipe(
+      map((): MoveResult => {
+        this.placeLocally(item, from, to);
+        this.toasts.success(`${item.ticket_number} pasó a «${statusMeta(to).label}».`);
+        if (this.value.selectedId === item.id) {
+          this.select(item.id);
+        }
+        this.reloadColumns();
+        this.loadSummary();
+        return { ok: true };
+      }),
+      catchError((error) => of<MoveResult>({ ok: false, message: apiErrorMessage(error, 'No se pudo cambiar el estado de la solicitud.') })),
+    );
   }
 
   private run(call: Observable<MaintenanceRequest>, id: number, success: string): Observable<ActionResult> {
@@ -219,10 +283,29 @@ export class PendingRequestsStore {
     );
   }
 
-  private query(status: QueueStatus, page: number): MaintenanceQuery {
-    const { search, priority, category, order } = this.value.filters;
+  /** Pasa la tarjeta de columna en el estado local, para que no parpadee mientras se recargan las columnas. */
+  private placeLocally(item: MaintenanceListItem, from: string, to: string): void {
+    const { columns } = this.value;
+    const source = columns[from];
+    const target = columns[to];
+    if (!source || !target) {
+      return;
+    }
+    this.patch({
+      columns: {
+        ...columns,
+        [from]: { ...source, items: source.items.filter((i) => i.id !== item.id), total: Math.max(source.total - 1, 0) },
+        [to]: { ...target, items: [...target.items, { ...item, status: to }], total: target.total + 1 },
+      },
+    });
+  }
+
+  private query(status: string, page: number): MaintenanceQuery {
+    const { search, priority, category, order, dateFrom, dateTo } = this.value.filters;
     return {
       status,
+      dateFrom: dayBoundaryIso(dateFrom, false) ?? undefined,
+      dateTo: dayBoundaryIso(dateTo, true) ?? undefined,
       search: search.trim() || undefined,
       priority: priority || undefined,
       category: category || undefined,
@@ -233,18 +316,20 @@ export class PendingRequestsStore {
   }
 
   private reloadColumns(): void {
-    this.patch({ loading: true, error: '' });
-    for (const status of QUEUE_STATUSES) {
-      if (isColumnHidden(status, this.value.filters)) {
+    const hasColumns = this.value.statuses.length > 0;
+    this.patch({ loading: hasColumns, error: hasColumns ? '' : this.value.error });
+    for (const status of this.value.statuses) {
+      if (isColumnHidden(status, this.value.filters, this.value.workflow)) {
         this.setColumn(status, emptyColumn());
       } else {
         this.fetchColumn(status, 1, false);
       }
     }
+    this.settle();
   }
 
-  private fetchColumn(status: QueueStatus, page: number, append: boolean): void {
-    const previous = this.value.columns[status];
+  private fetchColumn(status: string, page: number, append: boolean): void {
+    const previous = this.value.columns[status] ?? emptyColumn();
     this.setColumn(status, { ...previous, loading: true, failed: false });
     this.maintenance.listPage(this.query(status, page)).subscribe({
       next: ({ items, total }) => {
@@ -265,12 +350,12 @@ export class PendingRequestsStore {
     });
   }
 
-  private setColumn(status: QueueStatus, column: QueueColumn): void {
+  private setColumn(status: string, column: QueueColumn): void {
     this.patch({ columns: { ...this.value.columns, [status]: column } });
   }
 
   private settle(): void {
-    if (QUEUE_STATUSES.every((status) => !this.value.columns[status].loading)) {
+    if (this.value.statuses.every((status) => !this.value.columns[status]?.loading)) {
       this.patch({ loading: false });
     }
   }

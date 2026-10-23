@@ -2,16 +2,7 @@
 
 The application now uses Clerk as the identity and session authority. Angular loads ClerkJS from the provided CDN snippet, Clerk owns sign-in, sign-up, password recovery, session lifecycle, and sign-out, and FastAPI verifies the Clerk session token before resolving the local application profile.
 
-```text
-Angular + ClerkJS
-        │  Authorization: Bearer <Clerk session token>
-        ▼
-FastAPI + Clerk Python SDK verification
-        ▼
-users.clerk_user_id
-        ▼
-local roles → permissions in Neon
-```
+![Flujo de autenticación y autorización](images/flujo-autenticacion.png)
 
 ## Configuration
 
@@ -45,60 +36,36 @@ When a verified Clerk user is first encountered, the backend resolves the Clerk 
 
 Every subsequent new user is created without a `user_roles` record. This is the pending-authorization state: the person is authenticated by Clerk and has a local profile, but has no application permissions. A local email already linked to a different Clerk identity fails with HTTP 409 rather than silently reassigning ownership. Inactive local profiles return HTTP 403.
 
-The existing `roles`, `permissions`, `user_roles`, and `role_permissions` tables remain authoritative. `require_permission("module.action")` continues to distinguish authenticated users without a permission (403) from unauthenticated requests (401).
+The existing `roles`, `permissions`, `user_roles`, and `role_permissions` tables remain authoritative. `require_permission("recurso:accion")` distinguishes authenticated users without a permission (403) from unauthenticated requests (401). Permissions use the `recurso:accion` format (for example `tickets:asignar`) and roles inherit from a parent role, so the effective permissions of a person are their roles' own plus every ancestor's (`app/core/rbac.py`). Routes that any signed-in person may use (own profile, notifications, attachments) declare `require_authenticated()` instead. The permission matrix is in [rbac-matriz.md](rbac-matriz.md).
+
+## Session handling in the browser
+
+`authInterceptor` (`frontend/src/app/core/auth.interceptor.ts`) adds the Clerk session token to every call to the API. On `401` it asks Clerk for a fresh token and retries once; if that fails it signs the person out. On `403` it shows the server message in Spanish. A `PermissionsService` reads the effective permissions from `/auth/me` and refreshes them when the person's roles change and when the session renews (at most once per minute).
 
 ## Pending-user administration
 
-Administrators with the local `users.manage` permission can use:
+People who sign in for the first time have no role. Administrators (`usuarios:asignar`) use:
 
 ```text
-GET  /admin/users/pending
-GET  /admin/roles
-POST /admin/users/{user_id}/roles   { "role_ids": [1, 2] }
+GET    /admin/users/pending
+GET    /admin/roles
+POST   /admin/users/{user_id}/roles          { "role_ids": [1, 2] }
+DELETE /admin/users/{user_id}/roles/{role_id}
 ```
 
-The pending list includes only active local users without any `user_roles` record. Inactive users are excluded and cannot receive roles through this API. The assignment endpoint returns 403 when the caller lacks `users.manage`, 404 for an inactive or nonexistent user or role, and is idempotent for repeated role assignments. The Angular page is `/admin/pending-users`; it checks `users.manage` in the client and removes the user from the list immediately after a successful assignment.
+Rules enforced by the backend: only whoever holds `usuarios:asignar` can change roles; nobody changes their own roles; a role can only be given or taken away by someone who already has every permission it carries; the last active ADMIN cannot be revoked. Changes are audited and notify the person. The Angular page is `/admin/pending-users`.
 
-Migration `d6e7f8a9b0c1_seed_user_management_permission.py` adds `users.manage` if absent and links it to the existing `ADMIN` role without changing the role model or Clerk metadata.
+## Roles and permissions administration
 
-## Equipment vertical slice
-
-The first protected business module uses the same local RBAC boundary:
+Administrators manage the roles themselves from the *Roles y permisos* screen (`/roles`):
 
 ```text
-GET   /equipment       equipment.read
-GET   /equipment/types equipment.read
-POST  /equipment       equipment.manage
-PATCH /equipment/{id}  equipment.manage
+GET    /admin/roles/manage                 roles with hierarchy, own and inherited permissions
+POST   /admin/roles                        create a custom role
+PATCH  /admin/roles/{role_id}              rename, change parent, activate or deactivate
+PUT    /admin/roles/{role_id}/permissions  replace the permissions the role grants itself
+DELETE /admin/roles/{role_id}              delete a custom role
+GET    /admin/permissions                  the permission catalogue
 ```
 
-The Angular catalog is available at `/equipos`. It lists equipment, loads active equipment types, and creates new assets with validation for status, non-negative cost, unique asset/serial identifiers, and warranty date ordering. Migration `e7f8a9b0c1d2_seed_equipment_permissions.py` adds `equipment.read` and `equipment.manage` and links both to `ADMIN`.
-
-## Legacy table cleanup
-
-`user_credentials`, `refresh_tokens`, and `password_reset_tokens` are no longer part of the active SQLAlchemy model or any Clerk flow. Migration `c4d8e2f1a9b7_drop_legacy_auth_tables.py` removes those three obsolete tables without editing the applied initial migration. The migration preserves `users`, `roles`, `permissions`, `user_roles`, and `role_permissions`.
-
-## Validation
-
-Backend checks:
-
-```bash
-cd backend
-.venv/bin/ruff check app tests
-.venv/bin/ruff format --check app tests
-.venv/bin/alembic heads
-.venv/bin/pytest
-```
-
-The backend tests mock the Clerk verification boundary and cover missing and invalid authentication, valid identity extraction, first-user ADMIN provisioning, subsequent pending users, concurrent first-login safety, inactive users, `/auth/me` mapping, and RBAC allow/deny behavior.
-
-Frontend checks:
-
-```bash
-cd frontend
-npm ci
-npm run build
-npm test -- --watch=false --browsers=ChromeHeadless
-```
-
-The Angular production build is available in the current environment. Karma unit tests are configured, but execution requires a Chrome/Chromium binary in the environment.
+Role names are unique ignoring case, inheritance cannot form a cycle and is limited to 6 levels. Base roles cannot be deleted, deactivated or moved; the Administrator role cannot be edited; a role with users, or that is a parent, cannot be deleted or deactivated; nobody edits a role they hold or grants a permission they lack. Every change is written to the audit trail with its before and after values (`roles.created`, `roles.updated`, `roles.permissions_changed`, `roles.deleted`).

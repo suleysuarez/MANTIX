@@ -176,7 +176,7 @@ export function warrantyLabel(end: string | null, today = new Date()): { text: s
                       <li class="relative">
                         <span class="absolute -left-[19px] top-1 h-3 w-3 rounded-full ring-4 ring-white" [class]="first ? 'bg-sky-500' : 'bg-slate-300'"></span>
                         <span class="block text-[10px] font-bold text-slate-400">{{ date(ticket.created_at) }} · {{ ticketStatus(ticket.status) }}</span>
-                        <a [routerLink]="['/maintenance', ticket.id]" class="mt-0.5 block font-semibold text-slate-800 hover:text-sky-700">{{ ticket.title }}</a>
+                        <a routerLink="/tickets" [queryParams]="{ ticket: ticket.id }" class="mt-0.5 block font-semibold text-slate-800 hover:text-sky-700">{{ ticket.title }}</a>
                         <span class="text-[11px] text-slate-500">{{ ticket.ticket_number }}</span>
                       </li>
                     }
@@ -273,7 +273,7 @@ export function warrantyLabel(end: string | null, today = new Date()): { text: s
                   </button>
                 }
                 @if (canCreateTicket) {
-                  <a routerLink="/maintenance" [queryParams]="{ equipmentId: item.id }"
+                  <a routerLink="/tickets" [queryParams]="{ equipmentId: item.id }"
                     class="flex items-center justify-center gap-1.5 rounded-xl bg-brand-sidebar px-3 py-2.5 text-xs font-bold !text-white shadow-sm transition-colors hover:bg-slate-900"
                     [class.col-span-2]="!canSchedule">
                     <span class="material-symbols-outlined text-[18px] text-brand-accentSky">confirmation_number</span>Crear ticket

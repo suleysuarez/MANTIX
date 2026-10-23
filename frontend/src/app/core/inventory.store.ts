@@ -7,9 +7,11 @@ import { Period } from './dashboard-kpis.service';
 import {
   ImportResult,
   InventoryItem,
+  InventoryOption,
   InventoryOverview,
   InventoryService,
   ItemCategory,
+  OptionKind,
   ItemPayload,
   ItemQuery,
   ItemStatusFilter,
@@ -19,6 +21,8 @@ import {
 } from './inventory.service';
 import { ActionResult } from './pending-requests.store';
 import { ToastService } from './toast.service';
+import { dayBoundaryIso } from '../features/reports/report-filters';
+import { RangeErrors, hasRangeErrors, rangeErrors } from '../features/inventory/inventory-ui';
 
 export type InventoryView = 'grid' | 'table';
 
@@ -28,14 +32,31 @@ export interface InventoryFilters {
   status: ItemStatusFilter;
   /** `name`, `-stock`, `stock_value`, `-updated_at`… (prefijo `-` descendente). */
   sort: string;
+  /** Rangos de stock y de precio (números) y de fechas de ingreso / último movimiento (`yyyy-MM-dd`); vacío = sin límite. */
+  stockMin: string;
+  stockMax: string;
+  costMin: string;
+  costMax: string;
+  createdFrom: string;
+  createdTo: string;
+  movedFrom: string;
+  movedTo: string;
 }
 
 export const PAGE_SIZE = 12;
-export const EMPTY_FILTERS: InventoryFilters = { search: '', category: '', status: '', sort: 'name' };
+export const EMPTY_FILTERS: InventoryFilters = {
+  search: '', category: '', status: '', sort: 'name',
+  stockMin: '', stockMax: '', costMin: '', costMax: '', createdFrom: '', createdTo: '', movedFrom: '', movedTo: '',
+};
+const NO_ERRORS: RangeErrors = { stock: '', cost: '', created: '', moved: '' };
 
 export interface InventoryState {
   view: InventoryView;
   filters: InventoryFilters;
+  /** Problemas de los filtros por rango; con alguno no se consulta al servidor. */
+  filterErrors: RangeErrors;
+  /** Valores de los desplegables del ítem (categorías, unidades, ubicaciones y proveedores). */
+  options: InventoryOption[];
   items: InventoryItem[];
   total: number;
   page: number;
@@ -56,6 +77,8 @@ export interface InventoryState {
 const INITIAL: InventoryState = {
   view: 'grid',
   filters: EMPTY_FILTERS,
+  filterErrors: NO_ERRORS,
+  options: [],
   items: [],
   total: 0,
   page: 1,
@@ -93,6 +116,17 @@ export class InventoryStore {
   load(): void {
     this.loadList(1);
     this.loadOverview();
+    this.loadOptions();
+  }
+
+  /** Guarda un valor nuevo en un desplegable y lo deja disponible al instante, sin recargar. */
+  createOption(kind: OptionKind, name: string): Observable<InventoryOption> {
+    return this.api.createOption(kind, name).pipe(
+      tap((option) => {
+        const known = this.value.options.some((o) => o.kind === option.kind && o.value === option.value);
+        this.patch({ options: known ? this.value.options : [...this.value.options, option] });
+      }),
+    );
   }
 
   setView(view: InventoryView): void {
@@ -100,8 +134,12 @@ export class InventoryStore {
   }
 
   setFilters(changes: Partial<InventoryFilters>): void {
-    this.patch({ filters: { ...this.value.filters, ...changes } });
-    this.loadList(1);
+    const filters = { ...this.value.filters, ...changes };
+    const filterErrors = rangeErrors(filters);
+    this.patch({ filters, filterErrors });
+    if (!hasRangeErrors(filterErrors)) {
+      this.loadList(1);
+    }
   }
 
   clearFilters(): void {
@@ -143,17 +181,21 @@ export class InventoryStore {
     return this.run(this.api.move(id, payload), label);
   }
 
-  /** Importa el archivo; una importación real con éxito refresca todo. */
-  importFile(file: File, dryRun: boolean): Observable<ImportResult | null> {
+  /**
+   * Importa el archivo; con `dryRun` solo valida y resume. Con `skipInvalid` importa las filas válidas.
+   * Una importación real que crea ítems refresca todo (y los desplegables, por si trajo valores nuevos).
+   */
+  importFile(file: File, dryRun: boolean, skipInvalid = false): Observable<ImportResult | null> {
     if (this.value.busy) {
       return of(null);
     }
     this.patch({ busy: true });
-    return this.api.importFile(file, dryRun).pipe(
+    return this.api.importFile(file, dryRun, skipInvalid).pipe(
       tap((result) => {
-        if (!dryRun && result.success) {
+        if (!dryRun && result.created > 0) {
           this.toasts.success(`${result.created} ítems importados.`);
           this.refresh();
+          this.loadOptions();
         }
       }),
       tap(() => this.patch({ busy: false })),
@@ -163,11 +205,6 @@ export class InventoryStore {
         return of(null);
       }),
     );
-  }
-
-  /** Hasta 500 ítems con los filtros actuales (sin paginar), para exportar. */
-  exportAll(): Observable<InventoryItem[]> {
-    return this.api.listPage({ ...this.query(1), size: 500 }).pipe(map((result) => result.items));
   }
 
   private run<T>(call: Observable<T>, success: string, after?: () => void): Observable<ActionResult> {
@@ -200,8 +237,24 @@ export class InventoryStore {
   }
 
   private query(page: number): ItemQuery {
-    const { search, category, status, sort } = this.value.filters;
-    return { search: search.trim() || undefined, category, status, sort, page, size: PAGE_SIZE };
+    const f = this.value.filters;
+    const number = (value: string): number | undefined => (value.trim() === '' ? undefined : Number(value));
+    return {
+      search: f.search.trim() || undefined,
+      category: f.category,
+      status: f.status,
+      sort: f.sort,
+      stockMin: number(f.stockMin),
+      stockMax: number(f.stockMax),
+      costMin: number(f.costMin),
+      costMax: number(f.costMax),
+      createdFrom: dayBoundaryIso(f.createdFrom, false) ?? undefined,
+      createdTo: dayBoundaryIso(f.createdTo, true) ?? undefined,
+      movedFrom: dayBoundaryIso(f.movedFrom, false) ?? undefined,
+      movedTo: dayBoundaryIso(f.movedTo, true) ?? undefined,
+      page,
+      size: PAGE_SIZE,
+    };
   }
 
   private loadList(page: number): void {
@@ -216,6 +269,13 @@ export class InventoryStore {
         this.patch({ items, total, page, loading: false });
       },
       error: (error) => this.patch({ loading: false, error: apiErrorMessage(error, 'No se pudo cargar el inventario.') }),
+    });
+  }
+
+  private loadOptions(): void {
+    this.api.options().subscribe({
+      next: (options) => this.patch({ options }),
+      error: () => undefined, // sin listas, los desplegables solo ofrecen lo que ya traen los ítems
     });
   }
 

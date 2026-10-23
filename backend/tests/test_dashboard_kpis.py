@@ -30,6 +30,7 @@ from app.services.dashboard_kpis import (
     period_window,
     previous_window,
 )
+from tests.support import perm_objects
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 
@@ -202,7 +203,7 @@ class FakeKpiRepository:
 
 
 def actor(*roles):
-    return AuthContext(user=SimpleNamespace(id=7), roles=frozenset(roles))
+    return AuthContext.for_roles(SimpleNamespace(id=7), *roles)
 
 
 async def test_kpis_compare_against_the_previous_period():
@@ -391,9 +392,7 @@ def build_client(permissions):
             SimpleNamespace(
                 code="SUPERVISOR",
                 is_active=True,
-                permissions=[
-                    SimpleNamespace(code=code, is_active=True) for code in permissions
-                ],
+                permissions=perm_objects(*permissions),
             )
         ],
     )

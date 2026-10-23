@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 
 import { apiBaseUrl } from './api.config';
 
@@ -28,6 +28,8 @@ export interface LocalProfile {
 export class LocalProfileService {
   private readonly http = inject(HttpClient);
   private profile: LocalProfile | null = null;
+  /** Emite cuando la copia se descarta (cambió el rol, se renovó la sesión…): quien dependa de ella debe recargar. */
+  readonly changes = new Subject<void>();
 
   async getProfile(): Promise<LocalProfile> {
     if (!this.profile) {
@@ -43,7 +45,20 @@ export class LocalProfileService {
     return profile.permissions.some((item) => item.code === permission);
   }
 
+  /** Mantiene al día el nombre de la copia en memoria cuando la persona lo edita en su perfil. */
+  setName(fullName: string): void {
+    if (this.profile) {
+      this.profile = { ...this.profile, full_name: fullName };
+    }
+  }
+
   clear(): void {
+    this.profile = null;
+    this.changes.next();
+  }
+
+  /** Descarta la copia sin avisar a nadie (quien llama la va a volver a pedir). */
+  clearQuietly(): void {
     this.profile = null;
   }
 }

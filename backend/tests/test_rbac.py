@@ -18,18 +18,23 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.api.dependencies import (
     RequirePermission,
-    RequireRole,
     get_authenticated_user,
 )
-from app.core.authz import ADMIN, EMPLOYEE, SUPERVISOR, TECHNICIAN, AuthContext
+from app.core.authz import ADMIN, AUDITOR, EMPLOYEE, SUPERVISOR, TECHNICIAN, AuthContext
 from app.core.config import Settings
-from app.core.exceptions import ConflictError, NotFoundError
-from app.core.permissions import ALL_PERMISSIONS, ROLE_PERMISSIONS
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.permissions import (
+    ALL_PERMISSIONS,
+    CATALOG_SET,
+    ROLE_PERMISSIONS,
+    effective_for_system_roles,
+)
 from app.main import API_ROUTERS, app
 from app.services.admin import AdminUserService
 
 PUBLIC_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}
-ROLES = [ADMIN, SUPERVISOR, TECHNICIAN, EMPLOYEE]
+LEGACY_ROLES = [ADMIN, SUPERVISOR, TECHNICIAN, EMPLOYEE]
+ROLES = [*LEGACY_ROLES, AUDITOR]
 
 
 def dependency_calls(route: APIRoute):
@@ -62,12 +67,13 @@ def concrete_path(route: APIRoute) -> str:
 
 
 def user_for(role_code: str):
+    """A person holding the system role's permissions (its own plus its ancestors')."""
     permissions = [
         SimpleNamespace(code=code, is_active=True)
-        for code in ROLE_PERMISSIONS[role_code]
+        for code in sorted(effective_for_system_roles(role_code))
     ]
     return SimpleNamespace(
-        id=1,
+        id=900,  # nobody the routes' path ids ("1") could point at: not a change to oneself
         roles=[
             SimpleNamespace(code=role_code, is_active=True, permissions=permissions)
         ],
@@ -81,36 +87,13 @@ def client():
     app.dependency_overrides.clear()
 
 
-# -- matrix sanity -----------------------------------------------------------
+# -- matrix sanity (the legacy matrix is checked against the database below) ----
 
 
-def test_matrix_covers_the_four_roles_and_only_known_permissions():
-    assert set(ROLE_PERMISSIONS) == set(ROLES)
-    for permissions in ROLE_PERMISSIONS.values():
-        assert permissions <= ALL_PERMISSIONS
-
-
-def test_admin_has_everything_and_other_roles_are_strictly_smaller():
-    assert ROLE_PERMISSIONS[ADMIN] == ALL_PERMISSIONS
-    for role in (SUPERVISOR, TECHNICIAN, EMPLOYEE):
-        assert ROLE_PERMISSIONS[role] < ALL_PERMISSIONS
-
-
-def test_least_privilege_for_requesters_and_technicians():
-    assert "users.manage" not in ROLE_PERMISSIONS[SUPERVISOR]
-    for role in (TECHNICIAN, EMPLOYEE):
-        assert (
-            not {"equipment.manage", "technicians.manage", "users.manage"}
-            & (ROLE_PERMISSIONS[role])
-        )
-    assert "maintenance.create" in ROLE_PERMISSIONS[EMPLOYEE]
-    assert "maintenance.create" not in ROLE_PERMISSIONS[TECHNICIAN]
-
-
-def test_every_permission_used_by_a_route_exists_in_the_matrix():
+def test_every_permission_used_by_a_route_exists_in_the_catalogue():
     used = {code for route in api_routes() if (code := required_permission(route))}
     assert used
-    assert used <= ALL_PERMISSIONS
+    assert used <= CATALOG_SET
 
 
 # -- endpoint enforcement -------------------------------------------------------
@@ -145,7 +128,7 @@ def _matrix_cases():
 def test_endpoint_follows_the_role_matrix(client, method, route, role, permission):
     app.dependency_overrides[get_authenticated_user] = lambda: user_for(role)
     response = client.request(method, concrete_path(route), json={})
-    allowed = permission in ROLE_PERMISSIONS[role]
+    allowed = permission in effective_for_system_roles(role)
     if allowed:
         # Past the permission check; the stack below is not wired in this test.
         assert response.status_code != 403
@@ -158,19 +141,7 @@ def test_endpoint_follows_the_role_matrix(client, method, route, role, permissio
 
 
 def test_dependencies_expose_what_they_require():
-    assert RequirePermission("equipment.read").code == "equipment.read"
-    assert RequireRole("ADMIN", "SUPERVISOR").codes == {"ADMIN", "SUPERVISOR"}
-
-
-async def test_require_role_checks_the_context_roles():
-    check = RequireRole(ADMIN)
-    admin = AuthContext(user=SimpleNamespace(id=1), roles=frozenset({ADMIN}))
-    assert await check(admin) is admin
-    with pytest.raises(Exception) as error:
-        await check(
-            AuthContext(user=SimpleNamespace(id=2), roles=frozenset({EMPLOYEE}))
-        )
-    assert error.value.status_code == 403
+    assert RequirePermission("equipos:ver").code == "equipos:ver"
 
 
 def test_inactive_roles_and_permissions_grant_nothing():
@@ -247,7 +218,7 @@ def membership(role_code, role_id):
     )
 
 
-ADMIN_ACTOR = AuthContext(user=SimpleNamespace(id=1), roles=frozenset({ADMIN}))
+ADMIN_ACTOR = AuthContext.for_roles(SimpleNamespace(id=1), ADMIN)
 
 
 async def test_revoke_role_removes_audits_and_notifies():
@@ -267,7 +238,7 @@ async def test_revoke_unknown_membership_is_404():
 
 async def test_admin_cannot_revoke_own_admin_role():
     service, repo = admin_service({(1, 10): membership(ADMIN, 10)})
-    with pytest.raises(ConflictError, match="your own"):
+    with pytest.raises(ForbiddenError, match="propios roles"):
         await service.revoke_role(1, 10, ADMIN_ACTOR)
     assert not repo.removed
 
@@ -313,9 +284,13 @@ async def test_migration_seeds_match_the_canonical_matrix():
             }
     finally:
         await engine.dispose()
-    seeded: dict[str, set[str]] = {role: set() for role in ROLES}
+    # Only the legacy dotted permissions and the four original roles: the `recurso:accion`
+    # catalogue and the AUDITOR role have their own tests (test_rbac_hierarchy.py).
+    known = {code for code in known if ":" not in code}
+    seeded: dict[str, set[str]] = {role: set() for role in LEGACY_ROLES}
     for role_code, permission_code in rows:
-        seeded[role_code].add(permission_code)
+        if role_code in seeded and ":" not in permission_code:
+            seeded[role_code].add(permission_code)
     assert {role: frozenset(codes) for role, codes in seeded.items()} == dict(
         ROLE_PERMISSIONS
     )

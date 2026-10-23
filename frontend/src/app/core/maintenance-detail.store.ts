@@ -9,6 +9,7 @@ import {
   MaintenanceRequest,
   MaintenanceService,
 } from './maintenance.service';
+import { PermissionsService } from './permissions.service';
 import { Technician, TechniciansService } from './technicians.service';
 
 export interface MaintenanceDetailState {
@@ -34,6 +35,7 @@ const INITIAL_STATE: MaintenanceDetailState = {
 export class MaintenanceDetailStore {
   private readonly api = inject(MaintenanceService);
   private readonly techniciansApi = inject(TechniciansService);
+  private readonly permissions = inject(PermissionsService);
   private readonly subject = new BehaviorSubject<MaintenanceDetailState>(INITIAL_STATE);
 
   readonly state$: Observable<MaintenanceDetailState> = this.subject.asObservable();
@@ -44,7 +46,8 @@ export class MaintenanceDetailStore {
       request: this.api.get(id),
       records: this.api.listRecords(id),
       // Un usuario sin permiso para ver técnicos igual puede ver el ticket.
-      technicians: this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))),
+      // Quien no puede ver a los técnicos no los pide (el servidor respondería 403).
+      technicians: this.permissions.has('tecnicos:ver') ? this.techniciansApi.list().pipe(catchError(() => of([] as Technician[]))) : of([] as Technician[]),
     }).subscribe({
       next: ({ request, records, technicians }) =>
         this.patch({ request, records, technicians, loading: false }),

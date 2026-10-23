@@ -1,14 +1,16 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
-import { MaintenanceRequest } from '../../core/maintenance.service';
+import { MaintenanceRequest, PRIORITIES } from '../../core/maintenance.service';
+import { RequestCategory } from '../../core/queue.service';
+import { priorityMeta } from '../tickets/ticket-ui';
 import { PendingRequestsStore } from '../../core/pending-requests.store';
 import { Technician } from '../../core/technicians.service';
 import { TicketChipComponent } from '../tickets/ticket-chip.component';
 import { statusMeta } from '../tickets/ticket-ui';
 import {
-  MAX_REASON, categoryLabel, formatWait, reasonError, reasonValidator, waitHours, waitTone, WAIT_CLASSES,
+  MAX_CLASSIFY_NOTES, MAX_REASON, categoryLabel, formatWait, reasonError, reasonValidator, waitHours, waitTone, WAIT_CLASSES,
 } from './pending-ui';
 
 const REJECTABLE = ['submitted', 'triaged', 'assigned'];
@@ -90,11 +92,44 @@ const REJECTABLE = ['submitted', 'triaged', 'assigned'];
 
           @if (inQueue()) {
             <section class="space-y-3 border-t border-brand-grey/70 pt-4" aria-label="Acciones de triaje">
-              @if (d.status === 'submitted') {
-                <button type="button" (click)="triage()" [disabled]="busy()"
-                  class="glass-btn flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep active:scale-[0.99]">
-                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">rule</span> Clasificar solicitud
-                </button>
+              @if (d.status === 'submitted' || d.status === 'triaged') {
+                <form [formGroup]="classification" (submit)="classify($event)" class="space-y-2 rounded-xl bg-surface-container-low p-3" novalidate aria-label="Clasificación">
+                  <p class="text-[12px] font-bold text-on-surface">{{ d.status === 'submitted' ? 'Clasificar solicitud' : 'Reclasificar' }}</p>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label for="cls-category" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Categoría</label>
+                      <select id="cls-category" formControlName="category" [attr.aria-invalid]="showError('category')"
+                        class="mt-1 w-full rounded-lg border border-outline bg-surface-container-lowest px-2 py-2 text-[13px] text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-accentDeep">
+                        <option value="">Selecciona…</option>
+                        @for (c of categories(); track c.code) { <option [value]="c.code">{{ c.name }}</option> }
+                      </select>
+                    </div>
+                    <div>
+                      <label for="cls-priority" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Prioridad</label>
+                      <select id="cls-priority" formControlName="priority" [attr.aria-invalid]="showError('priority')"
+                        class="mt-1 w-full rounded-lg border border-outline bg-surface-container-lowest px-2 py-2 text-[13px] text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-accentDeep">
+                        <option value="">Selecciona…</option>
+                        @for (p of priorities; track p) { <option [value]="p">{{ priorityLabel(p) }}</option> }
+                      </select>
+                    </div>
+                  </div>
+                  @if (showError('category') || showError('priority')) {
+                    <p class="text-[12px] text-error" role="alert">Elige la categoría y la prioridad.</p>
+                  }
+                  <div>
+                    <label for="cls-notes" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Nota (opcional)</label>
+                    <textarea id="cls-notes" rows="2" formControlName="notes" [attr.maxlength]="maxNotes + 50"
+                      class="mt-1 w-full rounded-lg border border-outline bg-surface-container-lowest px-3 py-2 text-[13px] text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-accentDeep"></textarea>
+                    <p class="flex justify-between text-[12px]" [class]="classification.controls.notes.invalid ? 'text-error' : 'text-on-surface-variant'">
+                      <span role="alert">{{ classification.controls.notes.invalid ? 'La nota admite como máximo ' + maxNotes + ' caracteres.' : '' }}</span>
+                      <span>{{ classification.controls.notes.value.trim().length }}/{{ maxNotes }}</span>
+                    </p>
+                  </div>
+                  <button type="submit" [disabled]="classification.invalid || busy()"
+                    class="glass-btn flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep active:scale-[0.99] disabled:opacity-50">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">rule</span> {{ d.status === 'submitted' ? 'Clasificar solicitud' : 'Guardar clasificación' }}
+                  </button>
+                </form>
               }
 
               <form (submit)="assign($event)" class="space-y-1.5" novalidate>
@@ -162,9 +197,18 @@ export class RequestDetailPanelComponent {
   readonly busy = input(false);
   readonly technicians = input<Technician[]>([]);
   readonly categoryNames = input<Map<string, string>>(new Map());
+  readonly categories = input<RequestCategory[]>([]);
   readonly closed = output<void>();
 
   readonly maxReason = MAX_REASON;
+  readonly maxNotes = MAX_CLASSIFY_NOTES;
+  readonly priorities = PRIORITIES;
+  readonly priorityLabel = (code: string): string => priorityMeta(code).label;
+  readonly classification = new FormGroup({
+    category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    priority: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    notes: new FormControl('', { nonNullable: true, validators: [(c) => (String(c.value ?? '').trim().length > MAX_CLASSIFY_NOTES ? { maxlength: true } : null)] }),
+  });
   readonly technician = new FormControl<number | null>(null, Validators.required);
   readonly reason = new FormControl('', { nonNullable: true, validators: [reasonValidator] });
   readonly rejecting = signal(false);
@@ -182,11 +226,33 @@ export class RequestDetailPanelComponent {
   readonly selectedUnavailable = (): boolean =>
     this.technicians().some((t) => t.id === this.technician.value && !t.is_available);
 
-  triage(): void {
+  constructor() {
+    // Al abrir otra solicitud el formulario parte de su categoría y prioridad actuales.
+    effect(() => {
+      const d = this.detail();
+      const known = this.categories().some((c) => c.code === d?.category);
+      this.classification.reset({
+        category: known ? (d?.category ?? '') : '',
+        priority: d && (PRIORITIES as readonly string[]).includes(d.priority) ? d.priority : '',
+        notes: '',
+      });
+    });
+  }
+
+  showError(field: 'category' | 'priority'): boolean {
+    const control = this.classification.controls[field];
+    return control.invalid && control.touched;
+  }
+
+  classify(event: Event): void {
+    event.preventDefault();
+    this.classification.markAllAsTouched();
     const id = this.detail()?.id;
-    if (id !== undefined) {
-      this.store.triage(id).subscribe();
+    if (id === undefined || this.classification.invalid || this.busy()) {
+      return;
     }
+    const { category, priority, notes } = this.classification.getRawValue();
+    this.store.classify(id, { category, priority, notes: notes.trim() || null }).subscribe();
   }
 
   assign(event: Event): void {

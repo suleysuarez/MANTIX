@@ -2,6 +2,7 @@ import os
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
@@ -12,6 +13,7 @@ from app.jobs import JobSnapshot
 from app.models.category import RequestCategory
 from app.repositories.settings import SettingsRepository
 from app.schemas.settings import (
+    DEFAULT_COMPANY,
     AuditEntry,
     AuditHealth,
     CategoryAdmin,
@@ -20,6 +22,8 @@ from app.schemas.settings import (
     EnvironmentInfo,
     IntegrationHealth,
     JobHealth,
+    OrganizationResponse,
+    OrganizationUpdate,
     RoleHealth,
     SystemHealth,
     UserCounts,
@@ -274,4 +278,43 @@ class SystemSettingsService:
             is_active=category.is_active,
             usage=usage,
             created_at=category.created_at,
+        )
+
+    # -- organization ------------------------------------------------------------------------
+
+    async def organization(self) -> OrganizationResponse:
+        return self._organization(await self.repository.get_organization())
+
+    async def update_organization(
+        self, payload: OrganizationUpdate, actor: AuthContext
+    ) -> OrganizationResponse:
+        current = await self.repository.get_organization()
+        old = {"company_name": current.company_name} if current is not None else None
+        row = await self.repository.save_organization(
+            company_name=payload.company_name,
+            user_id=actor.id,
+        )
+        self.audit.record(
+            user_id=actor.id,
+            action="organization.updated",
+            entity_type="organization_settings",
+            entity_id=1,
+            old_values=old,
+            new_values=payload.model_dump(),
+        )
+        await self.repository.commit()
+        return self._organization(row)
+
+    @staticmethod
+    def _organization(row: Any) -> OrganizationResponse:
+        if row is None:
+            return OrganizationResponse(
+                company_name=DEFAULT_COMPANY,
+                configured=False,
+                updated_at=None,
+            )
+        return OrganizationResponse(
+            company_name=row.company_name,
+            configured=True,
+            updated_at=row.updated_at,
         )

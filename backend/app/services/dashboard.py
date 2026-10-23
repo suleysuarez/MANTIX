@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from app.core.authz import AuthContext
+from app.core.scope import ScopeKind
 from app.repositories.dashboard import (
     OPEN_STATUSES,
     CountRow,
@@ -27,18 +28,30 @@ _NO_TECHNICIAN = 0
 class DashboardService:
     """Operational metrics.
 
-    Admins and supervisors see the whole operation; anyone else holding
-    `dashboard.read` (technicians) sees only the tickets assigned to them.
+    Whoever holds `dashboard:ver_todos` sees the whole operation; anyone else with
+    `dashboard:ver` sees only the tickets assigned to them.
     """
 
     def __init__(self, repository: DashboardRepository):
         self.repository = repository
 
     async def _scope(self, actor: AuthContext) -> tuple[int | None, Scope]:
-        if actor.is_elevated:
+        if actor.scope_kind("dashboard") is ScopeKind.ALL:
             return None, "all"
         technician_id = await self.repository.get_technician_id_for_user(actor.id)
         return (technician_id if technician_id is not None else _NO_TECHNICIAN), "own"
+
+    async def _filters(
+        self, actor: AuthContext
+    ) -> tuple[int | None, int | None, Scope]:
+        """`(technician_id, requester_id, scope)`: whose tickets the numbers are about."""
+        if actor.scope_kind("dashboard") is not ScopeKind.ALL and (
+            actor.scope_kind("tickets") is ScopeKind.OWN
+        ):
+            # Someone who only sees their own tickets (a requester): what they asked for.
+            return None, actor.id, "own"
+        technician_id, scope = await self._scope(actor)
+        return technician_id, None, scope
 
     @staticmethod
     def _window(days: int, now: datetime) -> datetime:
@@ -48,11 +61,15 @@ class DashboardService:
         self, actor: AuthContext, *, days: int, now: datetime | None = None
     ) -> DashboardSummary:
         now = now or datetime.now(UTC)
-        technician_id, scope = await self._scope(actor)
-        by_status = await self.repository.tickets_by_status(technician_id=technician_id)
+        technician_id, requester_id, scope = await self._filters(actor)
+        by_status = await self.repository.tickets_by_status(
+            technician_id=technician_id, requester_id=requester_id
+        )
         overall = (
             await self.repository.resolution_stats(
-                date_from=self._window(days, now), technician_id=technician_id
+                date_from=self._window(days, now),
+                technician_id=technician_id,
+                requester_id=requester_id,
             )
         )[0]
         return DashboardSummary(
@@ -63,12 +80,12 @@ class DashboardService:
                 total=sum(row.count for row in by_status),
                 open=sum(row.count for row in by_status if row.key in OPEN_STATUSES),
                 overdue=await self.repository.count_overdue(
-                    now, technician_id=technician_id
+                    now, technician_id=technician_id, requester_id=requester_id
                 ),
                 by_status=self._items(by_status),
                 open_by_priority=self._items(
                     await self.repository.tickets_by_priority(
-                        technician_id=technician_id
+                        technician_id=technician_id, requester_id=requester_id
                     )
                 ),
             ),

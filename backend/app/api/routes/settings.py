@@ -9,6 +9,8 @@ from app.schemas.settings import (
     CategoryAdmin,
     CategoryCreate,
     CategoryUpdate,
+    OrganizationResponse,
+    OrganizationUpdate,
     SystemHealth,
 )
 from app.services.settings import SystemSettingsService
@@ -29,7 +31,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 )
 async def system_health(
     request: Request,
-    _: AuthContext = Depends(require_permission("users.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> SystemHealth:
     scheduler = getattr(request.app.state, "scheduler", None)
@@ -42,7 +44,7 @@ async def system_health(
     summary="Request categories, with how many requests use each",
 )
 async def list_categories(
-    _: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> list[CategoryAdmin]:
     return await service.categories()
@@ -57,7 +59,7 @@ async def list_categories(
 )
 async def create_category(
     payload: CategoryCreate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> CategoryAdmin:
     return await service.create_category(payload, actor)
@@ -73,7 +75,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     payload: CategoryUpdate,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> CategoryAdmin:
     return await service.update_category(category_id, payload, actor)
@@ -88,8 +90,36 @@ async def update_category(
 )
 async def delete_category(
     category_id: int,
-    actor: AuthContext = Depends(require_permission("priorities.manage")),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
     service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
 ) -> Response:
     await service.delete_category(category_id, actor)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/organization",
+    response_model=OrganizationResponse,
+    summary="Company shown in report headers",
+    description="Company name, legal name and tax id (NIT). ADMIN only.",
+)
+async def get_organization(
+    _: AuthContext = Depends(require_permission("configuracion:ver")),  # noqa: B008
+    service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
+) -> OrganizationResponse:
+    return await service.organization()
+
+
+@router.put(
+    "/organization",
+    response_model=OrganizationResponse,
+    summary="Set the company shown in report headers",
+    description="Replaces the three fields; blank optional ones are cleared. Audited.",
+    responses=error_responses(422),
+)
+async def update_organization(
+    payload: OrganizationUpdate,
+    actor: AuthContext = Depends(require_permission("configuracion:editar")),  # noqa: B008
+    service: SystemSettingsService = Depends(get_system_settings_service),  # noqa: B008
+) -> OrganizationResponse:
+    return await service.update_organization(payload, actor)
