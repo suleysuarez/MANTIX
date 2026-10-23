@@ -32,7 +32,7 @@ Mantix manages technology equipment and the maintenance work done on it: an equi
 - [Troubleshooting](#troubleshooting)
 - [Project status](#project-status)
 - [Further documentation](#further-documentation)
-- [Authors](#authors)
+- [Author](#author)
 - [License](#license)
 
 ## Prerequisites
@@ -414,16 +414,10 @@ The application covers the whole maintenance cycle and the role-based access mod
 - [docs/domain-model.md](docs/domain-model.md) - database design
 - [docs/deployment.md](docs/deployment.md) - operations and release checklist
 
-## Authors
+## Author
 
-<!-- TODO: complete before delivering -->
-- **<Full name>** - <role in the project> - <email or GitHub user>
-- **<Full name>** - <role in the project> - <email or GitHub user>
-
-Course: <!-- TODO: subject, semester and institution -->
+Suley Yariza Suárez Buitrago
 
 ## License
 
-<!-- TODO: choose a license (for example MIT or Apache-2.0), add a `LICENSE` file at the repository root and name it here. -->
-License: <to be defined>
-
+This project was developed for academic purposes. All rights reserved.
