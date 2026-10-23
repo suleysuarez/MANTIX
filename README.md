@@ -63,53 +63,7 @@ Leave `RUN_MIGRATIONS` unset in production so several replicas never race to mig
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    User(["Usuario<br/>navegador"])
-
-    subgraph FE["Frontend · Angular + Tailwind"]
-        direction TB
-        Smart["Componentes <b>Smart</b><br/>pantallas en features/ · cargan y coordinan datos"]
-        Dumb["Componentes <b>Dumb</b><br/>presentacionales · @Input / @Output"]
-        Rx["RxJS · Observer<br/>stores (BehaviorSubject) + servicios HTTP"]
-        Perm["PermissionsService<br/>*hasPermission · requiresPermission · guards"]
-        Int["authInterceptor<br/>Bearer token · 401 reintenta · 403 avisa"]
-        Smart --> Dumb
-        Smart --> Rx
-        Smart --> Perm
-        Rx --> Int
-    end
-
-    subgraph BE["Backend · FastAPI"]
-        direction TB
-        Api["API REST · app/api/routes<br/>validación Pydantic · require_permission"]
-        Svc["Capa de servicios · app/services<br/>reglas de negocio · alcance de datos · auditoría<br/><b>State Pattern</b> (ticket_state.py)"]
-        Repo["Repositorios · app/repositories<br/><b>Repository Pattern</b> · aíslan el SQL"]
-        DI["Inyección de dependencias<br/>providers.py"]
-        Jobs["Jobs en segundo plano<br/>recordatorios (APScheduler)"]
-        Api --> Svc --> Repo
-        DI -.-> Api
-        Jobs --> Svc
-    end
-
-    DB[("Neon PostgreSQL<br/>29 tablas")]
-    Files[("Archivos<br/>uploads/ · FileStorage")]
-    Clerk["Clerk<br/>autenticación + JWT de sesión"]
-
-    User --> FE
-    Int -- "HTTP / JSON" --> Api
-    Repo --> DB
-    Svc --> Files
-    User -. "inicio de sesión" .-> Clerk
-    Perm -. "token" .-> Clerk
-    Api -. "verifica el token" .-> Clerk
-
-    subgraph Ops["Operación"]
-        GH["GitHub<br/>control de versiones + CI"]
-        Dk["Docker<br/>contenedores y despliegue"]
-    end
-    GH -.-> Dk
-```
+![Arquitectura del proyecto Mantix](docs/images/arquitectura-mantix.png)
 
 The browser talks only to the API. Authentication is Clerk, authorization is local (roles with inheritance), data lives in Neon PostgreSQL and files behind a `FileStorage` port. More detail, with the request flow, in [docs/architecture.md](docs/architecture.md).
 
