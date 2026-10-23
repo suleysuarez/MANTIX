@@ -1,5 +1,7 @@
 # Mantix - Technology Equipment Maintenance System
 
+[![CI](https://github.com/suleysuarez/MANTIX/actions/workflows/ci.yml/badge.svg)](https://github.com/suleysuarez/MANTIX/actions/workflows/ci.yml)
+
 Mantix manages technology equipment and the maintenance work done on it: an equipment catalog, maintenance tickets with a guarded workflow, technicians, priorities, preventive-maintenance plans, an audit trail, an operational dashboard, reports and file attachments.
 
 - **Backend:** FastAPI + SQLAlchemy 2 (async) + PostgreSQL (Neon in production), Alembic migrations.
@@ -8,15 +10,41 @@ Mantix manages technology equipment and the maintenance work done on it: an equi
 
 ## Contents
 
+- [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
+  - [With Docker](#with-docker-api--postgresql--frontend)
+  - [Without Docker](#without-docker)
+  - [Production (Neon)](#production-neon)
+- [Project structure](#project-structure)
 - [Architecture](#architecture)
+  - [Design patterns](#design-patterns)
+  - [Backend layering](#backend-layering)
 - [Authentication and authorization](#authentication-and-authorization)
 - [Features](#features)
 - [Configuration](#configuration)
+  - [Backend](#backend)
+  - [Frontend](#frontend)
+- [API usage example](#api-usage-example)
 - [Database and migrations](#database-and-migrations)
 - [Testing and quality](#testing-and-quality)
+  - [Demo data](#demo-data)
 - [CI/CD](#cicd)
+- [Troubleshooting](#troubleshooting)
+- [Project status](#project-status)
 - [Further documentation](#further-documentation)
+- [Authors](#authors)
+- [License](#license)
+
+## Prerequisites
+
+| Tool | Version | Used for |
+| --- | --- | --- |
+| Python | 3.12 (`python:3.12-slim` in `backend/Dockerfile`, 3.12 in CI) | Backend |
+| Node.js | 22 (`node:22-alpine` in `frontend/Dockerfile`, 22 in CI) with npm | Frontend (Angular 19, Tailwind 3) |
+| Docker and Docker Compose v2 | any recent version (`docker compose`) | The Docker quick start and the production image |
+| PostgreSQL | 16 (`postgres:16-alpine` in `docker-compose.yml`, `postgres:16` in CI) or a [Neon](https://neon.tech) project | Database |
+| Clerk application | publishable and secret keys | Sign-in (see [Configuration](#configuration)) |
+| Google Chrome | any recent version | `npm test` runs Karma with `ChromeHeadless` |
 
 ## Quick start
 
@@ -30,6 +58,8 @@ docker compose up --build
 The API is on <http://localhost:8000> (`/health`, and `/docs` outside production), the frontend on <http://localhost:4200>. PostgreSQL runs in the `db` service and migrations are applied on start (`RUN_MIGRATIONS=true`). Data lives in the `pgdata` and `uploads` volumes; `docker compose down -v` deletes them.
 
 Only the API and database: `docker compose up --build db backend`.
+
+> **Security:** the first person to sign in on an empty database becomes `ADMIN` automatically, and everyone who signs in afterwards waits without a role until an administrator grants one. Sign in yourself first, before you share the URL or open the sign-up page to anyone else.
 
 ### Without Docker
 
@@ -50,6 +80,8 @@ npm start
 
 > `python -m alembic` does not work here because the project's `alembic/` folder shadows the library; use the `alembic` command.
 
+> **Security:** the first person to sign in on an empty database becomes `ADMIN` automatically, and everyone who signs in afterwards waits without a role until an administrator grants one. Sign in yourself first, before you share the URL or open the sign-up page to anyone else.
+
 ### Production (Neon)
 
 Set `DATABASE_URL` (the Neon connection string) in `backend/.env`, build the image, run migrations as a release step and start only the API:
@@ -61,55 +93,50 @@ docker compose up -d --no-deps backend
 
 Leave `RUN_MIGRATIONS` unset in production so several replicas never race to migrate. See [docs/deployment.md](docs/deployment.md).
 
+> **Security:** on a new production database the first sign-in gets the `ADMIN` role. Do that sign-in yourself right after running the migrations and before exposing the application, then create the other accounts from *Usuarios* and give each one only the role it needs. Use Clerk **production** keys and set `CORS_ORIGINS` and `CLERK_AUTHORIZED_PARTIES` to the real frontend origin.
+
+## Project structure
+
+Generated from the repository (folders only; `21` migrations, `17` frontend feature folders):
+
+```text
+.
+├── backend/                       FastAPI application
+│   ├── app/
+│   │   ├── api/                   dependencies, pagination headers, DI providers
+│   │   │   └── routes/            one router per area (equipment, tickets, inventory, admin, ...)
+│   │   ├── assets/                logo used in the exported PDFs
+│   │   ├── core/                  settings, AuthContext, RBAC and data scope, errors, storage, middleware
+│   │   ├── db/                    engine, session, declarative base
+│   │   ├── domain/                ticket state machine (State pattern)
+│   │   ├── exports/               PDF and Excel export definitions (tickets, technicians, users)
+│   │   ├── models/                SQLAlchemy tables
+│   │   ├── repositories/          every query (Repository pattern)
+│   │   ├── schemas/               Pydantic request and response models
+│   │   ├── services/              business rules, audit, reports
+│   │   ├── jobs.py                scheduler for preventive-maintenance reminders
+│   │   └── main.py                application, routers, CORS and error handlers
+│   ├── alembic/                   migrations (versions/)
+│   ├── scripts/                   api_docs, rbac_matrix, seed_rbac, seed_demo, normalize_inventory
+│   └── tests/                     pytest suite: unit tests, API flows and PostgreSQL tests
+├── frontend/                      Angular application
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── core/              services, stores, guards, interceptor, PermissionsService
+│   │   │   ├── features/          one folder per screen (admin, auth, dashboard, equipos, errors, export, inventory, kanban, maintenance-hub, pending-requests, profile, reports, roles, settings, technicians, tickets, users)
+│   │   │   ├── layout/            application shell: sidebar, header, notifications
+│   │   │   └── shared/            reusable components and the permission directives
+│   │   └── assets/                config.json (API URL), images, videos
+│   └── docker-entrypoint.d/       writes assets/config.json from API_URL when the container starts
+├── docs/                          architecture, authentication, deployment, domain model, API reference, RBAC matrix
+│   └── images/                    diagrams used by the documents
+├── .github/workflows/             ci.yml
+└── docker-compose.yml             PostgreSQL, API and frontend
+```
+
 ## Architecture
 
-```mermaid
-flowchart TB
-    User(["Usuario<br/>navegador"])
-
-    subgraph FE["Frontend · Angular + Tailwind"]
-        direction TB
-        Smart["Componentes <b>Smart</b><br/>pantallas en features/ · cargan y coordinan datos"]
-        Dumb["Componentes <b>Dumb</b><br/>presentacionales · @Input / @Output"]
-        Rx["RxJS · Observer<br/>stores (BehaviorSubject) + servicios HTTP"]
-        Perm["PermissionsService<br/>*hasPermission · requiresPermission · guards"]
-        Int["authInterceptor<br/>Bearer token · 401 reintenta · 403 avisa"]
-        Smart --> Dumb
-        Smart --> Rx
-        Smart --> Perm
-        Rx --> Int
-    end
-
-    subgraph BE["Backend · FastAPI"]
-        direction TB
-        Api["API REST · app/api/routes<br/>validación Pydantic · require_permission"]
-        Svc["Capa de servicios · app/services<br/>reglas de negocio · alcance de datos · auditoría<br/><b>State Pattern</b> (ticket_state.py)"]
-        Repo["Repositorios · app/repositories<br/><b>Repository Pattern</b> · aíslan el SQL"]
-        DI["Inyección de dependencias<br/>providers.py"]
-        Jobs["Jobs en segundo plano<br/>recordatorios (APScheduler)"]
-        Api --> Svc --> Repo
-        DI -.-> Api
-        Jobs --> Svc
-    end
-
-    DB[("Neon PostgreSQL<br/>29 tablas")]
-    Files[("Archivos<br/>uploads/ · FileStorage")]
-    Clerk["Clerk<br/>autenticación + JWT de sesión"]
-
-    User --> FE
-    Int -- "HTTP / JSON" --> Api
-    Repo --> DB
-    Svc --> Files
-    User -. "inicio de sesión" .-> Clerk
-    Perm -. "token" .-> Clerk
-    Api -. "verifica el token" .-> Clerk
-
-    subgraph Ops["Operación"]
-        GH["GitHub<br/>control de versiones + CI"]
-        Dk["Docker<br/>contenedores y despliegue"]
-    end
-    GH -.-> Dk
-```
+![Arquitectura del proyecto Mantix](docs/images/arquitectura-mantix.png)
 
 The browser talks only to the API. Authentication is Clerk, authorization is local (roles with inheritance), data lives in Neon PostgreSQL and files behind a `FileStorage` port. More detail, with the request flow, in [docs/architecture.md](docs/architecture.md).
 
@@ -128,10 +155,19 @@ The browser talks only to the API. Authentication is Clerk, authorization is loc
 
 Strict layering, with no layer skipped:
 
-```text
-router (app/api/routes)  ->  service (app/services)  ->  repository (app/repositories)  ->  model (app/models)
-   HTTP, validation,           business rules,             every SQL/ORM query,              SQLAlchemy tables
-   permissions                 orchestration, audit        pagination, search, sorting
+```mermaid
+flowchart LR
+    Client(["Angular"]) -->|HTTP / JSON| Router
+    subgraph Backend["FastAPI"]
+        Router["<b>Router</b><br/>app/api/routes<br/>HTTP, validation, permissions"]
+        Service["<b>Service</b><br/>app/services<br/>business rules, scope, audit"]
+        Repository["<b>Repository</b><br/>app/repositories<br/>every SQL / ORM query"]
+        Model["<b>Model</b><br/>app/models<br/>SQLAlchemy tables"]
+        Router --> Service --> Repository --> Model
+    end
+    Model --> DB[("PostgreSQL<br/>Neon")]
+    Router -.->|verifies the token| Clerk["Clerk"]
+    Service -.-> Files[("uploads/<br/>FileStorage")]
 ```
 
 The first three patterns are mandatory and enforced by tests:
@@ -155,7 +191,7 @@ require_permission("tickets:asignar")   # holds this permission (own or inherite
 require_authenticated()                  # any signed-in person (own profile, notifications)
 ```
 
-Unauthorized callers get `403`, and the denial is written to the audit trail (`AUDIT_DENIALS`). A test fails if an endpoint declares neither. The first user to sign in becomes ADMIN; later users wait without a role until an administrator grants one.
+Unauthorized callers get `403`, and the denial is written to the audit trail (`AUDIT_DENIALS`). A test fails if an endpoint declares neither. The first user to sign in becomes ADMIN (see the security notes in [Quick start](#quick-start)); later users wait without a role until an administrator grants one.
 
 **Roles and inheritance.** A role has the permissions it grants itself plus everything its parent grants. Cycles are refused and the chain is limited to 6 levels. Five base roles are seeded; administrators can create custom ones from the *Roles y permisos* screen.
 
@@ -204,6 +240,8 @@ Files go to `UPLOAD_DIR` (a Docker volume by default). On hosting with ephemeral
 
 ## Configuration
 
+### Backend
+
 All settings come from environment variables (`pydantic-settings`); nothing secret is in the code. See `backend/.env.example`.
 
 | Variable | Purpose | Default |
@@ -222,6 +260,64 @@ All settings come from environment variables (`pydantic-settings`); nothing secr
 | `SCHEDULER_ENABLED` | Run background jobs in the API process | `true` |
 | `REMINDER_INTERVAL_MINUTES` | How often reminders are evaluated | `60` |
 | `RUN_MIGRATIONS` | Container only: `alembic upgrade head` on start | unset |
+
+### Frontend
+
+There are no `environment.ts` files; the frontend is configured in two places:
+
+| What | Where | Notes |
+| --- | --- | --- |
+| API URL | `frontend/src/assets/config.json` (`{ "apiUrl": "http://localhost:8000" }`) | Read when the app starts by `src/app/core/api.config.ts`; if the file is missing the default is `http://localhost:8000`. In Docker the `frontend` service writes it from the `API_URL` variable (`docker-entrypoint.d/40-runtime-config.sh`), so one image works in every environment. |
+| Clerk publishable key | `frontend/src/index.html` (`data-clerk-publishable-key` on the ClerkJS script, and the Clerk domain in the two script URLs) | The publishable key is public by design. It must belong to the same Clerk application as the backend `CLERK_SECRET_KEY`. Change the key and the domain together when you move to production keys. |
+
+The token travels only to the API: `src/app/core/auth.interceptor.ts` adds `Authorization: Bearer <token>` to requests whose URL starts with the API URL, retries once on `401` with a fresh token and shows a message on `403`. The Clerk **secret** key never goes to the frontend.
+
+## API usage example
+
+Every endpoint expects the Clerk session token. Sign in to the app, open the browser console and copy a token (it is short-lived, so copy a new one when it expires):
+
+```js
+await Clerk.session.getToken()
+```
+
+Then list equipment, two per page, sorted by asset tag:
+
+```bash
+TOKEN="<paste the token here>"
+curl -i "http://localhost:8000/equipment?page=1&size=2&sort=asset_tag" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+The response carries the page information in headers and the rows as a JSON array (headers and rows trimmed; example with the demo data):
+
+```http
+HTTP/1.1 200 OK
+x-total-count: 36
+x-page: 1
+x-page-size: 2
+x-total-pages: 18
+content-type: application/json
+```
+
+```json
+[
+  {
+    "id": 73,
+    "asset_tag": "DEMO-001",
+    "equipment_type": { "id": 1, "code": "LAPTOP", "name": "Laptop" },
+    "brand": "Dell",
+    "model": "Latitude 5420",
+    "status": "assigned",
+    "purchase_date": "2024-12-25",
+    "warranty_end_date": "2027-12-25",
+    "current_location": { "id": 13, "code": "DEMO-SRV", "name": "Sala de servidores" },
+    "current_custodian": { "id": 34, "full_name": "Laura Gómez", "email": "req1@demo.mantix.co" },
+    "last_maintenance": { "work_type": "corrective", "result": "Sin falla encontrada", "technician_name": "Ana Demo" }
+  }
+]
+```
+
+Without a valid token the API answers `401`; with a valid token but without the permission the endpoint needs (`equipos:ver` here), `403` with a message in Spanish. Fields such as `purchase_cost` are only present for people who may edit equipment. With `APP_ENV` not set to `production`, the interactive reference is at <http://localhost:8000/docs>, and every endpoint with its permission is in [docs/api-reference.md](docs/api-reference.md).
 
 ## Database and migrations
 
@@ -282,6 +378,32 @@ Without `--yes` nothing is written.
 2. **frontend** - ESLint, production build, tests, `npm audit` (informational).
 3. **docker** - builds the images and smoke-tests the stack: PostgreSQL + migrations + API healthcheck, verifying the container runs as a non-root user.
 
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `No module named alembic.__main__` when running `python -m alembic ...` | The project's `alembic/` folder shadows the library. Use the `alembic` command (`alembic upgrade head`), inside the virtual environment. |
+| The database is empty or full of old data after `docker compose up` | Data lives in the `pgdata` and `uploads` volumes and survives restarts. `docker compose down -v` deletes both, which is the way to start from zero. Without `-v` the old data and the old migrations stay. |
+| Changing the `db` credentials in `docker-compose.yml` has no effect | `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` only apply the first time the `pgdata` volume is created. Remove the volume (`docker compose down -v`) or point the API at another database with `COMPOSE_DATABASE_URL`. |
+| The browser console says the request was blocked by CORS | The frontend origin is not in `CORS_ORIGINS` (default `http://localhost:4200`). Add it, comma separated, and restart the API. Check also that `assets/config.json` points to the API you are running. |
+| Every request answers `401` right after signing in | The Clerk keys do not match: the publishable key in `frontend/src/index.html` and the backend `CLERK_SECRET_KEY` must be from the same Clerk application, and the frontend origin must be in `CLERK_AUTHORIZED_PARTIES`. |
+| `401` after the app has been open for a while, or from a copied token | Clerk session tokens are short-lived. The app renews them and retries once; if the session is gone it signs you out, so sign in again. For `curl`, copy a fresh token. |
+| Signed in but the menu is empty, or a screen says you have no permission | A new account has no role until an administrator assigns one (*Usuarios pendientes*). The first person on an empty database becomes `ADMIN`. |
+| `npm test` fails with "No binary for ChromeHeadless" | Install Google Chrome, or set `CHROME_BIN` to its path. |
+| Backend tests are skipped or fail with a pytest import error | Run them inside `backend/` with the virtual environment active. Database tests need `MIGRATED_DATABASE_URL` and `TEST_DATABASE_URL` (see [Testing and quality](#testing-and-quality)). |
+| Uploaded files disappear after redeploying | Files go to `UPLOAD_DIR`. Mount a persistent volume or implement the `FileStorage` port with an object store. |
+
+## Project status
+
+The application covers the whole maintenance cycle and the role-based access model is complete (roles with inheritance, data scope, audit of denied access and the *Roles y permisos* screen). Open items:
+
+- The legacy dotted permissions (`equipment.read`, ...) are still in the database so the migration can be rolled back; a final migration will remove them.
+- The report builder offers five fixed inventory categories (`CATEGORIES` in `backend/app/services/report_builder.py`); they are not editable.
+- Inventory figures are global: a technician sees the stock and movement metrics of the whole warehouse, not only what they consumed.
+- Attachments of maintenance records are modeled in the database but have no endpoint; files and profile pictures live on the server disk (`FileStorage` port ready for an object store).
+- Rate limiting is in memory per process; with several replicas move it to the proxy or a shared store.
+- `npm audit` reports advisories in Angular 19 whose fix is a major upgrade (informational in CI).
+
 ## Further documentation
 
 - [docs/api-reference.md](docs/api-reference.md) - endpoints with their permission, ticket state diagram (generated)
@@ -291,3 +413,17 @@ Without `--yes` nothing is written.
 - [docs/authentication.md](docs/authentication.md) - Clerk integration
 - [docs/domain-model.md](docs/domain-model.md) - database design
 - [docs/deployment.md](docs/deployment.md) - operations and release checklist
+
+## Authors
+
+<!-- TODO: complete before delivering -->
+- **<Full name>** - <role in the project> - <email or GitHub user>
+- **<Full name>** - <role in the project> - <email or GitHub user>
+
+Course: <!-- TODO: subject, semester and institution -->
+
+## License
+
+<!-- TODO: choose a license (for example MIT or Apache-2.0), add a `LICENSE` file at the repository root and name it here. -->
+License: <to be defined>
+

@@ -21,4 +21,4 @@ def test_reference_lists_every_role_permission_and_state():
         assert token in text
     for state in ("submitted", "in_progress", "resolved", "cancelled"):
         assert f"`{state}`" in text
-    assert "stateDiagram-v2" in text
+    assert "images/flujo-estados-ticket.png" in text

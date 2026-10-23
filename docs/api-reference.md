@@ -269,30 +269,13 @@ Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and rep
 | `configuracion:editar` | yes | - | - | - | - |
 | `auditoria:ver` | yes | - | - | - | yes |
 
-Roles inherit: EMPLOYEE → TECHNICIAN → SUPERVISOR → ADMIN (AUDITOR stands alone). Data scope follows `ver` (own), `ver_asignados` (assigned to the person) and `ver_todos` (everything).
+Roles inherit: TECHNICIAN → SUPERVISOR → ADMIN (EMPLOYEE and AUDITOR stand alone). Data scope follows `ver` (own), `ver_asignados` (assigned to the person) and `ver_todos` (everything).
 
 ## Ticket state diagram
 
-```mermaid
-stateDiagram-v2
-    [*] --> submitted
-    submitted --> triaged
-    submitted --> assigned : needs technician
-    submitted --> cancelled
-    triaged --> assigned : needs technician
-    triaged --> cancelled
-    assigned --> in_progress
-    assigned --> cancelled
-    in_progress --> waiting
-    in_progress --> resolved
-    in_progress --> cancelled
-    waiting --> in_progress
-    waiting --> cancelled
-    resolved --> in_progress
-    resolved --> closed
-    closed --> [*]
-    cancelled --> [*]
-```
+![Flujo de estados del ticket](images/flujo-estados-ticket.png)
+
+Each state's transitions are enforced in `app/domain/ticket_state.py`; the table below is generated from that code.
 
 | State | Can move to | On entry | Notifies requester |
 | --- | --- | --- | --- |
