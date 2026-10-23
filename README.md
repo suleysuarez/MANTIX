@@ -32,7 +32,7 @@ Mantix manages technology equipment and the maintenance work done on it: an equi
 - [Troubleshooting](#troubleshooting)
 - [Project status](#project-status)
 - [Further documentation](#further-documentation)
-- [Authors](#authors)
+- [Author](#author)
 - [License](#license)
 
 ## Prerequisites
@@ -414,9 +414,9 @@ The application covers the whole maintenance cycle and the role-based access mod
 - [docs/domain-model.md](docs/domain-model.md) - database design
 - [docs/deployment.md](docs/deployment.md) - operations and release checklist
 
-## Authors
+## Author
 
-- Suley Yariza Suárez Buitrago
+Suley Yariza Suárez Buitrago
 
 ## License
 
