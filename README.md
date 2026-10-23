@@ -416,8 +416,8 @@ The application covers the whole maintenance cycle and the role-based access mod
 
 ## Authors
 
-Suley Yariza Suárez Buitrago
+- Suley Yariza Suárez Buitrago
 
 ## License
 
-Este proyecto se desarrolló con fines académicos. Todos los derechos reservados.
+This project was developed for academic purposes. All rights reserved.
