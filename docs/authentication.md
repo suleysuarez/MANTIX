@@ -2,16 +2,7 @@
 
 The application now uses Clerk as the identity and session authority. Angular loads ClerkJS from the provided CDN snippet, Clerk owns sign-in, sign-up, password recovery, session lifecycle, and sign-out, and FastAPI verifies the Clerk session token before resolving the local application profile.
 
-```text
-Angular + ClerkJS
-        │  Authorization: Bearer <Clerk session token>
-        ▼
-FastAPI + Clerk Python SDK verification
-        ▼
-users.clerk_user_id
-        ▼
-local roles → permissions in Neon
-```
+![Flujo de autenticación y autorización](images/flujo-autenticacion.png)
 
 ## Configuration
 
