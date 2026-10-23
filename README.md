@@ -1,6 +1,6 @@
 # Mantix - Technology Equipment Maintenance System
 
-[![CI](https://github.com/suleysuarez/tech-equipment-maintenance/actions/workflows/ci.yml/badge.svg)](https://github.com/suleysuarez/tech-equipment-maintenance/actions/workflows/ci.yml)
+[![CI](https://github.com/suleysuarez/MANTIX/actions/workflows/ci.yml/badge.svg)](https://github.com/suleysuarez/MANTIX/actions/workflows/ci.yml)
 
 Mantix manages technology equipment and the maintenance work done on it: an equipment catalog, maintenance tickets with a guarded workflow, technicians, priorities, preventive-maintenance plans, an audit trail, an operational dashboard, reports and file attachments.
 
