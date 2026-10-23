@@ -10,6 +10,7 @@
 | `CLERK_SECRET_KEY` | Clerk backend key used to verify session tokens | — |
 | `CLERK_PUBLISHABLE_KEY` | Clerk publishable key | — |
 | `CLERK_AUTHORIZED_PARTIES` | Origins accepted as the token's `azp` claim | `http://localhost:4200` |
+| `AUDIT_DENIALS` | Write an audit entry for every `403` | `true` |
 | `RATE_LIMIT_PER_MINUTE` | Requests per client IP per minute; `0` disables | `120` |
 | `LOG_LEVEL` | Python log level | `INFO` |
 | `UPLOAD_DIR` | Directory for attachments (a volume in Docker) | `uploads` |
@@ -26,8 +27,9 @@ and use Clerk **production** keys (development keys show the "Development mode" 
 1. `alembic upgrade head` against the target database before starting the new backend
    (`docker compose run --rm backend alembic upgrade head`). Do not set `RUN_MIGRATIONS` in
    production when running several replicas.
-2. Backend: `pytest --cov=app`, `ruff check app tests`, `ruff format --check app tests`, `mypy`,
-   `alembic check`, and `python -m scripts.api_docs --check`.
+2. Backend: `pytest --cov=app`, `ruff check app tests scripts`, `ruff format --check app tests scripts`,
+   `mypy`, `alembic check`, and `python -m scripts.api_docs --check`. Regenerate
+   `docs/rbac-matriz.md` with `python -m scripts.rbac_matrix` after changing permissions.
 3. Frontend: `npm run lint`, `npm run build`, `npm test`.
 4. Confirm `/health` answers `200` after the deploy.
 
@@ -59,10 +61,16 @@ and use Clerk **production** keys (development keys show the "Development mode" 
 - The Clerk publishable key and Clerk domain are still fixed in `src/index.html`; change them
   there when moving to production keys.
 
+## Demo data
+
+`python -m scripts.seed_demo --yes` (from `backend/`) loads a year of realistic data so the dashboard and reports have content. It prints the target database host first, marks everything as `DEMO` and never writes without `--yes`. `--reset` removes and reloads it, `--remove` only removes it. Demo users cannot sign in (they do not exist in Clerk).
+
 ## Known gaps
 
 - Dependency audits run in CI as informational steps: `npm audit` currently reports high-severity
   advisories in Angular 19 whose fix is a major upgrade.
-- The Angular UI does not yet cover reports, attachments, schedules, the audit log or priorities;
-  the API for all of them is available (see `docs/api-reference.md`).
 - Attachments for maintenance records are modeled in the database but have no endpoint.
+- Attachments and profile pictures live on the server disk: use a persistent volume or an object
+  store behind `FileStorage` before relying on them in a host with ephemeral disks.
+- The legacy dotted permissions (`equipment.read`, ...) are still in the database so the migration
+  can be rolled back; a final migration will remove them.
