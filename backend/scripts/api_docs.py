@@ -115,31 +115,19 @@ def build_markdown() -> str:
     lines += [
         "",
         (
-            "Roles inherit: EMPLOYEE → TECHNICIAN → SUPERVISOR → ADMIN (AUDITOR stands alone). "
+            "Roles inherit: TECHNICIAN → SUPERVISOR → ADMIN (EMPLOYEE and AUDITOR stand alone). "
             "Data scope follows `ver` (own), `ver_asignados` (assigned to the person) and "
             "`ver_todos` (everything)."
         ),
         "",
         "## Ticket state diagram",
         "",
-        "```mermaid",
-        "stateDiagram-v2",
-        "    [*] --> submitted",
-    ]
-    for status in STATE_ORDER:
-        state = TicketState.of(status)
-        for target in STATE_ORDER:
-            if target in state.allowed_targets:
-                note = (
-                    " : needs technician"
-                    if TicketState.of(target).requires_technician
-                    else ""
-                )
-                lines.append(f"    {status} --> {target}{note}")
-        if state.is_terminal:
-            lines.append(f"    {status} --> [*]")
-    lines += [
-        "```",
+        "![Flujo de estados del ticket](images/flujo-estados-ticket.png)",
+        "",
+        (
+            "Each state's transitions are enforced in `app/domain/ticket_state.py`; "
+            "the table below is generated from that code."
+        ),
         "",
         "| State | Can move to | On entry | Notifies requester |",
         "| --- | --- | --- | --- |",
