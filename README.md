@@ -416,14 +416,8 @@ The application covers the whole maintenance cycle and the role-based access mod
 
 ## Authors
 
-<!-- TODO: complete before delivering -->
-- **<Full name>** - <role in the project> - <email or GitHub user>
-- **<Full name>** - <role in the project> - <email or GitHub user>
-
-Course: <!-- TODO: subject, semester and institution -->
+Suley Yariza Suárez Buitrago
 
 ## License
 
-<!-- TODO: choose a license (for example MIT or Apache-2.0), add a `LICENSE` file at the repository root and name it here. -->
-License: <to be defined>
-
+Este proyecto se desarrolló con fines académicos. Todos los derechos reservados.
