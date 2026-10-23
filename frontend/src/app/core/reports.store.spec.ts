@@ -144,7 +144,11 @@ describe('ReportsStore', () => {
       const body = new Blob([JSON.stringify({ code: 'unprocessable', detail: 'the report has more than 10000 rows' })], { type: 'application/json' });
       api.generate.and.returnValue(throwError(() => new HttpErrorResponse({ status: 422, error: body })));
       store.export('xlsx', EMPTY_VALUES);
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      // Reading the Blob is asynchronous and takes longer on a loaded CI runner: wait for the toast
+      // instead of a fixed delay.
+      for (let waited = 0; toasts.toasts().length === 0 && waited < 2000; waited += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
       expect(toasts.toasts()[0].kind).toBe('error');
       expect(toasts.toasts()[0].message).toBe('Revisa los campos marcados.');
       expect(latest.exporting).toBeNull();
