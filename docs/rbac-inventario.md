@@ -1,6 +1,8 @@
 # Mantix · RBAC con herencia — inventario y propuesta (antes de la Fase 1)
 
-Documento de revisión. Describe lo que existe hoy, lo que falta, el catálogo de permisos propuesto, el mapeo de roles, las brechas de seguridad encontradas y el inventario completo de endpoints y pantallas. **No se ha escrito código del RBAC todavía.**
+> **Estado: histórico.** Este documento es el análisis previo a la implementación del RBAC (fases 1 a 4) y describe el punto de partida. Todo lo que propone ya está implementado: herencia de roles, permisos `recurso:acción`, alcance de datos, auditoría de accesos denegados y la pantalla de administración de roles. El estado actual está en [rbac-matriz.md](rbac-matriz.md) (generado), [authentication.md](authentication.md) y [api-reference.md](api-reference.md). Se conserva para explicar el porqué de las decisiones.
+
+Documento de revisión. Describe lo que existía, lo que faltaba, el catálogo de permisos propuesto, el mapeo de roles, las brechas de seguridad encontradas y el inventario completo de endpoints y pantallas.
 
 ## 1. Qué existe hoy
 

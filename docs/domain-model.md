@@ -570,3 +570,294 @@ erDiagram
 - `maintenance_schedules`: recurring preventive-maintenance plans per equipment (`interval_days`, `next_due_at`, `remind_days_before`), used by the scheduled reminder job.
 - `permissions` / `role_permissions` / `audit_logs` / `attachments` / `notifications`: authorization catalog, field-level audit trail, file metadata and in-app notifications, implemented as described in `docs/architecture.md`.
 - Added indexes: `maintenance_requests(status, priority, created_at)`, `maintenance_requests(equipment_id, created_at)`, `audit_logs(entity_type, entity_id)`, `audit_logs(created_at)`, `maintenance_schedules(is_active, next_due_at)`.
+
+## 12. Current model (29 tables)
+
+The first sections describe the initial design. This one is the model as implemented today, after the equipment, inventory, preventive-maintenance, reporting and RBAC work. Key columns only; every table also has audit-friendly timestamps. The domain keeps integer identity keys.
+
+**Groups**
+
+| Group | Tables |
+| --- | --- |
+| Access and roles | `users`, `roles`, `permissions`, `user_roles`, `role_permissions`, `technicians` |
+| Equipment and places | `equipment_types`, `locations`, `equipment`, `equipment_location_history`, `equipment_custody_history`, `equipment_status_history` |
+| Tickets and maintenance | `priorities`, `request_categories`, `maintenance_requests`, `ticket_assignments`, `ticket_status_history`, `maintenance_records` |
+| Preventive maintenance | `maintenance_schedules`, `schedule_runs`, `schedule_reschedules` |
+| Inventory | `inventory_items`, `inventory_movements`, `inventory_options` |
+| Cross-cutting | `attachments`, `notifications`, `audit_logs`, `report_runs`, `organization_settings` |
+
+**What changed since the initial design**
+
+- `roles.parent_role_id` (self reference, `ON DELETE RESTRICT`, never its own parent) gives roles an inheritance chain, and `roles.is_system` marks the five base roles. `permissions.resource` and `permissions.action` carry the `recurso:accion` catalogue (the legacy dotted permissions stay until a final migration removes them).
+- `maintenance_requests.priority` and `.category` reference `priorities.code` and `request_categories.code` (both `ON UPDATE CASCADE`).
+- `equipment_assignments` became two histories: `equipment_location_history` and `equipment_custody_history`. The current location and custodian are the rows whose end date is empty; `equipment` itself stores neither.
+- Inventory keeps a running `stock` per item and, per movement, `stock_after`; movements can point to the ticket and work record that consumed them.
+- `audit_logs.old_values` and `new_values` and `report_runs.filters` are JSONB on purpose: they are snapshots, not normalised data.
+
+**Entity-relationship diagram**
+
+```mermaid
+erDiagram
+    users {
+        bigint id PK
+        string email UK
+        string clerk_user_id UK
+        string full_name
+        string employee_code UK
+        string phone
+        bool is_active
+        datetime last_login_at
+    }
+    roles {
+        bigint id PK
+        string code UK
+        string name UK
+        bool is_active
+        bool is_system
+        bigint parent_role_id FK
+    }
+    permissions {
+        bigint id PK
+        string code UK
+        string module
+        string resource
+        string action
+        bool is_active
+    }
+    user_roles {
+        bigint id PK
+        bigint user_id FK
+        bigint role_id FK
+        bigint assigned_by_user_id FK
+    }
+    role_permissions {
+        bigint id PK
+        bigint role_id FK
+        bigint permission_id FK
+    }
+    technicians {
+        bigint id PK
+        bigint user_id FK
+        string specialization
+        bool is_available
+        numeric hourly_rate
+    }
+    equipment_types {
+        bigint id PK
+        string code UK
+        string name UK
+    }
+    locations {
+        bigint id PK
+        bigint parent_id FK
+        string code UK
+        string name
+        string kind
+    }
+    equipment {
+        bigint id PK
+        string asset_tag UK
+        string serial_number UK
+        bigint equipment_type_id FK
+        string brand
+        string model
+        string status
+        numeric purchase_cost
+        date warranty_end_date
+    }
+    equipment_location_history {
+        bigint id PK
+        bigint equipment_id FK
+        bigint location_id FK
+        bigint moved_by_user_id FK
+        datetime started_at
+        datetime ended_at
+    }
+    equipment_custody_history {
+        bigint id PK
+        bigint equipment_id FK
+        bigint assigned_to_user_id FK
+        bigint assigned_by_user_id FK
+        datetime assigned_at
+        datetime returned_at
+    }
+    equipment_status_history {
+        bigint id PK
+        bigint equipment_id FK
+        string from_status
+        string to_status
+        bigint changed_by_user_id FK
+    }
+    priorities {
+        bigint id PK
+        string code UK
+        int level
+        int sla_hours
+    }
+    request_categories {
+        bigint id PK
+        string code UK
+        string name
+    }
+    maintenance_requests {
+        bigint id PK
+        string ticket_number UK
+        bigint equipment_id FK
+        bigint requested_by_user_id FK
+        string priority FK
+        string category FK
+        string status
+        datetime resolved_at
+        datetime closed_at
+    }
+    ticket_assignments {
+        bigint id PK
+        bigint request_id FK
+        bigint technician_id FK
+        bigint assigned_by_user_id FK
+        datetime assigned_at
+        datetime unassigned_at
+    }
+    ticket_status_history {
+        bigint id PK
+        bigint request_id FK
+        string from_status
+        string to_status
+        bigint changed_by_user_id FK
+    }
+    maintenance_records {
+        bigint id PK
+        bigint equipment_id FK
+        bigint request_id FK
+        bigint technician_id FK
+        string work_type
+        datetime started_at
+        datetime completed_at
+        numeric total_cost
+    }
+    maintenance_schedules {
+        bigint id PK
+        bigint equipment_id FK
+        bigint technician_id FK
+        bigint created_by_user_id FK
+        int interval_days
+        datetime next_due_at
+        bool is_active
+    }
+    schedule_runs {
+        bigint id PK
+        bigint schedule_id FK
+        bigint completed_by_user_id FK
+        datetime due_at
+        datetime completed_at
+    }
+    schedule_reschedules {
+        bigint id PK
+        bigint schedule_id FK
+        bigint changed_by_user_id FK
+        datetime old_due_at
+        datetime new_due_at
+    }
+    inventory_items {
+        bigint id PK
+        string sku UK
+        string name
+        numeric unit_cost
+        int stock
+        int min_stock
+    }
+    inventory_movements {
+        bigint id PK
+        bigint item_id FK
+        bigint record_id FK
+        bigint request_id FK
+        bigint created_by_user_id FK
+        string kind
+        int quantity
+        int stock_after
+    }
+    inventory_options {
+        bigint id PK
+        string kind
+        string value
+    }
+    attachments {
+        bigint id PK
+        bigint equipment_id FK
+        bigint request_id FK
+        bigint maintenance_record_id FK
+        bigint uploaded_by_user_id FK
+        string mime_type
+    }
+    notifications {
+        bigint id PK
+        bigint user_id FK
+        string notification_type
+        bool is_read
+    }
+    audit_logs {
+        bigint id PK
+        bigint user_id FK
+        string action
+        string entity_type
+        bigint entity_id
+        jsonb old_values
+        jsonb new_values
+    }
+    report_runs {
+        bigint id PK
+        bigint user_id FK
+        string report_key
+        string export_format
+        jsonb filters
+    }
+    organization_settings {
+        bigint id PK
+        string company_name
+        bigint updated_by_user_id FK
+    }
+
+    users ||--o{ user_roles : "has"
+    roles ||--o{ user_roles : "assigned in"
+    roles ||--o{ role_permissions : "grants"
+    permissions ||--o{ role_permissions : "granted in"
+    roles |o--o{ roles : "inherits from"
+    users ||--o| technicians : "is"
+
+    equipment_types ||--o{ equipment : "classifies"
+    locations |o--o{ locations : "contains"
+    equipment ||--o{ equipment_location_history : "moves"
+    locations ||--o{ equipment_location_history : "holds"
+    equipment ||--o{ equipment_custody_history : "custody"
+    users ||--o{ equipment_custody_history : "receives"
+    equipment ||--o{ equipment_status_history : "changes status"
+
+    equipment ||--o{ maintenance_requests : "needs"
+    users ||--o{ maintenance_requests : "requests"
+    priorities ||--o{ maintenance_requests : "prioritises"
+    request_categories |o--o{ maintenance_requests : "categorises"
+    maintenance_requests ||--o{ ticket_assignments : "assigned"
+    technicians ||--o{ ticket_assignments : "attends"
+    maintenance_requests ||--o{ ticket_status_history : "history"
+    equipment ||--o{ maintenance_records : "receives work"
+    maintenance_requests |o--o{ maintenance_records : "originates"
+    technicians ||--o{ maintenance_records : "performs"
+
+    equipment ||--o{ maintenance_schedules : "planned"
+    technicians |o--o{ maintenance_schedules : "responsible"
+    maintenance_schedules ||--o{ schedule_runs : "executed"
+    maintenance_schedules ||--o{ schedule_reschedules : "rescheduled"
+
+    inventory_items ||--o{ inventory_movements : "moves"
+    maintenance_records |o--o{ inventory_movements : "consumes"
+    maintenance_requests |o--o{ inventory_movements : "consumes"
+
+    equipment |o--o{ attachments : "has"
+    maintenance_requests |o--o{ attachments : "has"
+    maintenance_records |o--o{ attachments : "has"
+    users ||--o{ notifications : "receives"
+    users |o--o{ audit_logs : "generates"
+    users |o--o{ report_runs : "exports"
+```
+
+Every `user` foreign key that records *who did it* (`assigned_by_user_id`, `changed_by_user_id`, `created_by_user_id`, `moved_by_user_id`, `uploaded_by_user_id`) is `ON DELETE SET NULL`, so the history survives the account.
