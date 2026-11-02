@@ -86,3 +86,6 @@ Antes de la Fase 4 hay que verificar y reportar el alcance de datos de equipos p
 ## Pendientes de backend
 
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
+
+- **Códigos de error de reglas de negocio** (`WEB/backend/app/core/exceptions.py`, `app/core/errors.py`): los 409 de negocio llegan casi todos con `business_rule_violation` y solo la transición inválida tiene `invalid_transition`. La app no puede distinguir «técnico inactivo», «categoría en uso», «último administrador», etc. sin leer el texto en inglés. Hace falta un `code` propio por regla (Fase 1). Mientras, la app muestra el mensaje genérico del estado.
+- **Códigos fuera de la lista de la Fase 0:** el backend también emite `business_rule_violation`, `invalid_transition` y `unprocessable`; la lista de `CLAUDE.md` y de la auditoría no los incluía. La app ya los maneja.
