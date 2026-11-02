@@ -8,7 +8,7 @@ Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app reutil
 | --- | --- |
 | Plataformas | Solo Android |
 | Identificador | `com.suleysuarez.mantix`; nombre visible «Mantix» |
-| Ubicación | Carpeta `MOVIL/` de este repositorio. La web (`backend/`, `frontend/`, `docs/`) pasa a `WEB/` en la rama `chore/repo-layout`, antes del esqueleto |
+| Ubicación | Un solo repositorio de GitHub (`MANTIX`) con dos carpetas: `WEB/` (backend, frontend, docs de la web y Compose) y `MOVIL/` (el proyecto Flutter). En local, la app se desarrolla en `MANTIX-MOVIL`, una copia de trabajo (git worktree) del mismo repositorio |
 | Autenticación | Clerk es el proveedor actual. La decisión final se toma tras la Fase 0.5 (prueba de concepto con el SDK de Clerk para Flutter, rama desechable `spike/clerk-flutter`). El refresco y la rotación de tokens los gestiona Clerk, no el backend |
 | Permisos | Solo los permisos efectivos de `GET /auth/me`; nunca nombres de rol. Los permisos solo ocultan y deshabilitan: la autorización real es del backend |
 | Cuenta pendiente | Lista de **roles** vacía (igual que la web) → pantalla «pendiente de aprobación». Con roles pero **cero permisos** → pantalla «Sin acceso asignado». Son dos casos distintos |
