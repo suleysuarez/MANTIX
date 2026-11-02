@@ -228,3 +228,6 @@ __marimo__/
 # Uploaded files (local storage)
 backend/uploads/
 uploads/
+
+# Notas locales del asistente (no se suben al repositorio)
+CLAUDE.md
