@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need it too: the template only declares it for debug and profile. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Mantix"
         android:name="${applicationName}"
