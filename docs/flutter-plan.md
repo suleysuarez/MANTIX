@@ -1,6 +1,6 @@
 # Plan de la app móvil (Flutter)
 
-Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app reutiliza la API FastAPI existente sin romper la web.
+Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app usa la API FastAPI sin romper la web. Desde la Fase 0.5 corre contra una **copia propia del backend** (`MOVIL/backend`), para no tocar `WEB/backend`.
 
 ## Decisiones
 
@@ -8,15 +8,16 @@ Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app reutil
 | --- | --- |
 | Plataformas | Solo Android |
 | Identificador | `com.suleysuarez.mantix`; nombre visible «Mantix» |
-| Ubicación | Un solo repositorio de GitHub (`MANTIX`) con dos carpetas: `WEB/` (backend, frontend, docs de la web y Compose) y `MOVIL/` (el proyecto Flutter). En local, la app se desarrolla en `MANTIX-MOVIL`, una copia de trabajo (git worktree) del mismo repositorio |
-| Autenticación | Clerk es el proveedor actual. La decisión final se toma tras la Fase 0.5 (prueba de concepto con el SDK de Clerk para Flutter, rama desechable `spike/clerk-flutter`). El refresco y la rotación de tokens los gestiona Clerk, no el backend |
+| Ubicación | Un solo repositorio de GitHub (`MANTIX`) con dos carpetas: `WEB/` (backend, frontend, docs de la web y Compose) y `MOVIL/` (el proyecto Flutter). En local, la app se desarrolla en `MANTIX-MOVIL`, una copia de trabajo (git worktree) del mismo repositorio. `MOVIL/` incluye además `backend/` (copia de `WEB/backend` con ajustes para Clerk nativo) y su propio `docker-compose.yml`, con base de datos y puertos aparte del stack de la web |
+| Autenticación | **Clerk**, con `clerk_flutter` (beta, mantenido por la comunidad, no es oficial de Clerk). Probado con un inicio de sesión real: ver «Resultados de la Fase 0.5». El refresco y la rotación de tokens los gestiona Clerk, no el backend. La publishable key entra por `--dart-define`; la secret key vive solo en el backend |
+| Backend del móvil | Copia propia en `MOVIL/backend`; `WEB/backend` no se modifica. Los tokens de Clerk del móvil no traen el claim `azp`, y el SDK del backend rechaza un token sin `azp` si hay orígenes autorizados configurados. La copia valida el `azp` por su cuenta: si el token lo trae debe estar en `CLERK_AUTHORIZED_PARTIES`; si no lo trae, el SDK sigue verificando firma, emisor y expiración. **Riesgo asumido:** las dos copias pueden divergir, y cualquier arreglo en una habrá que repetirlo en la otra |
 | Permisos | Solo los permisos efectivos de `GET /auth/me`; nunca nombres de rol. Los permisos solo ocultan y deshabilitan: la autorización real es del backend |
 | Cuenta pendiente | Lista de **roles** vacía (igual que la web) → pantalla «pendiente de aprobación». Con roles pero **cero permisos** → pantalla «Sin acceso asignado». Son dos casos distintos |
 | Home | Función pura `home_resolver` sobre los permisos; el primero que coincida (ver abajo); si ninguno, Perfil |
 | Rol Auditor | Fuera de la app móvil: sin home, sin pantallas y sin tests propios. El backend y la web no se tocan; si alguien tiene ese rol, la app lo trata como cualquier rol, por sus permisos |
 | Offline | Fuera de la primera versión |
 | Push (Firebase/FCM) | Fase 8; claves por variables de entorno |
-| Hosting de la API | Aún no definido. En desarrollo: `http://10.0.2.2:8000` (emulador) o red local/túnel |
+| Hosting de la API | Aún no definido. En desarrollo el backend del móvil escucha en el puerto 8001: `http://10.0.2.2:8001` (emulador) o `http://localhost:8001` en un teléfono por USB con `adb reverse tcp:8001 tcp:8001` |
 | Versionado | Sin prefijo `/v1`: cabecera `X-App-Version` y versión mínima configurable en el servidor para forzar actualización |
 | Tráfico HTTP sin cifrar | `usesCleartextTraffic` solo en el manifiesto de debug (`android/app/src/debug`), nunca en el principal |
 | Paginación | Los listados envían `size=20` explícito (el backend usa 200 en tickets) |
@@ -63,9 +64,9 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | Fase | Contenido |
 | --- | --- |
 | 0 | Auditoría de reutilización (hecha) |
-| 0.5 | Prueba de concepto de autenticación con Clerk |
-| 1 | Backend mínimo: códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI |
-| 2 | Base Flutter y autenticación |
+| 0.5 | Prueba de concepto de autenticación con Clerk (**hecha**; ver resultados abajo) |
+| 1 | Backend mínimo (se aplica a `MOVIL/backend`, no a `WEB/backend`): códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI |
+| 2 | Base Flutter y autenticación (**hecha**) |
 | 3 | Componentes y sistema de diseño |
 | 4 | Solicitante |
 | 5 | Técnico |
@@ -83,6 +84,33 @@ Antes de la Fase 4 hay que verificar y reportar el alcance de datos de equipos p
 - Estados del ticket: `GET /maintenance/requests/workflow`.
 - Referencia completa: `docs/api-reference.md`.
 
+## Resultados de la Fase 0.5 (Clerk en el móvil)
+
+Medidos con un inicio de sesión real en un teléfono Android, contra el backend del móvil.
+
+| Pregunta | Resultado |
+| --- | --- |
+| ¿El backend original acepta el token del móvil? | **No.** `GET /auth/me` da 401: el token no trae `azp` y el SDK lo exige si hay orígenes autorizados |
+| Claim `azp` | No existe. Claims presentes: `exp, fva, iat, iss, nbf, sid, sts, sub, v` |
+| `CLERK_AUTHORIZED_PARTIES` | Con el backend original ningún valor sirve, ni siquiera la lista vacía (por el código del SDK; esa parte se dedujo leyendo el código, no se probó) |
+| ¿La copia del backend lo acepta? | **Sí.** `GET /auth/me` da 200 y el primer usuario recibe ADMIN en una base vacía |
+| Duración del token | 60 s |
+| Emisor | La misma instancia de Clerk que usa la web |
+
+**Funciona:** registro y acceso con correo y contraseña, y la sesión sobrevive a reinstalar la app.
+
+**No funciona o no se probó:**
+
+- El acceso con Google falla con «Error received from server». No se diagnosticó: falta el texto completo del error.
+- El formulario de Clerk solo trae textos en inglés.
+- No se probó renovar el token pasados 60 s, cerrar sesión, recuperar contraseña ni un segundo usuario (debería quedar pendiente de aprobación).
+- Los 4 tests nuevos de `MOVIL/backend/tests/test_clerk_auth.py` están escritos pero no se han ejecutado.
+- No se necesitó la huella SHA-256 para iniciar sesión. No se verificó si en el panel de Clerk estaba activado «Native applications».
+
 ## Pendientes de backend
+
+- `MOVIL/backend` es una copia de `WEB/backend`: sincronizar los arreglos que se hagan en cualquiera de las dos.
+- Ejecutar la suite de `MOVIL/backend` (hoy solo se ejecutó la de la app Flutter).
+- Diagnosticar el acceso con Google.
 
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
