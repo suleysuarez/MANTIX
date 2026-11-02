@@ -13,6 +13,7 @@ Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app reutil
 | Permisos | Solo los permisos efectivos de `GET /auth/me`; nunca nombres de rol. Los permisos solo ocultan y deshabilitan: la autorización real es del backend |
 | Cuenta pendiente | Lista de **roles** vacía (igual que la web) → pantalla «pendiente de aprobación». Con roles pero **cero permisos** → pantalla «Sin acceso asignado». Son dos casos distintos |
 | Home | Función pura `home_resolver` sobre los permisos; el primero que coincida (ver abajo); si ninguno, Perfil |
+| Rol Auditor | Fuera de la app móvil: sin home, sin pantallas y sin tests propios. El backend y la web no se tocan; si alguien tiene ese rol, la app lo trata como cualquier rol, por sus permisos |
 | Offline | Fuera de la primera versión |
 | Push (Firebase/FCM) | Fase 8; claves por variables de entorno |
 | Hosting de la API | Aún no definido. En desarrollo: `http://10.0.2.2:8000` (emulador) o red local/túnel |
@@ -30,7 +31,7 @@ Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app reutil
 5. `dashboard:ver` → dashboard propio.
 6. Ninguno → Perfil.
 
-Comprobado contra `backend/app/core/permissions.py`: todos esos códigos existen. El Auditor tiene `dashboard:ver_todos` pero no `tickets:ver_todos`, por eso cae en reportes (paso 4) y no en el dashboard.
+Comprobado contra `backend/app/core/permissions.py`: todos esos códigos existen. Un rol que tenga `dashboard:ver_todos` pero no `tickets:ver_todos` (por ejemplo, uno personalizado) cae en reportes (paso 4) y no en el dashboard.
 
 ## Reglas generales
 
@@ -69,7 +70,7 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | 4 | Solicitante |
 | 5 | Técnico |
 | 6 | Supervisor |
-| 7 | Administrador y Auditor |
+| 7 | Administrador |
 | 8 | Capacidades móviles (push, escaneo de QR) |
 | 9 | Calidad y entrega |
 
