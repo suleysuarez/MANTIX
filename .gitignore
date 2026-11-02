@@ -226,5 +226,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Uploaded files (local storage)
-backend/uploads/
+WEB/backend/uploads/
 uploads/
+
+# Notas locales del asistente (no se suben al repositorio)
+CLAUDE.md
