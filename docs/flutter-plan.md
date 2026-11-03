@@ -65,9 +65,9 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | --- | --- |
 | 0 | Auditoría de reutilización (hecha) |
 | 0.5 | Prueba de concepto de autenticación con Clerk (**hecha**; ver resultados abajo) |
-| 1 | Backend mínimo (se aplica a `MOVIL/backend`, no a `WEB/backend`): códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI |
+| 1 | Backend mínimo (se aplica a `MOVIL/backend`, no a `WEB/backend`): códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI (**hecha**; ver «Resultado de la Fase 1») |
 | 2 | Base Flutter y autenticación (**hecha**) |
-| 3 | Componentes y sistema de diseño |
+| 3 | Componentes y sistema de diseño (**hecha**; falta revisarla a ojo en el teléfono) |
 | 4 | Solicitante |
 | 5 | Técnico |
 | 6 | Supervisor |
@@ -80,7 +80,7 @@ Antes de la Fase 4 hay que verificar y reportar el alcance de datos de equipos p
 ## Contrato de la API que usa la app
 
 - Listados: array JSON plano; total en `X-Total-Count`, `X-Page`, `X-Page-Size`, `X-Total-Pages`. Parámetros `page`, `size` (máximo 500), `sort`, `search`. `/notifications` es la excepción (`limit`, `offset`, `{unread_count, items}`).
-- Errores: `{detail, code, errors: [{field, message, type}] | null, request_id}`.
+- Errores: `{detail, code, errors: [{field, message, type}] | null, request_id}`. Los `code` son estables y están en `MOVIL/docs/error-codes.md` (generado desde `MOVIL/backend/app/core/error_codes.py`); la app decide por `code` y, si es desconocido, por el estado HTTP.
 - Estados del ticket: `GET /maintenance/requests/workflow`.
 - Referencia completa: `docs/api-reference.md`.
 
@@ -104,13 +104,24 @@ Medidos con un inicio de sesión real en un teléfono Android, contra el backend
 - El acceso con Google falla con «Error received from server». No se diagnosticó: falta el texto completo del error.
 - El formulario de Clerk solo trae textos en inglés.
 - No se probó renovar el token pasados 60 s, cerrar sesión, recuperar contraseña ni un segundo usuario (debería quedar pendiente de aprobación).
-- Los 4 tests nuevos de `MOVIL/backend/tests/test_clerk_auth.py` están escritos pero no se han ejecutado.
+- Los 4 tests nuevos de `MOVIL/backend/tests/test_clerk_auth.py` ya se ejecutaron y pasan (ver «Resultado de la Fase 1»).
 - No se necesitó la huella SHA-256 para iniciar sesión. No se verificó si en el panel de Clerk estaba activado «Native applications».
+
+## Resultado de la Fase 1 (backend del móvil)
+
+Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
+
+- **Códigos de error:** 117 sitios que lanzan errores llevan ahora un `code` específico (`ticket_not_found`, `user_email_taken`, `ticket_requires_technician`…). Siguen los genéricos por estado HTTP como respaldo, y `invalid_transition`, `payload_too_large` y `unsupported_media_type` conservan su significado. Los 49 `unprocessable` y los `unsupported_media_type` de archivos quedan genéricos a propósito.
+- **Tabla documentada:** `MOVIL/docs/error-codes.md`, generada con `python -m scripts.error_codes_doc`. Un test comprueba que cada código usado está registrado, que su estado HTTP coincide con el del tipo de error, que no hay códigos documentados sin usar y que el documento está al día.
+- **Descripciones obsoletas corregidas:** la descripción de la API lista los cinco roles (faltaba AUDITOR), y los textos de adjuntos de equipo, movimientos de inventario, listado de usuarios y exportaciones nombran los permisos reales (`equipos:adjuntar`, `inventario:editar`, `usuarios:ver`…).
+- **OpenAPI como artefacto:** `python -m scripts.export_openapi` y el workflow `.github/workflows/mobile-backend.yml`. No se pudo probar el workflow en GitHub desde local; el script y los tests sí se ejecutaron.
+- **Verificación:** 1448 tests del backend contra un PostgreSQL desechable creado solo para la prueba (ninguno omitido) y `ruff` limpio. Sin esa base, 9 pruebas fallan y 115 se omiten por falta de `DATABASE_URL`; esas mismas 9 también fallan en el `WEB/backend` original, así que son del entorno y no de estos cambios.
+- **Cambió el `code` de tres respuestas** (`invalid_transition` → `ticket_requires_technician` y `ticket_assign_wrong_status`; `conflict` → `equipment_identifier_taken`). Ningún cliente de la web usa `MOVIL/backend`, pero cualquier cliente nuevo debe tomarlos de la tabla.
 
 ## Pendientes de backend
 
 - `MOVIL/backend` es una copia de `WEB/backend`: sincronizar los arreglos que se hagan en cualquiera de las dos.
-- Ejecutar la suite de `MOVIL/backend` (hoy solo se ejecutó la de la app Flutter).
+- La suite completa de `MOVIL/backend` aún no corre en CI: el workflow `mobile-backend.yml` solo exporta el OpenAPI y comprueba los documentos generados. Falta replicar el job con PostgreSQL de `.github/workflows/ci.yml`.
 - Diagnosticar el acceso con Google.
 
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
