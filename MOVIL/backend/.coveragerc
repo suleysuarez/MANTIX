@@ -1,0 +1,12 @@
+[run]
+source = app
+branch = false
+concurrency = greenlet,thread
+
+[report]
+show_missing = true
+skip_covered = true
+exclude_also =
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    \.\.\.$
