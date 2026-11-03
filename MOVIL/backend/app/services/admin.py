@@ -36,12 +36,14 @@ class AdminUserService:
     ) -> ManagedUserResponse:
         user = await self.repository.get_active_user(user_id)
         if user is None:
-            raise NotFoundError("active target user not found")
+            raise NotFoundError("active target user not found", code="user_not_found")
 
         unique_role_ids = list(dict.fromkeys(role_ids))
         roles = await self.repository.get_active_roles_by_ids(unique_role_ids)
         if len(roles) != len(unique_role_ids):
-            raise NotFoundError("one or more active roles not found")
+            raise NotFoundError(
+                "one or more active roles not found", code="role_not_found"
+            )
 
         existing_role_ids = {user_role.role_id for user_role in user.user_roles}
         newly_added = [role for role in roles if role.id not in existing_role_ids]
@@ -68,7 +70,7 @@ class AdminUserService:
         await self.repository.commit()
         updated = await self.repository.reload_user(user_id)
         if updated is None:
-            raise NotFoundError("active target user not found")
+            raise NotFoundError("active target user not found", code="user_not_found")
         return ManagedUserResponse(
             id=updated.id,
             email=updated.email,
@@ -103,14 +105,21 @@ class AdminUserService:
         """Remove one role from a user, never leaving the system without an admin."""
         user_role = await self.repository.get_user_role(user_id, role_id)
         if user_role is None:
-            raise NotFoundError("the user does not have that role")
+            raise NotFoundError(
+                "the user does not have that role", code="user_role_not_assigned"
+            )
         role = user_role.role
         actor.ensure_can_change_roles([role], target_user_id=user_id)
         if role.code == ADMIN:
             if user_id == actor.id:
-                raise ConflictError("you cannot revoke your own ADMIN role")
+                raise ConflictError(
+                    "you cannot revoke your own ADMIN role",
+                    code="cannot_revoke_own_admin",
+                )
             if await self.repository.count_active_users_with_role(ADMIN) <= 1:
-                raise ConflictError("cannot revoke the last active ADMIN")
+                raise ConflictError(
+                    "cannot revoke the last active ADMIN", code="last_admin_protected"
+                )
 
         await self.repository.remove_user_role(user_role)
         self.audit.record(
@@ -129,7 +138,7 @@ class AdminUserService:
         await self.repository.commit()
         updated = await self.repository.reload_user(user_id)
         if updated is None:
-            raise NotFoundError("active target user not found")
+            raise NotFoundError("active target user not found", code="user_not_found")
         return ManagedUserResponse(
             id=updated.id,
             email=updated.email,

@@ -47,11 +47,13 @@ REST API for **Mantix**, a technology-equipment maintenance system.
 * **Authentication** is delegated to Clerk: send `Authorization: Bearer <session JWT>`.
   Clerk issues short-lived tokens and handles refresh, rotation and revocation.
 * **Authorization** is role and permission based (ADMIN, SUPERVISOR, TECHNICIAN,
-  EMPLOYEE); each endpoint lists the permission it needs in the README matrix.
+  EMPLOYEE and AUDITOR). Permissions use the `resource:action` format (for example
+  `tickets:ver`); `docs/api-reference.md` lists the permission each endpoint needs.
 * **Listings** accept `page`, `size`, `sort` (`field` / `-field`) and `search`, and
   report pagination in the `X-Total-Count`, `X-Page`, `X-Page-Size` and
   `X-Total-Pages` response headers.
 * **Errors** always use the same JSON body (`detail`, `code`, `errors`, `request_id`).
+  `code` is a stable machine-readable value; `docs/error-codes.md` lists them all.
 """
 
 TAGS_METADATA = [

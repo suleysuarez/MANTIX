@@ -18,7 +18,9 @@ async def set_clerk_password(
     contain details about the account).
     """
     if not settings.clerk_secret_key:
-        raise ConflictError("the sign-in service is not configured")
+        raise ConflictError(
+            "the sign-in service is not configured", code="auth_service_not_configured"
+        )
     client = get_clerk_client(settings.clerk_secret_key)
     try:
         await client.users.update_async(
@@ -29,7 +31,8 @@ async def set_clerk_password(
         )
     except Exception as exc:  # the SDK raises several error types
         raise ConflictError(
-            "the sign-in service rejected the new password or is unavailable"
+            "the sign-in service rejected the new password or is unavailable",
+            code="auth_service_rejected",
         ) from exc
 
 
@@ -38,7 +41,9 @@ async def verify_clerk_password(
 ) -> bool:
     """Whether `password` is the person's current password (never raises for a wrong one)."""
     if not settings.clerk_secret_key:
-        raise ConflictError("the sign-in service is not configured")
+        raise ConflictError(
+            "the sign-in service is not configured", code="auth_service_not_configured"
+        )
     client = get_clerk_client(settings.clerk_secret_key)
     try:
         await client.users.verify_password_async(

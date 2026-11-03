@@ -66,7 +66,8 @@ class ClerkAuthService:
                 await self.repository.commit()
             elif existing_by_email.clerk_user_id != identity.user_id:
                 raise ConflictError(
-                    "local email is already linked to another Clerk user"
+                    "local email is already linked to another Clerk user",
+                    code="account_email_linked_to_other",
                 )
             user = self._require_active(existing_by_email)
             await self._touch_login(user)
@@ -85,7 +86,8 @@ class ClerkAuthService:
             if existing is not None:
                 return self._require_active(existing)
             raise ConflictError(
-                "Clerk user could not be linked to a local profile"
+                "Clerk user could not be linked to a local profile",
+                code="account_provisioning_failed",
             ) from exc
         provisioned = await self.repository.get_user_by_clerk_id(profile.clerk_user_id)
         if provisioned is None:
@@ -106,7 +108,7 @@ class ClerkAuthService:
     @staticmethod
     def _require_active(user: User) -> User:
         if not user.is_active:
-            raise ForbiddenError("local user is inactive")
+            raise ForbiddenError("local user is inactive", code="user_inactive")
         return user
 
 

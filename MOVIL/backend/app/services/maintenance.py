@@ -52,14 +52,20 @@ class MaintenanceService:
         self, payload: MaintenanceRequestCreate, requester: AuthContext
     ) -> MaintenanceRequestResponse:
         if await self.repository.get_equipment(payload.equipment_id) is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         if await self.repository.get_active_priority(payload.priority) is None:
-            raise NotFoundError(f"priority '{payload.priority}' not found or inactive")
+            raise NotFoundError(
+                f"priority '{payload.priority}' not found or inactive",
+                code="priority_not_found",
+            )
         if (
             payload.category is not None
             and await self.repository.get_active_category(payload.category) is None
         ):
-            raise NotFoundError(f"category '{payload.category}' not found or inactive")
+            raise NotFoundError(
+                f"category '{payload.category}' not found or inactive",
+                code="category_not_found",
+            )
         ticket_number = await self.repository.next_ticket_number()
         request = await self.repository.create_request(
             ticket_number=ticket_number,
@@ -212,7 +218,8 @@ class MaintenanceService:
         if request.status not in CLASSIFIABLE_STATUSES:
             raise BusinessRuleError(
                 "only requests waiting for triage can be classified "
-                f"(current status: {request.status})"
+                f"(current status: {request.status})",
+                code="ticket_classify_wrong_status",
             )
         if await self.repository.get_active_priority(payload.priority) is None:
             raise UnprocessableError(
@@ -264,7 +271,8 @@ class MaintenanceService:
         if request.status not in REJECTABLE_STATUSES:
             raise BusinessRuleError(
                 "only requests that have not started can be rejected "
-                f"(current status: {request.status})"
+                f"(current status: {request.status})",
+                code="ticket_reject_wrong_status",
             )
         self.audit.record(
             user_id=actor.id,
@@ -296,9 +304,12 @@ class MaintenanceService:
         state.ensure_accepts_assignment()  # fail before touching the repository
         technician = await self.repository.get_technician(payload.technician_id)
         if technician is None:
-            raise NotFoundError("technician not found")
+            raise NotFoundError("technician not found", code="technician_not_found")
         if not technician.user.is_active:
-            raise BusinessRuleError("cannot assign a ticket to an inactive technician")
+            raise BusinessRuleError(
+                "cannot assign a ticket to an inactive technician",
+                code="technician_inactive",
+            )
 
         await self.repository.assign_technician(
             request_id=request_id,
@@ -337,11 +348,15 @@ class MaintenanceService:
     ) -> MaintenanceRequestResponse:
         request = await self.repository.get(request_id)
         if request is None:
-            raise NotFoundError("maintenance request not found")
+            raise NotFoundError(
+                "maintenance request not found", code="ticket_not_found"
+            )
         actor.require("tickets:asignar")
         closed = await self.repository.unassign_active(request_id)
         if closed is None:
-            raise NotFoundError("no active technician assignment")
+            raise NotFoundError(
+                "no active technician assignment", code="no_active_assignment"
+            )
         self.audit.record(
             user_id=actor.id,
             action="maintenance.technician_unassigned",
@@ -370,7 +385,8 @@ class MaintenanceService:
             active = await self.repository.get_active_assignment(request_id)
             if active is None:
                 raise BusinessRuleError(
-                    "this ticket has no assigned technician to attribute the record to"
+                    "this ticket has no assigned technician to attribute the record to",
+                    code="ticket_record_without_technician",
                 )
             technician_id = active.technician_id
 
@@ -405,7 +421,10 @@ class MaintenanceService:
     ) -> None:
         scope = await self.repository.scope_for(actor)
         if not self.repository.visible_to(request, scope):
-            raise ForbiddenError("not authorized to view this maintenance request")
+            raise ForbiddenError(
+                "not authorized to view this maintenance request",
+                code="ticket_view_forbidden",
+            )
 
     async def _require_can_act(
         self, request: MaintenanceRequest, actor: AuthContext
@@ -421,7 +440,8 @@ class MaintenanceService:
         ):
             return
         raise ForbiddenError(
-            "only the assigned technician or a supervisor can act on this ticket"
+            "only the assigned technician or a supervisor can act on this ticket",
+            code="ticket_act_forbidden",
         )
 
     # -- Assembly -------------------------------------------------------
@@ -429,7 +449,9 @@ class MaintenanceService:
     async def _reload(self, request_id: int) -> MaintenanceRequest:
         request = await self.repository.get(request_id)
         if request is None:
-            raise NotFoundError("maintenance request not found")
+            raise NotFoundError(
+                "maintenance request not found", code="ticket_not_found"
+            )
         return request
 
     @staticmethod

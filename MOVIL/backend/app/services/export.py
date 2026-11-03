@@ -66,7 +66,9 @@ class ExportService:
         """Some reports need a permission of their own on top of `reportes:exportar`."""
         needed = definition.permission or "reportes:exportar"
         if needed not in actor.permissions:
-            raise ForbiddenError("No tienes permiso para exportar este reporte.")
+            raise ForbiddenError(
+                "No tienes permiso para exportar este reporte.", code="export_forbidden"
+            )
 
     def options(self, report: ExportReportKey, actor: AuthContext) -> ExportOptions:
         definition = self._definition(report)

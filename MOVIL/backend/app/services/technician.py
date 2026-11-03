@@ -46,9 +46,12 @@ class TechnicianService:
         self, payload: TechnicianCreate, actor: AuthContext
     ) -> TechnicianResponse:
         if await self.repository.get_active_user(payload.user_id) is None:
-            raise NotFoundError("active user not found")
+            raise NotFoundError("active user not found", code="user_not_found")
         if await self.repository.get_by_user_id(payload.user_id) is not None:
-            raise ConflictError("this user already has a technician profile")
+            raise ConflictError(
+                "this user already has a technician profile",
+                code="technician_profile_exists",
+            )
         try:
             technician = await self.repository.create(payload)
             self.audit.record(
@@ -61,7 +64,10 @@ class TechnicianService:
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
-            raise ConflictError("this user already has a technician profile") from exc
+            raise ConflictError(
+                "this user already has a technician profile",
+                code="technician_profile_exists",
+            ) from exc
         return self._response(technician)
 
     async def update(
@@ -69,7 +75,7 @@ class TechnicianService:
     ) -> TechnicianResponse:
         technician = await self.repository.get(technician_id)
         if technician is None:
-            raise NotFoundError("technician not found")
+            raise NotFoundError("technician not found", code="technician_not_found")
         changes = payload.model_dump(exclude_unset=True)
         old_values = {field: getattr(technician, field) for field in changes}
         await self.repository.update(technician, payload)
@@ -87,5 +93,5 @@ class TechnicianService:
     @staticmethod
     def _response(technician: Technician | None) -> TechnicianResponse:
         if technician is None:
-            raise NotFoundError("technician not found")
+            raise NotFoundError("technician not found", code="technician_not_found")
         return TechnicianResponse.model_validate(technician)

@@ -114,7 +114,7 @@ class ScheduleService:
     async def _ensure_visible(self, schedule: Any, actor: AuthContext | None) -> None:
         mine = await self._own_technician(actor)
         if mine is not None and schedule.technician_id != mine:
-            raise NotFoundError("schedule not found")
+            raise NotFoundError("schedule not found", code="schedule_not_found")
 
     async def create(
         self,
@@ -125,10 +125,11 @@ class ScheduleService:
     ) -> ScheduleResponse:
         equipment = await self.equipment.get(payload.equipment_id)
         if equipment is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         if getattr(equipment, "status", None) in UNSERVICEABLE_STATUSES:
             raise BusinessRuleError(
-                f"cannot schedule maintenance for equipment that is {equipment.status}"
+                f"cannot schedule maintenance for equipment that is {equipment.status}",
+                code="schedule_equipment_unavailable",
             )
         self._require_not_past(payload.first_due_at, now)
         await self._require_technician(payload.technician_id)
@@ -293,7 +294,9 @@ class ScheduleService:
     async def _require(self, schedule_id: int) -> MaintenanceSchedule:
         schedule = await self.repository.get(schedule_id)
         if schedule is None:
-            raise NotFoundError("maintenance schedule not found")
+            raise NotFoundError(
+                "maintenance schedule not found", code="schedule_not_found"
+            )
         return schedule
 
     @staticmethod
@@ -306,10 +309,13 @@ class ScheduleService:
             return
         technician = await self.technicians.get(technician_id)
         if technician is None:
-            raise NotFoundError("technician not found")
+            raise NotFoundError("technician not found", code="technician_not_found")
         user = getattr(technician, "user", None)
         if user is not None and not user.is_active:
-            raise BusinessRuleError("cannot assign a plan to an inactive technician")
+            raise BusinessRuleError(
+                "cannot assign a plan to an inactive technician",
+                code="schedule_technician_inactive",
+            )
 
     @staticmethod
     def _response(schedule: MaintenanceSchedule) -> ScheduleResponse:

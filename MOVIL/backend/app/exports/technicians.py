@@ -98,7 +98,8 @@ class TechniciansExport(ExportDefinition):
     def _only_elevated(scope: Scope) -> None:
         if scope.requester_id is not None or scope.technician_id is not None:
             raise ForbiddenError(
-                "only administrators and supervisors can export technicians"
+                "only administrators and supervisors can export technicians",
+                code="export_forbidden",
             )
 
     async def count(

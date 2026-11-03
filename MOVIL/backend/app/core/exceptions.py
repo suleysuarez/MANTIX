@@ -15,8 +15,11 @@ class AppError(Exception):
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
     code: str = "internal_error"
 
-    def __init__(self, detail: str):
+    def __init__(self, detail: str, *, code: str | None = None):
+        """`code` es un código específico de `app.core.error_codes`; sin él se usa el genérico del tipo."""
         self.detail = detail
+        if code is not None:
+            self.code = code
         super().__init__(detail)
 
 

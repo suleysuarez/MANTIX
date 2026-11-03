@@ -206,7 +206,9 @@ class SystemSettingsService:
         self, payload: CategoryCreate, actor: AuthContext
     ) -> CategoryAdmin:
         if await self.repository.get_category_by_code(payload.code) is not None:
-            raise ConflictError(f"category '{payload.code}' already exists")
+            raise ConflictError(
+                f"category '{payload.code}' already exists", code="category_code_taken"
+            )
         try:
             category = await self.repository.add_and_flush(
                 RequestCategory(code=payload.code, name=payload.name, is_active=True)
@@ -221,7 +223,9 @@ class SystemSettingsService:
             await self.repository.commit()
         except IntegrityError as error:
             await self.repository.rollback()
-            raise ConflictError(f"category '{payload.code}' already exists") from error
+            raise ConflictError(
+                f"category '{payload.code}' already exists", code="category_code_taken"
+            ) from error
         return self._category(category, 0)
 
     async def update_category(
@@ -251,7 +255,8 @@ class SystemSettingsService:
         usage = await self.repository.category_usage(category.code)
         if usage:
             raise ConflictError(
-                f"the category is used by {usage} request(s) and cannot be deleted; deactivate it instead"
+                f"the category is used by {usage} request(s) and cannot be deleted; deactivate it instead",
+                code="category_in_use",
             )
         self.audit.record(
             user_id=actor.id,
@@ -266,7 +271,7 @@ class SystemSettingsService:
     async def _require(self, category_id: int) -> RequestCategory:
         category = await self.repository.get_category(category_id)
         if category is None:
-            raise NotFoundError("category not found")
+            raise NotFoundError("category not found", code="category_not_found")
         return category
 
     @staticmethod

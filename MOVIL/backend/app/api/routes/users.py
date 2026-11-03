@@ -36,7 +36,7 @@ CREATED_TO = Query(default=None, description="Created at or before")
     description=(
         "Search, filter by role, state and creation date, with server-side sorting and "
         "pagination. Sort fields: `name`, `email`, `created_at`, `last_login_at`, "
-        "`is_active`. ADMIN only (`users.manage`)."
+        "`is_active`. Requires `usuarios:ver`."
     ),
     responses=error_responses(403, 422),
 )

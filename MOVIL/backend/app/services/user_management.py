@@ -118,12 +118,16 @@ class UserManagementService:
 
     async def create(self, payload: UserCreate, actor: AuthContext) -> UserListItem:
         if await self.repository.email_taken(payload.email):
-            raise ConflictError(f"ya existe un usuario con el correo '{payload.email}'")
+            raise ConflictError(
+                f"ya existe un usuario con el correo '{payload.email}'",
+                code="user_email_taken",
+            )
         if payload.employee_code and await self.repository.code_taken(
             payload.employee_code
         ):
             raise ConflictError(
-                f"ya existe un usuario con el código '{payload.employee_code}'"
+                f"ya existe un usuario con el código '{payload.employee_code}'",
+                code="user_employee_code_taken",
             )
         roles = await self._roles(payload.role_ids)
         actor.ensure_can_change_roles(roles, target_user_id=None)
@@ -163,11 +167,15 @@ class UserManagementService:
                 )
             if await self.repository.email_taken(changes["email"], excluding=user.id):
                 raise ConflictError(
-                    f"ya existe un usuario con el correo '{changes['email']}'"
+                    f"ya existe un usuario con el correo '{changes['email']}'",
+                    code="user_email_taken",
                 )
         code = changes.get("employee_code")
         if code and await self.repository.code_taken(code, excluding=user.id):
-            raise ConflictError(f"ya existe un usuario con el código '{code}'")
+            raise ConflictError(
+                f"ya existe un usuario con el código '{code}'",
+                code="user_employee_code_taken",
+            )
         old = {field: getattr(user, field) for field in changes}
         for field, value in changes.items():
             setattr(user, field, value)
@@ -191,13 +199,17 @@ class UserManagementService:
             return to_item(user)
         if not active:
             if user.id == actor.id:
-                raise ConflictError("no puedes desactivar tu propia cuenta")
+                raise ConflictError(
+                    "no puedes desactivar tu propia cuenta",
+                    code="cannot_deactivate_self",
+                )
             if (
                 self._is_admin(user)
                 and await self.repository.count_active_admins() <= 1
             ):
                 raise ConflictError(
-                    "no se puede desactivar al último administrador activo"
+                    "no se puede desactivar al último administrador activo",
+                    code="last_admin_protected",
                 )
         user.is_active = active
         self.audit.record(
@@ -228,9 +240,15 @@ class UserManagementService:
         will_be_admin = any(role.code == ADMIN for role in roles)
         if was_admin and not will_be_admin:
             if user.id == actor.id:
-                raise ConflictError("no puedes quitarte tu propio rol de administrador")
+                raise ConflictError(
+                    "no puedes quitarte tu propio rol de administrador",
+                    code="cannot_revoke_own_admin",
+                )
             if user.is_active and await self.repository.count_active_admins() <= 1:
-                raise ConflictError("no se puede dejar al sistema sin administradores")
+                raise ConflictError(
+                    "no se puede dejar al sistema sin administradores",
+                    code="last_admin_protected",
+                )
         old = sorted(link.role.code for link in user.user_roles)
         await self.repository.replace_roles(user, roles, actor.id)
         new = sorted(role.code for role in roles)
@@ -258,12 +276,18 @@ class UserManagementService:
         """Set a new password through the sign-in service; it is never stored or logged here."""
         user = await self._require(user_id)
         if user.id == actor.id:
-            raise ConflictError("cambia tu propia contraseña desde tu perfil")
+            raise ConflictError(
+                "cambia tu propia contraseña desde tu perfil",
+                code="use_profile_to_change_password",
+            )
         if not user.is_active:
-            raise ConflictError("la cuenta está desactivada")
+            raise ConflictError(
+                "la cuenta está desactivada", code="user_account_disabled"
+            )
         if user.clerk_user_id is None:
             raise ConflictError(
-                "la persona aún no ha iniciado sesión: no tiene contraseña que restablecer"
+                "la persona aún no ha iniciado sesión: no tiene contraseña que restablecer",
+                code="password_reset_unavailable",
             )
         await self.set_password(user.clerk_user_id, password)
         self.audit.record(
@@ -289,11 +313,13 @@ class UserManagementService:
     async def _require(self, user_id: int) -> User:
         user = await self.repository.get(user_id)
         if user is None:
-            raise NotFoundError("usuario no encontrado")
+            raise NotFoundError("usuario no encontrado", code="user_not_found")
         return user
 
     async def _roles(self, role_ids: list[int]) -> list[Any]:
         roles = await self.repository.roles_by_ids(role_ids)
         if len(roles) != len(set(role_ids)):
-            raise NotFoundError("uno o más roles no existen o están inactivos")
+            raise NotFoundError(
+                "uno o más roles no existen o están inactivos", code="role_not_found"
+            )
         return roles

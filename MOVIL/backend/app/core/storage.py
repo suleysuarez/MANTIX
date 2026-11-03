@@ -46,7 +46,9 @@ class LocalFileStorage:
         try:
             return await asyncio.to_thread(path.read_bytes)
         except FileNotFoundError:
-            raise NotFoundError("the stored file is missing") from None
+            raise NotFoundError(
+                "the stored file is missing", code="attachment_file_missing"
+            ) from None
 
     async def delete(self, key: str) -> None:
         path = self._path(key)

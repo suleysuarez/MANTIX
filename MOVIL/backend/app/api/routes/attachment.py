@@ -53,7 +53,7 @@ async def list_request_attachments(
     response_model=AttachmentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Attach a file to equipment",
-    description="Requires `equipment.manage`. " + _UPLOAD_NOTE,
+    description="Requires `equipos:adjuntar`. " + _UPLOAD_NOTE,
     responses=error_responses(404, 409, 413, 415),
 )
 async def upload_equipment_attachment(

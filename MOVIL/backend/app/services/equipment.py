@@ -73,7 +73,9 @@ class EquipmentService:
         self, payload: EquipmentCreate, actor: AuthContext
     ) -> EquipmentResponse:
         if await self.repository.get_type(payload.equipment_type_id) is None:
-            raise NotFoundError("equipment type not found")
+            raise NotFoundError(
+                "equipment type not found", code="equipment_type_not_found"
+            )
         try:
             equipment = await self.repository.create(payload)
             self.repository.record_status_change(
@@ -96,7 +98,10 @@ class EquipmentService:
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
-            raise ConflictError("asset_tag or serial_number already exists") from exc
+            raise ConflictError(
+                "asset_tag or serial_number already exists",
+                code="equipment_identifier_taken",
+            ) from exc
         return await self._present(equipment.id)
 
     async def update(
@@ -104,12 +109,14 @@ class EquipmentService:
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         if (
             payload.equipment_type_id is not None
             and await self.repository.get_type(payload.equipment_type_id) is None
         ):
-            raise NotFoundError("equipment type not found")
+            raise NotFoundError(
+                "equipment type not found", code="equipment_type_not_found"
+            )
 
         self._validate_warranty_dates(equipment, payload)
 
@@ -137,7 +144,9 @@ class EquipmentService:
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
-            raise ConflictError("serial_number already exists") from exc
+            raise ConflictError(
+                "serial_number already exists", code="equipment_serial_taken"
+            ) from exc
         return await self._present(equipment_id)
 
     @staticmethod
@@ -158,7 +167,10 @@ class EquipmentService:
             else equipment.warranty_end_date
         )
         if start and end and end < start:
-            raise ConflictError("warranty_end_date cannot precede warranty_start_date")
+            raise ConflictError(
+                "warranty_end_date cannot precede warranty_start_date",
+                code="warranty_dates_invalid",
+            )
 
     async def assign_location(
         self,
@@ -168,9 +180,9 @@ class EquipmentService:
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         if await self.repository.get_location(payload.location_id) is None:
-            raise NotFoundError("location not found")
+            raise NotFoundError("location not found", code="location_not_found")
         await self.repository.assign_location(
             equipment_id=equipment_id,
             location_id=payload.location_id,
@@ -195,9 +207,9 @@ class EquipmentService:
     ) -> EquipmentResponse:
         equipment = await self.repository.get(equipment_id)
         if equipment is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         if await self.repository.get_active_user(payload.assigned_to_user_id) is None:
-            raise NotFoundError("active user not found")
+            raise NotFoundError("active user not found", code="user_not_found")
         await self.repository.assign_custody(
             equipment_id=equipment_id,
             assigned_to_user_id=payload.assigned_to_user_id,
@@ -235,7 +247,9 @@ class EquipmentService:
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
-            raise ConflictError("location code or name already exists") from exc
+            raise ConflictError(
+                "location code or name already exists", code="location_taken"
+            ) from exc
         return LocationResponse.model_validate(location)
 
     async def _present(self, equipment_id: int) -> EquipmentResponse:
@@ -248,7 +262,7 @@ class EquipmentService:
         equipment: Equipment | None, context: EquipmentContext | None = None
     ) -> EquipmentResponse:
         if equipment is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
         response = EquipmentResponse.model_validate(equipment)
         if context is None:
             return response

@@ -201,7 +201,8 @@ async def test_ticket_lifecycle_from_request_to_closure(api):
     jump = await api.post(
         f"/maintenance/requests/{tid}/status", supervisor, json={"status": "assigned"}
     )
-    assert jump.status_code == 409 and jump.json()["code"] == "invalid_transition"
+    assert jump.status_code == 409
+    assert jump.json()["code"] == "ticket_requires_technician"
 
     # the supervisor assigns the technician: submitted -> assigned through the state machine
     assigned = await api.post(
@@ -412,7 +413,8 @@ async def test_equipment_listing_search_sort_pagination_and_updates(api):
             "model": "y",
         },
     )
-    assert dup.status_code == 409 and dup.json()["code"] == "conflict"
+    assert dup.status_code == 409
+    assert dup.json()["code"] == "equipment_identifier_taken"
     assert (await api.post("/equipment", employee, json={})).status_code == 403
 
     target = page.json()[0]
@@ -885,7 +887,8 @@ async def test_ticket_unassign_cancel_and_record_attribution(api):
     refused = await api.post(
         f"/maintenance/requests/{tid}/assignment", supervisor, json=assign
     )
-    assert refused.status_code == 409 and refused.json()["code"] == "invalid_transition"
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "ticket_assign_wrong_status"
 
     # tickets for unknown equipment are rejected up front
     bad = await api.post(

@@ -133,7 +133,10 @@ class ProfileService:
         changes = payload.model_dump(exclude_unset=True)
         email = changes.pop("email", None)
         if email is not None and email.strip().lower() != user.email.lower():
-            raise ForbiddenError("tu correo no se puede modificar desde el perfil")
+            raise ForbiddenError(
+                "tu correo no se puede modificar desde el perfil",
+                code="profile_email_locked",
+            )
         if "full_name" in changes and not changes["full_name"]:
             raise UnprocessableError("el nombre es obligatorio")
         changes = {k: v for k, v in changes.items() if getattr(user, k) != v}
@@ -181,7 +184,9 @@ class ProfileService:
     async def avatar(self, actor: AuthContext) -> tuple[bytes, str]:
         user = await self._me(actor)
         if not user.avatar_key:
-            raise NotFoundError("no tienes foto de perfil")
+            raise NotFoundError(
+                "no tienes foto de perfil", code="profile_photo_not_found"
+            )
         return await self.storage.read(user.avatar_key), (
             user.avatar_media_type or "image/jpeg"
         )
@@ -266,5 +271,5 @@ class ProfileService:
     async def _me(self, actor: AuthContext) -> User:
         user: User | None = await self.repository.get(actor.id)
         if user is None:
-            raise NotFoundError("usuario no encontrado")
+            raise NotFoundError("usuario no encontrado", code="user_not_found")
         return user

@@ -215,7 +215,7 @@ async def delete_item(
     summary="Register a stock movement",
     description=(
         "`out` (consumption, optionally linked to a maintenance record or ticket) is open "
-        "to anyone who can consume stock; `in` and `adjust` need `inventory.manage`. "
+        "to anyone with `inventario:consumir`; `in` and `adjust` need `inventario:editar`. "
         "Consumption beyond the available stock is rejected with 409."
     ),
     responses=error_responses(404, 409, 422),

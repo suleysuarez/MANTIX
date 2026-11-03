@@ -1,4 +1,4 @@
-"""User list export (PDF and Excel). Only for those who manage users (`users.manage`)."""
+"""User list export (PDF and Excel). Needs the `usuarios:ver` permission."""
 
 from collections import Counter
 from typing import Any

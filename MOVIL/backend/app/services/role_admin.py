@@ -60,7 +60,7 @@ class RoleAdminService:
         for view in await self.list_roles():
             if view.id == role_id:
                 return view
-        raise NotFoundError("Rol no encontrado.")
+        raise NotFoundError("Rol no encontrado.", code="role_not_found")
 
     @staticmethod
     def _views(roles: list[Role], counts: dict[int, int]) -> list[RoleAdminResponse]:
@@ -119,7 +119,10 @@ class RoleAdminService:
         actor.require("usuarios:asignar", "Solo un administrador puede crear roles.")
         name = payload.name.strip()
         if len(name) < 3:
-            raise ConflictError("El nombre del rol debe tener al menos 3 caracteres.")
+            raise ConflictError(
+                "El nombre del rol debe tener al menos 3 caracteres.",
+                code="role_name_too_short",
+            )
         await self._ensure_name_free(name)
         roles = await self.repository.list_all_roles()
         parents = self._parents(roles)
@@ -127,7 +130,8 @@ class RoleAdminService:
         code = await self._free_code(name)
         if parent is not None and depth_after(code, parent.code, parents) > MAX_DEPTH:
             raise ConflictError(
-                f"La jerarquía admite como máximo {MAX_DEPTH} niveles de herencia."
+                f"La jerarquía admite como máximo {MAX_DEPTH} niveles de herencia.",
+                code="role_hierarchy_too_deep",
             )
         permissions = await self._permissions(payload.permissions)
         self._ensure_actor_holds(actor, {p.code for p in permissions})
@@ -174,7 +178,8 @@ class RoleAdminService:
             name = payload.name.strip()
             if len(name) < 3:
                 raise ConflictError(
-                    "El nombre del rol debe tener al menos 3 caracteres."
+                    "El nombre del rol debe tener al menos 3 caracteres.",
+                    code="role_name_too_short",
                 )
             if name != role.name:
                 await self._ensure_name_free(name, exclude_id=role.id)
@@ -193,7 +198,8 @@ class RoleAdminService:
         if "parent_role_id" in sent and payload.parent_role_id != role.parent_role_id:
             if role.is_system:
                 raise ConflictError(
-                    "La jerarquía de los roles base no se puede cambiar."
+                    "La jerarquía de los roles base no se puede cambiar.",
+                    code="role_base_protected",
                 )
             parent = self._parent_for(payload.parent_role_id, roles)
             parents = self._parents(roles)
@@ -201,14 +207,16 @@ class RoleAdminService:
                 if would_create_cycle(role.code, parent.code, parents):
                     raise ConflictError(
                         "Ese padre crearía un ciclo: un rol no puede heredar de sí mismo "
-                        "ni de uno de sus descendientes."
+                        "ni de uno de sus descendientes.",
+                        code="role_hierarchy_cycle",
                     )
                 self._ensure_actor_holds_role(actor, parent)
             parents[role.code] = parent.code if parent else None
             deepest = max(len(lineage(code, parents)) for code in parents)
             if deepest > MAX_DEPTH:
                 raise ConflictError(
-                    f"La jerarquía admite como máximo {MAX_DEPTH} niveles de herencia."
+                    f"La jerarquía admite como máximo {MAX_DEPTH} niveles de herencia.",
+                    code="role_hierarchy_too_deep",
                 )
             old_parent = next((r for r in roles if r.id == role.parent_role_id), None)
             before["parent"] = old_parent.code if old_parent else None
@@ -248,11 +256,13 @@ class RoleAdminService:
         role = await self._get(role_id)
         if role.code == ADMIN:
             raise ConflictError(
-                "El rol Administrador siempre tiene todos los permisos y no se edita."
+                "El rol Administrador siempre tiene todos los permisos y no se edita.",
+                code="role_admin_immutable",
             )
         if role.code in actor.roles:
             raise ForbiddenError(
-                "No puedes cambiar los permisos de un rol que tú tienes."
+                "No puedes cambiar los permisos de un rol que tú tienes.",
+                code="role_escalation_forbidden",
             )
         wanted = await self._permissions(payload.permissions)
         wanted_codes = frozenset(p.code for p in wanted)
@@ -276,15 +286,19 @@ class RoleAdminService:
         actor.require("usuarios:asignar", "Solo un administrador puede eliminar roles.")
         role = await self._get(role_id)
         if role.is_system:
-            raise ConflictError("Los roles base no se pueden eliminar.")
+            raise ConflictError(
+                "Los roles base no se pueden eliminar.", code="role_base_protected"
+            )
         roles = await self.repository.list_all_roles()
         if any(other.parent_role_id == role.id for other in roles):
             raise ConflictError(
-                "Este rol es padre de otros. Cambia primero el padre de esos roles."
+                "Este rol es padre de otros. Cambia primero el padre de esos roles.",
+                code="role_is_parent",
             )
         if await self.repository.role_has_users(role.id):
             raise ConflictError(
-                "Este rol tiene usuarios asignados. Reasígnalos antes de eliminarlo."
+                "Este rol tiene usuarios asignados. Reasígnalos antes de eliminarlo.",
+                code="role_has_users",
             )
         snapshot = {
             "code": role.code,
@@ -310,7 +324,7 @@ class RoleAdminService:
     async def _get(self, role_id: int) -> Role:
         role = await self.repository.get_role(role_id)
         if role is None:
-            raise NotFoundError("Rol no encontrado.")
+            raise NotFoundError("Rol no encontrado.", code="role_not_found")
         return role
 
     @staticmethod
@@ -329,14 +343,18 @@ class RoleAdminService:
             return None
         parent = next((role for role in roles if role.id == parent_id), None)
         if parent is None or not parent.is_active:
-            raise NotFoundError("El rol padre no existe o está inactivo.")
+            raise NotFoundError(
+                "El rol padre no existe o está inactivo.", code="role_not_found"
+            )
         return parent
 
     async def _ensure_name_free(
         self, name: str, *, exclude_id: int | None = None
     ) -> None:
         if await self.repository.role_name_taken(name, exclude_id=exclude_id):
-            raise ConflictError(f"Ya existe un rol llamado «{name}».")
+            raise ConflictError(
+                f"Ya existe un rol llamado «{name}».", code="role_name_taken"
+            )
 
     async def _free_code(self, name: str) -> str:
         base = _code_from(name)
@@ -350,7 +368,10 @@ class RoleAdminService:
         found = await self.repository.catalogue_permissions(unique)
         missing = sorted(set(unique) - {p.code for p in found})
         if missing:
-            raise NotFoundError("Permisos desconocidos: " + ", ".join(missing))
+            raise NotFoundError(
+                "Permisos desconocidos: " + ", ".join(missing),
+                code="permission_not_found",
+            )
         return found
 
     @staticmethod
@@ -360,7 +381,8 @@ class RoleAdminService:
         lacking = sorted(set(codes) - actor.permissions)
         if lacking:
             raise ForbiddenError(
-                "No puedes conceder permisos que tú no tienes: " + ", ".join(lacking)
+                "No puedes conceder permisos que tú no tienes: " + ", ".join(lacking),
+                code="role_escalation_forbidden",
             )
 
     @staticmethod
@@ -371,10 +393,15 @@ class RoleAdminService:
 
     async def _ensure_can_deactivate(self, role: Role, roles: list[Role]) -> None:
         if role.is_system:
-            raise ConflictError("Los roles base no se pueden desactivar.")
+            raise ConflictError(
+                "Los roles base no se pueden desactivar.", code="role_base_protected"
+            )
         if await self.repository.role_has_users(role.id):
             raise ConflictError(
-                "Este rol tiene usuarios asignados. Reasígnalos antes de desactivarlo."
+                "Este rol tiene usuarios asignados. Reasígnalos antes de desactivarlo.",
+                code="role_has_users",
             )
         if any(r.parent_role_id == role.id and r.is_active for r in roles):
-            raise ConflictError("Este rol es padre de roles activos.")
+            raise ConflictError(
+                "Este rol es padre de roles activos.", code="role_is_parent"
+            )

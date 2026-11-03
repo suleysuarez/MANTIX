@@ -35,7 +35,7 @@ class AttachmentService:
 
     * Tickets: whoever may *view* the ticket (requester, assigned technician,
       admin/supervisor) may attach files and read them.
-    * Equipment: attaching needs `equipment.manage`; reading needs `equipment.read`
+    * Equipment: attaching needs `equipos:adjuntar`; reading needs `equipos:ver`
       (enforced by the route).
     * Deleting: the uploader, or an admin/supervisor.
     """
@@ -78,7 +78,10 @@ class AttachmentService:
         self, equipment_id: int, upload: UploadFile, actor: AuthContext
     ) -> AttachmentResponse:
         if not actor.has_permission("equipos:adjuntar"):
-            raise ForbiddenError("attaching files to equipment needs equipment.manage")
+            raise ForbiddenError(
+                "attaching files to equipment needs equipos:adjuntar",
+                code="attachment_equipment_forbidden",
+            )
         await self._require_equipment(equipment_id)
         return await self._store(upload, actor, equipment_id=equipment_id)
 
@@ -101,7 +104,8 @@ class AttachmentService:
         )
         if not sees_all and attachment.uploaded_by_user_id != actor.id:
             raise ForbiddenError(
-                "Solo quien subió el archivo o un supervisor puede eliminarlo."
+                "Solo quien subió el archivo o un supervisor puede eliminarlo.",
+                code="attachment_delete_forbidden",
             )
         key = attachment.file_path
         await self.repository.delete(attachment)
@@ -121,20 +125,23 @@ class AttachmentService:
 
     async def _require_equipment(self, equipment_id: int) -> None:
         if await self.equipment.get(equipment_id) is None:
-            raise NotFoundError("equipment not found")
+            raise NotFoundError("equipment not found", code="equipment_not_found")
 
     async def _authorised(
         self, attachment_id: int, actor: AuthContext, *, reading: bool
     ) -> Attachment:
         attachment = await self.repository.get(attachment_id)
         if attachment is None:
-            raise NotFoundError("attachment not found")
+            raise NotFoundError("attachment not found", code="attachment_not_found")
         if attachment.request_id is not None:
             await self.maintenance.ensure_can_view(attachment.request_id, actor)
         elif attachment.equipment_id is not None:
             needed = "equipos:ver" if reading else "equipos:adjuntar"
             if not actor.has_permission(needed):
-                raise ForbiddenError("No tienes acceso a este archivo.")
+                raise ForbiddenError(
+                    "No tienes acceso a este archivo.",
+                    code="attachment_access_forbidden",
+                )
         return attachment
 
     async def _store(
@@ -152,7 +159,8 @@ class AttachmentService:
         )
         if count >= MAX_ATTACHMENTS_PER_PARENT:
             raise ConflictError(
-                f"at most {MAX_ATTACHMENTS_PER_PARENT} attachments are allowed"
+                f"at most {MAX_ATTACHMENTS_PER_PARENT} attachments are allowed",
+                code="attachment_limit_reached",
             )
 
         file_name = safe_filename(upload.filename)

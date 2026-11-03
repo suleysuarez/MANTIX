@@ -21,7 +21,9 @@ class PriorityService:
         self, payload: PriorityCreate, actor: AuthContext
     ) -> PriorityResponse:
         if await self.repository.get_by_code(payload.code) is not None:
-            raise ConflictError(f"priority '{payload.code}' already exists")
+            raise ConflictError(
+                f"priority '{payload.code}' already exists", code="priority_code_taken"
+            )
         try:
             priority = await self.repository.add_and_flush(
                 Priority(**payload.model_dump(), is_active=True)
@@ -36,7 +38,9 @@ class PriorityService:
             await self.repository.commit()
         except IntegrityError as exc:
             await self.repository.rollback()
-            raise ConflictError(f"priority '{payload.code}' already exists") from exc
+            raise ConflictError(
+                f"priority '{payload.code}' already exists", code="priority_code_taken"
+            ) from exc
         return PriorityResponse.model_validate(priority)
 
     async def update(
@@ -44,7 +48,7 @@ class PriorityService:
     ) -> PriorityResponse:
         priority = await self.repository.get(priority_id)
         if priority is None:
-            raise NotFoundError("priority not found")
+            raise NotFoundError("priority not found", code="priority_not_found")
         changes = payload.model_dump(exclude_unset=True)
         old_values = {field: getattr(priority, field) for field in changes}
         await self.repository.update_fields(priority, changes)

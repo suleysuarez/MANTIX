@@ -65,13 +65,15 @@ class AuthContext:
         self.require("usuarios:asignar", "Solo un administrador puede asignar roles.")
         if target_user_id is not None and target_user_id == self.id:
             raise ForbiddenError(
-                "No puedes cambiar tus propios roles. Pídeselo a otro administrador."
+                "No puedes cambiar tus propios roles. Pídeselo a otro administrador.",
+                code="cannot_change_own_roles",
             )
         for role in roles:
             if not effective_for_roles([role]) <= self.permissions:
                 raise ForbiddenError(
                     f"No puedes asignar ni quitar el rol «{role.name}»: "
-                    "concede permisos que tú no tienes."
+                    "concede permisos que tú no tienes.",
+                    code="role_escalation_forbidden",
                 )
 
     def require(self, code: str, detail: str | None = None) -> None:

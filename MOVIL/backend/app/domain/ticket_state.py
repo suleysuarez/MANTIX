@@ -62,7 +62,9 @@ class TicketState:
         try:
             return TicketState._registry[status]
         except KeyError:
-            raise BusinessRuleError(f"unknown ticket status '{status}'") from None
+            raise BusinessRuleError(
+                f"unknown ticket status '{status}'", code="ticket_status_unknown"
+            ) from None
 
     @staticmethod
     def workflow() -> list["TicketState"]:
@@ -102,7 +104,8 @@ class TicketState:
         new_state = TicketState.of(target)
         if new_state.requires_technician and not has_technician:
             raise InvalidTransitionError(
-                f"cannot move to '{target}' without an assigned technician"
+                f"cannot move to '{target}' without an assigned technician",
+                code="ticket_requires_technician",
             )
         ticket.status = target
         new_state.on_enter(ticket, now=now, resolution_summary=resolution_summary)
@@ -123,7 +126,8 @@ class TicketState:
     def ensure_accepts_assignment(self) -> None:
         if self.is_terminal:
             raise InvalidTransitionError(
-                f"cannot assign a technician to a '{self.status}' ticket"
+                f"cannot assign a technician to a '{self.status}' ticket",
+                code="ticket_assign_wrong_status",
             )
 
 

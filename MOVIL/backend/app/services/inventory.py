@@ -156,7 +156,9 @@ class InventoryService:
                 "el nombre de la categoría debe empezar con una letra y tener hasta 30 caracteres"
             )
         if await self.repository.option_by_key(payload.kind, fold(label)):
-            raise ConflictError(f"ya existe «{label}» en esta lista")
+            raise ConflictError(
+                f"ya existe «{label}» en esta lista", code="list_value_taken"
+            )
         option = await self.repository.add_option(
             kind=payload.kind, value=value, label=label, key=fold(label)
         )
@@ -229,7 +231,10 @@ class InventoryService:
 
     async def create(self, payload: ItemCreate, actor: AuthContext) -> ItemResponse:
         if await self.repository.find_skus({payload.sku}):
-            raise ConflictError(f"ya existe un ítem con el código '{payload.sku}'")
+            raise ConflictError(
+                f"ya existe un ítem con el código '{payload.sku}'",
+                code="inventory_sku_taken",
+            )
         resolved = await self._resolve(
             payload.model_dump(include={"category", "unit", "location", "supplier"}),
             actor,
@@ -275,7 +280,8 @@ class InventoryService:
         item = await self._require(item_id)
         if await self.repository.has_movements(item_id):
             raise ConflictError(
-                "the item has stock movements and cannot be deleted; deactivate it instead"
+                "the item has stock movements and cannot be deleted; deactivate it instead",
+                code="inventory_item_has_movements",
             )
         self.audit.record(
             user_id=actor.id,
@@ -294,27 +300,38 @@ class InventoryService:
     ) -> MovementResponse:
         if payload.kind != "out" and MANAGE not in actor.permissions:
             raise ForbiddenError(
-                "only inventory managers can register entries and adjustments"
+                "only inventory managers can register entries and adjustments",
+                code="inventory_manage_forbidden",
             )
         item = await self.repository.get_for_update(item_id)
         if item is None:
-            raise NotFoundError("inventory item not found")
+            raise NotFoundError(
+                "inventory item not found", code="inventory_item_not_found"
+            )
         if not item.is_active:
-            raise BusinessRuleError("an inactive item cannot move; reactivate it first")
+            raise BusinessRuleError(
+                "an inactive item cannot move; reactivate it first",
+                code="inventory_item_inactive",
+            )
         if payload.record_id and not await self.repository.record_exists(
             payload.record_id
         ):
-            raise NotFoundError("maintenance record not found")
+            raise NotFoundError(
+                "maintenance record not found", code="maintenance_record_not_found"
+            )
         if payload.request_id and not await self.repository.request_exists(
             payload.request_id
         ):
-            raise NotFoundError("maintenance request not found")
+            raise NotFoundError(
+                "maintenance request not found", code="ticket_not_found"
+            )
 
         delta = -payload.quantity if payload.kind == "out" else payload.quantity
         new_stock = item.stock + delta
         if new_stock < 0:
             raise BusinessRuleError(
-                f"insufficient stock: {item.stock} available, {abs(delta)} requested"
+                f"insufficient stock: {item.stock} available, {abs(delta)} requested",
+                code="inventory_insufficient_stock",
             )
         if new_stock > MAX_QUANTITY:
             raise UnprocessableError(f"stock cannot exceed {MAX_QUANTITY} units")
@@ -633,7 +650,9 @@ class InventoryService:
     async def _require(self, item_id: int) -> InventoryItem:
         item = await self.repository.get(item_id)
         if item is None:
-            raise NotFoundError("inventory item not found")
+            raise NotFoundError(
+                "inventory item not found", code="inventory_item_not_found"
+            )
         return item
 
     @staticmethod

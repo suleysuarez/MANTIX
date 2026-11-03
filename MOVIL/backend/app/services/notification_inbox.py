@@ -31,7 +31,7 @@ class NotificationInboxService:
     ) -> NotificationResponse:
         notification = await self.repository.get_for_user(notification_id, actor.id)
         if notification is None:
-            raise NotFoundError("notification not found")
+            raise NotFoundError("notification not found", code="notification_not_found")
         await self.repository.mark_read(notification)
         await self.repository.commit()
         return NotificationResponse.model_validate(notification)
