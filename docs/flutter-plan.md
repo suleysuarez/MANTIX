@@ -123,5 +123,7 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - `MOVIL/backend` es una copia de `WEB/backend`: sincronizar los arreglos que se hagan en cualquiera de las dos.
 - La suite completa de `MOVIL/backend` aún no corre en CI: el workflow `mobile-backend.yml` solo exporta el OpenAPI y comprueba los documentos generados. Falta replicar el job con PostgreSQL de `.github/workflows/ci.yml`.
 - Diagnosticar el acceso con Google.
+- Unificar en un solo backend (`WEB/backend`): llevar allí los `code` de error, `error_codes.py`, los scripts de OpenAPI y la validación de `azp`, y eliminar `MOVIL/backend`. Propuesta pendiente de aprobación.
+- Sesión de Clerk: `clerk_flutter` la guarda en `clerk_sdk.json` (documentos privados de la app), no en almacenamiento seguro. Pendiente un `Persistor` propio sobre `flutter_secure_storage` (hoy declarado en `pubspec.yaml` pero sin uso) y revisar `allowBackup`.
 
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
