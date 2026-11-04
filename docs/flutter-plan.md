@@ -73,7 +73,7 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | 6 | Supervisor |
 | 7 | Administrador |
 | 8 | Capacidades móviles (push, escaneo de QR) |
-| 9 | Calidad y entrega |
+| 9 | Calidad y entrega. Incluye almacenamiento seguro de la sesión de Clerk (ver «Sesión de Clerk en almacenamiento seguro») |
 
 Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 
@@ -141,6 +141,12 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - Unificar en un solo backend (`WEB/backend`): llevar allí los `code` de error, `error_codes.py`, los scripts de OpenAPI y la validación de `azp`, y eliminar `MOVIL/backend`. Propuesta pendiente de aprobación.
 - Equipos: `GET /equipment` entrega a un Solicitante todo el catálogo, con custodio y ubicación. Si se quiere limitar, hace falta un alcance por usuario o un permiso nuevo en `WEB/backend` (afecta también a la web).
 - Equipos: no hay búsqueda exacta por `asset_tag`; el escaneo de QR de la Fase 8 la necesitará (filtro `asset_tag` o comparar en el cliente).
-- Sesión de Clerk: `clerk_flutter` la guarda en `clerk_sdk.json` (documentos privados de la app), no en almacenamiento seguro. Pendiente un `Persistor` propio sobre `flutter_secure_storage` (hoy declarado en `pubspec.yaml` pero sin uso) y revisar `allowBackup`.
-
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
+
+## Sesión de Clerk en almacenamiento seguro (Fase 9)
+
+**Hallazgo:** `clerk_flutter` guarda la sesión en `clerk_sdk.json`, dentro de los documentos privados de la app, y no en almacenamiento seguro. `flutter_secure_storage` está declarado en `pubspec.yaml` pero no se usa en `lib/`.
+
+**Hecho:** `android:allowBackup="false"` en el manifiesto principal, para que ese archivo no salga en copias de seguridad en la nube.
+
+**Pendiente (no implementar todavía):** un `Persistor` propio sobre `flutter_secure_storage` y comprobar que la sesión sobrevive a reiniciar la app. Ojo: la Fase 0.5 vio la sesión sobrevivir a reinstalar, probablemente por la restauración automática de Android; con `allowBackup="false"` eso ya no debería ocurrir (sin verificar en el teléfono).
