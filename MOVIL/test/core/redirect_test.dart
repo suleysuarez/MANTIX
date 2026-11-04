@@ -56,4 +56,13 @@ void main() {
   test('cuenta activa sin criterio de inicio cae en Perfil', () {
     expect(redirect(SignedIn(profile(permissions: const {'tickets:ver'})), AppRoutes.splash), HomeDestination.profile.path);
   });
+
+  test('crear una solicitud exige el permiso solicitudes:crear', () {
+    final withPermission = SignedIn(profile(permissions: const {'solicitudes:ver', 'solicitudes:crear'}));
+    final withoutPermission = SignedIn(profile(permissions: const {'solicitudes:ver'}));
+    expect(redirect(withPermission, '/solicitudes/nueva'), isNull);
+    expect(redirect(withoutPermission, '/solicitudes/nueva'), HomeDestination.myRequests.path);
+    // El detalle de una solicitud no exige ese permiso.
+    expect(redirect(withoutPermission, '/solicitudes/5'), isNull);
+  });
 }

@@ -68,14 +68,29 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | 1 | Backend mínimo (se aplica a `MOVIL/backend`, no a `WEB/backend`): códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI (**hecha**; ver «Resultado de la Fase 1») |
 | 2 | Base Flutter y autenticación (**hecha**) |
 | 3 | Componentes y sistema de diseño (**hecha**; falta revisarla a ojo en el teléfono) |
-| 4 | Solicitante |
+| 4 | Solicitante (**hecha en código y pruebas**; falta revisarla a ojo en el teléfono; ver «Resultado de la Fase 4») |
 | 5 | Técnico |
 | 6 | Supervisor |
 | 7 | Administrador |
 | 8 | Capacidades móviles (push, escaneo de QR) |
-| 9 | Calidad y entrega |
+| 9 | Calidad y entrega. Incluye almacenamiento seguro de la sesión de Clerk (ver «Sesión de Clerk en almacenamiento seguro») |
 
-Antes de la Fase 4 hay que verificar y reportar el alcance de datos de equipos para el Solicitante y la búsqueda por `asset_tag`.
+Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
+
+## Resultado de la Fase 4 (Solicitante)
+
+**Verificación previa (solo lectura del backend):**
+
+- El Solicitante tiene `equipos:ver`, y `GET /equipment` **no filtra por usuario**: recibe todo el catálogo, con serie, ubicación actual, custodio actual y último mantenimiento. Solo se oculta `purchase_cost` (exige `equipos:editar`).
+- `GET /equipment?search=` es una búsqueda parcial, sin distinguir mayúsculas, sobre etiqueta, serie, marca y modelo (máximo 100 caracteres). No existe búsqueda exacta por `asset_tag`.
+- `GET /maintenance/requests` devuelve solo los tickets propios a quien no es supervisor, administrador ni técnico (según la descripción de la ruta).
+- **Decisión:** la app no oculta nada en el servidor; el selector de equipo solo lee y muestra etiqueta, marca, modelo y tipo, y descarta custodio y ubicación. La API sigue exponiéndolos a un Solicitante que la llame directamente.
+
+**Qué hay en la app:** «Mis solicitudes» (lista paginada de 20 con scroll infinito, filtro por estado, estados de carga, vacío y error), detalle de la solicitud (datos, técnico, historial y adjuntos en solo lectura) y «Nueva solicitud» (selector de equipo con búsqueda, validación en el cliente y los 422 del servidor bajo cada campo). La ruta de crear exige `solicitudes:crear` y el botón se oculta sin ese permiso.
+
+**Fuera de esta fase, por decidir:** subir y descargar adjuntos (necesita un selector de archivos como dependencia nueva y manejo de descargas), cancelar una solicitud y elegir categoría.
+
+**Detalles técnicos:** `ProviderScope(retry: ...)` desactiva el reintento automático de Riverpod 3 para que los errores se vean al instante con su botón «Reintentar».
 
 ## Contrato de la API que usa la app
 
@@ -123,5 +138,15 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - `MOVIL/backend` es una copia de `WEB/backend`: sincronizar los arreglos que se hagan en cualquiera de las dos.
 - La suite completa de `MOVIL/backend` aún no corre en CI: el workflow `mobile-backend.yml` solo exporta el OpenAPI y comprueba los documentos generados. Falta replicar el job con PostgreSQL de `.github/workflows/ci.yml`.
 - Diagnosticar el acceso con Google.
-
+- Unificar en un solo backend (`WEB/backend`): llevar allí los `code` de error, `error_codes.py`, los scripts de OpenAPI y la validación de `azp`, y eliminar `MOVIL/backend`. Propuesta pendiente de aprobación.
+- Equipos: `GET /equipment` entrega a un Solicitante todo el catálogo, con custodio y ubicación. Si se quiere limitar, hace falta un alcance por usuario o un permiso nuevo en `WEB/backend` (afecta también a la web).
+- Equipos: no hay búsqueda exacta por `asset_tag`; el escaneo de QR de la Fase 8 la necesitará (filtro `asset_tag` o comparar en el cliente).
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
+
+## Sesión de Clerk en almacenamiento seguro (Fase 9)
+
+**Hallazgo:** `clerk_flutter` guarda la sesión en `clerk_sdk.json`, dentro de los documentos privados de la app, y no en almacenamiento seguro. `flutter_secure_storage` está declarado en `pubspec.yaml` pero no se usa en `lib/`.
+
+**Hecho:** `android:allowBackup="false"` en el manifiesto principal, para que ese archivo no salga en copias de seguridad en la nube.
+
+**Pendiente (no implementar todavía):** un `Persistor` propio sobre `flutter_secure_storage` y comprobar que la sesión sobrevive a reiniciar la app. Ojo: la Fase 0.5 vio la sesión sobrevivir a reinstalar, probablemente por la restauración automática de Android; con `allowBackup="false"` eso ya no debería ocurrir (sin verificar en el teléfono).
