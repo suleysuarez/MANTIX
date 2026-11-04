@@ -9,13 +9,22 @@ a fresh schema (create_all/drop_all) and an isolated session.
 import os
 from collections.abc import AsyncIterator
 
+import pytest
+
+from tests.db_guard import UnsafeTestDatabaseError, apply_test_database_guard
+
+# Safety brake: first thing, before `app` is imported (its engine reads DATABASE_URL).
+try:
+    apply_test_database_guard(os.environ)
+except UnsafeTestDatabaseError as error:
+    raise pytest.UsageError(str(error)) from None
+
 # Must be set before `app.main` is imported: many tests hammer the API from one IP.
 os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "0")
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
 # Denied requests are audited in their own transaction; tests must not write to a database.
 os.environ.setdefault("AUDIT_DENIALS", "false")
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401  (register all tables on Base.metadata)

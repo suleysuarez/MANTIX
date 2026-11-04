@@ -341,13 +341,22 @@ pytest                                 # unit tests only (database tests are ski
 
 Unit tests mock repositories through DI and use `dependency_overrides` for endpoints. Database tests need two PostgreSQL databases:
 
+**Safety brake.** `tests/conftest.py` aborts pytest on startup if `TEST_DATABASE_URL` or `MIGRATED_DATABASE_URL` is set and its host is not `localhost`/`127.0.0.1` or its database name does not end in `_test`. It also overrides `DATABASE_URL` (which `.env` may point at a real database) with `MIGRATED_DATABASE_URL`, or with an unreachable address when that is unset, so no test can reach the application's real database. The messages never print credentials.
+
+A disposable local PostgreSQL (port 5433, no password, no volume) comes in `backend/docker-compose.test.yml`:
+
 ```bash
-export MIGRATED_DATABASE_URL=postgresql://user:pass@localhost:5432/mantix_migrated   # after `alembic upgrade head`
-export TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/mantix_scratch         # disposable: tables are dropped
+cd backend
+docker compose -f docker-compose.test.yml up -d            # creates the database mantix_test
+docker compose -f docker-compose.test.yml exec test-db createdb -U postgres mantix_migrated_test
+export TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5433/mantix_test                 # disposable: tables are dropped
+export MIGRATED_DATABASE_URL=postgresql://postgres@127.0.0.1:5433/mantix_migrated_test    # after `alembic upgrade head`
+DATABASE_URL=$MIGRATED_DATABASE_URL alembic upgrade head   # migrate the test database, never another one
 pytest --cov=app --cov-fail-under=90
+docker compose -f docker-compose.test.yml down             # throws everything away
 ```
 
-`MIGRATED_DATABASE_URL` runs the end-to-end API flows (each test is rolled back). `TEST_DATABASE_URL` is wiped by the repository tests: never point it at real data.
+`MIGRATED_DATABASE_URL` runs the end-to-end API flows (each test is rolled back). `TEST_DATABASE_URL` is wiped by the repository tests: it is only ever a `_test` database on your own machine.
 
 Regenerate the API reference after changing endpoints, permissions or ticket states (a test fails if it is stale):
 
