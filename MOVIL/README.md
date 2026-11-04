@@ -11,11 +11,12 @@ App Android de Mantix (Flutter, `com.suleysuarez.mantix`). Consume la API FastAP
 | 1 Backend mínimo (códigos de error estables, OpenAPI como artefacto) | Hecha, en `MOVIL/backend` |
 | 2 Base Flutter y autenticación | Hecha: estructura, tema, cliente HTTP, sesión con Clerk, router por permisos, pantallas de acceso y Perfil |
 | 3 Componentes y sistema de diseño | Hecha; falta revisarla a ojo en el teléfono |
-| 4 a 7 Solicitante, Técnico, Supervisor, Administrador | **Sin empezar.** Las pantallas de inicio son marcadores |
+| 4 Solicitante | Hecha en código y pruebas: mis solicitudes, detalle y nueva solicitud. Falta revisarla en el teléfono; los adjuntos son de solo lectura |
+| 5 a 7 Técnico, Supervisor, Administrador | **Sin empezar.** Sus pantallas de inicio son marcadores |
 | 8 Push y escaneo de QR | Sin empezar |
 | 9 Calidad y entrega | Sin empezar (ícono por defecto, release firmado con la clave de debug) |
 
-Hoy la app permite iniciar sesión con Clerk, ver el estado de la cuenta (activa, pendiente de aprobación o sin acceso asignado), el Perfil con roles y permisos, y cerrar sesión. No hay pantallas de negocio todavía.
+Hoy la app permite iniciar sesión con Clerk, ver el estado de la cuenta (activa, pendiente de aprobación o sin acceso asignado), el Perfil con roles y permisos, y cerrar sesión. Con permiso de solicitudes, además lista, consulta y crea solicitudes de mantenimiento. Aún no hay pantallas de Técnico, Supervisor ni Administrador.
 
 ## Autenticación
 
@@ -71,7 +72,7 @@ lib/
     theme/       paleta, tokens y tema
     validation/  validadores de formularios
   shared/        componentes reutilizables (estados cargando, vacío y error, chips, diálogos...)
-  features/      auth, home (marcadores), profile, dev (galería de componentes, solo debug)
+  features/      auth, home (marcadores), profile, requests (Solicitante), dev (galería, solo debug)
 backend/         copia de WEB/backend con ajustes para Clerk nativo y códigos de error
 docs/            error-codes.md, api-reference.md, rbac-matriz.md
 ```

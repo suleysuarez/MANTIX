@@ -49,3 +49,6 @@ app.*.map.json
 
 # Variables locales de compilación (--dart-define-from-file); no se suben.
 dart_defines.json
+
+# El .gitignore de la raíz ignora lib/ (plantilla de Python); en Flutter lib/ es el código fuente.
+!/lib/

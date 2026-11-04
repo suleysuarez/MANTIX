@@ -11,6 +11,11 @@ void main() {
   });
 
   group('required', () {
+    test('concuerda el género del mensaje', () {
+      expect(Validators.required('La descripción', true)('  '), 'La descripción es obligatoria.');
+      expect(Validators.required('El título')(''), 'El título es obligatorio.');
+    });
+
     final validate = Validators.required('El título');
 
     test('rechaza vacío, nulo y solo espacios', () {
