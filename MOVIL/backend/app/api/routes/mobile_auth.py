@@ -28,7 +28,7 @@ Service = Annotated[MobileAuthService, Depends(get_mobile_auth_service)]
 
 @router.post("/register", status_code=status.HTTP_202_ACCEPTED)
 async def register(body: MobileRegisterRequest, service: Service) -> dict[str, str]:
-    await service.register(email=body.email, full_name=body.full_name, password=body.password)
+    await service.register(email=body.email, password=body.password)
     return {"message": "Te enviamos un código para verificar tu correo."}
 
 @router.post("/verify-email", response_model=MobileAuthResponse)
