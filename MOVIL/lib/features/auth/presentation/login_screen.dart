@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
   final _code = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _busy = false;
@@ -31,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -52,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
   };
 
   void _setMode(_AuthMode mode) {
-    setState(() { _mode = mode; _message = null; _code.clear(); _password.clear(); });
+    setState(() { _mode = mode; _message = null; _code.clear(); _password.clear(); _confirmPassword.clear(); });
   }
 
   String _errorText(Object error) {
@@ -126,6 +128,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) return 'Confirma tu contraseña.';
+    if (value != _password.text) return 'Las contraseñas no coinciden.';
+    return null;
+  }
+
   InputDecoration _decoration(String label, {IconData? icon}) => InputDecoration(
     labelText: label, labelStyle: const TextStyle(color: Colors.white), floatingLabelStyle: const TextStyle(color: AuthTokens.accent), prefixIcon: icon == null ? null : Icon(icon, color: Colors.white),
     filled: true, fillColor: Colors.white.withValues(alpha: 0.10), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
@@ -172,6 +180,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 if (_mode == _AuthMode.login || _mode == _AuthMode.register || _mode == _AuthMode.reset) ...[
                   TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
+                  if (_mode == _AuthMode.register) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPassword,
+                      obscureText: _obscure,
+                      decoration: _decoration('Confirmar contraseña', icon: Icons.lock_outline),
+                      validator: _validateConfirmPassword,
+                    ),
+                  ],
                   if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Crea una contraseña para Mantix: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 11, height: 1.35, fontWeight: FontWeight.w500))),
                 ],
                 if (_message != null) ...[
