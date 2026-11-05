@@ -1,6 +1,7 @@
 from app.models.attachment import Attachment
 from app.models.audit import AuditLog
 from app.models.auth import (
+    AuthEmailCode,
     Permission,
     Role,
     RolePermission,
@@ -33,6 +34,7 @@ from app.models.technician import Technician
 __all__ = [
     "Attachment",
     "AuditLog",
+    "AuthEmailCode",
     "Equipment",
     "EquipmentCustodyHistory",
     "EquipmentLocationHistory",
