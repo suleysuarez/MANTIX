@@ -176,6 +176,80 @@ async def test_existing_clerk_link_is_preserved() -> None:
     assert repository.created is None
 
 
+@pytest.mark.asyncio
+async def test_verified_email_relinks_same_local_user_and_preserves_roles(monkeypatch):
+    existing = SimpleNamespace(
+        id=3,
+        clerk_user_id="user_old",
+        email="employee@example.com",
+        full_name="Existing Profile",
+        employee_code="E-3",
+        is_active=True,
+        last_login_at=None,
+        roles=[role()],
+    )
+
+    async def verified_profile(current_identity, _settings):
+        return ClerkProfile(
+            current_identity.user_id,
+            "employee@example.com",
+            "Existing Profile",
+            email_verified=True,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", verified_profile
+    )
+    repository = FakeRepository(user=existing)
+    service = ClerkAuthService(object(), Settings())
+    service.repository = repository
+
+    user = await service.resolve_local_user(identity("user_new"))
+
+    assert user is existing
+    assert user.id == 3
+    assert user.clerk_user_id == "user_new"
+    assert user.roles[0].code == "ADMIN"
+    assert repository.email_lookup_locked is True
+    assert repository.committed
+
+
+@pytest.mark.asyncio
+async def test_unverified_or_mismatched_email_keeps_existing_clerk_link(monkeypatch):
+    existing = SimpleNamespace(
+        id=3,
+        clerk_user_id="user_old",
+        email="employee@example.com",
+        full_name="Existing Profile",
+        employee_code="E-3",
+        is_active=True,
+        last_login_at=None,
+        roles=[role()],
+    )
+
+    async def unverified_profile(current_identity, _settings):
+        return ClerkProfile(
+            current_identity.user_id,
+            "employee@example.com",
+            "Existing Profile",
+            email_verified=False,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", unverified_profile
+    )
+    repository = FakeRepository(user=existing)
+    service = ClerkAuthService(object(), Settings())
+    service.repository = repository
+
+    with pytest.raises(ConflictError) as error:
+        await service.resolve_local_user(identity("user_new"))
+
+    assert error.value.code == "account_email_linked_to_other"
+    assert existing.clerk_user_id == "user_old"
+    assert not repository.committed
+
+
 class RecordingAudit:
     def __init__(self):
         self.records = []
