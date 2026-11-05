@@ -1,10 +1,10 @@
-import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/glass_card.dart';
 import '../../../shared/status_message.dart';
 import 'widgets/auth_shell.dart';
+import 'widgets/mantix_clerk_authentication.dart';
 
 /// Pantalla de acceso. Con Clerk iniciado muestra su formulario de inicio de
 /// sesión sobre la imagen de la marca, dentro de una tarjeta de vidrio; sin él
@@ -32,7 +32,7 @@ class LoginScreen extends StatelessWidget {
       child: GlassCard(
         child: Theme(
           data: AppTheme.authGlass(Theme.of(context)),
-          child: const ClerkAuthentication(),
+          child: const MantixClerkAuthentication(),
         ),
       ),
     );
