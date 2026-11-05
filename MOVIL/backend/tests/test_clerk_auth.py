@@ -9,7 +9,7 @@ from app.api.dependencies import require_permission
 from app.core.authz import AuthContext
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, verify_clerk_request
 from app.core.config import Settings
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ConflictError, ForbiddenError
 from app.schemas.auth import UserResponse
 from app.services.auth import ClerkAuthService, user_response
 
