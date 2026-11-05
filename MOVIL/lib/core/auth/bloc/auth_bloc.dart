@@ -16,7 +16,7 @@ part 'auth_state.dart';
 /// resuelve qué significa para la app (perfil, roles y permisos de `/auth/me`).
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this._auth, required this._repository}) : super(const AuthUnknown()) {
-    on<AuthStarted>((_, emit) async => emit(await _loadOnce()));
+    on<AuthStarted>((_, emit) async => emit(await _load()));
     on<AuthRefreshRequested>(_onRefresh);
     on<AuthSignOutRequested>(_onSignOut);
     on<AuthSessionExpired>(_onSessionExpired);
