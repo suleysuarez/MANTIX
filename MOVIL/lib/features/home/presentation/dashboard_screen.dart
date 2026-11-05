@@ -412,23 +412,15 @@ class _BrandWordmark extends StatelessWidget {
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => ColorFiltered(
-    colorFilter: const ColorFilter.matrix([
-      1, 0, 0, 0, 0,
-      0, 1, 0, 0, 0,
-      0, 0, 1, 0, 0,
-      -1, -1, -1, 1, 2,
-    ]),
-    child: Image.asset(
-      'assets/images/branding/mantix.webp',
-      width: fontSize >= 27 ? 142 : 132,
-      height: 38,
-      fit: BoxFit.contain,
-      alignment: Alignment.centerLeft,
-      errorBuilder: (context, error, stackTrace) => const Text(
-        'MANTIX',
-        style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
-      ),
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/branding/mantix.webp',
+    width: fontSize >= 27 ? 142 : 132,
+    height: 38,
+    fit: BoxFit.contain,
+    alignment: Alignment.centerLeft,
+    errorBuilder: (context, error, stackTrace) => const Text(
+      'MANTIX',
+      style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
     ),
   );
 }
@@ -461,22 +453,14 @@ class _WelcomeHero extends StatelessWidget {
             bottom: 4,
             child: SizedBox(
               width: 148,
-              child: ColorFiltered(
-                colorFilter: const ColorFilter.matrix([
-                  1, 0, 0, 0, 0,
-                  0, 1, 0, 0, 0,
-                  0, 0, 1, 0, 0,
-                  -1, -1, -1, 1, 2,
-                ]),
-                child: Image.asset(
-                  'assets/images/dashboard/dashboard-illustration.webp',
-                  fit: BoxFit.contain,
-                  alignment: Alignment.centerRight,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.memory_rounded,
-                    size: 112,
-                    color: AppColors.sky.withValues(alpha: 0.45),
-                  ),
+              child: Image.asset(
+                'assets/images/dashboard/dashboard-illustration.webp',
+                fit: BoxFit.contain,
+                alignment: Alignment.centerRight,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.memory_rounded,
+                  size: 112,
+                  color: AppColors.sky.withValues(alpha: 0.45),
                 ),
               ),
             ),
