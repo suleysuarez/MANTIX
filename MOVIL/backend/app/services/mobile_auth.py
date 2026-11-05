@@ -9,18 +9,18 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from fastapi import HTTPException, status
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings
-from app.core.exceptions import ConflictError, ForbiddenError, AppError
+from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import AuthEmailCode, Role, User
-from app.services.resend_email import ResendEmailService
 from app.services.auth import user_response
+from app.services.resend_email import ResendEmailService
 
 _passwords = PasswordHash.recommended()
 _CODE_MAX_ATTEMPTS = 5
