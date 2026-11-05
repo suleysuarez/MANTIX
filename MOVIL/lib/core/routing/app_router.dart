@@ -10,6 +10,8 @@ import '../../features/auth/presentation/unavailable_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/dev/presentation/components_gallery_screen.dart';
 import '../../features/home/presentation/home_placeholder_screen.dart';
+import '../../features/home/presentation/dashboard_screen.dart';
+import '../../features/home/presentation/module_placeholder_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/requests/presentation/create_request_screen.dart';
 import '../../features/requests/presentation/my_requests_screen.dart';
@@ -90,6 +92,9 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: AppRoutes.unavailable, builder: (_, _) => const UnavailableScreen()),
       GoRoute(path: AppRoutes.noAccess, builder: (_, _) => const NoAccessScreen()),
       GoRoute(path: HomeDestination.profile.path, builder: (_, _) => const ProfileScreen()),
+      GoRoute(path: HomeDestination.globalDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.globalDashboard)),
+      GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
+      GoRoute(path: '/modulos/:module', builder: (_, state) => ModulePlaceholderScreen(module: state.pathParameters['module'] ?? '')),
       // Solo en debug: no existe en las compilaciones de producción.
       if (kDebugMode) GoRoute(path: ComponentsGalleryScreen.path, builder: (_, _) => const ComponentsGalleryScreen()),
       GoRoute(path: HomeDestination.myRequests.path, builder: (_, _) => const MyRequestsScreen()),
@@ -100,7 +105,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
         // Un id que no es número no abre el detalle: vuelve al inicio.
         redirect: (_, state) => int.tryParse(state.pathParameters['id'] ?? '') == null ? HomeDestination.myRequests.path : null,
       ),
-      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests))
+      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests && d != HomeDestination.globalDashboard && d != HomeDestination.ownDashboard))
         GoRoute(path: destination.path, builder: (_, _) => HomePlaceholderScreen(destination: destination)),
     ],
   );
