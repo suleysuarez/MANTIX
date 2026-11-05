@@ -43,26 +43,12 @@ function readCollapsed(): boolean {
         [class]="(collapsed() ? 'lg:w-20' : 'lg:w-[256px]') + (drawerOpen() ? ' translate-x-0' : ' -translate-x-full lg:translate-x-0')"
         class="fixed inset-y-0 left-0 z-50 flex h-screen w-[256px] flex-col justify-between overflow-hidden rounded-none bg-[linear-gradient(180deg,#0b1f3a_0%,#102b4f_100%)] py-6 transition-all duration-300">
         <div class="flex min-h-0 flex-col gap-6">
-          <div class="flex h-10 items-center px-5" [class]="collapsed() ? 'lg:justify-center lg:px-0' : 'justify-between'">
-            <a routerLink="/dashboard" aria-label="MANTIX" class="flex min-w-0 items-center">
-              <!-- Contraído: solo la "M" del logo (recorte), siempre dentro de la barra -->
-              <img src="assets/images/logo/mantix-logo.svg" alt="MANTIX"
-                class="h-10 object-contain object-left"
-                [class]="collapsed() ? 'w-10 !object-cover lg:block' : 'w-auto max-w-[170px]'" />
-            </a>
-            @if (!collapsed()) {
-              <button type="button" (click)="toggle()" aria-label="Contraer barra lateral"
-                class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:flex">
-                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
-              </button>
-            }
-          </div>
-          @if (collapsed()) {
-            <button type="button" (click)="toggle()" aria-label="Ampliar barra lateral"
-              class="mx-auto -mt-3 hidden h-8 w-8 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:flex">
-              <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+          <div class="flex h-8 items-center justify-end px-3">
+            <button type="button" (click)="toggle()" [attr.aria-label]="collapsed() ? 'Ampliar barra lateral' : 'Contraer barra lateral'"
+              class="hidden h-8 w-8 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/15 hover:text-white lg:flex">
+              <span class="material-symbols-outlined text-[20px]">{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</span>
             </button>
-          }
+          </div>
 
           <nav aria-label="Main navigation" class="flex flex-col gap-1 overflow-y-auto overflow-x-hidden px-3 text-[#CED4DA]">
             @for (item of navItems(); track item.path) {
@@ -99,11 +85,16 @@ function readCollapsed(): boolean {
 
       <div class="transition-[padding] duration-300" [class]="collapsed() ? 'lg:pl-20' : 'lg:pl-[256px]'">
         <header class="sticky top-0 z-30">
-          <div class="flex items-center justify-between gap-3 bg-[#f8f9fa] px-4 py-1 shadow-[0_4px_20px_rgba(62,92,118,0.10)] md:px-8">
-          <button type="button" (click)="drawerOpen.set(true)" aria-label="Abrir menú"
-            class="flex h-9 w-9 items-center justify-center rounded-full bg-[#ADD7F6]/40 text-[#3E5C76] transition-colors hover:bg-[#ADD7F6]/70 lg:hidden">
-            <span class="material-symbols-outlined">menu</span>
-          </button>
+          <div class="flex items-center justify-between gap-3 bg-white px-4 py-1.5 shadow-[0_4px_20px_rgba(62,92,118,0.10)] md:px-8">
+          <div class="flex min-w-0 items-center gap-3">
+            <button type="button" (click)="drawerOpen.set(true)" aria-label="Abrir menú"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ADD7F6]/40 text-[#3E5C76] transition-colors hover:bg-[#ADD7F6]/70 lg:hidden">
+              <span class="material-symbols-outlined">menu</span>
+            </button>
+            <a routerLink="/dashboard" aria-label="MANTIX" class="flex min-w-0 items-center">
+              <img src="assets/images/branding/mantix.webp" alt="MANTIX" class="h-9 w-auto max-w-[190px] object-contain sm:h-10" />
+            </a>
+          </div>
           <div class="ml-auto flex items-center gap-3 rounded-[14px] border border-[#CED4DA]/70 bg-white px-2 py-1">
             <app-notifications-bell />
             <span class="h-5 w-[2px] rounded-full bg-[#D4A017]" aria-hidden="true"></span>
