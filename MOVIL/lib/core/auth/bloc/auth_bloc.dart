@@ -64,7 +64,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onRefresh(AuthRefreshRequested event, Emitter<AuthState> emit) async {
     final before = state;
     // Desde el login no se pasa por la pantalla de carga: el formulario de Clerk sigue visible.
-    if (before is! AuthUnauthenticated) emit(const AuthUnknown());
+    if (before is! AuthUnauthenticated && before is! AuthUnknown) {
+      emit(const AuthUnknown());
+    }
     final next = await _load();
     // Si ya estábamos sin sesión, un «sigue sin sesión» no borra el motivo (por ejemplo,
     // «tu sesión expiró»).
