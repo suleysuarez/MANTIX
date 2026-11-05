@@ -97,7 +97,18 @@ async def test_first_clerk_user_is_provisioned_as_admin(monkeypatch) -> None:
     async def load_profile(*_):
         return profile
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda *_: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                "user_clerk_123",
+                "employee@example.com",
+                "Example Employee",
+                email_verified=True,
+            ),
+        ),
+    )
     repository = FakeRepository(role=role())
     service = ClerkAuthService(object(), Settings())
     service.repository = repository
