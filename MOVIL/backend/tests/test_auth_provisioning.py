@@ -140,6 +140,31 @@ async def test_a_roleless_user_is_promoted_only_while_no_role_exists_anywhere(
 
 
 @needs_db
+async def test_mobile_account_stays_pending_after_clerk_web_sign_in(session, service):
+    mobile = User(
+        email="mobile@example.com",
+        full_name="Mobile User",
+        password_hash="argon2$native-mobile-password",
+        email_verified_at=None,
+        is_active=True,
+    )
+    session.add(mobile)
+    await session.flush()
+
+    linked = await service.resolve_local_user(
+        identity("clerk_mobile", "mobile@example.com")
+    )
+    assert linked.id == mobile.id
+    assert linked.roles == []
+
+    returning = await service.resolve_local_user(
+        identity("clerk_mobile", "mobile@example.com")
+    )
+    assert returning.roles == []
+    assert await role_codes(session, mobile.id) == []
+
+
+@needs_db
 async def test_inactive_local_users_are_refused(session, service):
     session.add(
         User(

@@ -37,6 +37,11 @@ class User(Base):
     clerk_user_id: Mapped[str | None] = mapped_column(
         String(255), unique=True, index=True, nullable=True
     )
+    # Used only by the native mobile authentication flow; existing Clerk users stay null.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     employee_code: Mapped[str | None] = mapped_column(
         String(50), unique=True, index=True, nullable=True
@@ -63,7 +68,6 @@ class User(Base):
         nullable=False,
     )
 
-    # Relationships
     user_roles: Mapped[list["UserRole"]] = relationship(
         "UserRole",
         back_populates="user",
@@ -73,9 +77,6 @@ class User(Base):
     roles: Mapped[list["Role"]] = relationship(
         "Role",
         secondary="user_roles",
-        # UserRole has two FKs to users (user_id, assigned_by_user_id);
-        # without an explicit join, SQLAlchemy can't tell which one this
-        # membership relationship should use.
         primaryjoin="User.id == UserRole.user_id",
         secondaryjoin="Role.id == UserRole.role_id",
         back_populates="users",
@@ -105,6 +106,31 @@ class User(Base):
     )
 
 
+class AuthEmailCode(Base):
+    __tablename__ = "auth_email_codes"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('verify', 'reset')", name="purpose_allowed"),
+        CheckConstraint("attempts >= 0", name="attempts_non_negative"),
+        UniqueConstraint("user_id", "purpose", name="uq_auth_email_codes_user_purpose"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(10), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    user: Mapped["User"] = relationship()
+    
+
 class Role(Base):
     __tablename__ = "roles"
     __table_args__ = (
@@ -122,11 +148,9 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    #: The five base roles: they cannot be deleted or renamed by code.
     is_system: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
-    #: Inheritance: this role has everything its parent has (see `app.core.rbac`).
     parent_role_id: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("roles.id", ondelete="RESTRICT"),
@@ -137,8 +161,6 @@ class Role(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    #: Loaded together with the role (and so up the whole chain) because authorization needs
-    #: the ancestors on every request and async sessions cannot lazy-load.
     parent: Mapped["Role | None"] = relationship(
         "Role", remote_side="Role.id", lazy="selectin", join_depth=6
     )
@@ -177,7 +199,6 @@ class Permission(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     module: Mapped[str] = mapped_column(String(50), nullable=False)
-    #: `recurso:accion` permissions carry both parts; legacy dotted ones have no action.
     resource: Mapped[str | None] = mapped_column(String(50), nullable=True)
     action: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

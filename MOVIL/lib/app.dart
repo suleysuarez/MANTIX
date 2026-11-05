@@ -1,4 +1,3 @@
-import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,19 +7,20 @@ import 'core/auth/bloc/auth_bloc.dart';
 import 'core/auth/bloc/permissions_cubit.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/data/mobile_auth_repository.dart';
 import 'features/requests/data/requests_repository.dart';
 
-/// Raíz de la app. Recibe las dependencias ya construidas (ver `main.dart`) y las
-/// reparte con `RepositoryProvider` y `BlocProvider`; las pantallas crean sus
-/// propios Bloc por ruta.
 class MantixApp extends StatefulWidget {
-  const MantixApp({super.key, required this.authBloc, required this.requestsRepository, this.clerk});
+  const MantixApp({
+    super.key,
+    required this.authBloc,
+    required this.requestsRepository,
+    required this.mobileAuthRepository,
+  });
 
   final AuthBloc authBloc;
   final RequestsRepository requestsRepository;
-
-  /// Estado de Clerk ya iniciado, o `null` si no hay clave o falló el arranque.
-  final ClerkAuthState? clerk;
+  final MobileAuthRepository mobileAuthRepository;
 
   @override
   State<MantixApp> createState() => _MantixAppState();
@@ -28,11 +28,7 @@ class MantixApp extends StatefulWidget {
 
 class _MantixAppState extends State<MantixApp> {
   late final GoRouterRefreshStream _refresh = GoRouterRefreshStream(widget.authBloc.stream);
-  late final GoRouter _router = createAppRouter(
-    authBloc: widget.authBloc,
-    refresh: _refresh,
-    hasClerk: widget.clerk != null,
-  );
+  late final GoRouter _router = createAppRouter(authBloc: widget.authBloc, refresh: _refresh);
 
   @override
   void dispose() {
@@ -43,9 +39,11 @@ class _MantixAppState extends State<MantixApp> {
 
   @override
   Widget build(BuildContext context) {
-    final clerk = widget.clerk;
     return MultiRepositoryProvider(
-      providers: [RepositoryProvider.value(value: widget.requestsRepository)],
+      providers: [
+        RepositoryProvider.value(value: widget.requestsRepository),
+        RepositoryProvider.value(value: widget.mobileAuthRepository),
+      ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: widget.authBloc),
@@ -63,13 +61,6 @@ class _MantixAppState extends State<MantixApp> {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          // Los widgets de Clerk necesitan su estado en el árbol, por encima del router.
-          builder: clerk == null
-              ? null
-              : (context, child) => ClerkAuth(
-                    authState: clerk,
-                    child: ClerkErrorListener(child: child ?? const SizedBox.shrink()),
-                  ),
         ),
       ),
     );

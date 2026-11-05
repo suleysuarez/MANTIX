@@ -11,11 +11,10 @@ import '../user_profile.dart';
 part 'auth_event.dart';
 part 'auth_state.dart';
 
-/// Sesión de la app. Envuelve al [AuthProvider] (Clerk) sin duplicar su estado:
-/// Clerk sigue siendo la fuente de verdad de «hay sesión» y este Bloc solo
-/// resuelve qué significa para la app (perfil, roles y permisos de `/auth/me`).
+/// Sesión de la app. El proveedor nativo guarda el token y este Bloc resuelve
+/// el perfil, los roles y los permisos devueltos por `/auth/me`.
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({required this._auth, required this._repository}) : super(const AuthUnknown()) {
+  AuthBloc({required AuthProvider auth, required AuthRepository repository}) : _auth = auth, _repository = repository, super(const AuthUnknown()) {
     on<AuthStarted>((_, emit) async => emit(await _load()));
     on<AuthRefreshRequested>(_onRefresh);
     on<AuthSignOutRequested>(_onSignOut);
@@ -27,7 +26,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _repository;
   late final StreamSubscription<bool> _signInChanges;
 
-  // Startup and Clerk's sign-in stream can both reach /auth/me at once.
+  // Startup and a native sign-in event can both reach /auth/me at once.
   // Keep token checks independent, but share the in-flight profile request so
   // a login event arriving during startup is not hidden by an earlier null token.
   Future<UserProfile>? _profileInFlight;
@@ -63,7 +62,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onRefresh(AuthRefreshRequested event, Emitter<AuthState> emit) async {
     final before = state;
-    // Desde el login no se pasa por la pantalla de carga: el formulario de Clerk sigue visible.
+    // Mantén visible el formulario mientras el usuario no haya iniciado sesión.
     if (before is! AuthUnauthenticated && before is! AuthUnknown) {
       emit(const AuthUnknown());
     }

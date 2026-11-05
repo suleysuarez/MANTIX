@@ -120,6 +120,10 @@ class ClerkAuthService:
         return provisioned
 
     async def _assign_bootstrap_admin(self, user: User) -> bool:
+        # A native mobile account must remain pending until an administrator grants a role.
+        # Do not let a later Clerk web sign-in promote it through the legacy first-user rule.
+        if user.password_hash is not None:
+            return False
         await self.repository.lock_admin_bootstrap()
         if await self.repository.has_assigned_application_role():
             return False

@@ -198,7 +198,7 @@ void main() {
     expect(bloc.state, const AuthUnauthenticated(failure: UnauthorizedFailure()));
   });
 
-  test('cuando Clerk inicia sesión por su cuenta se carga el perfil', () async {
+  test('cuando el proveedor emite un inicio de sesión se carga el perfil', () async {
     final auth = FakeAuthProvider(token: null);
     final bloc = authBloc(auth: auth, adapter: FakeAdapter((_) => jsonResponse(200, me())));
     addTearDown(bloc.close);
@@ -211,7 +211,7 @@ void main() {
     expect(bloc.state.profile?.fullName, 'Tec Uno');
   });
 
-  test('si Clerk cierra la sesión tras una expiración no se pierde el mensaje', () async {
+  test('si el proveedor cierra la sesión tras una expiración no se pierde el mensaje', () async {
     final auth = FakeAuthProvider();
     final bloc = authBloc(auth: auth, adapter: FakeAdapter((_) => jsonResponse(200, me())));
     addTearDown(bloc.close);

@@ -27,6 +27,17 @@ class Settings(BaseSettings):
         default="http://localhost:4200", validation_alias="CLERK_AUTHORIZED_PARTIES"
     )
 
+    # Native mobile authentication is independent from Clerk (web).
+    mobile_jwt_secret: str = Field(default="", validation_alias="MOBILE_JWT_SECRET")
+    mobile_access_token_minutes: int = Field(
+        default=480, ge=5, le=720, validation_alias="MOBILE_ACCESS_TOKEN_MINUTES"
+    )
+    resend_api_key: str = Field(default="", validation_alias="RESEND_API_KEY")
+    resend_from_email: str = Field(default="", validation_alias="RESEND_FROM_EMAIL")
+    auth_verification_expire_minutes: int = Field(
+        default=10, ge=3, le=60, validation_alias="AUTH_VERIFICATION_EXPIRE_MINUTES"
+    )
+
     upload_dir: str = Field(default="uploads", validation_alias="UPLOAD_DIR")
     max_upload_mb: int = Field(
         default=10, ge=1, le=100, validation_alias="MAX_UPLOAD_MB"
@@ -85,9 +96,7 @@ class Settings(BaseSettings):
     @property
     def clerk_authorized_party_list(self) -> list[str]:
         return [
-            origin.strip()
-            for origin in self.clerk_authorized_parties.split(",")
-            if origin.strip()
+            origin.strip() for origin in self.clerk_authorized_parties.split(",") if origin.strip()
         ]
 
 

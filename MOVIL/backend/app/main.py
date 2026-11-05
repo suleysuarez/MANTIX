@@ -17,6 +17,7 @@ from app.api.routes.export import router as export_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.maintenance_overview import router as maintenance_overview_router
+from app.api.routes.mobile_auth import router as mobile_auth_router
 from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
 from app.api.routes.profile import router as profile_router
@@ -44,7 +45,7 @@ configure_logging(settings.log_level)
 DESCRIPTION = """
 REST API for **Mantix**, a technology-equipment maintenance system.
 
-* **Authentication** is delegated to Clerk: send `Authorization: Bearer <session JWT>`.
+* **Web authentication** uses Clerk; the native mobile app uses Mantix email/password tokens.
   Clerk issues short-lived tokens and handles refresh, rotation and revocation.
 * **Authorization** is role and permission based (ADMIN, SUPERVISOR, TECHNICIAN,
   EMPLOYEE and AUDITOR). Permissions use the `resource:action` format (for example
@@ -58,6 +59,7 @@ REST API for **Mantix**, a technology-equipment maintenance system.
 
 TAGS_METADATA = [
     {"name": "authentication", "description": "Current user, roles and permissions."},
+    {"name": "mobile-authentication", "description": "Native mobile registration, verification and password recovery."},
     {"name": "administration", "description": "User onboarding and role assignment."},
     {"name": "equipment", "description": "Equipment catalog, locations and custody."},
     {
@@ -153,6 +155,7 @@ COMMON_ERRORS = error_responses(401, 403, 422, 429)
 
 API_ROUTERS = (
     auth_router,
+    mobile_auth_router,
     admin_router,
     users_router,
     profile_router,
