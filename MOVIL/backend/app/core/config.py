@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Native mobile authentication is independent from Clerk (web).
     mobile_jwt_secret: str = Field(default="", validation_alias="MOBILE_JWT_SECRET")
     mobile_access_token_minutes: int = Field(
-        default=20, ge=5, le=120, validation_alias="MOBILE_ACCESS_TOKEN_MINUTES"
+        default=480, ge=5, le=720, validation_alias="MOBILE_ACCESS_TOKEN_MINUTES"
     )
     resend_api_key: str = Field(default="", validation_alias="RESEND_API_KEY")
     resend_from_email: str = Field(default="", validation_alias="RESEND_FROM_EMAIL")
