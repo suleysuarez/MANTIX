@@ -28,6 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _trends = {};
   Map<String, dynamic> _alerts = {};
   List<dynamic> _topEquipment = [];
+  List<dynamic> _technicians = [];
 
   static const _navItems = <_NavItem>[
     _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
@@ -75,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       safe(() => repository.loadTrends(_period)),
       safe(repository.loadAlerts),
       safe(() => repository.loadTopEquipment(_period)),
+      safe(() => repository.loadTechnicians(_period)),
     ]);
     if (!mounted) return;
     setState(() {
@@ -83,8 +85,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _alerts = results[2];
       final equipment = results[3]['equipment'];
       _topEquipment = equipment is List ? equipment : [];
+      final technicians = results[4]['technicians'];
+      _technicians = technicians is List ? technicians : [];
       _loading = false;
-      if (_kpis.isEmpty && _trends.isEmpty && _alerts.isEmpty) {
+      if (_kpis.isEmpty && _trends.isEmpty && _alerts.isEmpty && _technicians.isEmpty) {
         _error = 'No pudimos cargar los indicadores. Revisa tu conexión o tus permisos.';
       }
     });
@@ -216,6 +220,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: _EquipmentRanking(items: _topEquipment),
                   ),
                 ],
+                const SizedBox(height: 14),
+                _SectionCard(
+                  title: isGlobal ? 'Rendimiento del equipo técnico' : 'Mi rendimiento',
+                  subtitle: _periodLabel(),
+                  child: _TechnicianPerformance(items: _technicians),
+                ),
                 const SizedBox(height: 14),
                 Container(key: _alertsKey),
                 _SectionCard(
@@ -695,6 +705,80 @@ class _EquipmentRanking extends StatelessWidget {
           ),
     ]);
   }
+}
+
+
+class _TechnicianPerformance extends StatelessWidget {
+  const _TechnicianPerformance({required this.items});
+  final List<dynamic> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Text('No hay datos de rendimiento disponibles para este periodo.', style: TextStyle(color: AppColors.slate, fontSize: 11));
+    }
+    return Column(
+      children: [
+        for (final item in items.take(6))
+          if (item is Map)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 5),
+                    decoration: BoxDecoration(
+                      color: item['is_available'] == true ? const Color(0xFF20A67A) : AppColors.mustard,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${item['full_name'] ?? 'Técnico'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF244765), fontSize: 11, fontWeight: FontWeight.w800)),
+                        Text('${item['specialization'] ?? 'Sin especialidad'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9)),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: [
+                            _TechMetric(label: 'Abiertos', value: '${item['open_tickets'] ?? 0}'),
+                            _TechMetric(label: 'Resueltos', value: '${item['resolved'] ?? 0}'),
+                            _TechMetric(label: 'MTTR', value: item['mttr_median_hours'] is num ? '${((item['mttr_median_hours'] as num) / 24).toStringAsFixed(1)} d' : '—'),
+                            _TechMetric(label: 'SLA', value: item['sla_compliance_pct'] is num ? '${(item['sla_compliance_pct'] as num).toStringAsFixed(0)}%' : '—'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+class _TechMetric extends StatelessWidget {
+  const _TechMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => RichText(
+    text: TextSpan(
+      style: const TextStyle(fontSize: 9, color: AppColors.slate),
+      children: [
+        TextSpan(text: '$label '),
+        TextSpan(text: value, style: const TextStyle(color: AppColors.steel, fontWeight: FontWeight.w800)),
+      ],
+    ),
+  );
 }
 
 class _AlertsList extends StatelessWidget {
