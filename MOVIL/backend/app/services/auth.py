@@ -2,7 +2,12 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
 
-from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, get_clerk_profile
+from app.core.clerk import (
+    ClerkProfile,
+    VerifiedClerkIdentity,
+    get_clerk_profile,
+    get_verified_clerk_profile,
+)
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.core.rbac import effective_permission_objects
