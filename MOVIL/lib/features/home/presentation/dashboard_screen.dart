@@ -417,6 +417,12 @@ class _BrandWordmark extends StatelessWidget {
     width: fontSize >= 27 ? 142 : 132,
     height: 38,
     fit: BoxFit.contain,
+    colorFilter: const ColorFilter.matrix([
+                  1, 0, 0, 0, 0,
+                  0, 1, 0, 0, 0,
+                  0, 0, 1, 0, 0,
+                  -1, -1, -1, 1, 2,
+                ]),
     alignment: Alignment.centerLeft,
     errorBuilder: (context, error, stackTrace) => const Text(
       'MANTIX',
@@ -456,6 +462,12 @@ class _WelcomeHero extends StatelessWidget {
               child: Image.asset(
                 'assets/images/dashboard/dashboard-illustration.webp',
                 fit: BoxFit.contain,
+                colorFilter: const ColorFilter.matrix([
+                  1, 0, 0, 0, 0,
+                  0, 1, 0, 0, 0,
+                  0, 0, 1, 0, 0,
+                  -1, -1, -1, 1, 2,
+                ]),
                 alignment: Alignment.centerRight,
                 errorBuilder: (context, error, stackTrace) => Icon(
                   Icons.memory_rounded,
