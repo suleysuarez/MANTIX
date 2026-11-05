@@ -99,12 +99,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '$value$suffix';
   }
 
-  String _percent(dynamic value) => value is num ? '${value.toStringAsFixed(1)}%' : '—';
+  String _percent(dynamic value) => value is num ? '${value.toStringAsFixed(1).replaceAll('.', ',')}%' : '—';
 
   String _duration(dynamic hours) {
     if (hours is! num) return '—';
-    final days = hours / 24;
-    return days >= 1 ? '${days.toStringAsFixed(1)} d' : '${hours.toStringAsFixed(1)} h';
+    if (hours < 1) return '${(hours * 60).round().clamp(1, 59)} min';
+    return hours < 48
+        ? '${hours.toStringAsFixed(1).replaceAll('.', ',')} h'
+        : '${(hours / 24).toStringAsFixed(1).replaceAll('.', ',')} d';
   }
 
   String _periodLabel() => switch (_period) {
