@@ -87,8 +87,7 @@ class _MantixClerkAuthenticationState
           const ClerkSignUpPanel()
         else
           const ClerkSignInPanel(),
-        if (env.signUpIsOpen) ...[
-          const SizedBox(height: 8),
+        const SizedBox(height: 8),
           Center(
             child: Text.rich(
               TextSpan(
@@ -113,7 +112,6 @@ class _MantixClerkAuthenticationState
               textAlign: TextAlign.center,
             ),
           ),
-        ],
         const SizedBox(height: 12),
         Center(child: Text('Secured by Clerk', style: styles.subtext)),
       ],
