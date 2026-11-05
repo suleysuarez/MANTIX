@@ -5,6 +5,8 @@ import 'package:clerk_flutter/src/widgets/authentication/clerk_sign_up_panel.dar
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 /// Mantix layout around Clerk's own authentication panels.
 ///
 /// The stock ClerkAuthentication adds a default organization-logo placeholder.
@@ -37,6 +39,7 @@ class _MantixClerkAuthenticationState
     final localizations = ClerkAuth.localizationsOf(context);
     final theme = ClerkAuth.themeExtensionOf(context);
     final styles = theme.styles;
+    final signInTheme = _signInPanelTheme(Theme.of(context), theme);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -86,7 +89,7 @@ class _MantixClerkAuthenticationState
         if (_signingUp)
           const ClerkSignUpPanel()
         else
-          const ClerkSignInPanel(),
+          Theme(data: signInTheme, child: const ClerkSignInPanel()),
         const SizedBox(height: 8),
           Center(
             child: Text.rich(
@@ -103,7 +106,7 @@ class _MantixClerkAuthenticationState
                     text: _signingUp
                         ? localizations.signIn
                         : localizations.signUp,
-                    style: styles.subheading.copyWith(color: theme.colors.accent),
+                    style: styles.subheading.copyWith(color: AuthTokens.accent),
                     recognizer: TapGestureRecognizer()
                       ..onTap = () => setState(() => _signingUp = !_signingUp),
                   ),
@@ -117,4 +120,46 @@ class _MantixClerkAuthenticationState
       ],
     );
   }
+}
+
+ 
+ThemeData _signInPanelTheme(ThemeData base, ClerkThemeExtension current) {
+  final colors = current.colors;
+  final signInColors = ClerkThemeColors(
+    background: Colors.white,
+    altBackground: colors.altBackground,
+    borderSide: colors.borderSide,
+    text: colors.text,
+    icon: colors.icon,
+    lightweightText: colors.lightweightText,
+    error: colors.error,
+    accent: AuthTokens.buttonFill,
+  );
+  return base.copyWith(
+    extensions: [
+      _MantixButtonThemeExtension(
+        colors: signInColors,
+        stylesBuilder: (value) => _MantixClerkThemeStyles(colors: value),
+      ),
+    ],
+  );
+}
+
+class _MantixButtonThemeExtension extends ClerkThemeExtension {
+  _MantixButtonThemeExtension({
+    required super.colors,
+    required super.stylesBuilder,
+  });
+
+  @override
+  BorderSide get borderSide =>
+      const BorderSide(color: AuthTokens.glassBorder, width: 1.25);
+}
+
+class _MantixClerkThemeStyles extends ClerkThemeStyles {
+  _MantixClerkThemeStyles({required super.colors});
+
+  @override
+  TextStyle get clickableText =>
+      super.clickableText.copyWith(color: AuthTokens.accent);
 }
