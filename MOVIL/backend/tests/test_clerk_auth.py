@@ -9,7 +9,7 @@ from app.api.dependencies import require_permission
 from app.core.authz import AuthContext
 from app.core.clerk import ClerkProfile, VerifiedClerkIdentity, verify_clerk_request
 from app.core.config import Settings
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ConflictError, ForbiddenError
 from app.schemas.auth import UserResponse
 from app.services.auth import ClerkAuthService, user_response
 
@@ -28,7 +28,8 @@ class FakeRepository:
             return self.user
         return None
 
-    async def get_user_by_email(self, email):
+    async def get_user_by_email(self, email, *, for_update=False):
+        self.email_lookup_locked = for_update
         if self.user and self.user.email == email:
             return self.user
         return None
@@ -96,7 +97,18 @@ async def test_first_clerk_user_is_provisioned_as_admin(monkeypatch) -> None:
     async def load_profile(*_):
         return profile
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda *_: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                "user_clerk_123",
+                "employee@example.com",
+                "Example Employee",
+                email_verified=True,
+            ),
+        ),
+    )
     repository = FakeRepository(role=role())
     service = ClerkAuthService(object(), Settings())
     service.repository = repository
@@ -115,7 +127,18 @@ async def test_subsequent_clerk_user_is_pending_without_role(monkeypatch) -> Non
     async def load_profile(*_):
         return profile
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda current_identity, _settings: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                current_identity.user_id,
+                current_identity.claims["email"],
+                current_identity.claims.get("name", "Clerk user"),
+                email_verified=True,
+            ),
+        ),
+    )
     shared = {"lock": asyncio.Lock(), "assigned": True}
     repository = FakeRepository(role=role(), shared=shared)
     service = ClerkAuthService(object(), Settings())
@@ -137,7 +160,18 @@ async def test_concurrent_first_logins_assign_admin_only_once(monkeypatch) -> No
             identity.user_id, f"{identity.user_id}@example.com", identity.user_id
         )
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda current_identity, _settings: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                current_identity.user_id,
+                f"{current_identity.user_id}@example.com",
+                current_identity.user_id,
+                email_verified=True,
+            ),
+        ),
+    )
     shared = {"lock": asyncio.Lock(), "assigned": False}
     repositories = [FakeRepository(role=role(), shared=shared) for _ in range(2)]
     services = [ClerkAuthService(object(), Settings()) for _ in repositories]
@@ -173,6 +207,80 @@ async def test_existing_clerk_link_is_preserved() -> None:
 
     assert user is existing
     assert repository.created is None
+
+
+@pytest.mark.asyncio
+async def test_verified_email_relinks_same_local_user_and_preserves_roles(monkeypatch):
+    existing = SimpleNamespace(
+        id=3,
+        clerk_user_id="user_old",
+        email="employee@example.com",
+        full_name="Existing Profile",
+        employee_code="E-3",
+        is_active=True,
+        last_login_at=None,
+        roles=[role()],
+    )
+
+    async def verified_profile(current_identity, _settings):
+        return ClerkProfile(
+            current_identity.user_id,
+            "employee@example.com",
+            "Existing Profile",
+            email_verified=True,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", verified_profile
+    )
+    repository = FakeRepository(user=existing)
+    service = ClerkAuthService(object(), Settings())
+    service.repository = repository
+
+    user = await service.resolve_local_user(identity("user_new"))
+
+    assert user is existing
+    assert user.id == 3
+    assert user.clerk_user_id == "user_new"
+    assert user.roles[0].code == "ADMIN"
+    assert repository.email_lookup_locked is True
+    assert repository.committed
+
+
+@pytest.mark.asyncio
+async def test_unverified_or_mismatched_email_keeps_existing_clerk_link(monkeypatch):
+    existing = SimpleNamespace(
+        id=3,
+        clerk_user_id="user_old",
+        email="employee@example.com",
+        full_name="Existing Profile",
+        employee_code="E-3",
+        is_active=True,
+        last_login_at=None,
+        roles=[role()],
+    )
+
+    async def unverified_profile(current_identity, _settings):
+        return ClerkProfile(
+            current_identity.user_id,
+            "employee@example.com",
+            "Existing Profile",
+            email_verified=False,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", unverified_profile
+    )
+    repository = FakeRepository(user=existing)
+    service = ClerkAuthService(object(), Settings())
+    service.repository = repository
+
+    with pytest.raises(ConflictError) as error:
+        await service.resolve_local_user(identity("user_new"))
+
+    assert error.value.code == "account_email_linked_to_other"
+    assert existing.clerk_user_id == "user_old"
+    assert not repository.committed
 
 
 class RecordingAudit:

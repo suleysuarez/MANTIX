@@ -27,10 +27,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _repository;
   late final StreamSubscription<bool> _signInChanges;
 
+  // Startup and Clerk's sign-in stream can both reach /auth/me at once.
+  // Keep token checks independent, but share the in-flight profile request so
+  // a login event arriving during startup is not hidden by an earlier null token.
+  Future<UserProfile>? _profileInFlight;
+
+  Future<UserProfile> _loadProfileOnce() {
+    final inFlight = _profileInFlight;
+    if (inFlight != null) return inFlight;
+
+    final request = _repository.me();
+    _profileInFlight = request;
+    return request.whenComplete(() {
+      if (identical(_profileInFlight, request)) _profileInFlight = null;
+    });
+  }
+
   Future<AuthState> _load() async {
     if (await _auth.accessToken() == null) return const AuthUnauthenticated();
     try {
-      final profile = await _repository.me();
+      final profile = await _loadProfileOnce();
       if (!profile.isActive) return const AuthUnauthenticated(failure: ForbiddenFailure());
       return switch (profile.status) {
         AccountStatus.pendingApproval => AuthPending(profile),
@@ -48,7 +64,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onRefresh(AuthRefreshRequested event, Emitter<AuthState> emit) async {
     final before = state;
     // Desde el login no se pasa por la pantalla de carga: el formulario de Clerk sigue visible.
-    if (before is! AuthUnauthenticated) emit(const AuthUnknown());
+    if (before is! AuthUnauthenticated && before is! AuthUnknown) {
+      emit(const AuthUnknown());
+    }
     final next = await _load();
     // Si ya estábamos sin sesión, un «sigue sin sesión» no borra el motivo (por ejemplo,
     // «tu sesión expiró»).

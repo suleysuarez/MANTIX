@@ -65,7 +65,19 @@ def service(session, monkeypatch):
         claims = identity.claims
         return ClerkProfile(identity.user_id, claims["email"], claims["name"])
 
+    async def verified_profile(identity, settings):
+        claims = identity.claims
+        return ClerkProfile(
+            identity.user_id,
+            claims["email"].lower(),
+            claims["name"],
+            email_verified=True,
+        )
+
     monkeypatch.setattr("app.services.auth.get_clerk_profile", profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", verified_profile
+    )
     return ClerkAuthService(AuthRepository(session), Settings())
 
 
@@ -143,9 +155,44 @@ async def test_inactive_local_users_are_refused(session, service):
 
 
 @needs_db
-async def test_an_email_already_linked_to_another_clerk_account_is_a_conflict(
+async def test_verified_same_email_relinks_existing_user_without_losing_roles(
     session, service
 ):
+    existing = User(
+        clerk_user_id="clerk_a",
+        email="shared@example.com",
+        full_name="Existing Account",
+        is_active=True,
+    )
+    session.add(existing)
+    await session.flush()
+    user_id = existing.id
+
+    resolved = await service.resolve_local_user(
+        identity("clerk_b", "shared@example.com")
+    )
+
+    assert resolved.id == user_id
+    assert resolved.clerk_user_id == "clerk_b"
+    assert resolved.email == "shared@example.com"
+    assert resolved.full_name == "Existing Account"
+
+
+@needs_db
+async def test_unverified_email_cannot_relink_existing_user(
+    session, service, monkeypatch
+):
+    async def unverified_profile(identity, settings):
+        return ClerkProfile(
+            identity.user_id,
+            identity.claims["email"].lower(),
+            identity.claims["name"],
+            email_verified=False,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", unverified_profile
+    )
     session.add(
         User(
             clerk_user_id="clerk_a",
@@ -155,7 +202,8 @@ async def test_an_email_already_linked_to_another_clerk_account_is_a_conflict(
         )
     )
     await session.flush()
-    with pytest.raises(ConflictError, match="already linked"):
+
+    with pytest.raises(ConflictError, match="not verified"):
         await service.resolve_local_user(identity("clerk_b", "shared@example.com"))
 
 
@@ -194,6 +242,52 @@ async def test_profile_comes_from_token_claims_when_they_include_an_email():
         identity("u1", "MiXeD@Example.com", "Ana"), SETTINGS
     )
     assert profile == ClerkProfile("u1", "mixed@example.com", "Ana")
+
+
+async def test_verified_profile_uses_clerk_primary_email_and_verification(monkeypatch):
+    clerk_user = SimpleNamespace(
+        email_addresses=[
+            SimpleNamespace(
+                id="e1",
+                email_address="Primary@Example.com",
+                verification=SimpleNamespace(status="verified"),
+            )
+        ],
+        primary_email_address_id="e1",
+        first_name="Ana",
+        last_name="Ruiz",
+    )
+    client = fake_clerk(clerk_user)
+    monkeypatch.setattr(clerk_module, "get_clerk_client", lambda key: client)
+    profile = await clerk_module.get_verified_clerk_profile(
+        VerifiedClerkIdentity("u1", {"sub": "u1", "email": "untrusted@example.com"}),
+        SETTINGS,
+    )
+    assert profile.email == "primary@example.com"
+    assert profile.email_verified is True
+    assert client.users.calls == ["u1"]
+
+
+async def test_verified_profile_marks_unverified_primary_email(monkeypatch):
+    clerk_user = SimpleNamespace(
+        email_addresses=[
+            SimpleNamespace(
+                id="e1",
+                email_address="primary@example.com",
+                verification=SimpleNamespace(status="unverified"),
+            )
+        ],
+        primary_email_address_id="e1",
+        first_name="Ana",
+        last_name="Ruiz",
+    )
+    monkeypatch.setattr(
+        clerk_module, "get_clerk_client", lambda key: fake_clerk(clerk_user)
+    )
+    profile = await clerk_module.get_verified_clerk_profile(
+        VerifiedClerkIdentity("u1", {"sub": "u1"}), SETTINGS
+    )
+    assert profile.email_verified is False
 
 
 async def test_profile_is_fetched_from_clerk_using_the_primary_email(monkeypatch):
