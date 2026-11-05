@@ -96,7 +96,8 @@ abstract final class AppTheme {
     final fieldBorder = OutlineInputBorder(
       borderRadius: AppRadius.mdAll,
       borderSide: BorderSide(
-        color: AuthTokens.glassBorder.withValues(alpha: 0.35),
+        color: AuthTokens.glassBorder.withValues(alpha: 0.55),
+        width: 1,
       ),
     );
     return base.copyWith(
@@ -114,7 +115,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.06),
+        fillColor: Colors.white.withValues(alpha: 0.10),
         hintStyle: const TextStyle(color: AuthTokens.textMuted),
         border: fieldBorder,
         enabledBorder: fieldBorder,

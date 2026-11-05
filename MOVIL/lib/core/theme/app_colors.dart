@@ -116,12 +116,15 @@ abstract final class AuthTokens {
   static const Color glassFillBottom = Color(0xFF071A3D);
   static const Color glassBorder = Color(0xFF38D6FF);
   static const Color accent = Color(0xFF22D3EE);
+  static const Color buttonFill = Color(0xCC061B3A);
   static const Color textPrimary = Colors.white;
   static const Color textMuted = Color(0xB3FFFFFF);
   static const Color error = Color(0xFFFF8A80);
   static const Color glassBorderSoft = Color(0x5938D6FF);
 
   static const double maxCardWidth = 420;
-  static const double logoZone = 0.27; // sube visiblemente la tarjeta sin invadir el logo
+  // Measured fraction of login.webp occupied by the logo, through its baseline.
+  static const double logoBottomFraction = 0.31;
+  static const double logoClearance = 16;
   static const double cardRadius = 28;
 }
