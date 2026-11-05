@@ -11,14 +11,14 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from fastapi import HTTPException, status
 from pwdlib import PasswordHash
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
-from app.models.auth import AuthEmailCode, Role, User
+from app.models.auth import AuthEmailCode, Role, User, UserRole
 from app.services.auth import user_response
 from app.services.resend_email import ResendEmailService
 
@@ -51,6 +51,24 @@ class MobileAuthService:
             query = query.with_for_update()
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def _assign_bootstrap_admin(self, user: User) -> bool:
+        """Grant ADMIN once, to the first account claiming an application role."""
+        # Match the legacy bootstrap rule while serializing concurrent sign-ups.
+        await self.session.execute(text("SELECT pg_advisory_xact_lock(85219401)"))
+        assigned = await self.session.execute(select(UserRole.id).limit(1))
+        if assigned.scalar_one_or_none() is not None:
+            return False
+
+        result = await self.session.execute(
+            select(Role).where(Role.code == "ADMIN", Role.is_active.is_(True))
+        )
+        admin_role = result.scalar_one_or_none()
+        if admin_role is None:
+            raise AppError("bootstrap ADMIN role is not configured")
+        self.session.add(UserRole(user_id=user.id, role_id=admin_role.id))
+        await self.session.flush()
+        return True
 
     async def _issue_code(self, user: User, purpose: str) -> None:
         code = f"{secrets.randbelow(1_000_000):06d}"
@@ -112,6 +130,7 @@ class MobileAuthService:
                 and existing_user.email_verified_at is None
                 and existing_user.clerk_user_id is None
             ):
+                await self._assign_bootstrap_admin(existing_user)
                 await self._issue_code(existing_user, "verify")
                 return
             raise ConflictError("Ya existe una cuenta con este correo.", code="user_email_taken")
@@ -123,6 +142,7 @@ class MobileAuthService:
         self.session.add(user)
         try:
             await self.session.flush()
+            await self._assign_bootstrap_admin(user)
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
@@ -143,6 +163,7 @@ class MobileAuthService:
             raise ForbiddenError("Este correo ya fue verificado. Inicia sesión.", code="auth_email_already_verified")
         await self._consume_code(user, "verify", code)
         user.email_verified_at = datetime.now(UTC)
+        await self._assign_bootstrap_admin(user)
         await self.session.commit()
         return await self._session_response(user.id)
 
@@ -155,6 +176,8 @@ class MobileAuthService:
             raise ForbiddenError("Verifica tu correo antes de iniciar sesión.", code="auth_email_not_verified")
         if not user.is_active:
             raise ForbiddenError("La cuenta está desactivada.", code="user_inactive")
+        if await self._assign_bootstrap_admin(user):
+            await self.session.commit()
         return await self._session_response(user.id)
 
     async def forgot_password(self, email: str) -> None:
