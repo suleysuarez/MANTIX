@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/no_access_screen.dart';
 import '../../features/auth/presentation/pending_screen.dart';
+import '../../features/auth/presentation/unavailable_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/dev/presentation/components_gallery_screen.dart';
 import '../../features/home/presentation/home_placeholder_screen.dart';
@@ -88,6 +89,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashScreen()),
       GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
       GoRoute(path: AppRoutes.pending, builder: (_, _) => const PendingScreen()),
+      GoRoute(path: AppRoutes.unavailable, builder: (_, _) => const UnavailableScreen()),
       GoRoute(path: AppRoutes.noAccess, builder: (_, _) => const NoAccessScreen()),
       GoRoute(path: HomeDestination.profile.path, builder: (_, _) => const ProfileScreen()),
       // Solo en debug: no existe en las compilaciones de producción.
