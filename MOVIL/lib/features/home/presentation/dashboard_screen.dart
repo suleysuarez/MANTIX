@@ -499,13 +499,13 @@ class _WelcomeHero extends StatelessWidget {
               ),
               const Spacer(),
               const SizedBox(
-                width: 230,
-                child: Text('Sistema inteligente\nde mantenimiento', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.08, fontWeight: FontWeight.w900)),
+                width: 185,
+                child: Text('Sistema inteligente\nde mantenimiento', style: TextStyle(color: Colors.white, fontSize: 18, height: 1.08, fontWeight: FontWeight.w900)),
               ),
               const SizedBox(height: 5),
               const SizedBox(
-                width: 230,
-                child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico.', style: TextStyle(color: AuthTokens.textMuted, fontSize: 10, height: 1.3)),
+                width: 180,
+                child: Text('Gestión de incidentes y control del parque tecnológico.', style: TextStyle(color: AuthTokens.textMuted, fontSize: 9, height: 1.25)),
               ),
             ],
           ),
