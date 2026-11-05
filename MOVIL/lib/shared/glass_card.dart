@@ -1,32 +1,36 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
 
-import '../core/theme/app_colors.dart';
-import '../core/theme/app_tokens.dart';
-
-/// Tarjeta translúcida con desenfoque. **Solo para elementos puntuales** (el plan
-/// no admite glass en toda la interfaz). Se coloca sobre un fondo oscuro o de
-/// color y con texto blanco: sobre fondo claro no hay contraste suficiente.
 class GlassCard extends StatelessWidget {
-  const GlassCard({super.key, required this.child, this.padding = const EdgeInsets.all(AppSpacing.lg)});
-
+  const GlassCard({super.key, required this.child});
   final Widget child;
-  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(AuthTokens.cardRadius));
     return ClipRRect(
-      borderRadius: AppRadius.lgAll,
+      borderRadius: radius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: DecoratedBox(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.25),
-            borderRadius: AppRadius.lgAll,
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.5)),
+            borderRadius: radius,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AuthTokens.glassFillTop.withValues(alpha: 0.45),
+                AuthTokens.glassFillBottom.withValues(alpha: 0.35),
+              ],
+            ),
+            border: Border.all(
+              color: AuthTokens.glassBorder.withValues(alpha: 0.35),
+            ),
           ),
-          child: Padding(padding: padding, child: child),
+          child: child,
         ),
       ),
     );

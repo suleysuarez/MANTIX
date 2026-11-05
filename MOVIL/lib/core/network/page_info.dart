@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:equatable/equatable.dart';
 
 /// Paginación que el backend devuelve en cabeceras (`X-Total-Count`, `X-Page`,
 /// `X-Page-Size`, `X-Total-Pages`). El cuerpo es un array JSON plano.
-class PageInfo {
+class PageInfo extends Equatable {
   const PageInfo({required this.total, required this.page, required this.pageSize, required this.totalPages});
 
   /// Tamaño de página que envía la app (docs/flutter-plan.md).
@@ -14,6 +15,9 @@ class PageInfo {
   final int page;
   final int pageSize;
   final int totalPages;
+
+  @override
+  List<Object?> get props => [total, page, pageSize, totalPages];
 
   bool get hasNext => page < totalPages;
 

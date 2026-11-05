@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -36,6 +37,7 @@ class FakeAuthProvider implements AuthProvider {
   }
 
   late String? _token;
+  final _signInChanges = StreamController<bool>.broadcast();
   int refreshCalls = 0;
   bool signedOut = false;
 
@@ -52,5 +54,14 @@ class FakeAuthProvider implements AuthProvider {
   Future<void> signOut() async {
     signedOut = true;
     _token = null;
+  }
+
+  @override
+  Stream<bool> get signInChanges => _signInChanges.stream;
+
+  /// Imita que Clerk inicia (o cierra) sesión por su cuenta: con [token] hay sesión.
+  void simulateSignIn({String? token = 'token-0'}) {
+    _token = token;
+    _signInChanges.add(token != null);
   }
 }

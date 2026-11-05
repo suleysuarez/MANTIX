@@ -1,7 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/auth/bloc/auth_bloc.dart';
 import 'package:mantix/core/auth/home_resolver.dart';
-import 'package:mantix/core/auth/session.dart';
 import 'package:mantix/core/auth/user_profile.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/routing/app_router.dart';
@@ -15,51 +14,57 @@ UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions
       permissions: permissions,
     );
 
-String? redirect(SessionState? state, String location) =>
-    redirectFor(session: state == null ? const AsyncLoading() : AsyncData(state), location: location);
+/// Estado de sesión que resultaría de cargar [p] (igual que lo decide el `AuthBloc`).
+AuthState signedIn(UserProfile p) => switch (p.status) {
+      AccountStatus.pendingApproval => AuthPending(p),
+      AccountStatus.noAccess => AuthNoAccess(p),
+      AccountStatus.active => Authenticated(p),
+    };
+
+String? redirect(AuthState state, String location) => redirectFor(auth: state, location: location);
 
 void main() {
   test('mientras carga la sesión, todo va a la pantalla de carga', () {
-    expect(redirect(null, AppRoutes.login), AppRoutes.splash);
-    expect(redirect(null, AppRoutes.splash), isNull);
+    expect(redirect(const AuthUnknown(), AppRoutes.login), AppRoutes.splash);
+    expect(redirect(const AuthUnknown(), AppRoutes.splash), isNull);
   });
 
   test('sin sesión va al login', () {
-    expect(redirect(const SignedOut(), AppRoutes.splash), AppRoutes.login);
-    expect(redirect(const SignedOut(), HomeDestination.profile.path), AppRoutes.login);
-    expect(redirect(const SignedOut(), AppRoutes.login), isNull);
+    expect(redirect(const AuthUnauthenticated(), AppRoutes.splash), AppRoutes.login);
+    expect(redirect(const AuthUnauthenticated(), HomeDestination.profile.path), AppRoutes.login);
+    expect(redirect(const AuthUnauthenticated(), AppRoutes.login), isNull);
   });
 
   test('error al cargar el perfil va a sin conexión', () {
-    expect(redirect(const SessionUnavailable(NetworkFailure()), AppRoutes.splash), AppRoutes.unavailable);
+    expect(redirect(const AuthUnavailable(NetworkFailure()), AppRoutes.splash), AppRoutes.unavailable);
   });
 
   test('cuenta sin roles va a pendiente y con roles sin permisos a sin acceso', () {
-    expect(redirect(SignedIn(profile(roles: const [])), AppRoutes.splash), AppRoutes.pending);
-    expect(redirect(SignedIn(profile()), AppRoutes.splash), AppRoutes.noAccess);
-    expect(redirect(SignedIn(profile()), AppRoutes.noAccess), isNull);
+    expect(redirect(signedIn(profile(roles: const [])), AppRoutes.splash), AppRoutes.pending);
+    expect(redirect(signedIn(profile()), AppRoutes.splash), AppRoutes.noAccess);
+    expect(redirect(signedIn(profile()), AppRoutes.noAccess), isNull);
   });
 
   test('cuenta activa sale de las pantallas de acceso hacia su inicio', () {
-    final signedIn = SignedIn(profile(permissions: const {'tickets:ver_asignados'}));
-    expect(redirect(signedIn, AppRoutes.splash), HomeDestination.assignedInbox.path);
-    expect(redirect(signedIn, AppRoutes.login), HomeDestination.assignedInbox.path);
-    expect(redirect(signedIn, AppRoutes.pending), HomeDestination.assignedInbox.path);
+    final state = signedIn(profile(permissions: const {'tickets:ver_asignados'}));
+    expect(redirect(state, AppRoutes.splash), HomeDestination.assignedInbox.path);
+    expect(redirect(state, AppRoutes.login), HomeDestination.assignedInbox.path);
+    expect(redirect(state, AppRoutes.pending), HomeDestination.assignedInbox.path);
   });
 
   test('cuenta activa no es expulsada de las pantallas de la app', () {
-    final signedIn = SignedIn(profile(permissions: const {'tickets:ver_asignados'}));
-    expect(redirect(signedIn, HomeDestination.profile.path), isNull);
-    expect(redirect(signedIn, HomeDestination.assignedInbox.path), isNull);
+    final state = signedIn(profile(permissions: const {'tickets:ver_asignados'}));
+    expect(redirect(state, HomeDestination.profile.path), isNull);
+    expect(redirect(state, HomeDestination.assignedInbox.path), isNull);
   });
 
   test('cuenta activa sin criterio de inicio cae en Perfil', () {
-    expect(redirect(SignedIn(profile(permissions: const {'tickets:ver'})), AppRoutes.splash), HomeDestination.profile.path);
+    expect(redirect(signedIn(profile(permissions: const {'tickets:ver'})), AppRoutes.splash), HomeDestination.profile.path);
   });
 
   test('crear una solicitud exige el permiso solicitudes:crear', () {
-    final withPermission = SignedIn(profile(permissions: const {'solicitudes:ver', 'solicitudes:crear'}));
-    final withoutPermission = SignedIn(profile(permissions: const {'solicitudes:ver'}));
+    final withPermission = signedIn(profile(permissions: const {'solicitudes:ver', 'solicitudes:crear'}));
+    final withoutPermission = signedIn(profile(permissions: const {'solicitudes:ver'}));
     expect(redirect(withPermission, '/solicitudes/nueva'), isNull);
     expect(redirect(withoutPermission, '/solicitudes/nueva'), HomeDestination.myRequests.path);
     // El detalle de una solicitud no exige ese permiso.

@@ -1,40 +1,58 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/domain/ticket_meta.dart';
 import '../../../core/format/formatters.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../shared/app_chip.dart';
 import '../../../shared/async_view.dart';
-import '../application/providers.dart';
 import '../data/models.dart';
+import '../data/requests_repository.dart';
+import 'bloc/request_detail_bloc.dart';
 
 /// Detalle de una solicitud: datos, estado, historial y adjuntos (solo lectura).
-class RequestDetailScreen extends ConsumerWidget {
+class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({super.key, required this.requestId});
 
   final int requestId;
 
-  Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(requestDetailProvider(requestId));
-    ref.invalidate(requestAttachmentsProvider(requestId));
-    try {
-      await ref.read(requestDetailProvider(requestId).future);
-    } catch (_) {
-      // El error ya se muestra en pantalla.
-    }
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => RequestDetailBloc(repository: context.read<RequestsRepository>(), requestId: requestId)
+        ..add(const RequestDetailRequested())
+        ..add(const RequestAttachmentsRequested()),
+      child: const _RequestDetailView(),
+    );
+  }
+}
+
+class _RequestDetailView extends StatelessWidget {
+  const _RequestDetailView();
+
+  /// Recarga el ticket y sus adjuntos; espera solo al ticket (los adjuntos cargan aparte).
+  Future<void> _refresh(BuildContext context) {
+    final bloc = context.read<RequestDetailBloc>();
+    final done = Completer<void>();
+    bloc
+      ..add(RequestDetailRequested(done: done))
+      ..add(const RequestAttachmentsRequested());
+    return done.future;
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detail = ref.watch(requestDetailProvider(requestId));
+  Widget build(BuildContext context) {
+    final state = context.watch<RequestDetailBloc>().state;
     return Scaffold(
-      appBar: AppBar(title: Text(detail.value?.ticketNumber ?? 'Solicitud')),
+      appBar: AppBar(title: Text(state.ticket?.ticketNumber ?? 'Solicitud')),
       body: AsyncView<TicketDetail>(
-        value: detail,
-        onRetry: () => _refresh(ref),
+        loaded: state.ticket,
+        failure: state.failure,
+        onRetry: () => _refresh(context),
         data: (ticket) => RefreshIndicator(
-          onRefresh: () => _refresh(ref),
+          onRefresh: () => _refresh(context),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -60,7 +78,7 @@ class RequestDetailScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               Text('Adjuntos', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppSpacing.sm),
-              _Attachments(requestId: requestId),
+              const _Attachments(),
             ],
           ),
         ),
@@ -116,30 +134,28 @@ class _HistoryTile extends StatelessWidget {
 }
 
 /// Los adjuntos cargan aparte: si fallan, el resto del detalle sigue visible.
-class _Attachments extends ConsumerWidget {
-  const _Attachments({required this.requestId});
-
-  final int requestId;
+class _Attachments extends StatelessWidget {
+  const _Attachments();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final attachments = ref.watch(requestAttachmentsProvider(requestId));
-    return attachments.when(
-      loading: () => const LinearProgressIndicator(semanticsLabel: 'Cargando adjuntos'),
-      error: (error, _) => Row(
-        children: [
-          const Expanded(child: Text('No pudimos cargar los adjuntos.')),
-          TextButton(
-            onPressed: () => ref.invalidate(requestAttachmentsProvider(requestId)),
-            child: const Text('Reintentar'),
-          ),
-        ],
-      ),
-      data: (items) => items.isEmpty
+  Widget build(BuildContext context) {
+    final state = context.watch<RequestDetailBloc>().state;
+    return switch (state.attachmentsStatus) {
+      LoadStatus.loading => const LinearProgressIndicator(semanticsLabel: 'Cargando adjuntos'),
+      LoadStatus.failure => Row(
+          children: [
+            const Expanded(child: Text('No pudimos cargar los adjuntos.')),
+            TextButton(
+              onPressed: () => context.read<RequestDetailBloc>().add(const RequestAttachmentsRequested()),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      LoadStatus.success => state.attachments.isEmpty
           ? const Text('Esta solicitud no tiene adjuntos.')
           : Column(
               children: [
-                for (final item in items)
+                for (final item in state.attachments)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(item.mimeType.startsWith('image/') ? Icons.image_outlined : Icons.attach_file),
@@ -148,6 +164,6 @@ class _Attachments extends ConsumerWidget {
                   ),
               ],
             ),
-    );
+    };
   }
 }

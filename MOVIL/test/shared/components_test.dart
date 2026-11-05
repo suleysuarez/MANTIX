@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
+import 'package:mantix/core/errors/failure_mapper.dart';
 import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/core/validation/validators.dart';
 import 'package:mantix/shared/app_chip.dart';
@@ -154,8 +154,9 @@ void main() {
   });
 
   group('AsyncView', () {
-    Widget view(AsyncValue<List<int>> value, {VoidCallback? onRetry}) => AsyncView<List<int>>(
-          value: value,
+    Widget view({List<int>? loaded, Failure? failure, VoidCallback? onRetry}) => AsyncView<List<int>>(
+          loaded: loaded,
+          failure: failure,
           isEmpty: (items) => items.isEmpty,
           empty: const EmptyState(title: 'Lista vacía'),
           onRetry: onRetry,
@@ -163,19 +164,19 @@ void main() {
         );
 
     testWidgets('cargando muestra el esqueleto', (tester) async {
-      await pumpApp(tester, view(const AsyncLoading()));
+      await pumpApp(tester, view());
 
       expect(find.byType(SkeletonList), findsOneWidget);
     });
 
     testWidgets('vacío muestra el estado vacío', (tester) async {
-      await pumpApp(tester, view(const AsyncData([])), settle: true);
+      await pumpApp(tester, view(loaded: const []), settle: true);
 
       expect(find.text('Lista vacía'), findsOneWidget);
     });
 
     testWidgets('con datos muestra el contenido', (tester) async {
-      await pumpApp(tester, view(const AsyncData([1, 2, 3])), settle: true);
+      await pumpApp(tester, view(loaded: const [1, 2, 3]), settle: true);
 
       expect(find.text('hay 3'), findsOneWidget);
     });
@@ -183,7 +184,7 @@ void main() {
     testWidgets('error de la red muestra reintento y lo ejecuta', (tester) async {
       var retries = 0;
       final error = DioException(requestOptions: RequestOptions(path: '/x'));
-      await pumpApp(tester, view(AsyncError(error, StackTrace.empty), onRetry: () => retries++), settle: true);
+      await pumpApp(tester, view(failure: toFailure(error), onRetry: () => retries++), settle: true);
 
       expect(find.text('Sin conexión'), findsOneWidget);
       await tester.tap(find.text('Reintentar'));
@@ -193,13 +194,13 @@ void main() {
     testWidgets('un 401 se muestra como sesión caducada', (tester) async {
       final request = RequestOptions(path: '/x');
       final error = DioException(requestOptions: request, response: Response(requestOptions: request, statusCode: 401));
-      await pumpApp(tester, view(AsyncError(error, StackTrace.empty)), settle: true);
+      await pumpApp(tester, view(failure: toFailure(error)), settle: true);
 
       expect(find.text('Sesión caducada'), findsOneWidget);
     });
 
     testWidgets('un error desconocido no filtra su contenido', (tester) async {
-      await pumpApp(tester, view(AsyncError(Exception('contraseña=secreta'), StackTrace.empty)), settle: true);
+      await pumpApp(tester, view(failure: toFailure(Exception('contraseña=secreta'))), settle: true);
 
       expect(find.text('Algo salió mal'), findsOneWidget);
       expect(find.textContaining('secreta'), findsNothing);
@@ -208,7 +209,7 @@ void main() {
     testWidgets('sin pantalla de vacío propia usa la de por defecto', (tester) async {
       await pumpApp(
         tester,
-        AsyncView<List<int>>(value: const AsyncData([]), isEmpty: (i) => i.isEmpty, data: (i) => const Text('datos')),
+        AsyncView<List<int>>(loaded: const [], isEmpty: (i) => i.isEmpty, data: (i) => const Text('datos')),
         settle: true,
       );
 

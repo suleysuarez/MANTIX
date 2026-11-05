@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
@@ -13,8 +14,8 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/requests/presentation/create_request_screen.dart';
 import '../../features/requests/presentation/my_requests_screen.dart';
 import '../../features/requests/presentation/request_detail_screen.dart';
+import '../auth/bloc/auth_bloc.dart';
 import '../auth/home_resolver.dart';
-import '../auth/session.dart';
 import '../auth/user_profile.dart';
 
 abstract final class AppRoutes {
@@ -28,19 +29,14 @@ abstract final class AppRoutes {
 /// Decide a dónde va el usuario según la sesión. Función pura para poder probarla.
 ///
 /// Devuelve `null` si la ruta actual ya es correcta.
-String? redirectFor({required AsyncValue<SessionState> session, required String location}) {
-  final value = session.value;
-  if (value == null) {
-    return location == AppRoutes.splash ? null : AppRoutes.splash;
-  }
-  final String target = switch (value) {
-    SignedOut() => AppRoutes.login,
-    SessionUnavailable() => AppRoutes.unavailable,
-    SignedIn(:final profile) => switch (profile.status) {
-        AccountStatus.pendingApproval => AppRoutes.pending,
-        AccountStatus.noAccess => AppRoutes.noAccess,
-        AccountStatus.active => _activeTarget(profile, location),
-      },
+String? redirectFor({required AuthState auth, required String location}) {
+  final String target = switch (auth) {
+    AuthUnknown() => AppRoutes.splash,
+    AuthUnauthenticated() => AppRoutes.login,
+    AuthUnavailable() => AppRoutes.unavailable,
+    AuthPending() => AppRoutes.pending,
+    AuthNoAccess() => AppRoutes.noAccess,
+    Authenticated(:final profile) => _activeTarget(profile, location),
   };
   return target == location ? null : target;
 }
@@ -65,21 +61,33 @@ String _activeTarget(UserProfile profile, String location) {
 
 const _routePermissions = {RequestRoutes.create: 'solicitudes:crear'};
 
-final routerProvider = Provider<GoRouter>((ref) {
-  final refresh = ValueNotifier<int>(0);
-  ref.listen<AsyncValue<SessionState>>(sessionProvider, (_, _) => refresh.value++);
-  ref.onDispose(refresh.dispose);
+/// Hace que `go_router` reevalúe `redirect` cada vez que el [Stream] emite.
+/// Así el router solo reacciona al estado de sesión; no contiene lógica de negocio.
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<Object?> stream) {
+    _subscription = stream.listen((_) => notifyListeners());
+  }
 
+  late final StreamSubscription<Object?> _subscription;
+
+  @override
+  void dispose() {
+    unawaited(_subscription.cancel());
+    super.dispose();
+  }
+}
+
+/// Crea el router de la app a partir del estado del [AuthBloc]. [refresh] hace que se
+/// reevalúe el `redirect` al cambiar la sesión (quien lo crea lo libera). [hasClerk]
+/// indica si el servicio de acceso arrancó (lo usa la pantalla de login).
+GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refresh, required bool hasClerk}) {
   final router = GoRouter(
     initialLocation: AppRoutes.splash,
     refreshListenable: refresh,
-    redirect: (context, state) => redirectFor(
-      session: ref.read(sessionProvider),
-      location: state.matchedLocation,
-    ),
+    redirect: (context, state) => redirectFor(auth: authBloc.state, location: state.matchedLocation),
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashScreen()),
-      GoRoute(path: AppRoutes.login, builder: (_, _) => const LoginScreen()),
+      GoRoute(path: AppRoutes.login, builder: (_, _) => LoginScreen(hasClerk: hasClerk)),
       GoRoute(path: AppRoutes.pending, builder: (_, _) => const PendingScreen()),
       GoRoute(path: AppRoutes.noAccess, builder: (_, _) => const NoAccessScreen()),
       GoRoute(path: AppRoutes.unavailable, builder: (_, _) => const UnavailableScreen()),
@@ -98,6 +106,5 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: destination.path, builder: (_, _) => HomePlaceholderScreen(destination: destination)),
     ],
   );
-  ref.onDispose(router.dispose);
   return router;
-});
+}

@@ -1,9 +1,9 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/failure_mapper.dart';
 import '../../../core/network/page_info.dart';
-import '../../../core/network/providers.dart';
 import 'models.dart';
 
 /// Acceso a la API de solicitudes y equipos. Cualquier error de red o de servidor
@@ -12,6 +12,11 @@ class RequestsRepository {
   RequestsRepository(this._dio);
 
   final Dio _dio;
+  final _changes = StreamController<void>.broadcast();
+
+  /// Avisa cuando la app cambia datos de solicitudes (hoy, al crear una), para que
+  /// los listados abiertos se recarguen sin acoplarse a quien creó el cambio.
+  Stream<void> get changes => _changes.stream;
 
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {
@@ -52,7 +57,9 @@ class RequestsRepository {
 
   Future<TicketDetail> create(NewRequest request) => _guard(() async {
         final response = await _dio.post<Map<String, Object?>>('/maintenance/requests', data: request.toJson());
-        return TicketDetail.fromJson(response.data!);
+        final created = TicketDetail.fromJson(response.data!);
+        _changes.add(null);
+        return created;
       });
 
   /// Búsqueda parcial por etiqueta, serie, marca o modelo (el backend no tiene
@@ -70,5 +77,3 @@ class RequestsRepository {
         );
       });
 }
-
-final requestsRepositoryProvider = Provider<RequestsRepository>((ref) => RequestsRepository(ref.watch(apiClientProvider)));

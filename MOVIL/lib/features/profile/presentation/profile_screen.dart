@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/auth/session.dart';
+import '../../../core/auth/bloc/auth_bloc.dart';
 
 /// Perfil del usuario con sus roles y permisos efectivos. También es el inicio
 /// de quien no tiene ningún permiso de las demás pantallas.
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(sessionProvider).value;
-    final profile = state is SignedIn ? state.profile : null;
+  Widget build(BuildContext context) {
+    // El Perfil también es el inicio de quien no tiene otros permisos; solo se muestra con sesión activa.
+    final profile = context.watch<AuthBloc>().state.profile;
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
       body: profile == null
@@ -30,7 +30,7 @@ class ProfileScreen extends ConsumerWidget {
                 Wrap(spacing: 8, children: [for (final code in profile.permissions.toList()..sort()) Chip(label: Text(code))]),
                 const SizedBox(height: 24),
                 OutlinedButton.icon(
-                  onPressed: ref.read(sessionProvider.notifier).signOut,
+                  onPressed: () => context.read<AuthBloc>().add(const AuthSignOutRequested()),
                   icon: const Icon(Icons.logout),
                   label: const Text('Cerrar sesión'),
                 ),

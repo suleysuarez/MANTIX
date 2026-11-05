@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/network/paged_notifier.dart';
+import '../core/network/paged/paged_bloc.dart';
 import '../core/theme/app_tokens.dart';
 import 'async_view.dart';
 
@@ -17,7 +16,7 @@ class PagedListView<T> extends StatefulWidget {
     required this.empty,
   });
 
-  final AsyncValue<PagedState<T>> value;
+  final PagedListState<T> value;
   final Widget Function(BuildContext context, T item) itemBuilder;
 
   /// Recarga desde la primera página.
@@ -52,8 +51,10 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return AsyncView<PagedState<T>>(
-      value: widget.value,
+    final value = widget.value;
+    return AsyncView<PagedListState<T>>(
+      loaded: value.status == PagedStatus.success ? value : null,
+      failure: value.failure,
       onRetry: widget.onRefresh,
       isEmpty: (state) => state.items.isEmpty,
       empty: widget.empty,
@@ -78,7 +79,7 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
 class _Footer extends StatelessWidget {
   const _Footer({required this.state, required this.onLoadMore});
 
-  final PagedState<dynamic> state;
+  final PagedListState<dynamic> state;
   final VoidCallback onLoadMore;
 
   @override

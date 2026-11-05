@@ -1,20 +1,25 @@
 import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/auth/clerk_auth_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/glass_card.dart';
 import '../../../shared/status_message.dart';
+import 'widgets/auth_shell.dart';
 
 /// Pantalla de acceso. Con Clerk iniciado muestra su formulario de inicio de
-/// sesión; sin él (sin clave o sin red al arrancar) lo dice con claridad.
+/// sesión sobre la imagen de la marca, dentro de una tarjeta de vidrio; sin él
+/// (sin clave o sin red al arrancar) lo dice con claridad.
 ///
 /// El formulario de Clerk viene del SDK y hoy solo trae textos en inglés.
-class LoginScreen extends ConsumerWidget {
-  const LoginScreen({super.key});
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key, required this.hasClerk});
+
+  /// `false` si Clerk no arrancó (sin clave o sin red).
+  final bool hasClerk;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(clerkAuthStateProvider) == null) {
+  Widget build(BuildContext context) {
+    if (!hasClerk) {
       return const StatusMessage(
         icon: Icons.lock_outline,
         title: 'Inicio de sesión no disponible',
@@ -22,11 +27,12 @@ class LoginScreen extends ConsumerWidget {
             'No se pudo iniciar el servicio de acceso. Revisa que la app tenga CLERK_PUBLISHABLE_KEY y conexión a internet, y ábrela de nuevo.',
       );
     }
-    return const Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: ClerkAuthentication(),
+
+    return AuthShell(
+      child: GlassCard(
+        child: Theme(
+          data: AppTheme.authGlass(Theme.of(context)),
+          child: const ClerkAuthentication(),
         ),
       ),
     );

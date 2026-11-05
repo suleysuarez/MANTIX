@@ -1,3 +1,5 @@
+import 'package:clerk_flutter/clerk_flutter.dart'
+    show ClerkThemeColors, ClerkThemeExtension;
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
@@ -85,6 +87,55 @@ abstract final class AppTheme {
         backgroundColor: AppColors.navy,
         contentTextStyle: TextStyle(color: AppColors.white),
       ),
+    );
+  }
+
+  /// Tema solo para el formulario de Clerk sobre la tarjeta de vidrio del login.
+  /// Deja transparentes las superficies de Clerk para que se vea el vidrio.
+  static ThemeData authGlass(ThemeData base) {
+    final fieldBorder = OutlineInputBorder(
+      borderRadius: AppRadius.mdAll,
+      borderSide: BorderSide(
+        color: AuthTokens.glassBorder.withValues(alpha: 0.35),
+      ),
+    );
+    return base.copyWith(
+      cardColor: Colors.transparent,
+      canvasColor: Colors.transparent,
+      colorScheme: base.colorScheme.copyWith(
+        brightness: Brightness.dark,
+        primary: AuthTokens.accent,
+        surface: Colors.transparent,
+        onSurface: AuthTokens.textPrimary,
+      ),
+      textTheme: base.textTheme.apply(
+        bodyColor: AuthTokens.textPrimary,
+        displayColor: AuthTokens.textPrimary,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.06),
+        hintStyle: const TextStyle(color: AuthTokens.textMuted),
+        border: fieldBorder,
+        enabledBorder: fieldBorder,
+        focusedBorder: fieldBorder.copyWith(
+          borderSide: const BorderSide(color: AuthTokens.accent, width: 1.5),
+        ),
+      ),
+      extensions: [
+        ClerkThemeExtension(
+          colors: const ClerkThemeColors(
+            background: Colors.transparent,
+            altBackground: Colors.transparent,
+            borderSide: AuthTokens.glassBorderSoft,
+            text: AuthTokens.textPrimary,
+            icon: AuthTokens.textPrimary,
+            lightweightText: AuthTokens.textMuted,
+            error: AuthTokens.error,
+            accent: AuthTokens.accent,
+          ),
+        ),
+      ],
     );
   }
 }
