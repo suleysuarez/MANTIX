@@ -61,7 +61,15 @@ class ClerkAuthService:
                     ) or user
             return user
 
-        profile = await get_clerk_profile(identity, self.settings)
+        # Resolve the email from Clerk's API, not from an untrusted client claim.
+        # The exact primary email must be verified before it can identify a local account.
+        profile = await get_verified_clerk_profile(identity, self.settings)
+        if not profile.email_verified:
+            raise ConflictError(
+                "Clerk primary email must be verified before linking a local account",
+                code="account_email_linked_to_other",
+            )
+
         existing_by_email = await self.repository.get_user_by_email(
             profile.email, for_update=True
         )
@@ -69,20 +77,6 @@ class ClerkAuthService:
             user = self._require_active(existing_by_email)
             previous_clerk_user_id = existing_by_email.clerk_user_id
             if previous_clerk_user_id != identity.user_id:
-                # Claims are not enough: ask the configured Clerk instance for its
-                # primary email and require Clerk itself to mark it as verified.
-                verified_profile = await get_verified_clerk_profile(
-                    identity, self.settings
-                )
-                if (
-                    not verified_profile.email_verified
-                    or verified_profile.email != profile.email
-                ):
-                    raise ConflictError(
-                        "Clerk primary email is not verified or does not match the local account",
-                        code="account_email_linked_to_other",
-                    )
-
                 existing_by_email.clerk_user_id = identity.user_id
                 if self.audit is not None:
                     self.audit.record(
