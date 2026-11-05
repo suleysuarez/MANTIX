@@ -10,7 +10,6 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.attachment import router as attachment_router
 from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
-from app.api.routes.mobile_auth import router as mobile_auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
 from app.api.routes.equipment import router as equipment_router
@@ -18,6 +17,7 @@ from app.api.routes.export import router as export_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.maintenance import router as maintenance_router
 from app.api.routes.maintenance_overview import router as maintenance_overview_router
+from app.api.routes.mobile_auth import router as mobile_auth_router
 from app.api.routes.notification import router as notification_router
 from app.api.routes.priority import router as priority_router
 from app.api.routes.profile import router as profile_router
