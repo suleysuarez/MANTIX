@@ -1,31 +1,14 @@
-# Backend propio de la app móvil (copia de WEB/backend con ajustes para Clerk nativo).
+# Mobile API stack.
 #
+# Configure MOVIL/backend/.env with the Neon DATABASE_URL before starting:
 #   cd MOVIL
 #   docker compose up --build -d
 #
-# Corre aparte del stack de la web: proyecto, base de datos, volúmenes y puertos distintos.
-#   API:        http://localhost:8001   (la app usa `adb reverse tcp:8001 tcp:8001`)
-#   PostgreSQL: localhost:5433
+# API: http://localhost:8001 (Android emulator: http://10.0.2.2:8001)
 
 name: mantix-movil
 
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: mantix
-      POSTGRES_PASSWORD: mantix
-      POSTGRES_DB: mantix
-    ports:
-      - "${MOVIL_POSTGRES_PORT:-5433}:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mantix -d mantix"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: ./backend
@@ -33,17 +16,12 @@ services:
       - ./backend/.env
     environment:
       BACKEND_PORT: 8000
-      # Siempre la base local de este stack; el DATABASE_URL de backend/.env no se usa.
-      DATABASE_URL: postgresql://mantix:mantix@db:5432/mantix
-      RUN_MIGRATIONS: "true"
+      RUN_MIGRATIONS: "false"
       UPLOAD_DIR: /data/uploads
     ports:
       - "${MOVIL_BACKEND_PORT:-8001}:8000"
     volumes:
       - uploads:/data/uploads
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -57,5 +35,4 @@ services:
       retries: 5
 
 volumes:
-  pgdata:
   uploads:
