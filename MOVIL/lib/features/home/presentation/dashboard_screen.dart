@@ -6,6 +6,7 @@ import '../../../core/auth/bloc/auth_bloc.dart';
 import '../../../core/auth/home_resolver.dart';
 import '../../../core/auth/user_profile.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart' show AuthTokens;
 import '../../../shared/status_message.dart';
 import '../data/dashboard_repository.dart';
 
@@ -437,8 +438,13 @@ class _WelcomeHero extends StatelessWidget {
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(19),
-        gradient: const LinearGradient(colors: [Color(0xFFEAF5FF), Color(0xFFD9ECFC)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        boxShadow: const [BoxShadow(color: Color(0x143E5C76), blurRadius: 18, offset: Offset(0, 7))],
+        gradient: const LinearGradient(
+          colors: [AuthTokens.glassFillTop, AuthTokens.glassFillBottom, AuthTokens.bgDeep],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.28)),
+        boxShadow: const [BoxShadow(color: Color(0x40050B1A), blurRadius: 20, offset: Offset(0, 8))],
       ),
       child: Stack(
         children: [
@@ -465,22 +471,26 @@ class _WelcomeHero extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.88), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.25)),
+                ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.circle, size: 7, color: AppColors.mustard),
+                  const Icon(Icons.circle, size: 7, color: AuthTokens.accent),
                   const SizedBox(width: 6),
-                  Text('HOLA, ${firstName.toUpperCase()}', style: const TextStyle(color: AppColors.steel, fontSize: 10, fontWeight: FontWeight.w800)),
+                  Text('HOLA, ${firstName.toUpperCase()}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
                 ]),
               ),
               const Spacer(),
               const SizedBox(
                 width: 230,
-                child: Text('Sistema inteligente\nde mantenimiento', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 21, height: 1.08, fontWeight: FontWeight.w900)),
+                child: Text('Sistema inteligente\nde mantenimiento', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.08, fontWeight: FontWeight.w900)),
               ),
               const SizedBox(height: 5),
               const SizedBox(
                 width: 230,
-                child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico.', style: TextStyle(color: Color(0xFF526B83), fontSize: 10, height: 1.3)),
+                child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico.', style: TextStyle(color: AuthTokens.textMuted, fontSize: 10, height: 1.3)),
               ),
             ],
           ),
