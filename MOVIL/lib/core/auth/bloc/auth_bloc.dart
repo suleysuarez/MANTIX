@@ -65,7 +65,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final before = state;
     // Desde el login no se pasa por la pantalla de carga: el formulario de Clerk sigue visible.
     if (before is! AuthUnauthenticated) emit(const AuthUnknown());
-    final next = await _loadOnce();
+    final next = await _load();
     // Si ya estábamos sin sesión, un «sigue sin sesión» no borra el motivo (por ejemplo,
     // «tu sesión expiró»).
     if (before is AuthUnauthenticated && next is AuthUnauthenticated && next.failure == null) return;
