@@ -6,8 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.schemas.mobile_auth import (
-    MobileAuthResponse, MobileForgotPasswordRequest, MobileLoginRequest,
-    MobileRegisterRequest, MobileResendCodeRequest, MobileResetPasswordRequest,
+    MobileAuthResponse,
+    MobileForgotPasswordRequest,
+    MobileLoginRequest,
+    MobileRegisterRequest,
+    MobileResendCodeRequest,
+    MobileResetPasswordRequest,
     MobileVerifyEmailRequest,
 )
 from app.services.mobile_auth import MobileAuthService
