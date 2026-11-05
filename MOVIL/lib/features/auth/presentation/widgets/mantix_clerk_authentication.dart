@@ -66,7 +66,7 @@ class _MantixClerkAuthenticationState
           ),
         ),
         const SizedBox(height: 18),
-        if (env.hasOauthStrategies) ...[
+        if (!_signingUp && env.hasOauthStrategies) ...[
           const ClerkOAuthPanel(),
           const SizedBox(height: 12),
           if (!_signingUp) ...[
