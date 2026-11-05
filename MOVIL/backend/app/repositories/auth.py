@@ -24,10 +24,13 @@ class AuthRepository(BaseRepository[User]):
         user: User | None = result.scalar_one_or_none()
         return user
 
-    async def get_user_by_email(self, email: str) -> User | None:
-        result = await self.session.execute(
-            self._user_query().where(User.email == email)
-        )
+    async def get_user_by_email(
+        self, email: str, *, for_update: bool = False
+    ) -> User | None:
+        query = self._user_query().where(User.email == email)
+        if for_update:
+            query = query.with_for_update()
+        result = await self.session.execute(query)
         user: User | None = result.scalar_one_or_none()
         return user
 
