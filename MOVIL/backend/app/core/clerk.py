@@ -68,7 +68,10 @@ def verify_clerk_request(request: Request, settings: Settings) -> VerifiedClerkI
 
 
 async def _fetch_clerk_profile(
-    identity: VerifiedClerkIdentity, settings: Settings
+    identity: VerifiedClerkIdentity,
+    settings: Settings,
+    *,
+    require_primary_email: bool = False,
 ) -> ClerkProfile:
     if not settings.clerk_secret_key:
         raise HTTPException(
