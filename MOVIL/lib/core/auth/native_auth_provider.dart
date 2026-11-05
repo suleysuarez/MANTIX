@@ -12,7 +12,12 @@ class NativeAuthProvider implements AuthProvider {
   final StreamController<bool> _changes = StreamController<bool>.broadcast();
 
   @override
-  Future<String?> accessToken({bool forceRefresh = false}) => _storage.read(key: _tokenKey);
+  Future<String?> accessToken({bool forceRefresh = false}) {
+    // This first version has no refresh-token endpoint. A forced refresh means
+    // the access token was rejected, so let the API client expire the session.
+    if (forceRefresh) return Future.value(null);
+    return _storage.read(key: _tokenKey);
+  }
 
   Future<void> saveAccessToken(String token) async {
     await _storage.write(key: _tokenKey, value: token);
