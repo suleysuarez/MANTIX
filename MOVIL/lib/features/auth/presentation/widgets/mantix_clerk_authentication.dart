@@ -72,49 +72,49 @@ class _MantixClerkAuthenticationState
         if (!_signingUp && env.hasOauthStrategies) ...[
           const ClerkOAuthPanel(),
           const SizedBox(height: 12),
-          if (!_signingUp) ...[
-            Row(
+          Row(
+            children: [
+              const Expanded(child: Divider(color: Color(0x5938D6FF))),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('or', style: styles.subheading),
+              ),
+              const Expanded(child: Divider(color: Color(0x5938D6FF))),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        Theme(
+          data: signInTheme,
+          child: _signingUp
+              ? const ClerkSignUpPanel()
+              : const ClerkSignInPanel(),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text.rich(
+            TextSpan(
               children: [
-                const Expanded(child: Divider(color: Color(0x5938D6FF))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('or', style: styles.subheading),
+                TextSpan(
+                  text: _signingUp
+                      ? localizations.alreadyHaveAnAccount
+                      : localizations.dontHaveAnAccount,
+                  style: styles.subheading,
                 ),
-                const Expanded(child: Divider(color: Color(0x5938D6FF))),
+                const WidgetSpan(child: SizedBox(width: 6)),
+                TextSpan(
+                  text: _signingUp
+                      ? localizations.signIn
+                      : localizations.signUp,
+                  style: styles.subheading.copyWith(color: AuthTokens.accent),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () => setState(() => _signingUp = !_signingUp),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-          ],
-        ],
-        if (_signingUp)
-          const ClerkSignUpPanel()
-        else
-          const ClerkSignInPanel(),
-        const SizedBox(height: 8),
-          Center(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: _signingUp
-                        ? localizations.alreadyHaveAnAccount
-                        : localizations.dontHaveAnAccount,
-                    style: styles.subheading,
-                  ),
-                  const WidgetSpan(child: SizedBox(width: 6)),
-                  TextSpan(
-                    text: _signingUp
-                        ? localizations.signIn
-                        : localizations.signUp,
-                    style: styles.subheading.copyWith(color: AuthTokens.accent),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () => setState(() => _signingUp = !_signingUp),
-                  ),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
+            textAlign: TextAlign.center,
           ),
+        ),
         const SizedBox(height: 12),
         Center(child: Text('Secured by Clerk', style: styles.subtext)),
       ],
@@ -122,7 +122,6 @@ class _MantixClerkAuthenticationState
   }
 }
 
- 
 ThemeData _signInPanelTheme(ThemeData base, ClerkThemeExtension current) {
   final colors = current.colors;
   final signInColors = ClerkThemeColors(
