@@ -1,4 +1,4 @@
 {
-  "API_BASE_URL": "http://localhost:8001",
-  "CLERK_PUBLISHABLE_KEY": "pk_test_REEMPLAZA_CON_TU_PUBLISHABLE_KEY"
+  "API_BASE_URL": "http://10.0.2.2:8001",
+  "APP_VERSION": "1.0.0"
 }
