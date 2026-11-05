@@ -58,8 +58,18 @@ class _LoginScreenState extends State<LoginScreen> {
   String _errorText(Object error) {
     if (error is DioException) {
       final data = error.response?.data;
-      if (data is Map && data['detail'] is String) return data['detail'] as String;
-      if (error.response == null) return 'No pudimos conectar con el servidor. Revisa tu conexión.';
+      if (data is Map) {
+        final detail = data['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
+        if (detail is Map && detail['detail'] is String) return detail['detail'] as String;
+        if (data['message'] is String) return data['message'] as String;
+      }
+      if (error.response == null) {
+        if (error.type == DioExceptionType.connectionTimeout || error.type == DioExceptionType.receiveTimeout) {
+          return 'El servidor está tardando en responder. Inténtalo nuevamente.';
+        }
+        return 'No logramos comunicarnos con Mantix. Comprueba que el backend esté iniciado y que la dirección API sea correcta.';
+      }
     }
     return 'No pudimos completar la operación. Inténtalo de nuevo.';
   }
@@ -140,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   switch (_mode) {
                     _AuthMode.login => 'Ingresa con tu correo y contraseña.',
-                    _AuthMode.register => 'Usa tu correo y crea una contraseña nueva para Mantix. Un administrador habilitará tu acceso.',
+                    _AuthMode.register => 'Regístrate con tu correo y crea una contraseña para Mantix.',
                     _AuthMode.verify => 'Escribe el código que enviamos a tu correo.',
                     _AuthMode.forgot => 'Te enviaremos un código si tu cuenta está registrada.',
                     _AuthMode.reset => 'Ingresa el código recibido y tu nueva contraseña.',
@@ -162,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 if (_mode == _AuthMode.login || _mode == _AuthMode.register || _mode == _AuthMode.reset) ...[
                   TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
-                  if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Crea una contraseña para Mantix: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(fontSize: 11))),
+                  if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Crea una contraseña para Mantix: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 11, height: 1.35, fontWeight: FontWeight.w500))),
                 ],
                 if (_message != null) ...[
                   const SizedBox(height: 12),
