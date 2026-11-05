@@ -102,7 +102,18 @@ class MobileAuthService:
 
     async def register(self, *, email: str, password: str) -> None:
         email = self._normalize_email(email)
-        if await self._user_by_email(email) is not None:
+        existing_user = await self._user_by_email(email)
+        if existing_user is not None:
+            # A previous attempt may have persisted the account before the
+            # transactional email provider failed. Let that unverified mobile
+            # account request a fresh code instead of trapping it as a duplicate.
+            if (
+                existing_user.password_hash is not None
+                and existing_user.email_verified_at is None
+                and existing_user.clerk_user_id is None
+            ):
+                await self._issue_code(existing_user, "verify")
+                return
             raise ConflictError("Ya existe una cuenta con este correo.", code="user_email_taken")
         user = User(
             email=email, full_name=email.split("@", 1)[0][:255] or "Usuario",
