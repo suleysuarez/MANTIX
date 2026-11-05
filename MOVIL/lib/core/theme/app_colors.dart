@@ -15,6 +15,13 @@ abstract final class AppColors {
 
   /// Fondo de las pantallas.
   static const Color canvas = Color(0xFFF4F8FC);
+
+  /// Base de la pantalla de acceso: fondo si falta la imagen y final del degradado
+  /// que da legibilidad a la tarjeta.
+  static const Color authBase = navy;
+
+  /// Opacidad máxima del degradado inferior de la pantalla de acceso.
+  static const double authScrimOpacity = 0.7;
 }
 
 /// Colores de un chip: fondo, texto y punto indicador.
@@ -100,4 +107,21 @@ abstract final class StatusColors {
     submitted, triaged, assigned, inProgress, waiting, resolved, closed, cancelled,
     critical, high, medium, low,
   ];
+}
+
+
+abstract final class AuthTokens {
+  static const Color bgDeep = Color(0xFF050B1A);
+  static const Color glassFillTop = Color(0xFF0B2F6B);
+  static const Color glassFillBottom = Color(0xFF071A3D);
+  static const Color glassBorder = Color(0xFF38D6FF);
+  static const Color accent = Color(0xFF22D3EE);
+  static const Color textPrimary = Colors.white;
+  static const Color textMuted = Color(0xB3FFFFFF);
+  static const Color error = Color(0xFFFF8A80);
+  static const Color glassBorderSoft = Color(0x5938D6FF);
+
+  static const double maxCardWidth = 420;
+  static const double logoZone = 0.40; // el logo ocupa hasta el 38 % de la altura
+  static const double cardRadius = 28;
 }

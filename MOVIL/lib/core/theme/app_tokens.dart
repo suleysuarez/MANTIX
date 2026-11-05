@@ -24,3 +24,22 @@ abstract final class AppRadius {
   static const BorderRadius lgAll = BorderRadius.all(Radius.circular(lg));
   static const BorderRadius pillAll = BorderRadius.all(Radius.circular(pill));
 }
+
+/// Medidas de la pantalla de acceso (imagen única de fondo con el logo dentro).
+abstract final class AuthLayout {
+  /// Ancho máximo del contenido (tablets).
+  static const double maxWidth = 420;
+
+  /// Tamaño en píxeles de `login.webp`; da la proporción para ubicar el logo.
+  static const double imageWidth = 941;
+  static const double imageHeight = 1672;
+
+  /// El logo de la imagen termina al 38 % de su altura; la tarjeta empieza debajo.
+  static const double logoBottomFraction = 0.38;
+
+  /// Aire entre el logo y la tarjeta.
+  static const double logoGap = AppSpacing.lg;
+
+  /// Parte inferior de la pantalla que cubre el degradado.
+  static const double scrimHeightFraction = 0.6;
+}
