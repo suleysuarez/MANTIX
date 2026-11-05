@@ -412,23 +412,15 @@ class _BrandWordmark extends StatelessWidget {
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => ColorFiltered(
-    colorFilter: const ColorFilter.matrix([
-      1, 0, 0, 0, 0,
-      0, 1, 0, 0, 0,
-      0, 0, 1, 0, 0,
-      -1, -1, -1, 0, 765,
-    ]),
-    child: Image.asset(
-      'assets/images/branding/mantix.webp',
-      width: fontSize >= 27 ? 142 : 132,
-      height: 38,
-      fit: BoxFit.contain,
-      alignment: Alignment.centerLeft,
-      errorBuilder: (context, error, stackTrace) => const Text(
-        'MANTIX',
-        style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
-      ),
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/branding/mantix.webp',
+    width: fontSize >= 27 ? 142 : 132,
+    height: 38,
+    fit: BoxFit.contain,
+    alignment: Alignment.centerLeft,
+    errorBuilder: (context, error, stackTrace) => const Text(
+      'MANTIX',
+      style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
     ),
   );
 }
@@ -456,27 +448,19 @@ class _WelcomeHero extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            right: -4,
-            top: 4,
-            bottom: 4,
+            right: 2,
+            top: 10,
+            bottom: 10,
             child: SizedBox(
-              width: 148,
-              child: ColorFiltered(
-                colorFilter: const ColorFilter.matrix([
-                  1, 0, 0, 0, 0,
-                  0, 1, 0, 0, 0,
-                  0, 0, 1, 0, 0,
-                  -1, -1, -1, 0, 765,
-                ]),
-                child: Image.asset(
-                  'assets/images/dashboard/dashboard-illustration.webp',
-                  fit: BoxFit.contain,
-                  alignment: Alignment.centerRight,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.memory_rounded,
-                    size: 112,
-                    color: AppColors.sky.withValues(alpha: 0.45),
-                  ),
+              width: 132,
+              child: Image.asset(
+                'assets/images/dashboard/dashboard-illustration.webp',
+                fit: BoxFit.contain,
+                alignment: Alignment.centerRight,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.memory_rounded,
+                  size: 112,
+                  color: AppColors.sky.withValues(alpha: 0.45),
                 ),
               ),
             ),
