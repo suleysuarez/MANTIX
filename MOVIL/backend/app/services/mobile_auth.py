@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from pwdlib import PasswordHash
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -111,9 +113,9 @@ class MobileAuthService:
         try:
             await self.session.flush()
             await self.session.commit()
-        except Exception:
+        except IntegrityError as exc:
             await self.session.rollback()
-            raise
+            raise ConflictError("Ya existe una cuenta con este correo.", code="user_email_taken") from exc
         await self._issue_code(user, "verify")
 
     async def resend_verification(self, email: str) -> None:
@@ -126,10 +128,11 @@ class MobileAuthService:
         user = await self._user_by_email(self._normalize_email(email), lock=True)
         if user is None or user.password_hash is None:
             raise ForbiddenError("El código no es válido o ha vencido.", code="auth_code_invalid")
-        if user.email_verified_at is None:
-            await self._consume_code(user, "verify", code)
-            user.email_verified_at = datetime.now(UTC)
-            await self.session.commit()
+        if user.email_verified_at is not None:
+            raise ForbiddenError("Este correo ya fue verificado. Inicia sesión.", code="auth_email_already_verified")
+        await self._consume_code(user, "verify", code)
+        user.email_verified_at = datetime.now(UTC)
+        await self.session.commit()
         return await self._session_response(user.id)
 
     async def login(self, *, email: str, password: str) -> dict:
@@ -173,7 +176,7 @@ class MobileAuthService:
 
     async def user_from_token(self, token: str) -> User:
         if not token.startswith("mjwt."):
-            raise ForbiddenError("Token móvil no válido.", code="unauthorized")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token móvil no válido.", headers={"WWW-Authenticate": "Bearer"})
         try:
             payload = jwt.decode(
                 token[5:], self._secret(), algorithms=["HS256"],
@@ -181,7 +184,7 @@ class MobileAuthService:
             )
             user_id = int(payload["sub"])
         except (jwt.PyJWTError, ValueError, KeyError) as exc:
-            raise ForbiddenError("La sesión ha vencido. Inicia sesión nuevamente.", code="unauthorized") from exc
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La sesión ha vencido. Inicia sesión nuevamente.", headers={"WWW-Authenticate": "Bearer"}) from exc
         result = await self.session.execute(
             select(User).options(
                 selectinload(User.roles).selectinload(Role.permissions)
@@ -189,5 +192,5 @@ class MobileAuthService:
         )
         user = result.scalar_one_or_none()
         if user is None or not user.is_active or user.email_verified_at is None:
-            raise ForbiddenError("La cuenta no está disponible.", code="unauthorized")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La cuenta no está disponible.", headers={"WWW-Authenticate": "Bearer"})
         return user
