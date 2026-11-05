@@ -51,6 +51,21 @@ class _AuthShellState extends State<AuthShell> {
     return math.max(0, logoBottom + AuthTokens.logoClearance - safeTop);
   }
 
+  double _fallbackContentTop({
+    required Size screenSize,
+    required double safeTop,
+  }) {
+    // Keep the scroll view in the tree while the image dimensions are loading.
+    // This estimate leaves room for the logo and is replaced by the exact
+    // image-based position as soon as decoding completes.
+    return math.max(
+      0,
+      screenSize.height * AuthTokens.logoBottomFraction +
+          AuthTokens.logoClearance -
+          safeTop,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
@@ -92,17 +107,16 @@ class _AuthShellState extends State<AuthShell> {
           FutureBuilder<Size>(
             future: _backgroundSize,
             builder: (context, snapshot) {
-              // Do not flash the card over the logo while decoding dimensions.
-              if (!snapshot.hasData && !snapshot.hasError) {
-                return const SizedBox.expand();
-              }
               final top = snapshot.hasData
                   ? _contentTop(
                       screenSize: screenSize,
                       imageSize: snapshot.data!,
                       safeTop: safeTop,
                     )
-                  : AuthTokens.logoClearance;
+                  : _fallbackContentTop(
+                      screenSize: screenSize,
+                      safeTop: safeTop,
+                    );
 
               return SafeArea(
                 child: SingleChildScrollView(
