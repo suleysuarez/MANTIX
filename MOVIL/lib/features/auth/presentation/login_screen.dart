@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   _AuthMode _mode = _AuthMode.login;
   bool _busy = false;
   bool _obscure = true;
+  bool _obscureConfirm = true;
   String? _message;
   bool _isError = false;
 
@@ -184,12 +185,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _confirmPassword,
-                      obscureText: _obscure,
-                      decoration: _decoration('Confirmar contraseña', icon: Icons.lock_outline),
+                      obscureText: _obscureConfirm,
+                      decoration: _decoration('Confirmar contraseña', icon: Icons.lock_outline).copyWith(
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        ),
+                      ),
                       validator: _validateConfirmPassword,
                     ),
                   ],
-                  if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Crea una contraseña para Mantix: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 11, height: 1.35, fontWeight: FontWeight.w500))),
+                  if (_mode == _AuthMode.register) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Mínimo 10 caracteres, una mayúscula, una minúscula y un número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 11, height: 1.35, fontWeight: FontWeight.w500))),
                 ],
                 if (_message != null) ...[
                   const SizedBox(height: 12),
