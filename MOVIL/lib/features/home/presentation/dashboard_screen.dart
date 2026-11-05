@@ -412,15 +412,13 @@ class _BrandWordmark extends StatelessWidget {
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => Image.asset(
-    'assets/images/branding/mantix.webp',
-    width: fontSize >= 27 ? 142 : 132,
-    height: 38,
-    fit: BoxFit.contain,
-    alignment: Alignment.centerLeft,
-    errorBuilder: (context, error, stackTrace) => const Text(
-      'MANTIX',
-      style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
+  Widget build(BuildContext context) => Text(
+    'MANTIX',
+    style: TextStyle(
+      color: Colors.white,
+      fontSize: fontSize >= 27 ? 27 : 23,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 1.2,
     ),
   );
 }
@@ -445,29 +443,9 @@ class _WelcomeHero extends StatelessWidget {
         border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.28)),
         boxShadow: const [BoxShadow(color: Color(0x40050B1A), blurRadius: 20, offset: Offset(0, 8))],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: 2,
-            top: 10,
-            bottom: 10,
-            child: SizedBox(
-              width: 132,
-              child: Image.asset(
-                'assets/images/dashboard/dashboard-illustration.webp',
-                fit: BoxFit.contain,
-                alignment: Alignment.centerRight,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.memory_rounded,
-                  size: 112,
-                  color: AppColors.sky.withValues(alpha: 0.45),
-                ),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
@@ -491,8 +469,6 @@ class _WelcomeHero extends StatelessWidget {
                 width: 180,
                 child: Text('Gestión de incidentes y control del parque tecnológico.', style: TextStyle(color: AuthTokens.textMuted, fontSize: 9, height: 1.25)),
               ),
-            ],
-          ),
         ],
       ),
     );
