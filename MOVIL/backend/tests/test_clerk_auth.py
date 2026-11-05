@@ -160,7 +160,18 @@ async def test_concurrent_first_logins_assign_admin_only_once(monkeypatch) -> No
             identity.user_id, f"{identity.user_id}@example.com", identity.user_id
         )
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda current_identity, _settings: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                current_identity.user_id,
+                f"{current_identity.user_id}@example.com",
+                current_identity.user_id,
+                email_verified=True,
+            ),
+        ),
+    )
     shared = {"lock": asyncio.Lock(), "assigned": False}
     repositories = [FakeRepository(role=role(), shared=shared) for _ in range(2)]
     services = [ClerkAuthService(object(), Settings()) for _ in repositories]
