@@ -89,9 +89,9 @@ async def _fetch_clerk_profile(
             if primary_email_id is not None
             and getattr(item, "id", None) == primary_email_id
         ),
-        None if require_primary_email else (
-            email_addresses[0] if email_addresses else None
-        ),
+        None
+        if require_primary_email
+        else (email_addresses[0] if email_addresses else None),
     )
     resolved_email = getattr(selected_email, "email_address", None)
     if not resolved_email:
@@ -105,9 +105,7 @@ async def _fetch_clerk_profile(
         if isinstance(verification, dict)
         else getattr(verification, "status", None)
     )
-    verification_status = getattr(
-        verification_status, "value", verification_status
-    )
+    verification_status = getattr(verification_status, "value", verification_status)
     first_name = getattr(clerk_user, "first_name", None) or ""
     last_name = getattr(clerk_user, "last_name", None) or ""
     resolved_name = " ".join(part for part in (first_name, last_name) if part).strip()
@@ -126,9 +124,7 @@ async def get_verified_clerk_profile(
 
     Token claims alone are deliberately insufficient for re-linking a local account.
     """
-    return await _fetch_clerk_profile(
-        identity, settings, require_primary_email=True
-    )
+    return await _fetch_clerk_profile(identity, settings, require_primary_email=True)
 
 
 async def get_clerk_profile(
