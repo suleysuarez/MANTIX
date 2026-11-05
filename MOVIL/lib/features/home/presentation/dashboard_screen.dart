@@ -90,11 +90,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  dynamic _at(Map<String, dynamic> source, String key, [String? child]) {
-    final value = source[key];
-    return child != null && value is Map ? value[child] : value;
-  }
-
   String _number(dynamic value, {String suffix = ''}) {
     if (value == null) return '—';
     if (value is num) {
@@ -105,6 +100,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _percent(dynamic value) => value is num ? '${value.toStringAsFixed(1)}%' : '—';
+
+  String _duration(dynamic hours) {
+    if (hours is! num) return '—';
+    final days = hours / 24;
+    return days >= 1 ? '${days.toStringAsFixed(1)} d' : '${hours.toStringAsFixed(1)} h';
+  }
 
   String _periodLabel() => switch (_period) {
     '7d' => 'Últimos 7 días',
@@ -197,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 else if (_loading)
                   const _KpiLoading()
                 else
-                  _buildKpis(isGlobal),
+                  _buildKpis(),
                 const SizedBox(height: 14),
                 _SectionCard(
                   title: 'Tickets creados y resueltos',
@@ -232,13 +233,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildKpis(bool isGlobal) {
+  Widget _buildKpis() {
     final availability = _kpis['availability'];
     final backlog = _kpis['backlog'];
     final mttr = _kpis['mttr_hours'];
     final sla = _kpis['sla_compliance_pct'];
     final cards = <_KpiData>[
-      _KpiData('MTTR · mediana', _number(mttr is Map ? mttr['value'] : null, suffix: ' h'), Icons.timer_outlined, 'Tiempo de resolución'),
+      _KpiData('MTTR · mediana', _duration(mttr is Map ? mttr['value'] : null), Icons.timer_outlined, 'Tiempo de resolución'),
       _KpiData('Cumplimiento SLA', _percent(sla is Map ? sla['value'] : null), Icons.verified_user_outlined, 'Tickets resueltos a tiempo'),
       _KpiData('Disponibilidad', _percent(availability is Map ? availability['value'] : null), Icons.desktop_windows_outlined, availability is Map ? '${availability['operational'] ?? 0} de ${availability['total'] ?? 0} equipos operativos' : 'Equipos operativos'),
       _KpiData('Backlog', _number(backlog is Map ? backlog['open'] : null), Icons.inbox_outlined, 'Tickets abiertos'),
@@ -284,11 +285,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       selected: item.path == homePath || (item.path == '/inicio/dashboard-global' && widget.destination == HomeDestination.globalDashboard) || (item.path == '/inicio/dashboard' && widget.destination == HomeDestination.ownDashboard),
                       onTap: () {
                         Navigator.of(context).pop();
-                        if (item.path.startsWith('/modulos/')) {
-                          context.go(item.path);
-                        } else {
-                          context.go(item.path);
-                        }
+                        final target = item.label == 'Dashboard' ? homePath : item.path;
+                        context.go(target);
                       },
                     ),
                 ],
@@ -632,7 +630,7 @@ class _Bar extends StatelessWidget {
   Widget build(BuildContext context) {
     final amount = value is num ? value.toDouble() : 0.0;
     return LayoutBuilder(builder: (context, constraints) {
-      final height = amount == 0 ? 0.0 : (amount / max * constraints.maxHeight).clamp(3.0, constraints.maxHeight);
+      final height = amount == 0 ? 0.0 : (amount / max * constraints.maxHeight).clamp(3.0, constraints.maxHeight).toDouble();
       return Align(
         alignment: Alignment.bottomCenter,
         child: Container(
@@ -669,7 +667,7 @@ class _EquipmentRanking extends StatelessWidget {
                   Text('${item['tickets'] ?? 0}', style: const TextStyle(color: AppColors.steel, fontSize: 11, fontWeight: FontWeight.w800)),
                 ]),
                 const SizedBox(height: 5),
-                ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: ((item['tickets'] is num ? (item['tickets'] as num).toDouble() : 0) / max).clamp(0, 1), minHeight: 5, backgroundColor: const Color(0xFFE6EEF6), color: const Color(0xFF3287D2))),
+                ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: ((item['tickets'] is num ? (item['tickets'] as num).toDouble() : 0) / max).clamp(0, 1).toDouble(), minHeight: 5, backgroundColor: const Color(0xFFE6EEF6), color: const Color(0xFF3287D2))),
               ],
             ),
           ),
