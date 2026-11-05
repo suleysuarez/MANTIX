@@ -127,7 +127,18 @@ async def test_subsequent_clerk_user_is_pending_without_role(monkeypatch) -> Non
     async def load_profile(*_):
         return profile
 
-    monkeypatch.setattr("app.services.auth.get_clerk_profile", load_profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile",
+        lambda current_identity, _settings: asyncio.sleep(
+            0,
+            result=ClerkProfile(
+                current_identity.user_id,
+                f"{current_identity.user_id}@example.com",
+                current_identity.user_id,
+                email_verified=True,
+            ),
+        ),
+    )
     shared = {"lock": asyncio.Lock(), "assigned": True}
     repository = FakeRepository(role=role(), shared=shared)
     service = ClerkAuthService(object(), Settings())
