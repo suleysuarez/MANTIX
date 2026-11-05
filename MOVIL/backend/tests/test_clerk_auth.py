@@ -133,8 +133,8 @@ async def test_subsequent_clerk_user_is_pending_without_role(monkeypatch) -> Non
             0,
             result=ClerkProfile(
                 current_identity.user_id,
-                f"{current_identity.user_id}@example.com",
-                current_identity.user_id,
+                current_identity.claims["email"],
+                current_identity.claims.get("name", "Clerk user"),
                 email_verified=True,
             ),
         ),
