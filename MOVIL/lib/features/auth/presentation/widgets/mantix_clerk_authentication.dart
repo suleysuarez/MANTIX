@@ -1,165 +1,17 @@
 import 'package:clerk_flutter/clerk_flutter.dart';
-import 'package:clerk_flutter/src/widgets/authentication/clerk_oauth_panel.dart';
-import 'package:clerk_flutter/src/widgets/authentication/clerk_sign_in_panel.dart';
-import 'package:clerk_flutter/src/widgets/authentication/clerk_sign_up_panel.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
-
-/// Mantix layout around Clerk's own authentication panels.
+/// Uses Clerk's public authentication UI inside Mantix's glass-card layout.
 ///
-/// The stock ClerkAuthentication adds a default organization-logo placeholder.
-/// Mantix already displays its own logo in the background, so this wrapper
-/// keeps Clerk's authentication flow without rendering that duplicate icon.
-class MantixClerkAuthentication extends StatefulWidget {
+/// Clerk remains responsible for sign-in, sign-up, OAuth, verification,
+/// password recovery, and session state. Mantix customizes the appearance
+/// through the surrounding Theme rather than importing SDK implementation
+/// files from `src/`.
+class MantixClerkAuthentication extends StatelessWidget {
   const MantixClerkAuthentication({super.key});
 
   @override
-  State<MantixClerkAuthentication> createState() =>
-      _MantixClerkAuthenticationState();
-}
-
-class _MantixClerkAuthenticationState
-    extends State<MantixClerkAuthentication> {
-  bool _signingUp = false;
-
-  @override
   Widget build(BuildContext context) {
-    final authState = ClerkAuth.of(context);
-    if (authState.isNotAvailable) return const SizedBox.shrink();
-
-    if (authState.isSigningIn && !authState.isSigningUp) {
-      _signingUp = false;
-    } else if (authState.isSigningUp) {
-      _signingUp = true;
-    }
-
-    final env = authState.env;
-    final localizations = ClerkAuth.localizationsOf(context);
-    final theme = ClerkAuth.themeExtensionOf(context);
-    final styles = theme.styles;
-    final signInTheme = _signInPanelTheme(Theme.of(context), theme);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
-          child: Text(
-            _signingUp
-                ? localizations.signUpTo(env.display.applicationName)
-                : localizations.signInTo(env.display.applicationName),
-            textAlign: TextAlign.center,
-            style: styles.heading.copyWith(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            _signingUp
-                ? localizations.welcomePleaseFillInTheDetailsToGetStarted
-                : localizations.welcomeBackPleaseSignInToContinue,
-            textAlign: TextAlign.center,
-            style: styles.subheading,
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (!_signingUp && env.hasOauthStrategies) ...[
-          const ClerkOAuthPanel(),
-          const SizedBox(height: 12),
-          if (!_signingUp) ...[
-            Row(
-              children: [
-                const Expanded(child: Divider(color: Color(0x5938D6FF))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('or', style: styles.subheading),
-                ),
-                const Expanded(child: Divider(color: Color(0x5938D6FF))),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-        ],
-        if (_signingUp)
-          const ClerkSignUpPanel()
-        else
-          const ClerkSignInPanel(),
-        const SizedBox(height: 8),
-          Center(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: _signingUp
-                        ? localizations.alreadyHaveAnAccount
-                        : localizations.dontHaveAnAccount,
-                    style: styles.subheading,
-                  ),
-                  const WidgetSpan(child: SizedBox(width: 6)),
-                  TextSpan(
-                    text: _signingUp
-                        ? localizations.signIn
-                        : localizations.signUp,
-                    style: styles.subheading.copyWith(color: AuthTokens.accent),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () => setState(() => _signingUp = !_signingUp),
-                  ),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        const SizedBox(height: 12),
-        Center(child: Text('Secured by Clerk', style: styles.subtext)),
-      ],
-    );
+    return const ClerkAuthentication();
   }
-}
-
- 
-ThemeData _signInPanelTheme(ThemeData base, ClerkThemeExtension current) {
-  final colors = current.colors;
-  final signInColors = ClerkThemeColors(
-    background: Colors.white,
-    altBackground: colors.altBackground,
-    borderSide: colors.borderSide,
-    text: colors.text,
-    icon: colors.icon,
-    lightweightText: colors.lightweightText,
-    error: colors.error,
-    accent: AuthTokens.buttonFill,
-  );
-  return base.copyWith(
-    extensions: [
-      _MantixButtonThemeExtension(
-        colors: signInColors,
-        stylesBuilder: (value) => _MantixClerkThemeStyles(colors: value),
-      ),
-    ],
-  );
-}
-
-class _MantixButtonThemeExtension extends ClerkThemeExtension {
-  _MantixButtonThemeExtension({
-    required super.colors,
-    required super.stylesBuilder,
-  });
-
-  @override
-  BorderSide get borderSide =>
-      const BorderSide(color: AuthTokens.glassBorder, width: 1.25);
-}
-
-class _MantixClerkThemeStyles extends ClerkThemeStyles {
-  _MantixClerkThemeStyles({required super.colors});
-
-  @override
-  TextStyle get clickableText =>
-      super.clickableText.copyWith(color: AuthTokens.accent);
 }

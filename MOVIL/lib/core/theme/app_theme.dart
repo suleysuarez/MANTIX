@@ -90,8 +90,10 @@ abstract final class AppTheme {
     );
   }
 
-  /// Tema solo para el formulario de Clerk sobre la tarjeta de vidrio del login.
-  /// Deja transparentes las superficies de Clerk para que se vea el vidrio.
+  /// Clerk theme tuned for Mantix's blue glass login card.
+  ///
+  /// The dark surface is intentionally opaque enough for Clerk's internal
+  /// card and button contrast while the surrounding Mantix card stays glassy.
   static ThemeData authGlass(ThemeData base) {
     final fieldBorder = OutlineInputBorder(
       borderRadius: AppRadius.mdAll,
@@ -125,10 +127,10 @@ abstract final class AppTheme {
       ),
       extensions: [
         ClerkThemeExtension(
-          colors: const ClerkThemeColors(
-            background: Colors.transparent,
-            altBackground: Colors.transparent,
-            borderSide: AuthTokens.glassBorderSoft,
+          colors: ClerkThemeColors(
+            background: AuthTokens.glassFillBottom.withValues(alpha: 0.92),
+            altBackground: AuthTokens.glassBorderSoft,
+            borderSide: AuthTokens.glassBorder.withValues(alpha: 0.65),
             text: AuthTokens.textPrimary,
             icon: AuthTokens.textPrimary,
             lightweightText: AuthTokens.textMuted,
