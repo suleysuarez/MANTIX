@@ -55,8 +55,8 @@ export interface ChartBar {
           <div class="pointer-events-none absolute bottom-[-6rem] left-[38%] h-64 w-64 rotate-45 rounded-[40px] bg-[#3B82F6]/[0.06]"></div>
 
           <div class="hero-visual absolute inset-y-0 right-0 hidden w-[60%] lg:block">
-            <video class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
-              src="assets/videos/dashboard1.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true"></video>
+            <img class="hero-gif pointer-events-none h-full w-full object-contain object-right mix-blend-multiply"
+              src="assets/images/dashboard/dashboard-illustration.webp" alt="" aria-hidden="true" />
             <div class="holo pointer-events-none absolute inset-x-8 bottom-5 flex translate-y-2 items-center justify-around gap-4 rounded-[18px] px-5 py-3 text-[#3E5C76] opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
               <div class="flex items-center gap-3">
                 <span class="material-symbols-outlined text-[26px]">desktop_windows</span>
