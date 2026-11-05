@@ -59,6 +59,7 @@ REST API for **Mantix**, a technology-equipment maintenance system.
 
 TAGS_METADATA = [
     {"name": "authentication", "description": "Current user, roles and permissions."},
+    {"name": "mobile-authentication", "description": "Native mobile registration, verification and password recovery."},
     {"name": "administration", "description": "User onboarding and role assignment."},
     {"name": "equipment", "description": "Equipment catalog, locations and custody."},
     {
