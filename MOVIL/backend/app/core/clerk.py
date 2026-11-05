@@ -86,9 +86,12 @@ async def _fetch_clerk_profile(
         (
             item
             for item in email_addresses
-            if getattr(item, "id", None) == primary_email_id
+            if primary_email_id is not None
+            and getattr(item, "id", None) == primary_email_id
         ),
-        email_addresses[0] if email_addresses else None,
+        None if require_primary_email else (
+            email_addresses[0] if email_addresses else None
+        ),
     )
     resolved_email = getattr(selected_email, "email_address", None)
     if not resolved_email:
