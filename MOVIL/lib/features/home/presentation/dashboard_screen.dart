@@ -412,13 +412,15 @@ class _BrandWordmark extends StatelessWidget {
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => RichText(
-    text: TextSpan(
-      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w900, letterSpacing: -1.1),
-      children: const [
-        TextSpan(text: 'MANT', style: TextStyle(color: Colors.white)),
-        TextSpan(text: 'IX', style: TextStyle(color: AppColors.mustard)),
-      ],
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/branding/mantix.webp',
+    width: fontSize >= 27 ? 142 : 132,
+    height: 38,
+    fit: BoxFit.contain,
+    alignment: Alignment.centerLeft,
+    errorBuilder: (context, error, stackTrace) => const Text(
+      'MANTIX',
+      style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900),
     ),
   );
 }
@@ -440,8 +442,24 @@ class _WelcomeHero extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(right: -15, bottom: -20, child: Icon(Icons.memory_rounded, size: 138, color: AppColors.sky.withValues(alpha: 0.45))),
-          Positioned(right: 55, top: 10, child: Icon(Icons.settings_rounded, size: 56, color: AppColors.steel.withValues(alpha: 0.13))),
+          Positioned(
+            right: -4,
+            top: 4,
+            bottom: 4,
+            child: SizedBox(
+              width: 148,
+              child: Image.asset(
+                'assets/images/dashboard/dashboard-illustration.webp',
+                fit: BoxFit.contain,
+                alignment: Alignment.centerRight,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.memory_rounded,
+                  size: 112,
+                  color: AppColors.sky.withValues(alpha: 0.45),
+                ),
+              ),
+            ),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
