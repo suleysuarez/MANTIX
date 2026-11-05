@@ -110,7 +110,11 @@ abstract final class AppTheme {
         bodyColor: AuthTokens.textPrimary,
         displayColor: AuthTokens.textPrimary,
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.mustard),
+      ),
       inputDecorationTheme: InputDecorationTheme(
+        errorStyle: const TextStyle(color: AuthTokens.error, fontWeight: FontWeight.w600),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.10),
         hintStyle: const TextStyle(color: AuthTokens.textMuted),
