@@ -118,6 +118,7 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "category_in_use": "La categoría está en uso por solicitudes y no se elimina.",
             "attachment_limit_reached": "Se alcanzó el máximo de adjuntos.",
             "user_email_taken": "Ya existe un usuario con ese correo.",
+            "auth_invalid_credentials": "El correo o la contraseña no son correctos.",
             "user_employee_code_taken": "Ya existe un usuario con ese código de empleado.",
             "user_account_disabled": "La cuenta está desactivada.",
             "cannot_deactivate_self": "No puedes desactivar tu propia cuenta.",
@@ -154,6 +155,9 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "role_escalation_forbidden": "No puedes conceder ni quitar permisos o roles que tú no tienes.",
             "profile_email_locked": "El correo no se modifica desde el perfil.",
             "user_inactive": "El usuario local está inactivo.",
+            "auth_email_not_verified": "El correo debe verificarse antes de iniciar sesión.",
+            "auth_code_invalid": "El código no es válido o ha vencido.",
+            "auth_code_attempts_exceeded": "Se superó el número de intentos del código."),
         },
     ),
 }
