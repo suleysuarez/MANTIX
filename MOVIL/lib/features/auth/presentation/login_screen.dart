@@ -185,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(onPressed: () => _setMode(_AuthMode.login), child: const Text('Ya tengo una cuenta')),
                 ] else if (_mode == _AuthMode.verify) ...[
                   TextButton(onPressed: _busy ? null : () async {
-                    try { await auth.resendVerification(_email.text.trim()); _showMessage('Si la cuenta necesita verificación, enviaremos otro código.'); }
+                    try { await context.read<MobileAuthRepository>().resendVerification(_email.text.trim()); _showMessage('Si la cuenta necesita verificación, enviaremos otro código.'); }
                     catch (error) { _showMessage(_errorText(error), error: true); }
                   }, child: const Text('Reenviar código')),
                 ] else ...[

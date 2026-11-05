@@ -1,5 +1,3 @@
-import 'package:clerk_flutter/clerk_flutter.dart'
-    show ClerkThemeColors, ClerkThemeExtension;
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
@@ -90,10 +88,7 @@ abstract final class AppTheme {
     );
   }
 
-  /// Clerk theme tuned for Mantix's blue glass login card.
-  ///
-  /// The dark surface is intentionally opaque enough for Clerk's internal
-  /// card and button contrast while the surrounding Mantix card stays glassy.
+  /// Dark glass theme for Mantix's native mobile authentication screens.
   static ThemeData authGlass(ThemeData base) {
     final fieldBorder = OutlineInputBorder(
       borderRadius: AppRadius.mdAll,
@@ -125,20 +120,6 @@ abstract final class AppTheme {
           borderSide: const BorderSide(color: AuthTokens.accent, width: 1.5),
         ),
       ),
-      extensions: [
-        ClerkThemeExtension(
-          colors: ClerkThemeColors(
-            background: AuthTokens.glassFillBottom.withValues(alpha: 0.92),
-            altBackground: AuthTokens.glassBorderSoft,
-            borderSide: AuthTokens.glassBorder.withValues(alpha: 0.65),
-            text: AuthTokens.textPrimary,
-            icon: AuthTokens.textPrimary,
-            lightweightText: AuthTokens.textMuted,
-            error: AuthTokens.error,
-            accent: AuthTokens.accent,
-          ),
-        ),
-      ],
     );
   }
 }
