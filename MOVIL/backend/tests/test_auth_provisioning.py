@@ -244,6 +244,52 @@ async def test_profile_comes_from_token_claims_when_they_include_an_email():
     assert profile == ClerkProfile("u1", "mixed@example.com", "Ana")
 
 
+async def test_verified_profile_uses_clerk_primary_email_and_verification(monkeypatch):
+    clerk_user = SimpleNamespace(
+        email_addresses=[
+            SimpleNamespace(
+                id="e1",
+                email_address="Primary@Example.com",
+                verification=SimpleNamespace(status="verified"),
+            )
+        ],
+        primary_email_address_id="e1",
+        first_name="Ana",
+        last_name="Ruiz",
+    )
+    client = fake_clerk(clerk_user)
+    monkeypatch.setattr(clerk_module, "get_clerk_client", lambda key: client)
+    profile = await clerk_module.get_verified_clerk_profile(
+        VerifiedClerkIdentity("u1", {"sub": "u1", "email": "untrusted@example.com"}),
+        SETTINGS,
+    )
+    assert profile.email == "primary@example.com"
+    assert profile.email_verified is True
+    assert client.users.calls == ["u1"]
+
+
+async def test_verified_profile_marks_unverified_primary_email(monkeypatch):
+    clerk_user = SimpleNamespace(
+        email_addresses=[
+            SimpleNamespace(
+                id="e1",
+                email_address="primary@example.com",
+                verification=SimpleNamespace(status="unverified"),
+            )
+        ],
+        primary_email_address_id="e1",
+        first_name="Ana",
+        last_name="Ruiz",
+    )
+    monkeypatch.setattr(
+        clerk_module, "get_clerk_client", lambda key: fake_clerk(clerk_user)
+    )
+    profile = await clerk_module.get_verified_clerk_profile(
+        VerifiedClerkIdentity("u1", {"sub": "u1"}), SETTINGS
+    )
+    assert profile.email_verified is False
+
+
 async def test_profile_is_fetched_from_clerk_using_the_primary_email(monkeypatch):
     clerk_user = SimpleNamespace(
         email_addresses=[
