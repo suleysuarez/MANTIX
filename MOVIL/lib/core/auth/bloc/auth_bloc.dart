@@ -27,6 +27,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _repository;
   late final StreamSubscription<bool> _signInChanges;
 
+  // AuthStarted and AuthRefreshRequested can arrive together (startup + Clerk
+  // sign-in stream). Share one in-flight /auth/me request instead of racing.
+  Future<AuthState>? _loadInFlight;
+
+  Future<AuthState> _loadOnce() {
+    final inFlight = _loadInFlight;
+    if (inFlight != null) return inFlight;
+
+    final request = _load();
+    _loadInFlight = request;
+    return request.whenComplete(() {
+      if (identical(_loadInFlight, request)) _loadInFlight = null;
+    });
+  }
+
   Future<AuthState> _load() async {
     if (await _auth.accessToken() == null) return const AuthUnauthenticated();
     try {
