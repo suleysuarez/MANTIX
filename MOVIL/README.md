@@ -26,7 +26,7 @@ Los códigos de verificación y recuperación se envían mediante Resend. Las cu
 
 **La autenticación Clerk de Angular/web no se modifica.** FastAPI acepta tanto los tokens Clerk existentes como los tokens nativos de la app.
 
-Variables privadas del backend: `MOBILE_JWT_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. Nunca se incluyen en `dart_defines.json`.
+Variables privadas del backend: `MOBILE_JWT_SECRET`, `MOBILE_ACCESS_TOKEN_MINUTES` (480 por defecto), `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. El remitente de Resend debe pertenecer a un dominio verificado. Nunca se incluyen en `dart_defines.json`.
 
 ## Ejecutar
 
