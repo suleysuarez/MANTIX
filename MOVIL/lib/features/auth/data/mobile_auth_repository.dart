@@ -6,8 +6,8 @@ class MobileAuthRepository {
   final Dio _dio;
   final NativeAuthProvider _auth;
 
-  Future<void> register({required String fullName, required String email, required String password}) async {
-    await _dio.post('/mobile-auth/register', data: {'full_name': fullName, 'email': email, 'password': password});
+  Future<void> register({required String email, required String password}) async {
+    await _dio.post('/mobile-auth/register', data: {'email': email, 'password': password});
   }
 
   Future<void> verifyEmail({required String email, required String code}) async {

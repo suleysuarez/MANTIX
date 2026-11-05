@@ -110,7 +110,11 @@ abstract final class AppTheme {
         bodyColor: AuthTokens.textPrimary,
         displayColor: AuthTokens.textPrimary,
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.mustard),
+      ),
       inputDecorationTheme: InputDecorationTheme(
+        errorStyle: const TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w600),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.10),
         hintStyle: const TextStyle(color: AuthTokens.textMuted),
@@ -118,6 +122,12 @@ abstract final class AppTheme {
         enabledBorder: fieldBorder,
         focusedBorder: fieldBorder.copyWith(
           borderSide: const BorderSide(color: AuthTokens.accent, width: 1.5),
+        ),
+        errorBorder: fieldBorder.copyWith(
+          borderSide: const BorderSide(color: AppColors.mustard),
+        ),
+        focusedErrorBorder: fieldBorder.copyWith(
+          borderSide: const BorderSide(color: AppColors.mustard, width: 1.5),
         ),
       ),
     );

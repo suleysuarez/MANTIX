@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../shared/glass_card.dart';
 import 'widgets/auth_shell.dart';
 import '../data/mobile_auth_repository.dart';
@@ -17,7 +18,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
@@ -29,7 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _name.dispose();
     _email.dispose();
     _password.dispose();
     _code.dispose();
@@ -76,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
           await auth.login(email: email, password: _password.text);
           break;
         case _AuthMode.register:
-          await auth.register(fullName: _name.text.trim(), email: email, password: _password.text);
+          await auth.register(email: email, password: _password.text);
           _setMode(_AuthMode.verify);
           _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
           break;
@@ -118,8 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   InputDecoration _decoration(String label, {IconData? icon}) => InputDecoration(
-    labelText: label, prefixIcon: icon == null ? null : Icon(icon),
-    filled: true, fillColor: Colors.white.withValues(alpha: 0.08),
+    labelText: label, labelStyle: const TextStyle(color: Colors.white), floatingLabelStyle: const TextStyle(color: AuthTokens.accent), prefixIcon: icon == null ? null : Icon(icon, color: Colors.white),
+    filled: true, fillColor: Colors.white.withValues(alpha: 0.10), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
   );
@@ -136,23 +135,20 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                Text(_title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Text(
                   switch (_mode) {
                     _AuthMode.login => 'Ingresa con tu correo y contraseña.',
-                    _AuthMode.register => 'Regístrate. Un administrador habilitará tu acceso.',
+                    _AuthMode.register => 'Usa tu correo y crea una contraseña nueva para Mantix. Un administrador habilitará tu acceso.',
                     _AuthMode.verify => 'Escribe el código que enviamos a tu correo.',
                     _AuthMode.forgot => 'Te enviaremos un código si tu cuenta está registrada.',
                     _AuthMode.reset => 'Ingresa el código recibido y tu nueva contraseña.',
                   },
                   textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
                 ),
                 const SizedBox(height: 22),
-                if (_mode == _AuthMode.register) ...[
-                  TextFormField(controller: _name, textCapitalization: TextCapitalization.words, decoration: _decoration('Nombre completo', icon: Icons.person_outline), validator: (v) => (v == null || v.trim().length < 2) ? 'Escribe tu nombre.' : null),
-                  const SizedBox(height: 12),
-                ],
                 if (_mode != _AuthMode.verify && _mode != _AuthMode.reset) ...[
                   TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: _decoration('Correo electrónico', icon: Icons.email_outlined), validator: _validateEmail),
                   const SizedBox(height: 12),
@@ -165,12 +161,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 4),
                 ],
                 if (_mode == _AuthMode.login || _mode == _AuthMode.register || _mode == _AuthMode.reset) ...[
-                  TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
-                  if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Mínimo 10 caracteres, una mayúscula, una minúscula y un número.', style: TextStyle(fontSize: 11))),
+                  TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
+                  if (_mode != _AuthMode.login) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Crea una contraseña para Mantix: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(fontSize: 11))),
                 ],
                 if (_message != null) ...[
                   const SizedBox(height: 12),
-                  Text(_message!, style: TextStyle(color: _isError ? Colors.redAccent : Colors.lightGreenAccent), textAlign: TextAlign.center),
+                  Text(_message!, style: TextStyle(color: _isError ? AppColors.mustard : Colors.white, fontWeight: FontWeight.w600, fontSize: 13), textAlign: TextAlign.center),
                 ],
                 const SizedBox(height: 18),
                 FilledButton(
