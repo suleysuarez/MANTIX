@@ -53,9 +53,59 @@ Comprobado contra `backend/app/core/permissions.py`: todos esos códigos existen
 
 1. Qué se hizo y por qué. 2. Archivos creados o modificados. 3. Cómo ejecutarlo y probarlo. 4. Resultado de los tests. 5. Pendientes y puntos débiles. 6. Lo que se necesita del usuario.
 
-## Arquitectura propuesta
+## Arquitectura: BLoC para todo el proyecto
 
-Riverpod (estado), Dio (HTTP; interceptor con `QueuedInterceptor` para una sola renovación aunque fallen varias peticiones), `go_router` con `redirect` por sesión y permiso, `flutter_secure_storage`, `freezed` y `json_serializable`. Cliente HTTP escrito a mano (no generado desde OpenAPI). Carpetas `lib/{core,shared,features/<módulo>/{data,domain,presentation}}`.
+**Decisión (reemplaza a Riverpod):** todo el estado de la app va en `flutter_bloc`. Riverpod se retiró en la migración (commit `refactor(mobile): migrate the app from Riverpod to BLoC`).
+
+Paquetes: `flutter_bloc` 9.1.1, `bloc` 9.2.1, `equatable` 3.0.0; en pruebas `bloc_test` 10.0.0 y `mocktail` 1.0.5. Dio (HTTP; interceptor con `QueuedInterceptor` para una sola renovación aunque fallen varias peticiones), `go_router` con `redirect` por sesión y permiso y `flutter_secure_storage` (aún sin uso: ver Fase 9). Cliente HTTP escrito a mano (no generado desde OpenAPI). **Los modelos se escriben a mano con `Equatable`**: `freezed`, `json_serializable` y `build_runner` se retiraron porque no tenían ni un archivo generado y `build_runner` ≥ 2.16.2 no resuelve junto con `bloc_test` en este SDK. El código generado se puede reevaluar más adelante.
+
+### Reglas
+
+1. Cada flujo con eventos (auth, listados, detalle, formularios, dashboard…) es un **Bloc** con tres archivos en `presentation/bloc/`: `<x>_bloc.dart`, `<x>_event.dart` y `<x>_state.dart` (los dos últimos con `part of`).
+2. Un **Cubit** solo para estado derivado o trivial. Hoy hay uno: `PermissionsCubit`, derivado del `AuthBloc`, sin eventos propios. El filtro de estado de «Mis solicitudes» y el texto del buscador de equipos son estado efímero de la pantalla (`setState`); al cambiar, la pantalla crea un Bloc nuevo con una `key`.
+3. Las pantallas solo reaccionan con `BlocBuilder`, `BlocListener`, `BlocSelector` o `context.select`; ninguna llama a un repositorio ni a Dio.
+4. Los estados son `Equatable` y explícitos (inicial/cargando, éxito, vacío y error con el `Failure` sellado). **Ningún estado guarda tokens.** Los eventos son clases selladas.
+5. Inyección sin `get_it`: `RepositoryProvider` y `BlocProvider` en la raíz (`MantixApp`) y un `BlocProvider` por pantalla (ruta) para los Bloc de esa pantalla.
+6. `go_router` solo reacciona al estado de sesión (`refreshListenable` sobre el stream del `AuthBloc`); `redirectFor` y `resolveHome` son funciones puras.
+7. El cliente HTTP no depende de widgets ni de Bloc: avisa de la sesión expirada con el callback `onSessionExpired`, que `main.dart` conecta al `AuthBloc`.
+8. Los Bloc procesan los eventos **de uno en uno**. Si un evento no debe repetirse mientras hay otro igual en curso (por ejemplo «cargar más»), se descarta antes de encolarlo, como hace `PagedBloc`.
+
+### Estructura
+
+```
+lib/
+  core/{auth/{bloc,...}, network/{paged,...}, errors, routing, theme, ...}
+  shared/                       widgets reutilizables (sin estado de negocio)
+  features/<módulo>/{data, presentation/{bloc, <pantallas>}}
+```
+
+### Ejemplo: formulario de nueva solicitud
+
+```dart
+// presentation/bloc/create_request_event.dart
+sealed class CreateRequestEvent { const CreateRequestEvent(); }
+class CreateRequestSubmitted extends CreateRequestEvent {
+  const CreateRequestSubmitted(this.request);
+  final NewRequest request;
+}
+
+// presentation/bloc/create_request_state.dart
+enum CreateStatus { initial, submitting, success, failure }
+class CreateRequestState extends Equatable { /* status, createdId, failure */ }
+
+// la pantalla
+BlocProvider(
+  create: (context) => CreateRequestBloc(repository: context.read<RequestsRepository>()),
+  child: BlocListener<CreateRequestBloc, CreateRequestState>(
+    listener: (context, state) { /* success -> detalle; failure -> errores por campo */ },
+    child: /* formulario; el botón se deshabilita con status == submitting */,
+  ),
+);
+```
+
+### Sesión: cómo el `AuthBloc` envuelve a Clerk
+
+Clerk sigue siendo la **única fuente de verdad** de «hay sesión» y de los tokens (los guarda y renueva el SDK). El `AuthBloc` no copia nada de eso: solo pregunta al `AuthProvider` (`accessToken()`, `signOut()`) y escucha su flujo `signInChanges`, que emite cuando Clerk inicia o cierra sesión por su cuenta. Con cada cambio carga `GET /auth/me` y traduce el resultado en un `AuthState`: `AuthUnknown`, `AuthUnauthenticated`, `AuthUnavailable`, `AuthPending` (roles vacíos), `AuthNoAccess` (roles sin permisos) o `Authenticated`. Así no hay dos estados de sesión que puedan discrepar.
 
 Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servidor). Se mapea por el campo `code`; un `code` desconocido se mapea por el estado HTTP, sin romper.
 
@@ -89,8 +139,6 @@ Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 **Qué hay en la app:** «Mis solicitudes» (lista paginada de 20 con scroll infinito, filtro por estado, estados de carga, vacío y error), detalle de la solicitud (datos, técnico, historial y adjuntos en solo lectura) y «Nueva solicitud» (selector de equipo con búsqueda, validación en el cliente y los 422 del servidor bajo cada campo). La ruta de crear exige `solicitudes:crear` y el botón se oculta sin ese permiso.
 
 **Fuera de esta fase, por decidir:** subir y descargar adjuntos (necesita un selector de archivos como dependencia nueva y manejo de descargas), cancelar una solicitud y elegir categoría.
-
-**Detalles técnicos:** `ProviderScope(retry: ...)` desactiva el reintento automático de Riverpod 3 para que los errores se vean al instante con su botón «Reintentar».
 
 ## Contrato de la API que usa la app
 
