@@ -122,6 +122,6 @@ abstract final class AuthTokens {
   static const Color glassBorderSoft = Color(0x5938D6FF);
 
   static const double maxCardWidth = 420;
-  static const double logoZone = 0.40; // el logo ocupa hasta el 38 % de la altura
+  static const double logoZone = 0.30; // reserva espacio para el logo y acerca la tarjeta al centro
   static const double cardRadius = 28;
 }
