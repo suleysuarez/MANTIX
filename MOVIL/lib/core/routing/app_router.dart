@@ -77,10 +77,8 @@ class GoRouterRefreshStream extends ChangeNotifier {
   }
 }
 
-/// Crea el router de la app a partir del estado del [AuthBloc]. [refresh] hace que se
-/// reevalúe el `redirect` al cambiar la sesión (quien lo crea lo libera). [hasClerk]
-/// indica si el servicio de acceso arrancó (lo usa la pantalla de login).
-GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refresh, required bool hasClerk}) {
+/// Crea el router de la app a partir del estado del AuthBloc.
+GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refresh}) {
   final router = GoRouter(
     initialLocation: AppRoutes.splash,
     refreshListenable: refresh,
