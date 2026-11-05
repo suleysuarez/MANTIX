@@ -44,7 +44,7 @@ void main() {
     wait: const Duration(milliseconds: 100),
     expect: () => [const Authenticated(profile)],
     verify: (_) {
-      verify(() => auth.accessToken()).called(1);
+      verify(() => auth.accessToken()).called(2);
       verify(() => repository.me()).called(1);
     },
   );
