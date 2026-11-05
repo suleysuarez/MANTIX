@@ -1,8 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-
-import '../../../core/auth/bloc/auth_bloc.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/glass_card.dart';
 import 'widgets/auth_shell.dart';
@@ -76,22 +73,25 @@ class _LoginScreenState extends State<LoginScreen> {
       switch (_mode) {
         case _AuthMode.login:
           await auth.login(email: email, password: _password.text);
-          if (mounted) context.read<AuthBloc>().add(const AuthRefreshRequested());
+          break;
         case _AuthMode.register:
           await auth.register(fullName: _name.text.trim(), email: email, password: _password.text);
           _setMode(_AuthMode.verify);
           _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
+          break;
         case _AuthMode.verify:
           await auth.verifyEmail(email: email, code: _code.text.trim());
-          if (mounted) context.read<AuthBloc>().add(const AuthRefreshRequested());
+          break;
         case _AuthMode.forgot:
           await auth.requestPasswordReset(email);
           _setMode(_AuthMode.reset);
           _showMessage('Si la cuenta existe, recibirás un código para restablecer la contraseña.');
+          break;
         case _AuthMode.reset:
           await auth.resetPassword(email: email, code: _code.text.trim(), newPassword: _password.text);
           _setMode(_AuthMode.login);
           _showMessage('Contraseña actualizada. Ya puedes iniciar sesión.');
+          break;
       }
     } catch (error) {
       if (mounted) _showMessage(_errorText(error), error: true);
