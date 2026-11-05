@@ -22,6 +22,7 @@ class ClerkProfile:
     clerk_user_id: str
     email: str
     full_name: str
+    email_verified: bool = False
 
 
 @lru_cache
