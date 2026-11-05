@@ -116,7 +116,7 @@ abstract final class AuthTokens {
   static const Color glassFillBottom = Color(0xFF071A3D);
   static const Color glassBorder = Color(0xFF38D6FF);
   static const Color accent = Color(0xFF22D3EE);
-  static const Color buttonFill = Color(0xFF075B75);
+  static const Color buttonFill = Color(0xCC061B3A);
   static const Color textPrimary = Colors.white;
   static const Color textMuted = Color(0xB3FFFFFF);
   static const Color error = Color(0xFFFF8A80);
