@@ -16,7 +16,7 @@ services:
       - ./backend/.env
     environment:
       BACKEND_PORT: 8000
-      RUN_MIGRATIONS: "true"
+      RUN_MIGRATIONS: "false"
       UPLOAD_DIR: /data/uploads
     ports:
       - "${MOVIL_BACKEND_PORT:-8001}:8000"
