@@ -100,12 +100,12 @@ class MobileAuthService:
         record.consumed_at = now
         await self.session.flush()
 
-    async def register(self, *, email: str, full_name: str, password: str) -> None:
+    async def register(self, *, email: str, password: str) -> None:
         email = self._normalize_email(email)
         if await self._user_by_email(email) is not None:
             raise ConflictError("Ya existe una cuenta con este correo.", code="user_email_taken")
         user = User(
-            email=email, full_name=full_name.strip(),
+            email=email, full_name=email.split("@", 1)[0][:255] or "Usuario",
             password_hash=_passwords.hash(password), is_active=True,
             clerk_user_id=None, email_verified_at=None,
         )
