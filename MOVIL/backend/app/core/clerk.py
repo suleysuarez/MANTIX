@@ -123,7 +123,9 @@ async def get_verified_clerk_profile(
 
     Token claims alone are deliberately insufficient for re-linking a local account.
     """
-    return await _fetch_clerk_profile(identity, settings)
+    return await _fetch_clerk_profile(
+        identity, settings, require_primary_email=True
+    )
 
 
 async def get_clerk_profile(
