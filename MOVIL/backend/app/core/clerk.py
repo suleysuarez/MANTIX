@@ -67,15 +67,9 @@ def verify_clerk_request(request: Request, settings: Settings) -> VerifiedClerkI
     )
 
 
-async def get_clerk_profile(
+async def _fetch_clerk_profile(
     identity: VerifiedClerkIdentity, settings: Settings
 ) -> ClerkProfile:
-    claims = identity.claims
-    email = claims.get("email")
-    full_name = claims.get("name") or claims.get("full_name") or "Clerk user"
-    if email:
-        return ClerkProfile(identity.user_id, str(email).lower(), str(full_name))
-
     if not settings.clerk_secret_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -99,6 +93,12 @@ async def get_clerk_profile(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tu cuenta no tiene un correo válido. Contacta a un administrador.",
         )
+    verification = getattr(selected_email, "verification", None)
+    verification_status = (
+        verification.get("status")
+        if isinstance(verification, dict)
+        else getattr(verification, "status", None)
+    )
     first_name = getattr(clerk_user, "first_name", None) or ""
     last_name = getattr(clerk_user, "last_name", None) or ""
     resolved_name = " ".join(part for part in (first_name, last_name) if part).strip()
@@ -106,4 +106,26 @@ async def get_clerk_profile(
         identity.user_id,
         str(resolved_email).lower(),
         resolved_name or "Clerk user",
+        email_verified=verification_status == "verified",
     )
+
+
+async def get_verified_clerk_profile(
+    identity: VerifiedClerkIdentity, settings: Settings
+) -> ClerkProfile:
+    """Fetch the primary email from Clerk's API, including its verification status.
+
+    Token claims alone are deliberately insufficient for re-linking a local account.
+    """
+    return await _fetch_clerk_profile(identity, settings)
+
+
+async def get_clerk_profile(
+    identity: VerifiedClerkIdentity, settings: Settings
+) -> ClerkProfile:
+    claims = identity.claims
+    email = claims.get("email")
+    full_name = claims.get("name") or claims.get("full_name") or "Clerk user"
+    if email:
+        return ClerkProfile(identity.user_id, str(email).lower(), str(full_name))
+    return await _fetch_clerk_profile(identity, settings)
