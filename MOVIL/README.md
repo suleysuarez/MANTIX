@@ -31,7 +31,7 @@ Variables privadas del backend: `MOBILE_JWT_SECRET`, `MOBILE_ACCESS_TOKEN_MINUTE
 ## Ejecutar
 
 1. Configura `MOVIL/backend/.env` con la cadena de conexión de **Neon** en `DATABASE_URL` (formato `postgresql://...`, con SSL habilitado; no uses `db` como host), `MOBILE_JWT_SECRET` (mínimo 32 bytes), `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. Si quieres que la web y Flutter compartan los mismos usuarios y datos, usa la misma base de datos Neon que tiene configurada `WEB/backend/.env`. No subas este archivo al repositorio.
-2. Aplica la migración de base de datos desde `MOVIL/backend`: `alembic upgrade head`.
+2. Aplica las migraciones de forma explícita contra Neon: `docker compose run --rm backend alembic upgrade head` (ejecútalo una vez después de configurar `MOVIL/backend/.env` y antes de iniciar la API).
 3. Levanta el backend móvil con `docker compose up --build -d` dentro de `MOVIL/`; escucha en el puerto 8001 y usa el `DATABASE_URL` de Neon definido en `MOVIL/backend/.env`. El stack móvil ya no inicia una base PostgreSQL local.
 4. Crea tu archivo de variables a partir del ejemplo (`dart_defines.json` está ignorado por Git):
 
