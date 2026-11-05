@@ -99,6 +99,7 @@ Toda respuesta de error tiene el mismo cuerpo:
 | --- | --- |
 | `auth_code_attempts_exceeded` | Se superó el número de intentos del código. |
 | `auth_code_invalid` | El código no es válido o ha vencido. |
+| `auth_email_already_verified` | El correo ya fue verificado. |
 | `auth_email_not_verified` | El correo debe verificarse antes de iniciar sesión. |
 | `auth_invalid_credentials` | El correo o la contraseña no son correctos. |
 | `attachment_access_forbidden` | No tienes acceso a este archivo. |
