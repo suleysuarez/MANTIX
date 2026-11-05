@@ -42,7 +42,7 @@ Variables privadas del backend: `MOBILE_JWT_SECRET`, `RESEND_API_KEY`, `RESEND_F
 
 | Variable | Para qué | Por defecto |
 | --- | --- | --- |
-| `API_BASE_URL` | URL del backend | `http://10.0.2.2:8000` |
+| `API_BASE_URL` | URL del backend | `http://10.0.2.2:8001` |
 | `APP_VERSION` | Se envía en `X-App-Version` | `1.0.0` |
 
 - **Emulador:** `10.0.2.2` es el `localhost` del equipo. El backend del móvil usa el puerto 8001, así que pon `API_BASE_URL` en `http://10.0.2.2:8001` o usa el 8000 si levantas el de la web.
