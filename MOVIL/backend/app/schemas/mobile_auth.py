@@ -5,6 +5,14 @@ class MobileRegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=10, max_length=128)
 
+    @field_validator("full_name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Escribe tu nombre completo.")
+        return value
+
     @field_validator("password")
     @classmethod
     def strong_password(cls, value: str) -> str:
