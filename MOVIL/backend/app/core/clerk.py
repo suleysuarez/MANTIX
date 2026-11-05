@@ -105,6 +105,9 @@ async def _fetch_clerk_profile(
         if isinstance(verification, dict)
         else getattr(verification, "status", None)
     )
+    verification_status = getattr(
+        verification_status, "value", verification_status
+    )
     first_name = getattr(clerk_user, "first_name", None) or ""
     last_name = getattr(clerk_user, "last_name", None) or ""
     resolved_name = " ".join(part for part in (first_name, last_name) if part).strip()
