@@ -89,7 +89,7 @@ class _MantixClerkAuthenticationState
         if (_signingUp)
           const ClerkSignUpPanel()
         else
-          Theme(data: signInTheme, child: const ClerkSignInPanel()),
+          const ClerkSignInPanel(),
         const SizedBox(height: 8),
           Center(
             child: Text.rich(
