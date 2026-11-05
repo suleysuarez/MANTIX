@@ -155,9 +155,44 @@ async def test_inactive_local_users_are_refused(session, service):
 
 
 @needs_db
-async def test_an_email_already_linked_to_another_clerk_account_is_a_conflict(
+async def test_verified_same_email_relinks_existing_user_without_losing_roles(
     session, service
 ):
+    existing = User(
+        clerk_user_id="clerk_a",
+        email="shared@example.com",
+        full_name="Existing Account",
+        is_active=True,
+    )
+    session.add(existing)
+    await session.flush()
+    user_id = existing.id
+
+    resolved = await service.resolve_local_user(
+        identity("clerk_b", "shared@example.com")
+    )
+
+    assert resolved.id == user_id
+    assert resolved.clerk_user_id == "clerk_b"
+    assert resolved.email == "shared@example.com"
+    assert resolved.full_name == "Existing Account"
+
+
+@needs_db
+async def test_unverified_email_cannot_relink_existing_user(
+    session, service, monkeypatch
+):
+    async def unverified_profile(identity, settings):
+        return ClerkProfile(
+            identity.user_id,
+            identity.claims["email"].lower(),
+            identity.claims["name"],
+            email_verified=False,
+        )
+
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", unverified_profile
+    )
     session.add(
         User(
             clerk_user_id="clerk_a",
@@ -167,7 +202,8 @@ async def test_an_email_already_linked_to_another_clerk_account_is_a_conflict(
         )
     )
     await session.flush()
-    with pytest.raises(ConflictError, match="already linked"):
+
+    with pytest.raises(ConflictError, match="not verified"):
         await service.resolve_local_user(identity("clerk_b", "shared@example.com"))
 
 
