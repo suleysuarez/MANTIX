@@ -261,8 +261,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Drawer(
       width: 306,
       backgroundColor: const Color(0xFF0B2341),
-      child: SafeArea(
-        child: Column(
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0B1F3A), Color(0xFF12365C)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
@@ -327,7 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(profile.fullName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                                  Text(profile.roles.isEmpty ? 'Usuario' : profile.roles.first, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                  Text(_roleLabel(profile), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)),
                                 ],
                               ),
                             ),
@@ -347,9 +355,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
+  }
+
+  String _roleLabel(UserProfile profile) {
+    if (profile.roles.isEmpty) return 'Usuario';
+    return switch (profile.roles.first.toLowerCase()) {
+      'admin' || 'administrator' || 'administrador' => 'Administrador',
+      'super_admin' || 'superadmin' => 'Superadministrador',
+      'technician' || 'tecnico' || 'técnico' => 'Técnico',
+      'requester' || 'solicitante' => 'Solicitante',
+      final value => value.replaceAll('_', ' '),
+    };
   }
 
   void _scrollToAlerts() {
@@ -696,7 +716,7 @@ class _AlertsList extends StatelessWidget {
       for (final item in downEquipment.take(3))
         if (item is Map)
           _AlertRow(
-            icon: Icons.desktop_access_disabled_outlined,
+            icon: Icons.desktop_windows_outlined,
             title: '${item['asset_tag'] ?? 'Equipo'} fuera de servicio',
             subtitle: '${item['brand'] ?? ''} ${item['model'] ?? ''}',
             tone: const Color(0xFFD18B35),
