@@ -15,7 +15,7 @@ part 'auth_state.dart';
 /// Clerk sigue siendo la fuente de verdad de «hay sesión» y este Bloc solo
 /// resuelve qué significa para la app (perfil, roles y permisos de `/auth/me`).
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({required this._auth, required this._repository}) : super(const AuthUnknown()) {
+  AuthBloc({required AuthProvider auth, required AuthRepository repository}) : _auth = auth, _repository = repository, super(const AuthUnknown()) {
     on<AuthStarted>((_, emit) async => emit(await _load()));
     on<AuthRefreshRequested>(_onRefresh);
     on<AuthSignOutRequested>(_onSignOut);
