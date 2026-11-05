@@ -34,7 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
     _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
-    _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', 'solicitudes:ver'),
+    _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver', 'solicitudes:ver_todos']),
     _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
     _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
@@ -266,7 +266,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDrawer(UserProfile profile) {
-    final allowed = _navItems.where((item) => item.permission == null || profile.can(item.permission!)).toList();
+    final allowed = _navItems.where((item) =>
+      (item.permission == null && item.anyPermissions.isEmpty) ||
+      (item.permission != null && profile.can(item.permission!)) ||
+      item.anyPermissions.any(profile.can),
+    ).toList();
     final homePath = resolveHome(profile.permissions).path;
     return Drawer(
       width: 306,
@@ -395,11 +399,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _NavItem {
-  const _NavItem(this.label, this.icon, this.path, [this.permission]);
+  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const []]);
   final String label;
   final IconData icon;
   final String path;
   final String? permission;
+  final List<String> anyPermissions;
 }
 
 class _BrandWordmark extends StatelessWidget {
