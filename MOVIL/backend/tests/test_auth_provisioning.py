@@ -65,7 +65,19 @@ def service(session, monkeypatch):
         claims = identity.claims
         return ClerkProfile(identity.user_id, claims["email"], claims["name"])
 
+    async def verified_profile(identity, settings):
+        claims = identity.claims
+        return ClerkProfile(
+            identity.user_id,
+            claims["email"].lower(),
+            claims["name"],
+            email_verified=True,
+        )
+
     monkeypatch.setattr("app.services.auth.get_clerk_profile", profile)
+    monkeypatch.setattr(
+        "app.services.auth.get_verified_clerk_profile", verified_profile
+    )
     return ClerkAuthService(AuthRepository(session), Settings())
 
 
