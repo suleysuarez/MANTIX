@@ -10,6 +10,7 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.attachment import router as attachment_router
 from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.mobile_auth import router as mobile_auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.equipment import location_router
 from app.api.routes.equipment import router as equipment_router
@@ -44,7 +45,7 @@ configure_logging(settings.log_level)
 DESCRIPTION = """
 REST API for **Mantix**, a technology-equipment maintenance system.
 
-* **Authentication** is delegated to Clerk: send `Authorization: Bearer <session JWT>`.
+* **Web authentication** uses Clerk; the native mobile app uses Mantix email/password tokens.
   Clerk issues short-lived tokens and handles refresh, rotation and revocation.
 * **Authorization** is role and permission based (ADMIN, SUPERVISOR, TECHNICIAN,
   EMPLOYEE and AUDITOR). Permissions use the `resource:action` format (for example
@@ -153,6 +154,7 @@ COMMON_ERRORS = error_responses(401, 403, 422, 429)
 
 API_ROUTERS = (
     auth_router,
+    mobile_auth_router,
     admin_router,
     users_router,
     profile_router,
