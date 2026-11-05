@@ -63,18 +63,45 @@ class ClerkAuthService:
             return user
 
         profile = await get_clerk_profile(identity, self.settings)
-        existing_by_email = await self.repository.get_user_by_email(profile.email)
+        existing_by_email = await self.repository.get_user_by_email(
+            profile.email, for_update=True
+        )
         if existing_by_email is not None:
-            if existing_by_email.clerk_user_id is None:
-                # Pre-registered by an administrator: the first sign-in with that e-mail links it.
-                existing_by_email.clerk_user_id = identity.user_id
-                await self.repository.commit()
-            elif existing_by_email.clerk_user_id != identity.user_id:
-                raise ConflictError(
-                    "local email is already linked to another Clerk user",
-                    code="account_email_linked_to_other",
-                )
             user = self._require_active(existing_by_email)
+            previous_clerk_user_id = existing_by_email.clerk_user_id
+            if previous_clerk_user_id != identity.user_id:
+                # Claims are not enough: ask the configured Clerk instance for its
+                # primary email and require Clerk itself to mark it as verified.
+                verified_profile = await get_verified_clerk_profile(
+                    identity, self.settings
+                )
+                if (
+                    not verified_profile.email_verified
+                    or verified_profile.email != profile.email
+                ):
+                    raise ConflictError(
+                        "Clerk primary email is not verified or does not match the local account",
+                        code="account_email_linked_to_other",
+                    )
+
+                existing_by_email.clerk_user_id = identity.user_id
+                if self.audit is not None:
+                    self.audit.record(
+                        user_id=user.id,
+                        action="auth.identity_relinked",
+                        entity_type="user",
+                        entity_id=user.id,
+                        old_values={"clerk_user_id": previous_clerk_user_id},
+                        new_values={"clerk_user_id": identity.user_id},
+                    )
+                try:
+                    await self.repository.commit()
+                except IntegrityError as exc:
+                    await self.repository.rollback()
+                    raise ConflictError(
+                        "Clerk identity is already linked to another local user",
+                        code="account_email_linked_to_other",
+                    ) from exc
             await self._touch_login(user)
             return user
 
