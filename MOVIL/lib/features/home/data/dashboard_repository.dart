@@ -13,6 +13,7 @@ class DashboardRepository {
   Future<Map<String, dynamic>> loadKpis(String period) => _get('/dashboard/kpis', {'period': period});
   Future<Map<String, dynamic>> loadTrends(String period) => _get('/dashboard/trends', {'period': period});
   Future<Map<String, dynamic>> loadAlerts() => _get('/dashboard/alerts');
+  Future<Map<String, dynamic>> loadTechnicians(String period) => _get('/dashboard/technicians', {'period': period});
   Future<Map<String, dynamic>> loadTopEquipment(String period) {
     final days = switch (period) {'7d' => 7, '12m' => 365, _ => 30};
     return _get('/dashboard/top-failing-equipment', {'days': days, 'limit': 5});
