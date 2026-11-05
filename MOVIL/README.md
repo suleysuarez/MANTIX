@@ -9,7 +9,7 @@ App Android de Mantix (Flutter, `com.suleysuarez.mantix`). Consume la API FastAP
 | 0 Auditoría de reutilización | Hecha |
 | 0.5 Prueba de concepto de Clerk | Sustituida por autenticación nativa Mantix para móvil |
 | 1 Backend mínimo (códigos de error estables, OpenAPI como artefacto) | Hecha, en `MOVIL/backend` |
-| 2 Base Flutter y autenticación | Hecha: estructura, tema, cliente HTTP, sesión con Clerk, router por permisos, pantallas de acceso y Perfil |
+| 2 Base Flutter y autenticación | En implementación: estructura, tema, cliente HTTP, sesión nativa, router por permisos y Perfil |
 | 3 Componentes y sistema de diseño | Hecha; falta revisarla a ojo en el teléfono |
 | 4 Solicitante | Hecha en código y pruebas: mis solicitudes, detalle y nueva solicitud. Falta revisarla en el teléfono; los adjuntos son de solo lectura |
 | 5 a 7 Técnico, Supervisor, Administrador | **Sin empezar.** Sus pantallas de inicio son marcadores |
@@ -30,8 +30,10 @@ Variables privadas del backend: `MOBILE_JWT_SECRET`, `RESEND_API_KEY`, `RESEND_F
 
 ## Ejecutar
 
-1. Levanta un backend (para el del móvil: `docker compose up --build -d` dentro de `MOVIL/`; escucha en el puerto 8001).
-2. Crea tu archivo de variables a partir del ejemplo (`dart_defines.json` está ignorado por Git):
+1. Configura `MOVIL/backend/.env` con `DATABASE_URL`, `MOBILE_JWT_SECRET` (mínimo 32 bytes), `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`.
+2. Aplica la migración de base de datos desde `MOVIL/backend`: `alembic upgrade head`.
+3. Levanta el backend (para el del móvil: `docker compose up --build -d` dentro de `MOVIL/`; escucha en el puerto 8001).
+4. Crea tu archivo de variables a partir del ejemplo (`dart_defines.json` está ignorado por Git):
 
    ```bash
    cd MOVIL
@@ -45,9 +47,9 @@ Variables privadas del backend: `MOBILE_JWT_SECRET`, `RESEND_API_KEY`, `RESEND_F
 | `API_BASE_URL` | URL del backend | `http://10.0.2.2:8001` |
 | `APP_VERSION` | Se envía en `X-App-Version` | `1.0.0` |
 
-- **Emulador:** `10.0.2.2` es el `localhost` del equipo. El backend del móvil usa el puerto 8001, así que pon `API_BASE_URL` en `http://10.0.2.2:8001` o usa el 8000 si levantas el de la web.
+- **Emulador:** `10.0.2.2` es el `localhost` del equipo. El backend del móvil usa el puerto 8001; si usas el backend de la web, configura su puerto real.
 - **Teléfono por USB:** `adb reverse tcp:8001 tcp:8001` y `API_BASE_URL=http://localhost:8001` (es el valor del ejemplo).
-- La secret key de Clerk vive solo en el backend; ninguna clave ni URL real va en el código.
+- La secret key de Clerk vive solo en el backend para la web. Ningún secreto se incluye en Flutter.
 
 ## Red y permisos de Android
 
