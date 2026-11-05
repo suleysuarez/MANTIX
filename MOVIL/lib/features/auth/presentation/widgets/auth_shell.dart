@@ -48,9 +48,9 @@ class AuthShell extends StatelessWidget {
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
-                20,
+                24,
                 size.height * AuthTokens.logoZone, // deja libre el logo
-                20,
+                24,
                 20 + keyboard,
               ),
               child: Center(
