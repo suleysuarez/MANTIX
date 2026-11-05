@@ -5,7 +5,6 @@ from sqlalchemy.exc import IntegrityError
 from app.core.clerk import (
     ClerkProfile,
     VerifiedClerkIdentity,
-    get_clerk_profile,
     get_verified_clerk_profile,
 )
 from app.core.config import Settings
