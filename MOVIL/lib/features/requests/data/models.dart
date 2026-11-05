@@ -2,12 +2,14 @@
 /// lectura tolerante: un campo opcional ausente no rompe la pantalla.
 library;
 
+import 'package:equatable/equatable.dart';
+
 DateTime _date(Object? value) => DateTime.parse(value! as String).toLocal();
 
 DateTime? _dateOrNull(Object? value) => value is String ? DateTime.parse(value).toLocal() : null;
 
 /// Fila de `GET /maintenance/requests`.
-class TicketListItem {
+class TicketListItem extends Equatable {
   const TicketListItem({
     required this.id,
     required this.ticketNumber,
@@ -35,9 +37,12 @@ class TicketListItem {
   final String status;
   final String? category;
   final DateTime createdAt;
+
+  @override
+  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt];
 }
 
-class EquipmentRef {
+class EquipmentRef extends Equatable {
   const EquipmentRef({required this.id, required this.assetTag, required this.brand, required this.model});
 
   factory EquipmentRef.fromJson(Map<String, Object?> json) => EquipmentRef(
@@ -52,10 +57,13 @@ class EquipmentRef {
   final String brand;
   final String model;
 
+  @override
+  List<Object?> get props => [id, assetTag, brand, model];
+
   String get label => '$assetTag · $brand $model';
 }
 
-class StatusHistoryEntry {
+class StatusHistoryEntry extends Equatable {
   const StatusHistoryEntry({required this.toStatus, required this.changedAt, this.fromStatus, this.notes});
 
   factory StatusHistoryEntry.fromJson(Map<String, Object?> json) => StatusHistoryEntry(
@@ -69,10 +77,13 @@ class StatusHistoryEntry {
   final String toStatus;
   final DateTime changedAt;
   final String? notes;
+
+  @override
+  List<Object?> get props => [fromStatus, toStatus, changedAt, notes];
 }
 
 /// `GET /maintenance/requests/{id}`.
-class TicketDetail {
+class TicketDetail extends Equatable {
   const TicketDetail({
     required this.id,
     required this.ticketNumber,
@@ -125,9 +136,15 @@ class TicketDetail {
   final DateTime updatedAt;
   final String? technicianName;
   final List<StatusHistoryEntry> history;
+
+  @override
+  List<Object?> get props => [
+        id, ticketNumber, equipment, title, description, priority, category, status,
+        resolutionSummary, createdAt, updatedAt, technicianName, history,
+      ];
 }
 
-class Attachment {
+class Attachment extends Equatable {
   const Attachment({required this.id, required this.fileName, required this.mimeType, required this.fileSize});
 
   factory Attachment.fromJson(Map<String, Object?> json) => Attachment(
@@ -141,11 +158,14 @@ class Attachment {
   final String fileName;
   final String mimeType;
   final int fileSize;
+
+  @override
+  List<Object?> get props => [id, fileName, mimeType, fileSize];
 }
 
 /// Equipo del selector. Del catálogo solo se leen estos campos: la app no muestra
 /// custodio ni ubicación (decisión de la Fase 4, ver docs/flutter-plan.md).
-class EquipmentOption {
+class EquipmentOption extends Equatable {
   const EquipmentOption({
     required this.id,
     required this.assetTag,
@@ -173,6 +193,9 @@ class EquipmentOption {
   final String model;
   final String typeName;
   final String status;
+
+  @override
+  List<Object?> get props => [id, assetTag, brand, model, typeName, status];
 
   String get label => '$assetTag · $brand $model';
 }

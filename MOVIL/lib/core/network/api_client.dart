@@ -10,9 +10,18 @@ const _retriedKey = 'mantix_retried_after_401';
 /// * Añade `Authorization: Bearer` con el token del [AuthProvider].
 /// * Envía `X-App-Version` en cada petición.
 /// * Ante un 401 pide un token nuevo **una sola vez** y reintenta; si vuelve a
-///   fallar, deja pasar el error. Un `QueuedInterceptor` serializa las
-///   peticiones para que varios 401 simultáneos no pidan varias renovaciones.
-Dio createApiClient({required AppConfig config, required AuthProvider auth, HttpClientAdapter? adapter}) {
+///   fallar, deja pasar el error y avisa con [onSessionExpired]. Un
+///   `QueuedInterceptor` serializa las peticiones para que varios 401
+///   simultáneos no pidan varias renovaciones.
+///
+/// [onSessionExpired] es un callback simple (no depende de widgets ni de Bloc): el
+/// `AuthBloc` se lo registra al arrancar la app.
+Dio createApiClient({
+  required AppConfig config,
+  required AuthProvider auth,
+  HttpClientAdapter? adapter,
+  void Function()? onSessionExpired,
+}) {
   final dio = Dio(BaseOptions(
     baseUrl: config.apiBaseUrl,
     connectTimeout: const Duration(seconds: 10),
@@ -20,7 +29,7 @@ Dio createApiClient({required AppConfig config, required AuthProvider auth, Http
     headers: {'X-App-Version': config.appVersion, 'Accept': 'application/json'},
   ));
   if (adapter != null) dio.httpClientAdapter = adapter;
-  dio.interceptors.add(_AuthInterceptor(dio, auth));
+  dio.interceptors.add(_AuthInterceptor(dio, auth, onSessionExpired));
   return dio;
 }
 
@@ -30,10 +39,11 @@ String? _bearer(Object? header) {
 }
 
 class _AuthInterceptor extends QueuedInterceptor {
-  _AuthInterceptor(this._dio, this._auth);
+  _AuthInterceptor(this._dio, this._auth, this._onSessionExpired);
 
   final Dio _dio;
   final AuthProvider _auth;
+  final void Function()? _onSessionExpired;
 
   @override
   Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -53,7 +63,10 @@ class _AuthInterceptor extends QueuedInterceptor {
     final usedToken = _bearer(request.headers['Authorization']);
     final current = await _auth.accessToken();
     final fresh = current != null && current != usedToken ? current : await _auth.accessToken(forceRefresh: true);
-    if (fresh == null) return handler.next(err);
+    if (fresh == null) {
+      _onSessionExpired?.call();
+      return handler.next(err);
+    }
     request.extra[_retriedKey] = true;
     request.headers['Authorization'] = 'Bearer $fresh';
     // El reintento usa un cliente aparte, sin este interceptor: si fallara con
@@ -63,6 +76,7 @@ class _AuthInterceptor extends QueuedInterceptor {
     try {
       handler.resolve(await retryClient.fetch<Object?>(request));
     } on DioException catch (retryError) {
+      if (retryError.response?.statusCode == 401) _onSessionExpired?.call();
       handler.next(retryError);
     }
   }

@@ -1,27 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/network/paged/paged_bloc.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../shared/empty_state.dart';
 import '../../../shared/paged_list_view.dart';
-import '../application/providers.dart';
 import '../data/models.dart';
+import '../data/requests_repository.dart';
+import 'bloc/equipment_search_bloc.dart';
 
 /// Selector de equipo con búsqueda por etiqueta, serie, marca o modelo.
 /// Devuelve el [EquipmentOption] elegido con `Navigator.pop`.
-class EquipmentPickerScreen extends ConsumerStatefulWidget {
+class EquipmentPickerScreen extends StatefulWidget {
   const EquipmentPickerScreen({super.key, this.debounce = const Duration(milliseconds: 400)});
 
   /// Espera tras la última tecla antes de buscar.
   final Duration debounce;
 
   @override
-  ConsumerState<EquipmentPickerScreen> createState() => _EquipmentPickerScreenState();
+  State<EquipmentPickerScreen> createState() => _EquipmentPickerScreenState();
 }
 
-class _EquipmentPickerScreenState extends ConsumerState<EquipmentPickerScreen> {
+class _EquipmentPickerScreenState extends State<EquipmentPickerScreen> {
   final _search = TextEditingController();
   Timer? _timer;
   String _query = '';
@@ -38,19 +40,8 @@ class _EquipmentPickerScreenState extends ConsumerState<EquipmentPickerScreen> {
     _timer = Timer(widget.debounce, () => setState(() => _query = text.trim()));
   }
 
-  Future<void> _refresh() async {
-    final provider = equipmentSearchProvider(_query);
-    ref.invalidate(provider);
-    try {
-      await ref.read(provider.future);
-    } catch (_) {
-      // El error ya se muestra en la lista.
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final provider = equipmentSearchProvider(_query);
     return Scaffold(
       appBar: AppBar(title: const Text('Elegir equipo')),
       body: Column(
@@ -69,22 +60,30 @@ class _EquipmentPickerScreenState extends ConsumerState<EquipmentPickerScreen> {
             ),
           ),
           Expanded(
-            child: PagedListView<EquipmentOption>(
-              value: ref.watch(provider),
-              onRefresh: _refresh,
-              onLoadMore: () => ref.read(provider.notifier).loadMore(),
-              empty: EmptyState(
-                icon: Icons.search_off,
-                title: 'No encontramos equipos',
-                message: _query.isEmpty ? 'Todavía no hay equipos registrados.' : 'Prueba con otra etiqueta, serie, marca o modelo.',
-              ),
-              itemBuilder: (context, item) => Card(
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  minVerticalPadding: AppSpacing.md,
-                  title: Text(item.label),
-                  subtitle: item.typeName.isEmpty ? null : Text(item.typeName),
-                  onTap: () => Navigator.of(context).pop(item),
+            // Cada texto buscado es un `EquipmentSearchBloc` nuevo.
+            child: BlocProvider(
+              key: ValueKey(_query),
+              create: (context) =>
+                  EquipmentSearchBloc(repository: context.read<RequestsRepository>(), search: _query)..add(const PagedStarted()),
+              child: BlocBuilder<EquipmentSearchBloc, PagedListState<EquipmentOption>>(
+                builder: (context, state) => PagedListView<EquipmentOption>(
+                  value: state,
+                  onRefresh: context.read<EquipmentSearchBloc>().refresh,
+                  onLoadMore: () => context.read<EquipmentSearchBloc>().add(const PagedLoadMoreRequested()),
+                  empty: EmptyState(
+                    icon: Icons.search_off,
+                    title: 'No encontramos equipos',
+                    message: _query.isEmpty ? 'Todavía no hay equipos registrados.' : 'Prueba con otra etiqueta, serie, marca o modelo.',
+                  ),
+                  itemBuilder: (context, item) => Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      minVerticalPadding: AppSpacing.md,
+                      title: Text(item.label),
+                      subtitle: item.typeName.isEmpty ? null : Text(item.typeName),
+                      onTap: () => Navigator.of(context).pop(item),
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -1,5 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 /// Error de dominio que ve la interfaz. Nunca expone detalles internos del servidor.
-sealed class Failure {
+///
+/// Es [Equatable] para que los estados de los Bloc que lo guardan se comparen por valor.
+sealed class Failure extends Equatable {
   const Failure(this.message, {this.code, this.requestId});
 
   /// Mensaje en español, seguro para mostrar.
@@ -9,6 +13,9 @@ sealed class Failure {
   /// interfaz decide algo según el caso.
   final String? code;
   final String? requestId;
+
+  @override
+  List<Object?> get props => [runtimeType, message, code, requestId];
 }
 
 class NetworkFailure extends Failure {
@@ -39,6 +46,9 @@ class ValidationFailure extends Failure {
       : super('Revisa los datos ingresados.');
 
   final Map<String, String> fieldErrors;
+
+  @override
+  List<Object?> get props => [...super.props, fieldErrors];
 }
 
 class ServerFailure extends Failure {

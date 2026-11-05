@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/bloc/permissions_cubit.dart';
 import '../../../core/auth/home_resolver.dart';
-import '../../../core/auth/permissions.dart';
 import '../../../core/domain/ticket_meta.dart';
 import '../../../core/format/formatters.dart';
+import '../../../core/network/paged/paged_bloc.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../shared/app_chip.dart';
 import '../../../shared/empty_state.dart';
 import '../../../shared/paged_list_view.dart';
-import '../application/providers.dart';
 import '../data/models.dart';
+import '../data/requests_repository.dart';
+import 'bloc/my_requests_bloc.dart';
 
 abstract final class RequestRoutes {
   static const create = '/solicitudes/nueva';
@@ -19,30 +21,20 @@ abstract final class RequestRoutes {
 }
 
 /// Inicio del Solicitante: sus solicitudes, con filtro por estado.
-class MyRequestsScreen extends ConsumerStatefulWidget {
+class MyRequestsScreen extends StatefulWidget {
   const MyRequestsScreen({super.key});
 
   @override
-  ConsumerState<MyRequestsScreen> createState() => _MyRequestsScreenState();
+  State<MyRequestsScreen> createState() => _MyRequestsScreenState();
 }
 
-class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen> {
+class _MyRequestsScreenState extends State<MyRequestsScreen> {
+  /// Filtro elegido: estado efímero de la pantalla. Cambiarlo crea un `MyRequestsBloc` nuevo.
   String? _status;
-
-  Future<void> _refresh() async {
-    final provider = myRequestsProvider(_status);
-    ref.invalidate(provider);
-    try {
-      await ref.read(provider.future);
-    } catch (_) {
-      // El error ya se muestra en la lista.
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final provider = myRequestsProvider(_status);
-    final canCreate = ref.watch(permissionsProvider).contains('solicitudes:crear');
+    final canCreate = context.select((PermissionsCubit cubit) => cubit.state.can('solicitudes:crear'));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis solicitudes'),
@@ -65,17 +57,24 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen> {
         children: [
           _StatusFilter(selected: _status, onSelected: (value) => setState(() => _status = value)),
           Expanded(
-            child: PagedListView<TicketListItem>(
-              value: ref.watch(provider),
-              onRefresh: _refresh,
-              onLoadMore: () => ref.read(provider.notifier).loadMore(),
-              itemBuilder: (context, item) => _RequestCard(item: item),
-              empty: EmptyState(
-                icon: Icons.assignment_outlined,
-                title: _status == null ? 'Aún no tienes solicitudes' : 'No hay solicitudes con este estado',
-                message: _status == null && canCreate ? 'Cuando reportes un problema con un equipo, aparecerá aquí.' : null,
-                actionLabel: _status == null && canCreate ? 'Nueva solicitud' : null,
-                onAction: _status == null && canCreate ? () => context.push(RequestRoutes.create) : null,
+            child: BlocProvider(
+              key: ValueKey(_status),
+              create: (context) =>
+                  MyRequestsBloc(repository: context.read<RequestsRepository>(), status: _status)..add(const PagedStarted()),
+              child: BlocBuilder<MyRequestsBloc, PagedListState<TicketListItem>>(
+                builder: (context, state) => PagedListView<TicketListItem>(
+                  value: state,
+                  onRefresh: context.read<MyRequestsBloc>().refresh,
+                  onLoadMore: () => context.read<MyRequestsBloc>().add(const PagedLoadMoreRequested()),
+                  itemBuilder: (context, item) => _RequestCard(item: item),
+                  empty: EmptyState(
+                    icon: Icons.assignment_outlined,
+                    title: _status == null ? 'Aún no tienes solicitudes' : 'No hay solicitudes con este estado',
+                    message: _status == null && canCreate ? 'Cuando reportes un problema con un equipo, aparecerá aquí.' : null,
+                    actionLabel: _status == null && canCreate ? 'Nueva solicitud' : null,
+                    onAction: _status == null && canCreate ? () => context.push(RequestRoutes.create) : null,
+                  ),
+                ),
               ),
             ),
           ),

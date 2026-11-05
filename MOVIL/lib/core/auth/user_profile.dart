@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 /// Perfil local devuelto por `GET /auth/me`.
 ///
 /// La app decide por los **permisos**, nunca por el nombre de un rol.
-class UserProfile {
+class UserProfile extends Equatable {
   const UserProfile({
     required this.id,
     required this.email,
@@ -19,6 +21,9 @@ class UserProfile {
   final bool isActive;
   final List<String> roles;
   final Set<String> permissions;
+
+  @override
+  List<Object?> get props => [id, email, fullName, employeeCode, isActive, roles, permissions];
 
   bool can(String permission) => permissions.contains(permission);
 

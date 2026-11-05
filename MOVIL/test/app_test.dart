@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/app.dart';
+import 'package:mantix/core/auth/auth_repository.dart';
+import 'package:mantix/core/auth/bloc/auth_bloc.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/core/network/api_client.dart';
-import 'package:mantix/core/network/providers.dart';
+import 'package:mantix/features/requests/data/requests_repository.dart';
 
 import 'support/fakes.dart';
 
@@ -20,17 +21,19 @@ Map<String, Object?> me(List<String> roles, List<String> permissions) => {
       'permissions': [for (final p in permissions) {'code': p, 'name': p}],
     };
 
+/// Monta la app completa con el mismo cableado que `main`, pero con un servidor falso.
 Widget appWith({String? token = 'token-0', required Object body}) {
   final auth = FakeAuthProvider(token: token);
-  return ProviderScope(
-    overrides: [
-      authProviderProvider.overrideWithValue(auth),
-      apiClientProvider.overrideWithValue(
-        createApiClient(config: config, auth: auth, adapter: FakeAdapter((_) => jsonResponse(200, body))),
-      ),
-    ],
-    child: const MantixApp(),
+  late final AuthBloc authBloc;
+  final dio = createApiClient(
+    config: config,
+    auth: auth,
+    adapter: FakeAdapter((_) => jsonResponse(200, body)),
+    onSessionExpired: () => authBloc.add(const AuthSessionExpired()),
   );
+  authBloc = AuthBloc(auth: auth, repository: AuthRepository(dio))..add(const AuthStarted());
+  addTearDown(authBloc.close);
+  return MantixApp(authBloc: authBloc, requestsRepository: RequestsRepository(dio));
 }
 
 void main() {
@@ -78,5 +81,15 @@ void main() {
 
     final size = tester.getSize(find.widgetWithText(FilledButton, 'Volver a comprobar'));
     expect(size.height, greaterThanOrEqualTo(48));
+  });
+
+  testWidgets('cerrar sesión vuelve al acceso', (tester) async {
+    await tester.pumpWidget(appWith(body: me(['TECNICO'], ['tickets:ver_asignados'])));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Cerrar sesión'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Inicio de sesión no disponible'), findsOneWidget);
   });
 }

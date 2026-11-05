@@ -1,13 +1,14 @@
 import 'dart:convert';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mantix/core/auth/permissions.dart';
-import 'package:mantix/core/network/providers.dart';
+import 'package:mantix/core/auth/bloc/permissions_cubit.dart';
 import 'package:mantix/core/theme/app_theme.dart';
+import 'package:mantix/features/requests/data/requests_repository.dart';
 
 import '../../support/fakes.dart';
 
@@ -92,6 +93,15 @@ ResponseBody errorResponse(int status, {String? code, List<Map<String, String>>?
 
 Dio dioWith(FakeAdapter adapter) => Dio(BaseOptions(baseUrl: 'http://test'))..httpClientAdapter = adapter;
 
+class MockPermissionsCubit extends MockCubit<PermissionsState> implements PermissionsCubit {}
+
+/// Cubit de permisos de mentira con los permisos indicados.
+PermissionsCubit permissionsCubit(Set<String> permissions) {
+  final cubit = MockPermissionsCubit();
+  whenListen(cubit, const Stream<PermissionsState>.empty(), initialState: PermissionsState(permissions));
+  return cubit;
+}
+
 /// Monta [screen] con un router mínimo: las rutas a las que navega la pantalla
 /// muestran un texto identificable.
 Future<GoRouter> pumpScreen(
@@ -119,13 +129,12 @@ Future<GoRouter> pumpScreen(
   );
   addTearDown(router.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      retry: (_, _) => null,
-      overrides: [
-        apiClientProvider.overrideWithValue(dioWith(adapter)),
-        permissionsProvider.overrideWithValue(permissions),
-      ],
-      child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+    RepositoryProvider(
+      create: (_) => RequestsRepository(dioWith(adapter)),
+      child: BlocProvider.value(
+        value: permissionsCubit(permissions),
+        child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+      ),
     ),
   );
   return router;
