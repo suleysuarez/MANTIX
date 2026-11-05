@@ -38,7 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
     _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
-    _NavItem('Reportes', Icons.monitoring_rounded, '/inicio/reportes', 'reportes:ver'),
+    _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
     _NavItem('Usuarios', Icons.manage_accounts_outlined, '/modulos/usuarios', 'usuarios:ver'),
     _NavItem('Roles y permisos', Icons.admin_panel_settings_outlined, '/modulos/roles', 'usuarios:asignar'),
     _NavItem('Usuarios pendientes', Icons.how_to_reg_outlined, '/modulos/usuarios-pendientes', 'usuarios:asignar'),
