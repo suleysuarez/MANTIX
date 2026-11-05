@@ -28,7 +28,8 @@ class FakeRepository:
             return self.user
         return None
 
-    async def get_user_by_email(self, email):
+    async def get_user_by_email(self, email, *, for_update=False):
+        self.email_lookup_locked = for_update
         if self.user and self.user.email == email:
             return self.user
         return None
