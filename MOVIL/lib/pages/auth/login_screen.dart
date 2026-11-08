@@ -154,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// [required] añade un asterisco al nombre del campo (solo en el registro, donde hay un campo opcional).
   InputDecoration _decoration(String label, {IconData? icon, bool required = false}) => InputDecoration(
-    label: required ? Text.rich(TextSpan(text: label, children: const [TextSpan(text: ' *', style: TextStyle(color: AuthTokens.accent, fontWeight: FontWeight.w800))])) : null,
+    label: required ? Text.rich(TextSpan(text: label, children: const [TextSpan(text: ' *', style: TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w800))])) : null,
     labelText: required ? null : label, labelStyle: const TextStyle(color: Colors.white), floatingLabelStyle: const TextStyle(color: AuthTokens.accent), prefixIcon: icon == null ? null : Icon(icon, color: Colors.white),
     filled: true, fillColor: Colors.white.withValues(alpha: 0.10), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
