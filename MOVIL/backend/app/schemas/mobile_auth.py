@@ -4,6 +4,22 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 class MobileRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("first_name")
+    @classmethod
+    def first_name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El nombre es obligatorio.")
+        return value
+
+    @field_validator("last_name")
+    @classmethod
+    def blank_last_name_is_missing(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        return value or None
 
     @field_validator("password")
     @classmethod

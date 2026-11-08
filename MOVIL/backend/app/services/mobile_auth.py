@@ -206,8 +206,19 @@ class MobileAuthService:
         record.consumed_at = now
         await self.session.flush()
 
-    async def register(self, *, email: str, password: str) -> None:
+    async def register(
+        self,
+        *,
+        email: str,
+        password: str,
+        first_name: str,
+        last_name: str | None = None,
+    ) -> None:
         email = self._normalize_email(email)
+        full_name = " ".join(
+            part for part in (first_name.strip(), (last_name or "").strip()) if part
+        )
+        full_name = full_name[:255] or "Usuario"
         existing_user = await self._user_by_email(email)
         if existing_user is not None:
             # A previous attempt may have persisted the account before the
@@ -222,6 +233,7 @@ class MobileAuthService:
                 # must not keep a password that the mailbox owner verifies later, and
                 # a code sent for the previous password cannot complete this one.
                 existing_user.password_hash = _passwords.hash(password)
+                existing_user.full_name = full_name
                 await self._invalidate_code(existing_user, "verify")
                 await self.session.commit()
                 await self._issue_code(existing_user, "verify")
@@ -231,7 +243,7 @@ class MobileAuthService:
             )
         user = User(
             email=email,
-            full_name=email.split("@", 1)[0][:255] or "Usuario",
+            full_name=full_name,
             password_hash=_passwords.hash(password),
             is_active=True,
             clerk_user_id=None,
