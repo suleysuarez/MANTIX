@@ -3,6 +3,7 @@
 This service is deliberately separate from ClerkAuthService. The Angular web
 application continues to authenticate with Clerk.
 """
+import functools
 import hashlib
 import hmac
 import logging
@@ -35,6 +36,12 @@ _passwords = PasswordHash.recommended()
 _CODE_MAX_ATTEMPTS = 5
 
 
+@functools.cache
+def _timing_decoy_hash() -> str:
+    """A real hash to verify against when the account does not exist (same cost)."""
+    return _passwords.hash(secrets.token_urlsafe(16))
+
+
 class MobileAuthService:
     def __init__(
         self,
@@ -58,8 +65,24 @@ class MobileAuthService:
             raise AppError("MOBILE_JWT_SECRET debe tener al menos 32 bytes.")
         return secret
 
+    def _code_key(self) -> bytes:
+        # Derived, so a code hash never uses the raw key that signs the access tokens.
+        return hmac.new(self._secret().encode(), b"mantix-auth-code-v1", hashlib.sha256).digest()
+
     def _code_hash(self, code: str) -> str:
-        return hmac.new(self._secret().encode(), code.encode(), hashlib.sha256).hexdigest()
+        return hmac.new(self._code_key(), code.encode(), hashlib.sha256).hexdigest()
+
+    async def _invalidate_code(self, user: User, purpose: str) -> None:
+        """Make the current code of this purpose unusable (it stays until a new one is issued)."""
+        result = await self.session.execute(
+            select(AuthEmailCode).where(
+                AuthEmailCode.user_id == user.id,
+                AuthEmailCode.purpose == purpose,
+            ).with_for_update()
+        )
+        record = result.scalar_one_or_none()
+        if record is not None and record.consumed_at is None:
+            record.consumed_at = datetime.now(UTC)
 
     async def _user_by_email(self, email: str, *, lock: bool = False) -> User | None:
         query = select(User).where(User.email == email)
@@ -168,7 +191,12 @@ class MobileAuthService:
                 and existing_user.email_verified_at is None
                 and existing_user.clerk_user_id is None
             ):
-                await self._assign_bootstrap_admin(existing_user)
+                # The latest registration wins: whoever pre-registered this address
+                # must not keep a password that the mailbox owner verifies later, and
+                # a code sent for the previous password cannot complete this one.
+                existing_user.password_hash = _passwords.hash(password)
+                await self._invalidate_code(existing_user, "verify")
+                await self.session.commit()
                 await self._issue_code(existing_user, "verify")
                 return
             raise ConflictError("Ya existe una cuenta con este correo.", code="user_email_taken")
@@ -180,7 +208,6 @@ class MobileAuthService:
         self.session.add(user)
         try:
             await self.session.flush()
-            await self._assign_bootstrap_admin(user)
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
@@ -207,8 +234,11 @@ class MobileAuthService:
 
     async def login(self, *, email: str, password: str) -> dict:
         user = await self._user_by_email(self._normalize_email(email))
-        # Same response for unknown email and wrong password.
-        if user is None or user.password_hash is None or not _passwords.verify(password, user.password_hash):
+        # Same response, and the same hashing work, for unknown email and wrong password.
+        stored_hash = user.password_hash if user is not None else None
+        if user is None or stored_hash is None:
+            _passwords.verify(password, _timing_decoy_hash())
+        if user is None or stored_hash is None or not _passwords.verify(password, stored_hash):
             raise ForbiddenError("Correo o contraseña incorrectos.", code="auth_invalid_credentials")
         if user.email_verified_at is None:
             raise ForbiddenError("Verifica tu correo antes de iniciar sesión.", code="auth_email_not_verified")
