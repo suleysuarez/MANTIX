@@ -18,6 +18,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
@@ -33,6 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
     _email.dispose();
     _password.dispose();
     _confirmPassword.dispose();
@@ -91,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
         case _AuthMode.register:
           final password = _password.text;
-          await auth.register(email: email, password: password);
+          await auth.register(email: email, password: password, firstName: _firstName.text.trim(), lastName: _lastName.text.trim());
           _setMode(_AuthMode.verify);
           _pendingPassword = password;
           _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
@@ -133,6 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (value == null || !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim())) return 'Escribe un correo válido.';
     return null;
   }
+
+  String? _validateFirstName(String? value) => (value == null || value.trim().isEmpty) ? 'Escribe tu nombre.' : null;
 
   String? _validatePassword(String? value) {
     if (value == null || value.length < 10) return 'Usa al menos 10 caracteres.';
@@ -179,6 +185,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
                 ),
                 const SizedBox(height: 22),
+                if (_mode == _AuthMode.register) ...[
+                  TextFormField(controller: _firstName, textCapitalization: TextCapitalization.words, maxLength: 100, decoration: _decoration('Nombre', icon: Icons.person_outline).copyWith(counterText: ''), validator: _validateFirstName),
+                  const SizedBox(height: 12),
+                  TextFormField(controller: _lastName, textCapitalization: TextCapitalization.words, maxLength: 100, decoration: _decoration('Apellido (opcional)', icon: Icons.badge_outlined).copyWith(counterText: '')),
+                  const SizedBox(height: 12),
+                ],
                 if (_mode != _AuthMode.verify && _mode != _AuthMode.reset) ...[
                   TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: _decoration('Correo electrónico', icon: Icons.email_outlined), validator: _validateEmail),
                   const SizedBox(height: 12),
@@ -231,6 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     try { await context.read<MobileAuthRepository>().resendVerification(_email.text.trim()); _showMessage('Si la cuenta necesita verificación, enviaremos otro código.'); }
                     catch (error) { _showMessage(_errorText(error), error: true); }
                   }, child: const Text('Reenviar código')),
+                  TextButton(onPressed: _busy ? null : () => _setMode(_AuthMode.register), child: const Text('Volver al registro')),
                 ] else ...[
                   TextButton(onPressed: () => _setMode(_AuthMode.login), child: const Text('Volver a iniciar sesión')),
                 ],
