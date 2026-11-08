@@ -144,8 +144,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundColor: const Color(0xFF071D35),
             foregroundColor: Colors.white,
             elevation: 0,
-            centerTitle: true,
-            title: const _BrandLogo(height: 22),
+            centerTitle: false,
+            titleSpacing: 0,
+            title: const _BrandLogo(asset: _BrandLogo.markAsset, height: 26),
             actions: [
               IconButton(
                 tooltip: 'Ver alertas',
@@ -351,7 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
               child: Row(
                 children: [
-                  const Expanded(child: Align(alignment: Alignment.centerLeft, child: _BrandLogo(height: 30))),
+                  const Expanded(child: Align(alignment: Alignment.centerLeft, child: _BrandLogo(asset: _BrandLogo.wordmarkAsset, height: 28))),
                   IconButton(
                     tooltip: 'Cerrar menú',
                     onPressed: () => Navigator.of(context).pop(),
@@ -469,12 +470,19 @@ class _NavItem {
 }
 
 class _BrandLogo extends StatelessWidget {
-  const _BrandLogo({this.height = 22});
+  const _BrandLogo({required this.asset, this.height = 22});
+
+  /// Solo la «M» (encabezado) y el logo completo recortado (panel lateral), derivados de
+  /// `mantix_logo.webp` sin el espacio transparente que sobra.
+  static const markAsset = 'assets/images/mantix_m.webp';
+  static const wordmarkAsset = 'assets/images/mantix_wordmark.webp';
+
+  final String asset;
   final double height;
 
   @override
   Widget build(BuildContext context) => Image.asset(
-    'assets/images/mantix_logo.webp',
+    asset,
     height: height,
     fit: BoxFit.contain,
     filterQuality: FilterQuality.medium,
@@ -510,8 +518,8 @@ class _WelcomeHero extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
-                    colors: [Color(0xF2071D35), Color(0xB3071D35), Color(0x00071D35)],
-                    stops: [0, 0.5, 1],
+                    colors: [Color(0xE6071D35), Color(0xB3071D35), Color(0x33071D35)],
+                    stops: [0, 0.6, 1],
                   ),
                 ),
               ),
@@ -534,15 +542,28 @@ class _WelcomeHero extends StatelessWidget {
                       Text('HOLA, ${firstName.toUpperCase()}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
                     ]),
                   ),
-                  const Spacer(),
-                  const SizedBox(
-                    width: 240,
-                    child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text('Sistema Inteligente\nde Mantenimiento', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.1, fontWeight: FontWeight.w900))),
-                  ),
-                  const SizedBox(height: 6),
-                  const SizedBox(
-                    width: 215,
-                    child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.', maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3)),
+                  // Texto centrado en el espacio bajo la etiqueta, un poco por encima del centro.
+                  Expanded(
+                    child: Align(
+                      alignment: const Alignment(0, -0.2),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 250,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Sistema Inteligente\nde Mantenimiento', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 21, height: 1.1, fontWeight: FontWeight.w900)),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const SizedBox(
+                            width: 230,
+                            child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.', textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -562,41 +583,30 @@ class _PeriodPicker extends StatelessWidget {
   static const _shadow = [BoxShadow(color: Color(0x100B1F3A), blurRadius: 8)];
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: _shadow),
-      child: const Icon(Icons.calendar_month_outlined, color: Color(0xFF2678C8), size: 21),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: _shadow),
-        child: Row(children: [
-          for (final item in const [('7d', '7 días'), ('30d', '30 días'), ('12m', '12 meses')])
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: value == item.$1,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onChanged(item.$1),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: value == item.$1 ? const Color(0xFF0B1F3A) : Colors.transparent, borderRadius: BorderRadius.circular(22)),
-                    child: Text(item.$2, style: TextStyle(color: value == item.$1 ? Colors.white : AppColors.slate, fontSize: 12, fontWeight: FontWeight.w700)),
-                  ),
-                ),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: _shadow),
+    child: Row(children: [
+      for (final item in const [('7d', '7 días'), ('30d', '30 días'), ('12m', '12 meses')])
+        Expanded(
+          child: Semantics(
+            button: true,
+            selected: value == item.$1,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(item.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: value == item.$1 ? const Color(0xFF0B1F3A) : Colors.transparent, borderRadius: BorderRadius.circular(22)),
+                child: Text(item.$2, style: TextStyle(color: value == item.$1 ? Colors.white : AppColors.slate, fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ),
-        ]),
-      ),
-    ),
-  ]);
+          ),
+        ),
+    ]),
+  );
 }
 
 class _KpiData {
