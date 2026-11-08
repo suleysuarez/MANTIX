@@ -13,10 +13,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import mobile_auth
 from app.core.config import Settings
 from app.core.exceptions import ForbiddenError
 from app.models.auth import Role, User, UserRole
+from app.services import mobile_auth
 from app.services.code_email_limiter import CodeEmailLimiter
 from app.services.mobile_auth import MobileAuthService
 
