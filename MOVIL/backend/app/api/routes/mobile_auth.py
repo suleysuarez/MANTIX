@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -48,6 +48,20 @@ async def login(body: MobileLoginRequest, service: Service) -> dict:
 async def forgot_password(body: MobileForgotPasswordRequest, service: Service) -> dict[str, str]:
     await service.forgot_password(body.email)
     return {"message": "Si existe una cuenta elegible, enviaremos instrucciones."}
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    service: Service, authorization: Annotated[str | None, Header()] = None
+) -> None:
+    """Revoke every mobile token of the caller's account (all devices)."""
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token móvil no válido.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    await service.logout(token)
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(body: MobileResetPasswordRequest, service: Service) -> None:

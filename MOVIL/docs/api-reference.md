@@ -121,6 +121,7 @@
 | --- | --- | --- | --- |
 | POST | `/mobile-auth/forgot-password` | Forgot password | public |
 | POST | `/mobile-auth/login` | Login | public |
+| POST | `/mobile-auth/logout` | Logout | public |
 | POST | `/mobile-auth/register` | Register | public |
 | POST | `/mobile-auth/resend-verification` | Resend verification | public |
 | POST | `/mobile-auth/reset-password` | Reset password | public |
@@ -223,7 +224,7 @@
 | POST | `/admin/users/{user_id}/roles` | Assign roles | `usuarios:asignar` |
 | PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `usuarios:asignar` |
 
-Total: **123** endpoints.
+Total: **124** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

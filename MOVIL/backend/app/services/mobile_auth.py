@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from fastapi import HTTPException, status
 from pwdlib import PasswordHash
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -259,6 +259,16 @@ class MobileAuthService:
             raise ForbiddenError("El código no es válido o ha vencido.", code="auth_code_invalid")
         await self._consume_code(user, "reset", code)
         user.password_hash = _passwords.hash(new_password)
+        # Every token issued before the reset stops working.
+        user.token_version += 1
+        await self.session.commit()
+
+    async def logout(self, token: str) -> None:
+        """Revoke every mobile token of the account that owns `token`."""
+        user = await self.user_from_token(token)
+        await self.session.execute(
+            update(User).where(User.id == user.id).values(token_version=User.token_version + 1)
+        )
         await self.session.commit()
 
     async def _session_response(self, user_id: int) -> dict:
@@ -270,7 +280,7 @@ class MobileAuthService:
         user = result.scalar_one()
         now = datetime.now(UTC)
         payload = {
-            "sub": str(user.id), "iss": "mantix-mobile",
+            "sub": str(user.id), "iss": "mantix-mobile", "ver": user.token_version,
             "iat": now, "exp": now + timedelta(minutes=self.settings.mobile_access_token_minutes),
         }
         encoded = jwt.encode(payload, self._secret(), algorithm="HS256")
@@ -295,4 +305,7 @@ class MobileAuthService:
         user = result.scalar_one_or_none()
         if user is None or not user.is_active or user.email_verified_at is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La cuenta no está disponible.", headers={"WWW-Authenticate": "Bearer"})
+        # Tokens issued before this claim existed count as version 0.
+        if payload.get("ver", 0) != user.token_version:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La sesión ha vencido. Inicia sesión nuevamente.", headers={"WWW-Authenticate": "Bearer"})
         return user
