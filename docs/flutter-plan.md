@@ -104,6 +104,35 @@ Ejemplo, módulo nuevo `tickets`:
 
 Migración de estructura: rama `refactor/mobile-structure`, un commit por capa, sin cambios de comportamiento (`features/` y `shared/` ya no existen).
 
+### Equivalencia con la estructura exigida
+
+La estructura que se exige tiene seis carpetas dentro de `lib/` más `main.dart`, y fuera de `lib/` están `assets/`, `test/`, `pubspec.yaml` y `README.md`. Así se corresponde con `MOVIL/`:
+
+| Exigido | En el proyecto | Qué contiene |
+|---|---|---|
+| `lib/main.dart` | `lib/main.dart` | Punto de entrada: arma Dio, repositorios y `AuthBloc`, y llama a `runApp`. |
+| `lib/pages` | `lib/pages/<mod>/` | Pantallas completas (auth, home, profile, requests, dev). |
+| `lib/widgets` | `lib/widgets/{shared,auth}/` | Componentes reutilizables sin lógica de negocio. |
+| `lib/models` | `lib/models/` | Clases de datos con `Equatable`: perfil, página, solicitudes. |
+| `lib/services` | `lib/services/` | Cliente HTTP (Dio) con su interceptor, proveedor de token. |
+| `lib/repositories` | `lib/repositories/<mod>/` | Acceso a datos por módulo (auth, home, requests). |
+| `lib/bloc` | `lib/bloc/<mod>/` | Un Bloc por flujo (auth, paged, requests) con `_bloc`, `_event` y `_state`. |
+| `assets/` | `MOVIL/assets/` | Imágenes. |
+| `test/` | `MOVIL/test/` | Espejo de `lib/`. |
+| `pubspec.yaml`, `README.md` | `MOVIL/` | Igual. |
+
+**Por qué existe `lib/core/` y qué contiene.** No está en la lista exigida: se añadió porque hay código que no es de una sola capa y que usan todas. Si se repartiera por las seis carpetas, `pages` o `bloc` tendrían que importarse entre sí, y varias piezas no encajan en ninguna (tema, rutas, configuración). Contiene solo código transversal:
+
+- `app.dart`: widget raíz (`MantixApp`) con los `RepositoryProvider` y `BlocProvider` globales.
+- `config/`: configuración por `--dart-define` (`API_BASE_URL`, `APP_VERSION`).
+- `errors/`: `Failure`, traducción de errores HTTP por código y mensajes en español.
+- `format/`: formateo de fechas y metadatos de estados y prioridades.
+- `routing/`: `go_router`, redirecciones por sesión y permiso, `home_resolver`.
+- `theme/`: colores, tokens y tema (los colores solo se leen de aquí).
+- `validation/`: validadores de formularios.
+
+Regla para decidir: si algo lo usan varias capas y no habla con la API ni guarda estado de un flujo, va en `core/`. Si es de un flujo o de un módulo, va en su capa. `core/` no contiene Blocs, repositorios, modelos ni pantallas.
+
 ### Ejemplo: formulario de nueva solicitud
 
 ```dart
