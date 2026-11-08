@@ -152,7 +152,7 @@ class MobileAuthService:
             await self.sender.send(to=email, subject=subject, text=text, html=html)
         except EmailConfigurationError as exc:
             logger.error("auth code email not sent (purpose=%s): %s", purpose, exc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - delivery must never change the API answer
             # Never log str(exc): provider replies can echo addresses. No code, no password.
             logger.error(
                 "auth code email not sent (account=%s purpose=%s error=%s smtp_code=%s)",
