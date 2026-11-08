@@ -45,9 +45,11 @@ No hay valores por defecto. Nunca subas el `.env` ni pegues la contraseña en me
 - Migración: `a7b8c9d0e1f2_user_token_version.py` añade la columna con valor 0. Los tokens emitidos antes de esta versión no llevan el dato y cuentan como versión 0, así que siguen válidos hasta el primer cierre de sesión o restablecimiento.
 - La app llama a `/mobile-auth/logout` al cerrar sesión, antes de borrar el token local, y cierra igual si la llamada falla. Cerrar sesión en un dispositivo cierra la sesión en todos.
 
-## Registro de una cuenta ya iniciada y no verificada
+## Registro y contraseña
 
-Si alguien vuelve a registrar un correo que quedó sin verificar, la **última contraseña enviada reemplaza a la anterior** y el código anterior deja de servir. Así quien pre-registró un correo ajeno no conserva su contraseña cuando el dueño verifica. Riesgo residual: un atacante que vuelva a registrar justo antes de que el dueño introduzca su código aún puede dejar su contraseña. El arreglo completo es ligar la contraseña al código (columna nueva y migración); está pendiente de decisión.
+- `verify-email` recibe el correo, el código **y la contraseña**: la contraseña la fija quien tiene el código en su buzón. Así, quien pre-registró un correo ajeno con otra contraseña no la conserva cuando el dueño verifica, sin importar quién registró último.
+- Si alguien vuelve a registrar un correo que quedó sin verificar, la última contraseña enviada reemplaza a la anterior y el código anterior deja de servir. Esa contraseña provisional se sustituye por la de `verify-email`.
+- La app conserva la contraseña solo en memoria, entre el registro y la verificación.
 
 ## Pruebas
 

@@ -166,7 +166,7 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 
 **Flujo:**
 1. `register` crea la cuenta sin verificar y envía un código de 6 dígitos al correo (202).
-2. `verify-email` consume el código, marca el correo como verificado y devuelve la sesión. Sin verificar no se puede iniciar sesión.
+2. `verify-email` recibe correo, código **y contraseña**: consume el código, fija la contraseña (la elige quien tiene el código en su buzón), marca el correo como verificado y devuelve la sesión. Sin verificar no se puede iniciar sesión.
 3. `login` devuelve el token. Las cuentas nuevas no reciben roles: quedan pendientes hasta que un administrador asigne uno. Excepción: la primera cuenta verificada de una base sin administradores recibe ADMIN.
 4. Recuperación: `forgot-password` envía un código; `reset-password` lo consume y fija la contraseña nueva.
 
@@ -184,7 +184,7 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 
 **Límites de la API:** 120 peticiones por minuto por IP en toda la API y 20 por minuto en `/mobile-auth/*`, en memoria del proceso.
 
-**Pendiente de seguridad (sin decidir):** refresco de tokens con rotación; ligar la contraseña al código en el reintento de registro; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
+**Pendiente de seguridad (sin decidir):** refresco de tokens con rotación; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
 
 ### Sesión: cómo el `AuthBloc` envuelve a Clerk (OBSOLETO, historial)
 
