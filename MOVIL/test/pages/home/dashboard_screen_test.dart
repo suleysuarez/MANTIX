@@ -109,23 +109,45 @@ void main() {
     return inner is AssetImage && inner.assetName == name;
   });
 
-  testWidgets('el encabezado muestra el logo y la tarjeta de bienvenida usa la imagen del panel', (tester) async {
+  testWidgets('el encabezado muestra solo la M, a la izquierda, y la tarjeta de bienvenida usa la imagen del panel', (tester) async {
     await pumpDashboard(tester);
 
-    expect(assetImage('assets/images/mantix_logo.webp'), findsOneWidget);
+    expect(assetImage('assets/images/mantix_m.webp'), findsOneWidget);
+    expect(assetImage('assets/images/mantix_wordmark.webp'), findsNothing, reason: 'el logo completo solo va en el panel lateral');
+    expect(tester.getCenter(assetImage('assets/images/mantix_m.webp')).dx, lessThan(120), reason: 'la M va a la izquierda, junto al botón del menú');
     expect(assetImage('assets/images/card_dashboard.png'), findsOneWidget);
     expect(find.text('HOLA, ANA'), findsOneWidget);
     expect(find.text('Sistema Inteligente\nde Mantenimiento'), findsOneWidget);
     expect(find.textContaining('control en tiempo real del parque tecnológico empresarial'), findsOneWidget);
   });
 
-  testWidgets('el panel lateral también lleva el logo', (tester) async {
+  testWidgets('el panel lateral lleva el logo completo', (tester) async {
     await pumpDashboard(tester);
 
     tester.state<ScaffoldState>(find.byType(Scaffold).first).openDrawer();
     await tester.pumpAndSettle();
 
-    expect(assetImage('assets/images/mantix_logo.webp'), findsNWidgets(2));
+    expect(assetImage('assets/images/mantix_wordmark.webp'), findsOneWidget);
+  });
+
+  testWidgets('el selector de período no lleva calendario y ocupa todo el ancho', (tester) async {
+    await pumpDashboard(tester);
+
+    expect(find.byIcon(Icons.calendar_month_outlined), findsNothing);
+    // La pantalla mide 360 y la lista tiene 14 de margen a cada lado.
+    expect(tester.getTopLeft(find.text('7 días')).dx, lessThan(60));
+    expect(tester.getTopRight(find.text('12 meses')).dx, greaterThan(300));
+  });
+
+  testWidgets('el texto de la tarjeta de bienvenida está centrado y no pegado abajo', (tester) async {
+    await pumpDashboard(tester);
+
+    final title = find.text('Sistema Inteligente\nde Mantenimiento');
+    final hero = tester.getRect(find.ancestor(of: title, matching: find.byType(ClipRRect)).first);
+    final center = tester.getCenter(title);
+
+    expect((center.dx - hero.center.dx).abs(), lessThan(6), reason: 'centrado horizontalmente');
+    expect(center.dy, inInclusiveRange(hero.top + hero.height * 0.3, hero.top + hero.height * 0.6), reason: 'un poco por encima del centro, no al fondo');
   });
 
   testWidgets('los indicadores muestran valor, variación y nota con los datos reales', (tester) async {
