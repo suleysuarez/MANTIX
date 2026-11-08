@@ -96,3 +96,25 @@ def test_rate_limited_responses_also_carry_cors_headers():
 
     assert blocked.status_code == 429
     assert blocked.headers["access-control-allow-origin"] == "http://localhost:4200"
+
+
+def build_prefixed_app(limit: int) -> TestClient:
+    app = FastAPI()
+    app.add_middleware(RateLimitMiddleware, limit_per_minute=limit, path_prefix="/mobile-auth/")
+
+    @app.post("/mobile-auth/login")
+    def login() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    @app.get("/ping")
+    def ping() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    return TestClient(app)
+
+
+def test_a_prefixed_limit_only_counts_and_blocks_its_own_paths():
+    client = build_prefixed_app(limit=2)
+
+    assert [client.post("/mobile-auth/login").status_code for _ in range(3)] == [200, 200, 429]
+    assert all(client.get("/ping").status_code == 200 for _ in range(10))

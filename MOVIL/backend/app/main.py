@@ -119,6 +119,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             scheduler.shutdown(wait=False)
 
 
+MOBILE_AUTH_LIMIT_PER_MINUTE = 20
+
 # La documentación interactiva solo se expone fuera de producción.
 app = FastAPI(
     lifespan=lifespan,
@@ -133,6 +135,12 @@ app = FastAPI(
 )
 
 app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
+# Credential and code endpoints get a much tighter per-IP limit than the rest of the API.
+app.add_middleware(
+    RateLimitMiddleware,
+    limit_per_minute=0 if settings.rate_limit_per_minute <= 0 else MOBILE_AUTH_LIMIT_PER_MINUTE,
+    path_prefix="/mobile-auth/",
+)
 app.add_middleware(RequestLoggingMiddleware)
 # CORS se añade al final para quedar como capa más externa: así incluso los 429 y
 # los 500 llevan cabeceras CORS y el navegador puede leer su cuerpo.
