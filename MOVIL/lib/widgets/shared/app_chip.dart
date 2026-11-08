@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../core/domain/ticket_meta.dart';
-import '../core/theme/app_colors.dart';
-import '../core/theme/app_tokens.dart';
+import '../../core/domain/ticket_meta.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 
 /// Chip de solo lectura con punto indicador. Un lector de pantalla lo anuncia
 /// como una sola frase («Estado: Resuelto»); el color nunca es la única señal.

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../bloc/auth/auth_bloc.dart';
-import '../../../shared/status_message.dart';
+import '../../../widgets/shared/status_message.dart';
 
 /// Cuenta autenticada sin ningún rol: espera aprobación de un administrador.
 class PendingScreen extends StatelessWidget {

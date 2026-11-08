@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/errors/failure.dart';
+import '../../core/errors/failure.dart';
 import 'empty_state.dart';
 import 'error_state.dart';
 import 'skeleton.dart';

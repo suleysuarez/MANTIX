@@ -5,8 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../bloc/paged/paged_bloc.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../shared/empty_state.dart';
-import '../../../shared/paged_list_view.dart';
+import '../../../widgets/shared/empty_state.dart';
+import '../../../widgets/shared/paged_list_view.dart';
 import '../../../models/requests/request_models.dart';
 import '../../../repositories/requests/requests_repository.dart';
 import '../../../bloc/requests/equipment_search_bloc.dart';

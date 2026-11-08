@@ -5,16 +5,16 @@ import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/errors/failure_mapper.dart';
 import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/core/validation/validators.dart';
-import 'package:mantix/shared/app_chip.dart';
-import 'package:mantix/shared/app_text_field.dart';
-import 'package:mantix/shared/async_view.dart';
-import 'package:mantix/shared/confirm_dialog.dart';
-import 'package:mantix/shared/empty_state.dart';
-import 'package:mantix/shared/error_state.dart';
-import 'package:mantix/shared/glass_card.dart';
-import 'package:mantix/shared/skeleton.dart';
+import 'package:mantix/widgets/shared/app_chip.dart';
+import 'package:mantix/widgets/shared/app_text_field.dart';
+import 'package:mantix/widgets/shared/async_view.dart';
+import 'package:mantix/widgets/shared/confirm_dialog.dart';
+import 'package:mantix/widgets/shared/empty_state.dart';
+import 'package:mantix/widgets/shared/error_state.dart';
+import 'package:mantix/widgets/shared/glass_card.dart';
+import 'package:mantix/widgets/shared/skeleton.dart';
 
-import '../support/pump_app.dart';
+import '../../support/pump_app.dart';
 
 void main() {
   group('chips', () {

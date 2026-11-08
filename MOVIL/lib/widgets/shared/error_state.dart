@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../core/errors/failure.dart';
-import '../core/theme/app_tokens.dart';
+import '../../core/errors/failure.dart';
+import '../../core/theme/app_tokens.dart';
 
 /// Estado de error con reintento. El mensaje viene del [Failure] y nunca trae
 /// detalles internos. El código de referencia (`request_id`) ayuda al soporte a

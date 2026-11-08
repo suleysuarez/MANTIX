@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/app_colors.dart';
+import '../../core/theme/app_colors.dart';
 
 class AuthShell extends StatefulWidget {
   const AuthShell({super.key, required this.child});

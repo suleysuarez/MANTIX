@@ -6,7 +6,7 @@ import '../../../bloc/auth/auth_bloc.dart';
 import '../../../core/auth/home_resolver.dart';
 import '../../../models/auth/user_profile.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/status_message.dart';
+import '../../../widgets/shared/status_message.dart';
 import '../../../repositories/home/dashboard_repository.dart';
 
 class DashboardScreen extends StatefulWidget {

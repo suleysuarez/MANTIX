@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/features/requests/presentation/request_detail_screen.dart';
-import 'package:mantix/shared/skeleton.dart';
+import 'package:mantix/widgets/shared/skeleton.dart';
 
 import '../../support/fakes.dart';
 import 'support.dart';

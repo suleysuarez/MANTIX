@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_tokens.dart';
+import '../../core/theme/app_tokens.dart';
 
 /// Estado vacío: aún no hay datos, o los filtros no devolvieron nada.
 ///

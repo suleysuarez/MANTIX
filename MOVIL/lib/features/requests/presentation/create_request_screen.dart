@@ -6,7 +6,7 @@ import '../../../core/domain/ticket_meta.dart';
 import '../../../core/errors/failure.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/validation/validators.dart';
-import '../../../shared/app_text_field.dart';
+import '../../../widgets/shared/app_text_field.dart';
 import '../../../models/requests/request_models.dart';
 import '../../../repositories/requests/requests_repository.dart';
 import '../../../bloc/requests/create_request_bloc.dart';

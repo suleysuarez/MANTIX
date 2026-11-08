@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/features/requests/presentation/my_requests_screen.dart';
-import 'package:mantix/shared/app_chip.dart';
-import 'package:mantix/shared/skeleton.dart';
+import 'package:mantix/widgets/shared/app_chip.dart';
+import 'package:mantix/widgets/shared/skeleton.dart';
 
 import '../../support/fakes.dart';
 import 'support.dart';

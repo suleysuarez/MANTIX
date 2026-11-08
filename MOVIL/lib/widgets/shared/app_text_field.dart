@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/validation/validators.dart';
+import '../../core/validation/validators.dart';
 
 /// Campo de texto con validación del cliente y error del servidor.
 ///

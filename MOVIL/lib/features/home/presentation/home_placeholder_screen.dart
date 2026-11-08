@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../bloc/auth/auth_bloc.dart';
 import '../../../core/auth/home_resolver.dart';
-import '../../../shared/status_message.dart';
+import '../../../widgets/shared/status_message.dart';
 import '../../dev/presentation/components_gallery_screen.dart';
 
 /// Marcador de cada pantalla de inicio hasta que se construyan en las fases 4 a 7.

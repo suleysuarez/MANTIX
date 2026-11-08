@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/glass_card.dart';
-import 'widgets/auth_shell.dart';
+import '../../../widgets/shared/glass_card.dart';
+import '../../../widgets/auth/auth_shell.dart';
 import '../../../repositories/auth/mobile_auth_repository.dart';
 
 enum _AuthMode { login, register, verify, forgot, reset }
