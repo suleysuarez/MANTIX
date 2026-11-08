@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/config/app_config.dart';
-import 'package:mantix/core/network/api_client.dart';
+import 'package:mantix/services/api_client.dart';
 
 import '../support/fakes.dart';
 

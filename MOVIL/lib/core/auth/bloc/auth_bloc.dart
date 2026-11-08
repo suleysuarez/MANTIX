@@ -4,7 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../errors/failure.dart';
-import '../auth_provider.dart';
+import '../../../services/auth_provider.dart';
 import '../../../repositories/auth/auth_repository.dart';
 import '../../../models/auth/user_profile.dart';
 

@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
-import '../auth/auth_provider.dart';
-import '../config/app_config.dart';
+import 'auth_provider.dart';
+import '../core/config/app_config.dart';
 
 const _retriedKey = 'mantix_retried_after_401';
 

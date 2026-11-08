@@ -5,7 +5,7 @@ import 'package:mantix/repositories/auth/auth_repository.dart';
 import 'package:mantix/core/auth/bloc/auth_bloc.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/core/errors/failure.dart';
-import 'package:mantix/core/network/api_client.dart';
+import 'package:mantix/services/api_client.dart';
 
 import '../support/fakes.dart';
 
