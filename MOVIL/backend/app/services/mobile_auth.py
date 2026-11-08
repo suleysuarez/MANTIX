@@ -220,13 +220,16 @@ class MobileAuthService:
             return
         await self._issue_code(user, "verify")
 
-    async def verify_email(self, *, email: str, code: str) -> dict:
+    async def verify_email(self, *, email: str, code: str, password: str) -> dict:
         user = await self._user_by_email(self._normalize_email(email), lock=True)
         if user is None or user.password_hash is None:
             raise ForbiddenError("El código no es válido o ha vencido.", code="auth_code_invalid")
         if user.email_verified_at is not None:
             raise ForbiddenError("Este correo ya fue verificado. Inicia sesión.", code="auth_email_already_verified")
         await self._consume_code(user, "verify", code)
+        # The holder of the code chooses the password: it replaces whatever was stored
+        # when the address was first registered, possibly by someone else.
+        user.password_hash = _passwords.hash(password)
         user.email_verified_at = datetime.now(UTC)
         await self._assign_bootstrap_admin(user)
         await self.session.commit()

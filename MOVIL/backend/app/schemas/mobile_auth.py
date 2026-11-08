@@ -19,6 +19,16 @@ class MobileLoginRequest(BaseModel):
 class MobileVerifyEmailRequest(BaseModel):
     email: EmailStr
     code: str = Field(pattern=r"^\d{6}$")
+    # The password is set here, by whoever holds the code (the mailbox owner), so a
+    # password chosen by someone who only pre-registered the address never takes effect.
+    password: str = Field(min_length=10, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        if not any(c.islower() for c in value) or not any(c.isupper() for c in value) or not any(c.isdigit() for c in value):
+            raise ValueError("La contraseña debe incluir mayúsculas, minúsculas y números.")
+        return value
 
 class MobileResendCodeRequest(BaseModel):
     email: EmailStr

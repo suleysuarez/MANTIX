@@ -33,7 +33,7 @@ async def register(body: MobileRegisterRequest, service: Service) -> dict[str, s
 
 @router.post("/verify-email", response_model=MobileAuthResponse)
 async def verify_email(body: MobileVerifyEmailRequest, service: Service) -> dict:
-    return await service.verify_email(email=body.email, code=body.code)
+    return await service.verify_email(email=body.email, code=body.code, password=body.password)
 
 @router.post("/resend-verification", status_code=status.HTTP_202_ACCEPTED)
 async def resend_verification(body: MobileResendCodeRequest, service: Service) -> dict[str, str]:
