@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import '../../../../models/page_info.dart';
-import '../../../../core/network/paged/paged_bloc.dart';
-import '../../../../models/requests/request_models.dart';
-import '../../../../repositories/requests/requests_repository.dart';
+import '../../models/page_info.dart';
+import '../paged/paged_bloc.dart';
+import '../../models/requests/request_models.dart';
+import '../../repositories/requests/requests_repository.dart';
 
 /// Mis solicitudes; [status] es el filtro de estado (`null`: todas). Se recarga
 /// sola cuando el repositorio avisa de que se creó una solicitud.

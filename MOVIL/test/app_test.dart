@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/app.dart';
 import 'package:mantix/repositories/auth/auth_repository.dart';
-import 'package:mantix/core/auth/bloc/auth_bloc.dart';
+import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/services/native_auth_provider.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/services/api_client.dart';

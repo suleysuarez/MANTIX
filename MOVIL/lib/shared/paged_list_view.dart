@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/network/paged/paged_bloc.dart';
+import '../bloc/paged/paged_bloc.dart';
 import '../core/theme/app_tokens.dart';
 import 'async_view.dart';
 

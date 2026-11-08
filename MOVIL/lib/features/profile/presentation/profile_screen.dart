@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/auth/bloc/auth_bloc.dart';
+import '../../../bloc/auth/auth_bloc.dart';
 
 /// Perfil del usuario con sus roles y permisos efectivos. También es el inicio
 /// de quien no tiene ningún permiso de las demás pantallas.

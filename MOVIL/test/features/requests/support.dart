@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mantix/core/auth/bloc/permissions_cubit.dart';
+import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 

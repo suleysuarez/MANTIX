@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/auth/bloc/auth_bloc.dart';
+import '../../../bloc/auth/auth_bloc.dart';
 import '../../../core/auth/home_resolver.dart';
 import '../../../models/auth/user_profile.dart';
 import '../../../core/theme/app_colors.dart';

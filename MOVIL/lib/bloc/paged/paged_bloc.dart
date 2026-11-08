@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 
-import '../../errors/failure.dart';
-import '../../errors/failure_mapper.dart';
-import '../../../models/page_info.dart';
+import '../../core/errors/failure.dart';
+import '../../core/errors/failure_mapper.dart';
+import '../../models/page_info.dart';
 
 part 'paged_event.dart';
 part 'paged_state.dart';

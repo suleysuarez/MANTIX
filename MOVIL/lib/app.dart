@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
-import 'core/auth/bloc/auth_bloc.dart';
-import 'core/auth/bloc/permissions_cubit.dart';
+import 'bloc/auth/auth_bloc.dart';
+import 'bloc/auth/permissions_cubit.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'repositories/auth/mobile_auth_repository.dart';

@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/errors/failure.dart';
-import '../../../../core/errors/failure_mapper.dart';
-import '../../../../models/requests/request_models.dart';
-import '../../../../repositories/requests/requests_repository.dart';
+import '../../core/errors/failure.dart';
+import '../../core/errors/failure_mapper.dart';
+import '../../models/requests/request_models.dart';
+import '../../repositories/requests/requests_repository.dart';
 
 part 'request_detail_event.dart';
 part 'request_detail_state.dart';

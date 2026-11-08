@@ -2,16 +2,16 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/models/page_info.dart';
-import 'package:mantix/core/network/paged/paged_bloc.dart';
+import 'package:mantix/bloc/paged/paged_bloc.dart';
 import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
-import 'package:mantix/features/requests/presentation/bloc/create_request_bloc.dart';
-import 'package:mantix/features/requests/presentation/bloc/my_requests_bloc.dart';
-import 'package:mantix/features/requests/presentation/bloc/request_detail_bloc.dart';
+import 'package:mantix/bloc/requests/create_request_bloc.dart';
+import 'package:mantix/bloc/requests/my_requests_bloc.dart';
+import 'package:mantix/bloc/requests/request_detail_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../support/fakes.dart';
-import 'support.dart';
+import '../../features/requests/support.dart';
 
 class MockRequestsRepository extends Mock implements RequestsRepository {}
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/auth/bloc/auth_bloc.dart';
+import '../../../bloc/auth/auth_bloc.dart';
 import '../../../shared/status_message.dart';
 
 /// Cuenta con roles pero sin ningún permiso: distinta de la cuenta pendiente.

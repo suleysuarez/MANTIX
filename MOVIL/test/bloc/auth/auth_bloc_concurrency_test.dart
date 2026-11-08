@@ -2,7 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/services/auth_provider.dart';
 import 'package:mantix/repositories/auth/auth_repository.dart';
-import 'package:mantix/core/auth/bloc/auth_bloc.dart';
+import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mocktail/mocktail.dart';
 

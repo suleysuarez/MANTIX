@@ -16,7 +16,7 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/requests/presentation/create_request_screen.dart';
 import '../../features/requests/presentation/my_requests_screen.dart';
 import '../../features/requests/presentation/request_detail_screen.dart';
-import '../auth/bloc/auth_bloc.dart';
+import '../../bloc/auth/auth_bloc.dart';
 import '../auth/home_resolver.dart';
 import '../../models/auth/user_profile.dart';
 

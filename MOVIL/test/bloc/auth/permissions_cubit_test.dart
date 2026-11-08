@@ -1,7 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/auth/bloc/auth_bloc.dart';
-import 'package:mantix/core/auth/bloc/permissions_cubit.dart';
+import 'package:mantix/bloc/auth/auth_bloc.dart';
+import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}

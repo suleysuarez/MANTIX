@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'services/native_auth_provider.dart';
 import 'repositories/auth/auth_repository.dart';
-import 'core/auth/bloc/auth_bloc.dart';
+import 'bloc/auth/auth_bloc.dart';
 import 'core/config/app_config.dart';
 import 'services/api_client.dart';
 import 'repositories/auth/mobile_auth_repository.dart';
