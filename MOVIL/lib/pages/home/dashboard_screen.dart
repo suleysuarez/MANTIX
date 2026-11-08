@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../core/format/formatters.dart';
+import '../../core/format/ticket_meta.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../models/auth/user_profile.dart';
 import '../../core/theme/app_colors.dart';
@@ -142,8 +144,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundColor: const Color(0xFF071D35),
             foregroundColor: Colors.white,
             elevation: 0,
-            titleSpacing: 4,
-            title: const _BrandWordmark(),
+            centerTitle: true,
+            title: const _BrandLogo(height: 22),
             actions: [
               IconButton(
                 tooltip: 'Ver alertas',
@@ -166,11 +168,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.only(right: 14, left: 2),
-                child: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.sky,
-                  child: Text(_initials(profile.fullName), style: const TextStyle(color: AppColors.navy, fontSize: 11, fontWeight: FontWeight.w800)),
+                padding: const EdgeInsets.only(right: 10, left: 2),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => context.go('/perfil'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: AppColors.sky,
+                        child: Text(_initials(profile.fullName), style: const TextStyle(color: AppColors.navy, fontSize: 11, fontWeight: FontWeight.w800)),
+                      ),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                    ]),
+                  ),
                 ),
               ),
             ],
@@ -183,22 +195,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
               children: [
                 _WelcomeHero(name: profile.fullName),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('Indicadores', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 18, fontWeight: FontWeight.w800)),
-                    ),
-                    _PeriodPicker(value: _period, onChanged: (value) {
-                      setState(() => _period = value);
-                      _load();
-                    }),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 3, bottom: 12),
-                  child: Text(_periodLabel(), style: const TextStyle(color: AppColors.slate, fontSize: 11)),
-                ),
+                const SizedBox(height: 14),
+                _PeriodPicker(value: _period, onChanged: (value) {
+                  setState(() => _period = value);
+                  _load();
+                }),
+                const SizedBox(height: 12),
                 if (_error != null)
                   _ErrorBanner(message: _error!, onRetry: _load)
                 else if (_loading)
@@ -217,6 +219,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _SectionCard(
                     title: 'Equipos con más incidencias',
                     subtitle: 'Candidatos a revisar o reemplazar',
+                    trailing: profile.can('equipos:ver') ? const _SectionLink(label: 'Ver todos', path: '/modulos/equipos') : null,
                     child: _EquipmentRanking(items: _topEquipment),
                   ),
                 ],
@@ -224,6 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _SectionCard(
                   title: isGlobal ? 'Rendimiento del equipo técnico' : 'Mi rendimiento',
                   subtitle: _periodLabel(),
+                  trailing: isGlobal && profile.can('tecnicos:ver') ? const _SectionLink(label: 'Ver técnicos', path: '/modulos/tecnicos') : null,
                   child: _TechnicianPerformance(items: _technicians),
                 ),
                 const SizedBox(height: 14),
@@ -250,17 +254,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final backlog = _kpis['backlog'];
     final mttr = _kpis['mttr_hours'];
     final sla = _kpis['sla_compliance_pct'];
+    final firstAssignment = _kpis['first_assignment_hours'];
+    final points = _trends['points'] is List ? (_trends['points'] as List).whereType<Map>().toList() : <Map>[];
+
+    double? numOf(dynamic value) => value is num ? value.toDouble() : null;
+    List<double> series(String key) => [for (final point in points) if (point[key] is num) (point[key] as num).toDouble()];
+    // Backlog at the end of each bucket, rebuilt backwards from the open tickets now.
+    List<double> backlogSeries(double? open) {
+      if (open == null || points.length < 2) return const [];
+      final result = List<double>.filled(points.length, 0);
+      var running = open;
+      for (var i = points.length - 1; i >= 0; i--) {
+        result[i] = running;
+        running -= (numOf(points[i]['created']) ?? 0) - (numOf(points[i]['resolved']) ?? 0);
+      }
+      return result;
+    }
+
+    String sampleNote(Map<dynamic, dynamic> kpi) {
+      final n = kpi['sample_size'];
+      return 'vs. período anterior${n is num ? ' · n=${n.toInt()}' : ''}${kpi['low_sample'] == true ? ' · pocos datos' : ''}';
+    }
+
+    final met = sla is Map && sla['met'] is num ? (sla['met'] as num).toInt() : null;
+    final missed = sla is Map && sla['missed'] is num ? (sla['missed'] as num).toInt() : null;
     final cards = <_KpiData>[
-      _KpiData('MTTR · mediana', _duration(mttr is Map ? mttr['value'] : null), Icons.timer_outlined, 'Tiempo de resolución'),
-      _KpiData('Cumplimiento SLA', _percent(sla is Map ? sla['value'] : null), Icons.verified_user_outlined, 'Tickets resueltos a tiempo'),
-      _KpiData('Disponibilidad', _percent(availability is Map ? availability['value'] : null), Icons.desktop_windows_outlined, availability is Map ? '${availability['operational'] ?? 0} de ${availability['total'] ?? 0} equipos operativos' : 'Equipos operativos'),
-      _KpiData('Backlog', _number(backlog is Map ? backlog['open'] : null), Icons.inbox_outlined, 'Tickets abiertos'),
+      _KpiData(
+        label: 'MTTR · mediana',
+        value: _duration(mttr is Map ? mttr['value'] : null),
+        icon: Icons.timer_outlined,
+        caption: firstAssignment is Map && firstAssignment['value'] is num ? 'Resolución · 1.ª asignación en ${_duration(firstAssignment['value'])}' : 'Tiempo de resolución',
+        change: mttr is Map ? numOf(mttr['change_pct']) : null,
+        higherIsBetter: false,
+        note: mttr is Map ? sampleNote(mttr) : null,
+        spark: series('mttr_hours'),
+      ),
+      _KpiData(
+        label: 'Cumplimiento SLA',
+        value: _percent(sla is Map ? sla['value'] : null),
+        icon: Icons.verified_user_outlined,
+        caption: met != null && missed != null ? '$met de ${met + missed} a tiempo' : 'Tickets resueltos a tiempo',
+        change: sla is Map ? numOf(sla['change_pct']) : null,
+        note: sla is Map ? sampleNote(sla) : null,
+        spark: series('sla_compliance_pct'),
+      ),
+      _KpiData(
+        label: 'Disponibilidad',
+        value: _percent(availability is Map ? availability['value'] : null),
+        icon: Icons.desktop_windows_outlined,
+        caption: availability is Map ? '${availability['operational'] ?? 0} de ${availability['total'] ?? 0} equipos operativos' : 'Equipos operativos',
+        change: availability is Map ? numOf(availability['change_pct']) : null,
+        note: 'vs. inicio del período',
+      ),
+      _KpiData(
+        label: 'Backlog',
+        value: _number(backlog is Map ? backlog['open'] : null),
+        icon: Icons.inbox_outlined,
+        caption: 'tickets abiertos',
+        change: backlog is Map ? numOf(backlog['change_pct']) : null,
+        higherIsBetter: false,
+        note: 'vs. inicio del período',
+        spark: backlogSeries(backlog is Map ? numOf(backlog['open']) : null),
+      ),
     ];
     return GridView.builder(
       itemCount: cards.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.42),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 168),
       itemBuilder: (context, index) => _KpiCard(data: cards[index]),
     );
   }
@@ -290,7 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
               child: Row(
                 children: [
-                  const Expanded(child: _BrandWordmark(fontSize: 27)),
+                  const Expanded(child: Align(alignment: Alignment.centerLeft, child: _BrandLogo(height: 30))),
                   IconButton(
                     tooltip: 'Cerrar menú',
                     onPressed: () => Navigator.of(context).pop(),
@@ -407,19 +468,17 @@ class _NavItem {
   final List<String> anyPermissions;
 }
 
-class _BrandWordmark extends StatelessWidget {
-  const _BrandWordmark({this.fontSize = 25});
-  final double fontSize;
+class _BrandLogo extends StatelessWidget {
+  const _BrandLogo({this.height = 22});
+  final double height;
 
   @override
-  Widget build(BuildContext context) => Text(
-    'MANTIX',
-    style: TextStyle(
-      color: Colors.white,
-      fontSize: fontSize >= 27 ? 27 : 23,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 1.2,
-    ),
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/mantix_logo.webp',
+    height: height,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    semanticLabel: 'MANTIX',
   );
 }
 
@@ -429,47 +488,67 @@ class _WelcomeHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstName = name.trim().split(RegExp(r'\s+')).first;
+    final words = name.trim().split(RegExp(r'\s+'));
+    final firstName = words.first.isEmpty ? 'USUARIO' : words.first;
     return Container(
-      height: 154,
-      padding: const EdgeInsets.all(17),
+      height: 176,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(19),
-        gradient: const LinearGradient(
-          colors: [AuthTokens.glassFillTop, AuthTokens.glassFillBottom, AuthTokens.bgDeep],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.28)),
         boxShadow: const [BoxShadow(color: Color(0x40050B1A), blurRadius: 20, offset: Offset(0, 8))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset('assets/images/card_dashboard.png', fit: BoxFit.cover, alignment: Alignment.centerRight, cacheWidth: 1200),
+            ),
+            const Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.25)),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Color(0xF2071D35), Color(0xB3071D35), Color(0x00071D35)],
+                    stops: [0, 0.5, 1],
+                  ),
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.circle, size: 7, color: AuthTokens.accent),
-                  const SizedBox(width: 6),
-                  Text('HOLA, ${firstName.toUpperCase()}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-                ]),
               ),
-              const Spacer(),
-              const SizedBox(
-                width: 185,
-                child: Text('Sistema inteligente\nde mantenimiento', style: TextStyle(color: Colors.white, fontSize: 18, height: 1.08, fontWeight: FontWeight.w900)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(17),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.circle, size: 7, color: AuthTokens.accent),
+                      const SizedBox(width: 6),
+                      Text('HOLA, ${firstName.toUpperCase()}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                  const Spacer(),
+                  const SizedBox(
+                    width: 240,
+                    child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text('Sistema Inteligente\nde Mantenimiento', style: TextStyle(color: Colors.white, fontSize: 21, height: 1.1, fontWeight: FontWeight.w900))),
+                  ),
+                  const SizedBox(height: 6),
+                  const SizedBox(
+                    width: 215,
+                    child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.', maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3)),
+                  ),
+                ],
               ),
-              const SizedBox(height: 5),
-              const SizedBox(
-                width: 180,
-                child: Text('Gestión de incidentes y control del parque tecnológico.', style: TextStyle(color: AuthTokens.textMuted, fontSize: 9, height: 1.25)),
-              ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -480,31 +559,65 @@ class _PeriodPicker extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
 
+  static const _shadow = [BoxShadow(color: Color(0x100B1F3A), blurRadius: 8)];
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x100B1F3A), blurRadius: 8)]),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      for (final item in const [('7d', '7 d'), ('30d', '30 d'), ('12m', '12 m')])
-        GestureDetector(
-          onTap: () => onChanged(item.$1),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(color: value == item.$1 ? const Color(0xFF0B1F3A) : Colors.transparent, borderRadius: BorderRadius.circular(22)),
-            child: Text(item.$2, style: TextStyle(color: value == item.$1 ? Colors.white : AppColors.slate, fontSize: 10, fontWeight: FontWeight.w700)),
-          ),
-        ),
-    ]),
-  );
+  Widget build(BuildContext context) => Row(children: [
+    Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), boxShadow: _shadow),
+      child: const Icon(Icons.calendar_month_outlined, color: Color(0xFF2678C8), size: 21),
+    ),
+    const SizedBox(width: 8),
+    Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: _shadow),
+        child: Row(children: [
+          for (final item in const [('7d', '7 días'), ('30d', '30 días'), ('12m', '12 meses')])
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: value == item.$1,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(item.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: value == item.$1 ? const Color(0xFF0B1F3A) : Colors.transparent, borderRadius: BorderRadius.circular(22)),
+                    child: Text(item.$2, style: TextStyle(color: value == item.$1 ? Colors.white : AppColors.slate, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      ),
+    ),
+  ]);
 }
 
 class _KpiData {
-  const _KpiData(this.label, this.value, this.icon, this.caption);
+  const _KpiData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.caption,
+    this.change,
+    this.higherIsBetter = true,
+    this.note,
+    this.spark = const [],
+  });
   final String label;
   final String value;
   final IconData icon;
   final String caption;
+  final double? change;
+  final bool higherIsBetter;
+  final String? note;
+  final List<double> spark;
 }
 
 class _KpiCard extends StatelessWidget {
@@ -523,13 +636,73 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(width: 7),
           Expanded(child: Text(data.label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9, fontWeight: FontWeight.w800))),
         ]),
-        const Spacer(),
-        Text(data.value, style: const TextStyle(color: Color(0xFF153A60), fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -0.6)),
+        const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(data.value, style: const TextStyle(color: Color(0xFF153A60), fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.6)))),
+          if (data.spark.length >= 2) SizedBox(width: 48, height: 22, child: CustomPaint(painter: _SparklinePainter(data.spark))),
+        ]),
         const SizedBox(height: 3),
-        Text(data.caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9, height: 1.2)),
+        Text(data.caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9.5, height: 1.2)),
+        const Spacer(),
+        if (data.change != null)
+          Row(children: [
+            _DeltaChip(change: data.change!, higherIsBetter: data.higherIsBetter),
+            const SizedBox(width: 6),
+            Expanded(child: Text(data.note ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 8, height: 1.15))),
+          ])
+        else if (data.note != null)
+          Text(data.note!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 8, height: 1.15)),
       ],
     ),
   );
+}
+
+class _DeltaChip extends StatelessWidget {
+  const _DeltaChip({required this.change, required this.higherIsBetter});
+  final double change;
+  final bool higherIsBetter;
+
+  @override
+  Widget build(BuildContext context) {
+    final good = change == 0 || (change > 0) == higherIsBetter;
+    final color = good ? const Color(0xFF1E8E63) : const Color(0xFFC77A12);
+    final arrow = change == 0 ? '' : (change > 0 ? '▲ ' : '▼ ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(color: good ? const Color(0xFFE3F6EE) : const Color(0xFFFFF0D9), borderRadius: BorderRadius.circular(8)),
+      child: Text('$arrow${change.abs().toStringAsFixed(1).replaceAll('.', ',')}%', style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
+class _SparklinePainter extends CustomPainter {
+  const _SparklinePainter(this.values);
+  final List<double> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final low = values.reduce((a, b) => a < b ? a : b);
+    final high = values.reduce((a, b) => a > b ? a : b);
+    final range = high - low;
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = size.width * i / (values.length - 1);
+      final y = range == 0 ? size.height / 2 : size.height - (values[i] - low) / range * size.height;
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFFE59A2F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SparklinePainter old) => old.values != values;
 }
 
 class _KpiLoading extends StatelessWidget {
@@ -540,10 +713,29 @@ class _KpiLoading extends StatelessWidget {
     crossAxisCount: 2,
     crossAxisSpacing: 10,
     mainAxisSpacing: 10,
-    childAspectRatio: 1.42,
+    childAspectRatio: 1.2,
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
     children: List.generate(4, (_) => Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)))),
+  );
+}
+
+class _SectionLink extends StatelessWidget {
+  const _SectionLink({required this.label, required this.path});
+  final String label;
+  final String path;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(8),
+    onTap: () => context.go(path),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 40),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Center(child: Text('$label →', style: const TextStyle(color: Color(0xFF2678C8), fontSize: 10, fontWeight: FontWeight.w800))),
+      ),
+    ),
   );
 }
 
@@ -694,99 +886,112 @@ class _EquipmentRanking extends StatelessWidget {
       final count = item is Map && item['tickets'] is num ? (item['tickets'] as num).toInt() : 0;
       return count > value ? count : value;
     });
+    final ranked = items.whereType<Map>().take(5).toList();
     return Column(children: [
-      for (final item in items.take(5))
-        if (item is Map)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+      for (var i = 0; i < ranked.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 18,
+              height: 18,
+              margin: const EdgeInsets.only(top: 1),
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(color: Color(0xFF0B1F3A), shape: BoxShape.circle),
+              child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Expanded(child: Text('${item['asset_tag'] ?? 'Equipo'} · ${item['brand'] ?? ''} ${item['model'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF274765), fontSize: 10, fontWeight: FontWeight.w700))),
-                  Text('${item['tickets'] ?? 0}', style: const TextStyle(color: AppColors.steel, fontSize: 11, fontWeight: FontWeight.w800)),
+                  Expanded(child: Text('${ranked[i]['asset_tag'] ?? 'Equipo'}  ${ranked[i]['brand'] ?? ''} ${ranked[i]['model'] ?? ''}'.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF274765), fontSize: 10.5, fontWeight: FontWeight.w700))),
+                  Text('${ranked[i]['tickets'] ?? 0}', style: const TextStyle(color: AppColors.steel, fontSize: 11, fontWeight: FontWeight.w800)),
                 ]),
                 const SizedBox(height: 5),
-                ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: ((item['tickets'] is num ? (item['tickets'] as num).toDouble() : 0) / max).clamp(0, 1).toDouble(), minHeight: 5, backgroundColor: const Color(0xFFE6EEF6), color: const Color(0xFF3287D2))),
-              ],
+                ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: ((ranked[i]['tickets'] is num ? (ranked[i]['tickets'] as num).toDouble() : 0) / max).clamp(0, 1).toDouble(), minHeight: 5, backgroundColor: const Color(0xFFE6EEF6), color: const Color(0xFF3287D2))),
+              ]),
             ),
-          ),
+          ]),
+        ),
     ]);
   }
 }
-
 
 class _TechnicianPerformance extends StatelessWidget {
   const _TechnicianPerformance({required this.items});
   final List<dynamic> items;
 
+  static const _head = TextStyle(color: AppColors.slate, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.3);
+  static const _cell = TextStyle(color: Color(0xFF244765), fontSize: 10.5, fontWeight: FontWeight.w700);
+  static const _small = TextStyle(color: AppColors.slate, fontSize: 8);
+  static const _widths = (open: 44.0, resolved: 52.0, mttr: 56.0, sla: 52.0, n: 24.0, reopened: 32.0);
+
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
+    final rows = items.whereType<Map>().take(6).toList();
+    if (rows.isEmpty) {
       return const Text('No hay datos de rendimiento disponibles para este periodo.', style: TextStyle(color: AppColors.slate, fontSize: 11));
     }
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final item in items.take(6))
-          if (item is Map)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(top: 5),
-                    decoration: BoxDecoration(
-                      color: item['is_available'] == true ? const Color(0xFF20A67A) : AppColors.mustard,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${item['full_name'] ?? 'Técnico'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF244765), fontSize: 11, fontWeight: FontWeight.w800)),
-                        Text('${item['specialization'] ?? 'Sin especialidad'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9)),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
-                          children: [
-                            _TechMetric(label: 'Abiertos', value: '${item['open_tickets'] ?? 0}'),
-                            _TechMetric(label: 'Resueltos', value: '${item['resolved'] ?? 0}'),
-                            _TechMetric(label: 'MTTR', value: item['mttr_median_hours'] is num ? '${((item['mttr_median_hours'] as num) / 24).toStringAsFixed(1)} d' : '—'),
-                            _TechMetric(label: 'SLA', value: item['sla_compliance_pct'] is num ? '${(item['sla_compliance_pct'] as num).toStringAsFixed(0)}%' : '—'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+        Row(children: [
+          const Expanded(child: Text('TÉCNICO', style: _head)),
+          _cellBox(_widths.open, const Text('ABIERTOS', style: _head)),
+          _cellBox(_widths.resolved, const Text('RESUELTOS', style: _head)),
+          _cellBox(_widths.mttr, const Text('MTTR\n(MEDIANA)', textAlign: TextAlign.center, style: _head)),
+          _cellBox(_widths.sla, const Text('SLA', style: _head)),
+          _cellBox(_widths.n, const Text('N', style: _head)),
+          _cellBox(_widths.reopened, const Text('REAB.', style: _head)),
+        ]),
+        const Divider(height: 14, color: Color(0xFFE5EEF6)),
+        for (final item in rows) ...[
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(right: 7),
+              decoration: BoxDecoration(color: item['is_available'] == true ? const Color(0xFF20A67A) : AppColors.mustard, shape: BoxShape.circle),
             ),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${item['full_name'] ?? 'Técnico'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _cell),
+                Text('${item['specialization'] ?? 'Sin especialidad'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _small),
+              ]),
+            ),
+            _cellBox(_widths.open, Text('${item['open_tickets'] ?? 0}', style: _cell)),
+            _cellBox(_widths.resolved, Text('${item['resolved'] ?? 0}', style: _cell)),
+            _cellBox(_widths.mttr, Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(_days(item['mttr_median_hours']), style: _cell),
+              if (item['low_sample'] == true) const Text('pocos datos', style: TextStyle(color: Color(0xFFC77A12), fontSize: 7)),
+            ])),
+            _cellBox(_widths.sla, Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(_slaText(item['sla_compliance_pct']), style: _cell),
+              if (item['sla_sample_size'] is num) Text('(n=${(item['sla_sample_size'] as num).toInt()})', style: _small),
+            ])),
+            _cellBox(_widths.n, Text('${item['sample_size'] ?? 0}', style: _cell)),
+            _cellBox(_widths.reopened, Text('${item['reopened'] ?? 0}', style: _cell)),
+          ]),
+          const Divider(height: 18, color: Color(0xFFEEF3F8)),
+        ],
+        const SizedBox(height: 2),
+        const Text(
+          'n = tickets resueltos en el periodo. Las prioridades sin SLA no entran en el cumplimiento. Reabiertos: pasaron de resuelto a en curso.',
+          style: TextStyle(color: AppColors.slate, fontSize: 8.5, height: 1.3),
+        ),
       ],
     );
   }
-}
 
-class _TechMetric extends StatelessWidget {
-  const _TechMetric({required this.label, required this.value});
-  final String label;
-  final String value;
+  static Widget _cellBox(double width, Widget child) => SizedBox(width: width, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: child)));
 
-  @override
-  Widget build(BuildContext context) => RichText(
-    text: TextSpan(
-      style: const TextStyle(fontSize: 9, color: AppColors.slate),
-      children: [
-        TextSpan(text: '$label '),
-        TextSpan(text: value, style: const TextStyle(color: AppColors.steel, fontWeight: FontWeight.w800)),
-      ],
-    ),
-  );
+  static String _days(dynamic hours) => hours is num ? '${(hours / 24).toStringAsFixed(1).replaceAll('.', ',')} d' : '—';
+
+  static String _slaText(dynamic value) {
+    if (value is! num) return '—';
+    final text = value.toStringAsFixed(1);
+    return '${(text.endsWith('.0') ? text.substring(0, text.length - 2) : text).replaceAll('.', ',')}%';
+  }
 }
 
 class _AlertsList extends StatelessWidget {
@@ -802,16 +1007,16 @@ class _AlertsList extends StatelessWidget {
           _AlertRow(
             icon: Icons.confirmation_number_outlined,
             title: '${item['ticket_number'] ?? 'Ticket'} · ${item['title'] ?? 'Incidencia'}',
-            subtitle: '${item['asset_tag'] ?? 'Equipo'} · ${_reason(item['reason'])}',
-            tone: AppColors.mustard,
+            subtitle: _ticketDetail(item),
+            badge: _badge(item['reason']),
           ),
       for (final item in downEquipment.take(3))
         if (item is Map)
           _AlertRow(
             icon: Icons.desktop_windows_outlined,
             title: '${item['asset_tag'] ?? 'Equipo'} fuera de servicio',
-            subtitle: '${item['brand'] ?? ''} ${item['model'] ?? ''}',
-            tone: const Color(0xFFD18B35),
+            subtitle: '${item['brand'] ?? ''} ${item['model'] ?? ''}'.trim(),
+            badge: const _Badge('Fuera de servicio', Color(0xFFC77A12), Color(0xFFFFF0D9)),
           ),
     ];
     if (all.isEmpty) {
@@ -824,32 +1029,62 @@ class _AlertsList extends StatelessWidget {
     return Column(children: all);
   }
 
-  static String _reason(dynamic value) => switch (value) {
-    'unassigned_critical' => 'Crítico sin asignar',
-    'sla_breached' => 'SLA vencido',
-    'sla_at_risk' => 'SLA en riesgo',
-    _ => 'Requiere atención',
+  static String _ticketDetail(Map<dynamic, dynamic> item) {
+    final deadline = item['sla_deadline'] is String ? DateTime.tryParse(item['sla_deadline'] as String) : null;
+    return [
+      '${item['asset_tag'] ?? 'Equipo'}',
+      if (item['priority'] is String) priorityMeta(item['priority'] as String).label.toLowerCase(),
+      item['assigned'] == true ? 'asignado' : 'sin asignar',
+      if (deadline != null) 'vence ${formatDate(deadline.toLocal())}',
+    ].join(' · ');
+  }
+
+  static _Badge? _badge(dynamic reason) => switch (reason) {
+    'unassigned_critical' => const _Badge('Crítico sin asignar', Color(0xFFD64545), Color(0xFFFDE8E8)),
+    'sla_breached' => const _Badge('SLA vencido', Color(0xFFD64545), Color(0xFFFDE8E8)),
+    'sla_at_risk' => const _Badge('SLA en riesgo', Color(0xFFC77A12), Color(0xFFFFF0D9)),
+    _ => null,
   };
 }
 
+class _Badge {
+  const _Badge(this.label, this.color, this.background);
+  final String label;
+  final Color color;
+  final Color background;
+}
+
 class _AlertRow extends StatelessWidget {
-  const _AlertRow({required this.icon, required this.title, required this.subtitle, required this.tone});
+  const _AlertRow({required this.icon, required this.title, required this.subtitle, this.badge});
   final IconData icon;
   final String title;
   final String subtitle;
-  final Color tone;
+  final _Badge? badge;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 11),
+    padding: const EdgeInsets.only(bottom: 12),
     child: Row(children: [
-      Icon(icon, color: tone, size: 19),
+      Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(color: const Color(0xFFFFF3DF), borderRadius: BorderRadius.circular(9)),
+        child: Icon(icon, color: const Color(0xFFE59A2F), size: 17),
+      ),
       const SizedBox(width: 9),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF244765), fontSize: 10, fontWeight: FontWeight.w700)),
+        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF244765), fontSize: 10.5, fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
-        Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9)),
+        Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 8.5, height: 1.25)),
       ])),
+      if (badge != null) ...[
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          decoration: BoxDecoration(color: badge!.background, borderRadius: BorderRadius.circular(9)),
+          child: Text(badge!.label, style: TextStyle(color: badge!.color, fontSize: 8.5, fontWeight: FontWeight.w800)),
+        ),
+      ],
       const Icon(Icons.chevron_right_rounded, color: AppColors.slate, size: 18),
     ]),
   );
