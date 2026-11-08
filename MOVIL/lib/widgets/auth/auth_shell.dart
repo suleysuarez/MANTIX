@@ -35,6 +35,8 @@ class _AuthShellState extends State<AuthShell> {
     }
   }
 
+  /// Y (desde el borde superior de la pantalla) donde empieza la zona de la tarjeta:
+  /// justo debajo del logo y nunca por encima del área segura.
   double _contentTop({
     required Size screenSize,
     required Size imageSize,
@@ -48,7 +50,7 @@ class _AuthShellState extends State<AuthShell> {
     );
     final logoBottom =
         imageSize.height * scale * AuthTokens.logoBottomFraction;
-    return math.max(0, logoBottom + AuthTokens.logoClearance - safeTop);
+    return math.max(safeTop, logoBottom + AuthTokens.logoClearance);
   }
 
   double _fallbackContentTop({
@@ -59,10 +61,9 @@ class _AuthShellState extends State<AuthShell> {
     // This estimate leaves room for the logo and is replaced by the exact
     // image-based position as soon as decoding completes.
     return math.max(
-      0,
+      safeTop,
       screenSize.height * AuthTokens.logoBottomFraction +
-          AuthTokens.logoClearance -
-          safeTop,
+          AuthTokens.logoClearance,
     );
   }
 
@@ -71,6 +72,7 @@ class _AuthShellState extends State<AuthShell> {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final screenSize = MediaQuery.sizeOf(context);
     final safeTop = MediaQuery.paddingOf(context).top;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: AuthTokens.bgDeep,
@@ -118,17 +120,32 @@ class _AuthShellState extends State<AuthShell> {
                       safeTop: safeTop,
                     );
 
-              return SafeArea(
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(24, top, 24, 20 + keyboard),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: AuthTokens.maxCardWidth,
+              // La zona desplazable empieza bajo el logo y se recorta ahí: aunque el
+              // contenido sea más alto (teclado abierto, fuente grande), nunca sube
+              // por encima del borde inferior del logo. Si cabe, no se mueve.
+              return Positioned(
+                left: 0,
+                right: 0,
+                top: top,
+                bottom: 0,
+                child: ClipRect(
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      0,
+                      24,
+                      20 + safeBottom + keyboard,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AuthTokens.maxCardWidth,
+                        ),
+                        child: widget.child,
                       ),
-                      child: widget.child,
                     ),
                   ),
                 ),
