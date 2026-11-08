@@ -26,6 +26,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   bool _obscure = true;
   bool _obscureConfirm = true;
+  // Solo en memoria y solo mientras dura la verificación: se envía junto al código.
+  String? _pendingPassword;
   String? _message;
   bool _isError = false;
 
@@ -55,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
   };
 
   void _setMode(_AuthMode mode) {
-    setState(() { _mode = mode; _message = null; _code.clear(); _password.clear(); _confirmPassword.clear(); });
+    setState(() { _mode = mode; _message = null; _code.clear(); _password.clear(); _confirmPassword.clear(); _pendingPassword = null; });
   }
 
   String _errorText(Object error) {
@@ -88,12 +90,21 @@ class _LoginScreenState extends State<LoginScreen> {
           await auth.login(email: email, password: _password.text);
           break;
         case _AuthMode.register:
-          await auth.register(email: email, password: _password.text);
+          final password = _password.text;
+          await auth.register(email: email, password: password);
           _setMode(_AuthMode.verify);
+          _pendingPassword = password;
           _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
           break;
         case _AuthMode.verify:
-          await auth.verifyEmail(email: email, code: _code.text.trim());
+          final password = _pendingPassword;
+          if (password == null) {
+            _setMode(_AuthMode.register);
+            _showMessage('Escribe de nuevo tu correo y tu contraseña para continuar.', error: true);
+            break;
+          }
+          await auth.verifyEmail(email: email, code: _code.text.trim(), password: password);
+          _pendingPassword = null;
           break;
         case _AuthMode.forgot:
           await auth.requestPasswordReset(email);

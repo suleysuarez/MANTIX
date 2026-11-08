@@ -10,8 +10,9 @@ class MobileAuthRepository {
     await _dio.post('/mobile-auth/register', data: {'email': email, 'password': password});
   }
 
-  Future<void> verifyEmail({required String email, required String code}) async {
-    final response = await _dio.post<Map<String, dynamic>>('/mobile-auth/verify-email', data: {'email': email, 'code': code});
+  /// La contraseña viaja con el código: la fija quien recibe el código en su correo.
+  Future<void> verifyEmail({required String email, required String code, required String password}) async {
+    final response = await _dio.post<Map<String, dynamic>>('/mobile-auth/verify-email', data: {'email': email, 'code': code, 'password': password});
     await _auth.saveAccessToken(response.data!['access_token'] as String);
   }
 
