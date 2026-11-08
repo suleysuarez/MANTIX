@@ -566,7 +566,7 @@ class _SectionCard extends StatelessWidget {
             Text(title, style: const TextStyle(color: Color(0xFF173A5E), fontSize: 14, fontWeight: FontWeight.w800)),
             if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle!, style: const TextStyle(color: AppColors.slate, fontSize: 10))),
           ])),
-          if (trailing != null) trailing!,
+          ?trailing,
         ]),
         const SizedBox(height: 14),
         child,

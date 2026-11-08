@@ -14,7 +14,7 @@ part 'auth_state.dart';
 /// Sesión de la app. El proveedor nativo guarda el token y este Bloc resuelve
 /// el perfil, los roles y los permisos devueltos por `/auth/me`.
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({required AuthProvider auth, required AuthRepository repository}) : _auth = auth, _repository = repository, super(const AuthUnknown()) {
+  AuthBloc({required this._auth, required this._repository}) : super(const AuthUnknown()) {
     on<AuthStarted>((_, emit) async => emit(await _load()));
     on<AuthRefreshRequested>(_onRefresh);
     on<AuthSignOutRequested>(_onSignOut);
