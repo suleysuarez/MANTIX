@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
-import 'package:mantix/features/requests/data/models.dart';
+import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/features/requests/data/requests_repository.dart';
 
 import '../../support/fakes.dart';

@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../errors/failure_mapper.dart';
-import 'user_profile.dart';
+import '../../models/auth/user_profile.dart';
 
 /// Acceso a `GET /auth/me`. Cualquier error de red o de servidor sale como un
 /// `Failure` ya traducido.

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/auth/user_profile.dart';
+import 'package:mantix/models/auth/user_profile.dart';
 
 Map<String, Object?> json({List<Map<String, String>> roles = const [], List<Map<String, String>> permissions = const []}) => {
       'id': 7,

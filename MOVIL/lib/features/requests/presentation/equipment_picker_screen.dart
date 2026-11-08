@@ -7,7 +7,7 @@ import '../../../core/network/paged/paged_bloc.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../shared/empty_state.dart';
 import '../../../shared/paged_list_view.dart';
-import '../data/models.dart';
+import '../../../models/requests/request_models.dart';
 import '../data/requests_repository.dart';
 import 'bloc/equipment_search_bloc.dart';
 

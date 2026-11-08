@@ -1,6 +1,6 @@
-import '../../../../core/network/page_info.dart';
+import '../../../../models/page_info.dart';
 import '../../../../core/network/paged/paged_bloc.dart';
-import '../../data/models.dart';
+import '../../../../models/requests/request_models.dart';
 import '../../data/requests_repository.dart';
 
 /// Resultados del selector de equipo; [search] es el texto buscado.

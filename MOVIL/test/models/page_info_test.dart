@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/network/page_info.dart';
+import 'package:mantix/models/page_info.dart';
 
 Headers headers(Map<String, String> values) => Headers.fromMap({for (final e in values.entries) e.key: [e.value]});
 

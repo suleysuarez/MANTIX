@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/features/requests/data/models.dart';
+import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/features/requests/presentation/equipment_picker_screen.dart';
 
 import '../../support/fakes.dart';

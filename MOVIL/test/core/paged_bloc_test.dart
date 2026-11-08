@@ -1,7 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
-import 'package:mantix/core/network/page_info.dart';
+import 'package:mantix/models/page_info.dart';
 import 'package:mantix/core/network/paged/paged_bloc.dart';
 
 class _Numbers extends PagedBloc<int> {

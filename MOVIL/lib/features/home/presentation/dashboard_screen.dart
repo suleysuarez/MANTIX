@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/bloc/auth_bloc.dart';
 import '../../../core/auth/home_resolver.dart';
-import '../../../core/auth/user_profile.dart';
+import '../../../models/auth/user_profile.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/status_message.dart';
 import '../data/dashboard_repository.dart';

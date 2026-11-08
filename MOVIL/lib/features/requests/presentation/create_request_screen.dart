@@ -7,7 +7,7 @@ import '../../../core/errors/failure.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/validation/validators.dart';
 import '../../../shared/app_text_field.dart';
-import '../data/models.dart';
+import '../../../models/requests/request_models.dart';
 import '../data/requests_repository.dart';
 import 'bloc/create_request_bloc.dart';
 import 'equipment_picker_screen.dart';

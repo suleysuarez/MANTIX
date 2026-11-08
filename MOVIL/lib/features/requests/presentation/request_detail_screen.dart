@@ -8,7 +8,7 @@ import '../../../core/format/formatters.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../shared/app_chip.dart';
 import '../../../shared/async_view.dart';
-import '../data/models.dart';
+import '../../../models/requests/request_models.dart';
 import '../data/requests_repository.dart';
 import 'bloc/request_detail_bloc.dart';
 

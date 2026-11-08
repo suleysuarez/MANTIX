@@ -5,7 +5,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/errors/failure_mapper.dart';
-import '../../data/models.dart';
+import '../../../../models/requests/request_models.dart';
 import '../../data/requests_repository.dart';
 
 part 'request_detail_event.dart';

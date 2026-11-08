@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/auth/auth_provider.dart';
 import 'package:mantix/core/auth/auth_repository.dart';
 import 'package:mantix/core/auth/bloc/auth_bloc.dart';
-import 'package:mantix/core/auth/user_profile.dart';
+import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAuthProvider extends Mock implements AuthProvider {}

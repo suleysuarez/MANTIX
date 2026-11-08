@@ -1,9 +1,9 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
-import 'package:mantix/core/network/page_info.dart';
+import 'package:mantix/models/page_info.dart';
 import 'package:mantix/core/network/paged/paged_bloc.dart';
-import 'package:mantix/features/requests/data/models.dart';
+import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/features/requests/data/requests_repository.dart';
 import 'package:mantix/features/requests/presentation/bloc/create_request_bloc.dart';
 import 'package:mantix/features/requests/presentation/bloc/my_requests_bloc.dart';
