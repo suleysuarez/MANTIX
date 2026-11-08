@@ -74,6 +74,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onSignOut(AuthSignOutRequested event, Emitter<AuthState> emit) async {
+    // Primero el servidor, mientras el token todavía existe; después el borrado local.
+    await _repository.revokeSession();
     await _auth.signOut();
     emit(const AuthUnauthenticated());
   }
