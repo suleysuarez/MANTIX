@@ -5,7 +5,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../errors/failure.dart';
 import '../auth_provider.dart';
-import '../auth_repository.dart';
+import '../../../repositories/auth/auth_repository.dart';
 import '../../../models/auth/user_profile.dart';
 
 part 'auth_event.dart';

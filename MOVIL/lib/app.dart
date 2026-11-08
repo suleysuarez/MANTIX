@@ -7,9 +7,9 @@ import 'core/auth/bloc/auth_bloc.dart';
 import 'core/auth/bloc/permissions_cubit.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/data/mobile_auth_repository.dart';
-import 'features/home/data/dashboard_repository.dart';
-import 'features/requests/data/requests_repository.dart';
+import 'repositories/auth/mobile_auth_repository.dart';
+import 'repositories/home/dashboard_repository.dart';
+import 'repositories/requests/requests_repository.dart';
 
 class MantixApp extends StatefulWidget {
   const MantixApp({

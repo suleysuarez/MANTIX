@@ -1,7 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/auth/auth_repository.dart';
+import 'package:mantix/repositories/auth/auth_repository.dart';
 import 'package:mantix/core/auth/bloc/auth_bloc.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/core/errors/failure.dart';

@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
-import '../../../core/errors/failure_mapper.dart';
-import '../../../models/page_info.dart';
-import '../../../models/requests/request_models.dart';
+import '../../core/errors/failure_mapper.dart';
+import '../../models/page_info.dart';
+import '../../models/requests/request_models.dart';
 
 /// Acceso a la API de solicitudes y equipos. Cualquier error de red o de servidor
 /// sale como un `Failure` ya traducido.

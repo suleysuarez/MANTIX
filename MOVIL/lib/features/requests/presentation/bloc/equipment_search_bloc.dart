@@ -1,7 +1,7 @@
 import '../../../../models/page_info.dart';
 import '../../../../core/network/paged/paged_bloc.dart';
 import '../../../../models/requests/request_models.dart';
-import '../../data/requests_repository.dart';
+import '../../../../repositories/requests/requests_repository.dart';
 
 /// Resultados del selector de equipo; [search] es el texto buscado.
 class EquipmentSearchBloc extends PagedBloc<EquipmentOption> {

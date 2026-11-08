@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import '../../../core/auth/native_auth_provider.dart';
+import '../../core/auth/native_auth_provider.dart';
 
 class MobileAuthRepository {
   MobileAuthRepository(this._dio, this._auth);

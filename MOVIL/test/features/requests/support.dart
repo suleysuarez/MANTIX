@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mantix/core/auth/bloc/permissions_cubit.dart';
 import 'package:mantix/core/theme/app_theme.dart';
-import 'package:mantix/features/requests/data/requests_repository.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import '../../support/fakes.dart';
 

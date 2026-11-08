@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/app.dart';
-import 'package:mantix/core/auth/auth_repository.dart';
+import 'package:mantix/repositories/auth/auth_repository.dart';
 import 'package:mantix/core/auth/bloc/auth_bloc.dart';
 import 'package:mantix/core/auth/native_auth_provider.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/core/network/api_client.dart';
-import 'package:mantix/features/auth/data/mobile_auth_repository.dart';
-import 'package:mantix/features/home/data/dashboard_repository.dart';
-import 'package:mantix/features/requests/data/requests_repository.dart';
+import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
+import 'package:mantix/repositories/home/dashboard_repository.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'support/fakes.dart';
 

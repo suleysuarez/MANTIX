@@ -4,7 +4,7 @@ import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/models/page_info.dart';
 import 'package:mantix/core/network/paged/paged_bloc.dart';
 import 'package:mantix/models/requests/request_models.dart';
-import 'package:mantix/features/requests/data/requests_repository.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/features/requests/presentation/bloc/create_request_bloc.dart';
 import 'package:mantix/features/requests/presentation/bloc/my_requests_bloc.dart';
 import 'package:mantix/features/requests/presentation/bloc/request_detail_bloc.dart';

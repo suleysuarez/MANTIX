@@ -9,7 +9,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../shared/app_chip.dart';
 import '../../../shared/async_view.dart';
 import '../../../models/requests/request_models.dart';
-import '../data/requests_repository.dart';
+import '../../../repositories/requests/requests_repository.dart';
 import 'bloc/request_detail_bloc.dart';
 
 /// Detalle de una solicitud: datos, estado, historial y adjuntos (solo lectura).
