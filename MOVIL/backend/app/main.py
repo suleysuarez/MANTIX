@@ -38,6 +38,7 @@ from app.core.middleware import (
 )
 from app.db.session import async_session_maker
 from app.jobs import build_scheduler
+from app.services.email_sender import log_mail_startup_notice
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -102,6 +103,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Start the background scheduler with the app and stop it on shutdown."""
     scheduler = None
     application.state.scheduler = None
+    log_mail_startup_notice(settings)
     if settings.scheduler_enabled and async_session_maker is not None:
         scheduler = build_scheduler(settings, async_session_maker)
         scheduler.start()

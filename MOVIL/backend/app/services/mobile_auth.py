@@ -5,6 +5,7 @@ application continues to authenticate with Clerk.
 """
 import hashlib
 import hmac
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -20,17 +21,29 @@ from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import AuthEmailCode, Role, User, UserRole
 from app.services.auth import user_response
-from app.services.resend_email import ResendEmailService
+from app.services.email_sender import (
+    EmailConfigurationError,
+    EmailSender,
+    SmtpEmailSender,
+    mask_email,
+    render_auth_code_email,
+)
 
+logger = logging.getLogger("mantix.mail")
 _passwords = PasswordHash.recommended()
 _CODE_MAX_ATTEMPTS = 5
 
 
 class MobileAuthService:
-    def __init__(self, session: AsyncSession, settings: Settings):
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        sender: EmailSender | None = None,
+    ):
         self.session = session
         self.settings = settings
-        self.mailer = ResendEmailService(settings)
+        self.sender: EmailSender = sender or SmtpEmailSender(settings)
 
     @staticmethod
     def _normalize_email(email: str) -> str:
@@ -93,10 +106,24 @@ class MobileAuthService:
             record.attempts = 0
             record.consumed_at = None
         await self.session.commit()
-        await self.mailer.send_auth_code(
-            recipient=user.email, code=code, purpose=purpose,
+        await self._send_code(user.email, code, purpose)
+
+    async def _send_code(self, email: str, code: str, purpose: str) -> None:
+        """Deliver a code. A failed delivery is logged and never changes the API answer."""
+        subject, text, html = render_auth_code_email(
+            code=code, purpose=purpose,
             expires_minutes=self.settings.auth_verification_expire_minutes,
         )
+        try:
+            await self.sender.send(to=email, subject=subject, text=text, html=html)
+        except EmailConfigurationError as exc:
+            logger.error("auth code email not sent (purpose=%s): %s", purpose, exc)
+        except Exception as exc:
+            # Never log str(exc): provider replies can echo addresses. No code, no password.
+            logger.error(
+                "auth code email not sent (account=%s purpose=%s error=%s smtp_code=%s)",
+                mask_email(email), purpose, type(exc).__name__, getattr(exc, "smtp_code", None),
+            )
 
     async def _consume_code(self, user: User, purpose: str, code: str) -> None:
         result = await self.session.execute(

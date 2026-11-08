@@ -32,8 +32,13 @@ class Settings(BaseSettings):
     mobile_access_token_minutes: int = Field(
         default=480, ge=5, le=720, validation_alias="MOBILE_ACCESS_TOKEN_MINUTES"
     )
-    resend_api_key: str = Field(default="", validation_alias="RESEND_API_KEY")
-    resend_from_email: str = Field(default="", validation_alias="RESEND_FROM_EMAIL")
+    # Personal SMTP (e.g. Gmail app password) for the verification/recovery codes.
+    # No defaults: when any is missing, sending a code fails with a specific error.
+    smtp_host: str | None = Field(default=None, validation_alias="SMTP_HOST")
+    smtp_port: int | None = Field(default=None, validation_alias="SMTP_PORT")
+    smtp_username: str | None = Field(default=None, validation_alias="SMTP_USERNAME")
+    smtp_password: str | None = Field(default=None, validation_alias="SMTP_PASSWORD")
+    smtp_from: str | None = Field(default=None, validation_alias="SMTP_FROM")
     auth_verification_expire_minutes: int = Field(
         default=10, ge=3, le=60, validation_alias="AUTH_VERIFICATION_EXPIRE_MINUTES"
     )
@@ -53,6 +58,13 @@ class Settings(BaseSettings):
         env_file=(BASE_DIR / ".env", ".env"),
         extra="ignore",
     )
+
+    @field_validator(
+        "smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", mode="before"
+    )
+    @classmethod
+    def blank_smtp_value_is_missing(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     @field_validator("database_url", mode="after")
     @classmethod
