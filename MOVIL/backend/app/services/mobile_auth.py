@@ -21,6 +21,7 @@ from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import AuthEmailCode, Role, User, UserRole
 from app.services.auth import user_response
+from app.services.code_email_limiter import CodeEmailLimiter, code_email_limiter
 from app.services.email_sender import (
     EmailConfigurationError,
     EmailSender,
@@ -40,10 +41,12 @@ class MobileAuthService:
         session: AsyncSession,
         settings: Settings,
         sender: EmailSender | None = None,
+        limiter: CodeEmailLimiter | None = None,
     ):
         self.session = session
         self.settings = settings
         self.sender: EmailSender = sender or SmtpEmailSender(settings)
+        self.limiter = limiter or code_email_limiter
 
     @staticmethod
     def _normalize_email(email: str) -> str:
@@ -84,6 +87,14 @@ class MobileAuthService:
         return True
 
     async def _issue_code(self, user: User, purpose: str) -> None:
+        # Checked first: a blocked request leaves the current code and its attempt
+        # counter untouched, so asking again cannot be used to reset the attempts.
+        if not self.limiter.allow(user.email):
+            logger.warning(
+                "auth code email skipped by the send limit (account=%s purpose=%s)",
+                mask_email(user.email), purpose,
+            )
+            return
         code = f"{secrets.randbelow(1_000_000):06d}"
         now = datetime.now(UTC)
         result = await self.session.execute(
