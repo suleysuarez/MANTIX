@@ -95,4 +95,53 @@ void main() {
     expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
     verifyNever(() => repository.register(email: any(named: 'email'), password: any(named: 'password')));
   });
+  Future<void> registerAndReachVerification(WidgetTester tester) async {
+    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'))).thenAnswer((_) async {});
+    await pumpLogin(tester);
+    await tester.tap(find.text('Crear una cuenta'));
+    await tester.pumpAndSettle();
+    await tester.enterText(field(0), 'ana@mantix.test');
+    await tester.enterText(field(1), 'Clave12345');
+    await tester.enterText(field(2), 'Clave12345');
+    await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Verifica tu correo'), findsOneWidget);
+  }
+
+  testWidgets('la contraseña del registro viaja junto al código al verificar el correo', (tester) async {
+    when(() => repository.verifyEmail(email: any(named: 'email'), code: any(named: 'code'), password: any(named: 'password'))).thenAnswer((_) async {});
+    await registerAndReachVerification(tester);
+
+    await tester.enterText(field(0), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
+    await tester.pumpAndSettle();
+
+    verify(() => repository.verifyEmail(email: 'ana@mantix.test', code: '123456', password: 'Clave12345')).called(1);
+  });
+
+  testWidgets('si el código es incorrecto se puede reintentar sin volver a escribir la contraseña', (tester) async {
+    var attempts = 0;
+    when(() => repository.verifyEmail(email: any(named: 'email'), code: any(named: 'code'), password: any(named: 'password'))).thenAnswer((_) async {
+      attempts++;
+      if (attempts == 1) {
+        throw DioException(
+          requestOptions: RequestOptions(path: '/mobile-auth/verify-email'),
+          response: Response(requestOptions: RequestOptions(path: '/mobile-auth/verify-email'), statusCode: 403, data: {'detail': 'El código no es válido o ha vencido.', 'code': 'auth_code_invalid'}),
+          type: DioExceptionType.badResponse,
+        );
+      }
+    });
+    await registerAndReachVerification(tester);
+
+    await tester.enterText(field(0), '000000');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
+    await tester.pumpAndSettle();
+    expect(find.text('El código no es válido o ha vencido.'), findsOneWidget);
+
+    await tester.enterText(field(0), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
+    await tester.pumpAndSettle();
+
+    verify(() => repository.verifyEmail(email: 'ana@mantix.test', code: '123456', password: 'Clave12345')).called(1);
+  });
 }
