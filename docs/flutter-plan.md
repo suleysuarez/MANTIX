@@ -165,7 +165,7 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 **Endpoints** (prefijo `/mobile-auth`, públicos): `register`, `verify-email`, `resend-verification`, `login`, `forgot-password`, `reset-password`. `GET /auth/me` carga el perfil, los roles y los permisos con el token propio.
 
 **Flujo:**
-1. `register` crea la cuenta sin verificar y envía un código de 6 dígitos al correo (202).
+1. `register` recibe correo, contraseña, **nombre (obligatorio) y apellido (opcional)**, crea la cuenta sin verificar (el nombre completo se guarda en `users.full_name`) y envía un código de 6 dígitos al correo (202). Desde la pantalla de verificación la app permite volver al registro («Volver al registro») para corregir los datos.
 2. `verify-email` recibe correo, código **y contraseña**: consume el código, fija la contraseña (la elige quien tiene el código en su buzón), marca el correo como verificado y devuelve la sesión. Sin verificar no se puede iniciar sesión.
 3. `login` devuelve el token. Las cuentas nuevas no reciben roles: quedan pendientes hasta que un administrador asigne uno. Excepción: la primera cuenta verificada de una base sin administradores recibe ADMIN.
 4. Recuperación: `forgot-password` envía un código; `reset-password` lo consume y fija la contraseña nueva.

@@ -18,6 +18,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
@@ -33,6 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
     _email.dispose();
     _password.dispose();
     _confirmPassword.dispose();
@@ -91,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
         case _AuthMode.register:
           final password = _password.text;
-          await auth.register(email: email, password: password);
+          await auth.register(email: email, password: password, firstName: _firstName.text.trim(), lastName: _lastName.text.trim());
           _setMode(_AuthMode.verify);
           _pendingPassword = password;
           _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
@@ -134,6 +138,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  String? _validateFirstName(String? value) => (value == null || value.trim().isEmpty) ? 'Escribe tu nombre.' : null;
+
   String? _validatePassword(String? value) {
     if (value == null || value.length < 10) return 'Usa al menos 10 caracteres.';
     if (!RegExp(r'[A-Z]').hasMatch(value) || !RegExp(r'[a-z]').hasMatch(value) || !RegExp(r'\d').hasMatch(value)) return 'Incluye mayúsculas, minúsculas y números.';
@@ -146,9 +152,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  InputDecoration _decoration(String label, {IconData? icon}) => InputDecoration(
-    labelText: label, labelStyle: const TextStyle(color: Colors.white), floatingLabelStyle: const TextStyle(color: AuthTokens.accent), prefixIcon: icon == null ? null : Icon(icon, color: Colors.white),
-    filled: true, fillColor: Colors.white.withValues(alpha: 0.10), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+  /// [required] añade un asterisco al nombre del campo (solo en el registro, donde hay un campo opcional).
+  InputDecoration _decoration(String label, {IconData? icon, bool required = false}) => InputDecoration(
+    label: required ? Text.rich(TextSpan(text: label, children: const [TextSpan(text: ' *', style: TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w800))])) : null,
+    labelText: required ? null : label, labelStyle: const TextStyle(color: Colors.white), floatingLabelStyle: const TextStyle(color: AuthTokens.accent), prefixIcon: icon == null ? null : Icon(icon, color: Colors.white),
+    filled: true, fillColor: Colors.white.withValues(alpha: 0.10), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
   );
@@ -165,23 +173,33 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Text(
-                  switch (_mode) {
-                    _AuthMode.login => 'Ingresa con tu correo y contraseña.',
-                    _AuthMode.register => 'Regístrate con tu correo y crea una contraseña para Mantix.',
-                    _AuthMode.verify => 'Escribe el código que enviamos a tu correo.',
-                    _AuthMode.forgot => 'Te enviaremos un código si tu cuenta está registrada.',
-                    _AuthMode.reset => 'Ingresa el código recibido y tu nueva contraseña.',
-                  },
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
-                ),
-                const SizedBox(height: 22),
+                Text(_title, textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: _mode == _AuthMode.register ? 19 : 22, fontWeight: FontWeight.w700)),
+                // El registro es la tarjeta más alta: sin subtítulo para que quepa bajo el logo.
+                if (_mode != _AuthMode.register) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    switch (_mode) {
+                      _AuthMode.login => 'Ingresa con tu correo y contraseña.',
+                      _AuthMode.verify => 'Escribe el código que enviamos a tu correo.',
+                      _AuthMode.forgot => 'Te enviaremos un código si tu cuenta está registrada.',
+                      _ => 'Ingresa el código recibido y tu nueva contraseña.',
+                    },
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
+                  ),
+                ],
+                SizedBox(height: _mode == _AuthMode.register ? 12 : 22),
+                if (_mode == _AuthMode.register) ...[
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: TextFormField(controller: _firstName, textCapitalization: TextCapitalization.words, maxLength: 100, decoration: _decoration('Nombre', required: true).copyWith(counterText: ''), validator: _validateFirstName)),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextFormField(controller: _lastName, textCapitalization: TextCapitalization.words, maxLength: 100, decoration: _decoration('Apellido').copyWith(counterText: ''))),
+                  ]),
+                  const SizedBox(height: 10),
+                ],
                 if (_mode != _AuthMode.verify && _mode != _AuthMode.reset) ...[
-                  TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: _decoration('Correo electrónico', icon: Icons.email_outlined), validator: _validateEmail),
-                  const SizedBox(height: 12),
+                  TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: _decoration('Correo electrónico', icon: Icons.email_outlined, required: _mode == _AuthMode.register), validator: _validateEmail),
+                  SizedBox(height: _mode == _AuthMode.register ? 10 : 12),
                 ],
                 if (_mode == _AuthMode.verify || _mode == _AuthMode.reset) ...[
                   if (_email.text.isEmpty)
@@ -191,13 +209,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 4),
                 ],
                 if (_mode == _AuthMode.login || _mode == _AuthMode.register || _mode == _AuthMode.reset) ...[
-                  TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
+                  TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline, required: _mode == _AuthMode.register).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
                   if (_mode == _AuthMode.register) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     TextFormField(
                       controller: _confirmPassword,
                       obscureText: _obscureConfirm,
-                      decoration: _decoration('Confirmar contraseña', icon: Icons.lock_outline).copyWith(
+                      decoration: _decoration('Confirmar contraseña', icon: Icons.lock_outline, required: true).copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -209,18 +227,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: _validateConfirmPassword,
                     ),
                   ],
-                  if (_mode == _AuthMode.register) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Mínimo 10 caracteres, una mayúscula, una minúscula y un número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 11, height: 1.35, fontWeight: FontWeight.w500))),
+                  if (_mode == _AuthMode.register) const Padding(padding: EdgeInsets.only(top: 6), child: Text('* Obligatorio. Contraseña: mínimo 10 caracteres, con mayúscula, minúscula y número.', style: TextStyle(color: Color(0xFFF2C879), fontSize: 10.5, height: 1.3, fontWeight: FontWeight.w500))),
                 ],
                 if (_message != null) ...[
                   const SizedBox(height: 12),
                   Text(_message!, style: TextStyle(color: _isError ? AppColors.mustard : Colors.white, fontWeight: FontWeight.w600, fontSize: 13), textAlign: TextAlign.center),
                 ],
-                const SizedBox(height: 18),
+                SizedBox(height: _mode == _AuthMode.register ? 12 : 18),
                 FilledButton(
                   onPressed: _busy ? null : _submit,
                   child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(_button),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: _mode == _AuthMode.register ? 4 : 12),
                 if (_mode == _AuthMode.login) ...[
                   TextButton(onPressed: () => _setMode(_AuthMode.forgot), child: const Text('¿Olvidaste tu contraseña?')),
                   TextButton(onPressed: () => _setMode(_AuthMode.register), child: const Text('Crear una cuenta')),
@@ -231,6 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     try { await context.read<MobileAuthRepository>().resendVerification(_email.text.trim()); _showMessage('Si la cuenta necesita verificación, enviaremos otro código.'); }
                     catch (error) { _showMessage(_errorText(error), error: true); }
                   }, child: const Text('Reenviar código')),
+                  TextButton(onPressed: _busy ? null : () => _setMode(_AuthMode.register), child: const Text('Volver al registro')),
                 ] else ...[
                   TextButton(onPressed: () => _setMode(_AuthMode.login), child: const Text('Volver a iniciar sesión')),
                 ],

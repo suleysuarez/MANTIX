@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/auth/login_screen.dart';
+import 'package:mantix/widgets/auth/auth_shell.dart';
 import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mocktail/mocktail.dart';
@@ -84,25 +85,28 @@ void main() {
     await tester.tap(find.text('Crear una cuenta'));
     await tester.pumpAndSettle();
     expect(find.text('Crea tu cuenta'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(find.byType(TextFormField), findsNWidgets(5));
 
-    await tester.enterText(field(0), 'ana@mantix.test');
-    await tester.enterText(field(1), 'Clave12345');
-    await tester.enterText(field(2), 'Otra123456');
+    await tester.enterText(field(0), 'Ana');
+    await tester.enterText(field(2), 'ana@mantix.test');
+    await tester.enterText(field(3), 'Clave12345');
+    await tester.enterText(field(4), 'Otra123456');
     await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
     await tester.pumpAndSettle();
 
     expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
-    verifyNever(() => repository.register(email: any(named: 'email'), password: any(named: 'password')));
+    verifyNever(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName')));
   });
   Future<void> registerAndReachVerification(WidgetTester tester) async {
-    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'))).thenAnswer((_) async {});
+    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName'))).thenAnswer((_) async {});
     await pumpLogin(tester);
     await tester.tap(find.text('Crear una cuenta'));
     await tester.pumpAndSettle();
-    await tester.enterText(field(0), 'ana@mantix.test');
-    await tester.enterText(field(1), 'Clave12345');
-    await tester.enterText(field(2), 'Clave12345');
+    await tester.enterText(field(0), 'Ana');
+    await tester.enterText(field(1), 'Pérez');
+    await tester.enterText(field(2), 'ana@mantix.test');
+    await tester.enterText(field(3), 'Clave12345');
+    await tester.enterText(field(4), 'Clave12345');
     await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
     await tester.pumpAndSettle();
     expect(find.text('Verifica tu correo'), findsOneWidget);
@@ -143,5 +147,107 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => repository.verifyEmail(email: 'ana@mantix.test', code: '123456', password: 'Clave12345')).called(1);
+  });
+  testWidgets('el registro envía el nombre y el apellido', (tester) async {
+    await registerAndReachVerification(tester);
+
+    verify(() => repository.register(email: 'ana@mantix.test', password: 'Clave12345', firstName: 'Ana', lastName: 'Pérez')).called(1);
+  });
+
+  testWidgets('el apellido es opcional pero el nombre es obligatorio', (tester) async {
+    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName'))).thenAnswer((_) async {});
+    await pumpLogin(tester);
+    await tester.tap(find.text('Crear una cuenta'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(field(2), 'ana@mantix.test');
+    await tester.enterText(field(3), 'Clave12345');
+    await tester.enterText(field(4), 'Clave12345');
+    await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Escribe tu nombre.'), findsOneWidget);
+    verifyNever(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName')));
+
+    await tester.enterText(field(0), 'Ana');
+    await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
+    await tester.pumpAndSettle();
+    verify(() => repository.register(email: 'ana@mantix.test', password: 'Clave12345', firstName: 'Ana', lastName: '')).called(1);
+  });
+
+  testWidgets('desde la verificación se puede volver al registro conservando los datos', (tester) async {
+    await registerAndReachVerification(tester);
+
+    await tester.tap(find.text('Volver al registro'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Crea tu cuenta'), findsOneWidget);
+    expect(find.text('Ana'), findsOneWidget);
+    expect(find.text('ana@mantix.test'), findsOneWidget);
+  });
+  Future<void> pumpRegisterOn(WidgetTester tester, Size size, {double textScale = 1}) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      RepositoryProvider<MobileAuthRepository>.value(
+        value: repository,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          builder: (context, app) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: app!,
+          ),
+          home: const LoginScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Crear una cuenta'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('en el registro los campos obligatorios llevan asterisco y el apellido no', (tester) async {
+    await pumpRegisterOn(tester, const Size(393, 852));
+
+    for (final label in ['Nombre *', 'Correo electrónico *', 'Contraseña *', 'Confirmar contraseña *']) {
+      expect(find.text(label, findRichText: true), findsOneWidget, reason: label);
+    }
+    expect(find.text('Apellido'), findsOneWidget);
+    expect(find.text('Apellido *', findRichText: true), findsNothing);
+    expect(find.textContaining('Obligatorio'), findsOneWidget);
+  });
+
+  testWidgets('el inicio de sesión no lleva asteriscos', (tester) async {
+    await pumpLogin(tester);
+
+    expect(find.textContaining(' *', findRichText: true), findsNothing);
+  });
+
+  testWidgets('el nombre y el apellido comparten fila', (tester) async {
+    await pumpRegisterOn(tester, const Size(393, 852));
+
+    expect(tester.getTopLeft(find.byType(TextFormField).at(0)).dy, tester.getTopLeft(find.byType(TextFormField).at(1)).dy);
+  });
+
+  for (final size in const [Size(393, 852), Size(360, 800)]) {
+    testWidgets('la tarjeta de registro cabe bajo el logo sin desplazarse en ${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+      await pumpRegisterOn(tester, size);
+
+      final scrollable = find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)).first;
+      expect(tester.takeException(), isNull);
+      expect(tester.state<ScrollableState>(scrollable).position.maxScrollExtent, 0, reason: 'la tarjeta debe caber sin moverse');
+    });
+  }
+
+  testWidgets('con la fuente más grande la tarjeta se desplaza solo dentro de su zona', (tester) async {
+    await pumpRegisterOn(tester, const Size(360, 800), textScale: 1.4);
+
+    final top = tester.getTopLeft(find.byType(SingleChildScrollView)).dy;
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getTopLeft(find.byType(SingleChildScrollView)).dy, top);
+    expect(find.byType(AuthShell), findsOneWidget);
   });
 }

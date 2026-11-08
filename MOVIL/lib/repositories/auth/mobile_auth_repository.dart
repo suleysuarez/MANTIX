@@ -6,8 +6,8 @@ class MobileAuthRepository {
   final Dio _dio;
   final NativeAuthProvider _auth;
 
-  Future<void> register({required String email, required String password}) async {
-    await _dio.post('/mobile-auth/register', data: {'email': email, 'password': password});
+  Future<void> register({required String email, required String password, required String firstName, String? lastName}) async {
+    await _dio.post('/mobile-auth/register', data: {'email': email, 'password': password, 'first_name': firstName, if (lastName != null && lastName.isNotEmpty) 'last_name': lastName});
   }
 
   /// La contraseña viaja con el código: la fija quien recibe el código en su correo.
