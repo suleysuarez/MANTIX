@@ -43,7 +43,7 @@ No hay valores por defecto. Nunca subas el `.env` ni pegues la contraseña en me
 - El token de acceso es un JWT que dura 480 minutos por defecto (`MOBILE_ACCESS_TOKEN_MINUTES`). No hay refresco.
 - Cada token lleva la versión de sesión de la cuenta (`users.token_version`). `POST /mobile-auth/logout` (con el token en `Authorization: Bearer`) y `reset-password` la incrementan, y todos los tokens anteriores de esa cuenta dejan de servir, en todos los dispositivos.
 - Migración: `a7b8c9d0e1f2_user_token_version.py` añade la columna con valor 0. Los tokens emitidos antes de esta versión no llevan el dato y cuentan como versión 0, así que siguen válidos hasta el primer cierre de sesión o restablecimiento.
-- La app Flutter aún no llama a `/mobile-auth/logout`: hoy cerrar sesión solo borra el token del teléfono.
+- La app llama a `/mobile-auth/logout` al cerrar sesión, antes de borrar el token local, y cierra igual si la llamada falla. Cerrar sesión en un dispositivo cierra la sesión en todos.
 
 ## Registro de una cuenta ya iniciada y no verificada
 

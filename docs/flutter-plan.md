@@ -176,13 +176,15 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 
 **Token:** JWT HS256 con prefijo `mjwt.`, firmado con `MOBILE_JWT_SECRET` (solo en el backend), 480 minutos por defecto. **No hay refresco.** El token lleva la versión de sesión de la cuenta (`users.token_version`, claim `ver`): `POST /mobile-auth/logout` y `reset-password` la incrementan y con eso dejan de servir todos los tokens anteriores, en todos los dispositivos. En cada petición se comprueba además que la cuenta siga activa y verificada. Los tokens emitidos antes de existir el claim cuentan como versión 0.
 
+**Cierre de sesión en la app:** `AuthBloc` llama a `AuthRepository.revokeSession()` (`POST /mobile-auth/logout`, 5 s como máximo) y después borra el token local. Es de mejor esfuerzo: sin red o con error del servidor, el cierre local continúa. Cerrar sesión en un dispositivo cierra la sesión en todos. Una sesión expirada no llama al servidor.
+
 **Almacenamiento en la app:** `flutter_secure_storage` (`NativeAuthProvider`, Keystore en Android). El `AuthBloc` solo pregunta al `AuthProvider` y no guarda el token en sus estados.
 
 **Correo:** SMTP (Gmail con contraseña de aplicación) con STARTTLS obligatorio y verificación del certificado. Solo para desarrollo o demostración. Un envío fallido no cambia la respuesta de la API (siempre 202). Un único limitador: 60 s entre correos a la misma cuenta, 5 por hora por cuenta y 60 por hora en total, en memoria. Configuración en `MOVIL/backend/README.md`.
 
 **Límites de la API:** 120 peticiones por minuto por IP en toda la API y 20 por minuto en `/mobile-auth/*`, en memoria del proceso.
 
-**Pendiente de seguridad (sin decidir):** la app todavía no llama a `/mobile-auth/logout` al cerrar sesión (requiere un cambio en Flutter, sin aprobar); refresco de tokens con rotación; ligar la contraseña al código en el reintento de registro; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
+**Pendiente de seguridad (sin decidir):** refresco de tokens con rotación; ligar la contraseña al código en el reintento de registro; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
 
 ### Sesión: cómo el `AuthBloc` envuelve a Clerk (OBSOLETO, historial)
 
