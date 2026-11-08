@@ -110,7 +110,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.limit <= 0
             or request.method == "OPTIONS"
             or request.url.path in self.EXEMPT_PATHS
-            or (self.path_prefix is not None and not request.url.path.startswith(self.path_prefix))
+            or (
+                self.path_prefix is not None
+                and not request.url.path.startswith(self.path_prefix)
+            )
         ):
             return await call_next(request)
 

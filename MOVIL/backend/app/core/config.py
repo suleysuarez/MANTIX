@@ -60,7 +60,12 @@ class Settings(BaseSettings):
     )
 
     @field_validator(
-        "smtp_host", "smtp_port", "smtp_username", "smtp_password", "smtp_from", mode="before"
+        "smtp_host",
+        "smtp_port",
+        "smtp_username",
+        "smtp_password",
+        "smtp_from",
+        mode="before",
     )
     @classmethod
     def blank_smtp_value_is_missing(cls, v: object) -> object:
@@ -108,7 +113,9 @@ class Settings(BaseSettings):
     @property
     def clerk_authorized_party_list(self) -> list[str]:
         return [
-            origin.strip() for origin in self.clerk_authorized_parties.split(",") if origin.strip()
+            origin.strip()
+            for origin in self.clerk_authorized_parties.split(",")
+            if origin.strip()
         ]
 
 

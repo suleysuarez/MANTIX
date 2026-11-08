@@ -60,7 +60,10 @@ REST API for **Mantix**, a technology-equipment maintenance system.
 
 TAGS_METADATA = [
     {"name": "authentication", "description": "Current user, roles and permissions."},
-    {"name": "mobile-authentication", "description": "Native mobile registration, verification and password recovery."},
+    {
+        "name": "mobile-authentication",
+        "description": "Native mobile registration, verification and password recovery.",
+    },
     {"name": "administration", "description": "User onboarding and role assignment."},
     {"name": "equipment", "description": "Equipment catalog, locations and custody."},
     {
@@ -138,7 +141,9 @@ app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per
 # Credential and code endpoints get a much tighter per-IP limit than the rest of the API.
 app.add_middleware(
     RateLimitMiddleware,
-    limit_per_minute=0 if settings.rate_limit_per_minute <= 0 else MOBILE_AUTH_LIMIT_PER_MINUTE,
+    limit_per_minute=0
+    if settings.rate_limit_per_minute <= 0
+    else MOBILE_AUTH_LIMIT_PER_MINUTE,
     path_prefix="/mobile-auth/",
 )
 app.add_middleware(RequestLoggingMiddleware)

@@ -59,15 +59,21 @@ def build(session: AsyncSession, sender: RecordingSender) -> MobileAuthService:
 
 
 async def role_assignments(session: AsyncSession) -> int:
-    return (await session.execute(select(func.count()).select_from(UserRole))).scalar_one()
+    return (
+        await session.execute(select(func.count()).select_from(UserRole))
+    ).scalar_one()
 
 
 async def user_row(session: AsyncSession) -> User:
     return (await session.execute(select(User).where(User.email == EMAIL))).scalar_one()
 
 
-async def test_registering_does_not_grant_a_role_before_the_email_is_verified(db_session, admin_role):
-    await build(db_session, RecordingSender()).register(email=EMAIL, password=PASSWORD_OWNER)
+async def test_registering_does_not_grant_a_role_before_the_email_is_verified(
+    db_session, admin_role
+):
+    await build(db_session, RecordingSender()).register(
+        email=EMAIL, password=PASSWORD_OWNER
+    )
 
     assert await role_assignments(db_session) == 0
 
@@ -76,12 +82,16 @@ async def test_the_first_verified_account_still_becomes_admin(db_session, admin_
     sender = RecordingSender()
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_OWNER)
-    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
+    await service.verify_email(
+        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
+    )
 
     assert await role_assignments(db_session) == 1
 
 
-async def test_a_later_registration_replaces_the_password_set_by_a_pre_registration(db_session, admin_role):
+async def test_a_later_registration_replaces_the_password_set_by_a_pre_registration(
+    db_session, admin_role
+):
     sender = RecordingSender()
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
@@ -92,7 +102,9 @@ async def test_a_later_registration_replaces_the_password_set_by_a_pre_registrat
     assert not mobile_auth._passwords.verify(PASSWORD_ATTACKER, hash_)
 
 
-async def test_a_code_sent_for_the_previous_registration_cannot_verify_the_new_one(db_session, admin_role):
+async def test_a_code_sent_for_the_previous_registration_cannot_verify_the_new_one(
+    db_session, admin_role
+):
     sender = RecordingSender()
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
@@ -105,7 +117,9 @@ async def test_a_code_sent_for_the_previous_registration_cannot_verify_the_new_o
     await blocked.register(email=EMAIL, password=PASSWORD_OWNER)
 
     with pytest.raises(ForbiddenError):
-        await service.verify_email(email=EMAIL, code=stale_code, password=PASSWORD_OWNER)
+        await service.verify_email(
+            email=EMAIL, code=stale_code, password=PASSWORD_OWNER
+        )
 
 
 async def test_the_fresh_code_verifies_the_new_registration(db_session, admin_role):
@@ -113,7 +127,9 @@ async def test_the_fresh_code_verifies_the_new_registration(db_session, admin_ro
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
     await service.register(email=EMAIL, password=PASSWORD_OWNER)
-    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
+    await service.verify_email(
+        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
+    )
 
     assert (await user_row(db_session)).email_verified_at is not None
 
@@ -125,7 +141,9 @@ async def test_the_code_hash_does_not_use_the_raw_token_signing_key(db_session):
     assert service._code_hash("123456") != legacy
 
 
-async def test_login_hashes_the_password_even_when_the_account_does_not_exist(db_session, monkeypatch):
+async def test_login_hashes_the_password_even_when_the_account_does_not_exist(
+    db_session, monkeypatch
+):
     calls: list[str] = []
     real_verify = mobile_auth._passwords.verify
 
@@ -146,7 +164,9 @@ async def test_login_hashes_the_password_even_when_the_account_does_not_exist(db
 async def test_login_with_a_wrong_password_gives_the_same_error(db_session):
     db_session.add(
         User(
-            email=EMAIL, full_name="Ana", is_active=True,
+            email=EMAIL,
+            full_name="Ana",
+            is_active=True,
             password_hash=mobile_auth._passwords.hash(PASSWORD_OWNER),
             email_verified_at=datetime.now(UTC),
         )
@@ -154,19 +174,27 @@ async def test_login_with_a_wrong_password_gives_the_same_error(db_session):
     await db_session.commit()
 
     with pytest.raises(ForbiddenError) as error:
-        await build(db_session, RecordingSender()).login(email=EMAIL, password="Incorrecta123")
+        await build(db_session, RecordingSender()).login(
+            email=EMAIL, password="Incorrecta123"
+        )
 
     assert error.value.code == "auth_invalid_credentials"
 
 
-async def test_the_password_sent_with_the_code_wins_even_if_the_attacker_registers_last(db_session, admin_role):
+async def test_the_password_sent_with_the_code_wins_even_if_the_attacker_registers_last(
+    db_session, admin_role
+):
     sender = RecordingSender()
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
     await service.register(email=EMAIL, password=PASSWORD_OWNER)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER)  # the attacker goes last
+    await service.register(
+        email=EMAIL, password=PASSWORD_ATTACKER
+    )  # the attacker goes last
     # The mailbox owner verifies the code that reached the mailbox, with their own password.
-    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
+    await service.verify_email(
+        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
+    )
 
     hash_ = (await user_row(db_session)).password_hash
     assert mobile_auth._passwords.verify(PASSWORD_OWNER, hash_)
@@ -191,6 +219,12 @@ async def test_a_wrong_code_does_not_change_the_stored_password(db_session, admi
 def test_verify_email_requires_a_strong_password():
     ok = {"email": EMAIL, "code": "123456", "password": PASSWORD_OWNER}
     assert MobileVerifyEmailRequest(**ok).password == PASSWORD_OWNER
-    for bad in (None, "corta1A", "sinmayusculas123", "SINMINUSCULAS123", "SinNumeros-aqui"):
+    for bad in (
+        None,
+        "corta1A",
+        "sinmayusculas123",
+        "SINMINUSCULAS123",
+        "SinNumeros-aqui",
+    ):
         with pytest.raises(ValidationError):
             MobileVerifyEmailRequest(**{**ok, "password": bad})

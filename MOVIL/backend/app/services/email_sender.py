@@ -43,7 +43,9 @@ def mask_email(email: str) -> str:
 
 
 def smtp_configuration_problem(settings: Settings) -> str | None:
-    missing = [name for name, field in _SETTING_NAMES.items() if not getattr(settings, field)]
+    missing = [
+        name for name, field in _SETTING_NAMES.items() if not getattr(settings, field)
+    ]
     if missing:
         return "Faltan variables SMTP: " + ", ".join(missing) + "."
     sender_address = parseaddr(settings.smtp_from or "")[1].strip().lower()
@@ -80,7 +82,9 @@ def render_auth_code_email(
     else:
         subject = "Recupera tu contraseña - Mantix"
         heading = "Restablece tu contraseña"
-        explanation = "Usa este código para confirmar que solicitaste restablecer tu contraseña."
+        explanation = (
+            "Usa este código para confirmar que solicitaste restablecer tu contraseña."
+        )
 
     html = f"""
         <!doctype html>
@@ -126,7 +130,9 @@ class SmtpEmailSender:
     def _deliver(self, message: EmailMessage) -> None:
         settings = self._settings
         context = ssl.create_default_context()
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=_TIMEOUT_SECONDS) as smtp:
+        with smtplib.SMTP(
+            settings.smtp_host, settings.smtp_port, timeout=_TIMEOUT_SECONDS
+        ) as smtp:
             smtp.ehlo()
             smtp.starttls(context=context)
             smtp.ehlo()

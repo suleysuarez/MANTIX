@@ -47,7 +47,9 @@ async def admin_role(db_session: AsyncSession) -> None:
 @pytest.fixture
 async def user(db_session: AsyncSession) -> User:
     account = User(
-        email=EMAIL, full_name="Ana", is_active=True,
+        email=EMAIL,
+        full_name="Ana",
+        is_active=True,
         password_hash=mobile_auth._passwords.hash(PASSWORD),
         email_verified_at=datetime.now(UTC),
     )
@@ -56,7 +58,9 @@ async def user(db_session: AsyncSession) -> User:
     return account
 
 
-def build(session: AsyncSession, sender: RecordingSender | None = None) -> MobileAuthService:
+def build(
+    session: AsyncSession, sender: RecordingSender | None = None
+) -> MobileAuthService:
     return MobileAuthService(
         session,
         Settings(_env_file=None, MOBILE_JWT_SECRET=SECRET),
@@ -75,7 +79,9 @@ async def assert_revoked(service: MobileAuthService, token: str) -> None:
     assert error.value.status_code == 401
 
 
-async def test_a_new_account_starts_at_version_zero_and_its_token_carries_it(db_session, user):
+async def test_a_new_account_starts_at_version_zero_and_its_token_carries_it(
+    db_session, user
+):
     token = await token_for(build(db_session))
     claims = jwt.decode(token[5:], SECRET, algorithms=["HS256"], issuer="mantix-mobile")
 
@@ -98,13 +104,17 @@ async def test_logout_revokes_every_token_of_the_account(db_session, user):
     assert (await service.user_from_token(await token_for(service))).id == user.id
 
 
-async def test_resetting_the_password_revokes_the_tokens_issued_before(db_session, user):
+async def test_resetting_the_password_revokes_the_tokens_issued_before(
+    db_session, user
+):
     sender = RecordingSender()
     service = build(db_session, sender)
     old = await token_for(service)
 
     await service.forgot_password(EMAIL)
-    await service.reset_password(email=EMAIL, code=sender.last_code(), new_password=NEW_PASSWORD)
+    await service.reset_password(
+        email=EMAIL, code=sender.last_code(), new_password=NEW_PASSWORD
+    )
 
     await assert_revoked(service, old)
     fresh = (await service.login(email=EMAIL, password=NEW_PASSWORD))["access_token"]
@@ -115,8 +125,14 @@ async def test_a_token_without_the_claim_counts_as_version_zero(db_session, user
     service = build(db_session)
     now = datetime.now(UTC)
     legacy = "mjwt." + jwt.encode(
-        {"sub": str(user.id), "iss": "mantix-mobile", "iat": now, "exp": now + timedelta(hours=1)},
-        SECRET, algorithm="HS256",
+        {
+            "sub": str(user.id),
+            "iss": "mantix-mobile",
+            "iat": now,
+            "exp": now + timedelta(hours=1),
+        },
+        SECRET,
+        algorithm="HS256",
     )
 
     assert (await service.user_from_token(legacy)).id == user.id
@@ -129,5 +145,7 @@ async def test_logout_with_an_invalid_token_changes_nothing(db_session, user):
     with pytest.raises(HTTPException):
         await service.logout("not-a-mobile-token")
 
-    stored = (await db_session.execute(select(User.token_version).where(User.id == user.id))).scalar_one()
+    stored = (
+        await db_session.execute(select(User.token_version).where(User.id == user.id))
+    ).scalar_one()
     assert stored == 0

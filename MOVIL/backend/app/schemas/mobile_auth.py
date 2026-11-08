@@ -8,13 +8,21 @@ class MobileRegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def strong_password(cls, value: str) -> str:
-        if not any(c.islower() for c in value) or not any(c.isupper() for c in value) or not any(c.isdigit() for c in value):
-            raise ValueError("La contraseña debe incluir mayúsculas, minúsculas y números.")
+        if (
+            not any(c.islower() for c in value)
+            or not any(c.isupper() for c in value)
+            or not any(c.isdigit() for c in value)
+        ):
+            raise ValueError(
+                "La contraseña debe incluir mayúsculas, minúsculas y números."
+            )
         return value
+
 
 class MobileLoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
 
 class MobileVerifyEmailRequest(BaseModel):
     email: EmailStr
@@ -26,15 +34,24 @@ class MobileVerifyEmailRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def strong_password(cls, value: str) -> str:
-        if not any(c.islower() for c in value) or not any(c.isupper() for c in value) or not any(c.isdigit() for c in value):
-            raise ValueError("La contraseña debe incluir mayúsculas, minúsculas y números.")
+        if (
+            not any(c.islower() for c in value)
+            or not any(c.isupper() for c in value)
+            or not any(c.isdigit() for c in value)
+        ):
+            raise ValueError(
+                "La contraseña debe incluir mayúsculas, minúsculas y números."
+            )
         return value
+
 
 class MobileResendCodeRequest(BaseModel):
     email: EmailStr
 
+
 class MobileForgotPasswordRequest(BaseModel):
     email: EmailStr
+
 
 class MobileResetPasswordRequest(BaseModel):
     email: EmailStr
@@ -44,9 +61,16 @@ class MobileResetPasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def strong_password(cls, value: str) -> str:
-        if not any(c.islower() for c in value) or not any(c.isupper() for c in value) or not any(c.isdigit() for c in value):
-            raise ValueError("La contraseña debe incluir mayúsculas, minúsculas y números.")
+        if (
+            not any(c.islower() for c in value)
+            or not any(c.isupper() for c in value)
+            or not any(c.isdigit() for c in value)
+        ):
+            raise ValueError(
+                "La contraseña debe incluir mayúsculas, minúsculas y números."
+            )
         return value
+
 
 class MobileAuthResponse(BaseModel):
     access_token: str

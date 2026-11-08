@@ -33,7 +33,9 @@ def make_settings(**overrides: str) -> Settings:
         "SMTP_FROM": SENDER,
     }
     values.update(overrides)
-    return Settings(_env_file=None, **{k: v for k, v in values.items() if v is not None})  # type: ignore[arg-type]
+    return Settings(
+        _env_file=None, **{k: v for k, v in values.items() if v is not None}
+    )  # type: ignore[arg-type]
 
 
 class FakeSMTP:
@@ -90,7 +92,9 @@ async def test_the_message_goes_to_the_recipient_from_the_configured_sender(fake
 
 
 async def test_starttls_with_certificate_checks_comes_before_the_login(fake_smtp):
-    await SmtpEmailSender(make_settings()).send(to=RECIPIENT, subject="s", text="t", html="h")
+    await SmtpEmailSender(make_settings()).send(
+        to=RECIPIENT, subject="s", text="t", html="h"
+    )
 
     (connection,) = fake_smtp.instances
     assert connection.calls == ["ehlo", "starttls", "ehlo", "login", "send"]
@@ -100,7 +104,9 @@ async def test_starttls_with_certificate_checks_comes_before_the_login(fake_smtp
 
 
 @pytest.mark.parametrize("purpose", ["verify", "reset"])
-async def test_verification_and_recovery_emails_use_the_configured_sender(fake_smtp, purpose):
+async def test_verification_and_recovery_emails_use_the_configured_sender(
+    fake_smtp, purpose
+):
     service = MobileAuthService(None, make_settings())  # type: ignore[arg-type]
     await service._send_code(RECIPIENT, CODE, purpose)
 
@@ -111,7 +117,9 @@ async def test_verification_and_recovery_emails_use_the_configured_sender(fake_s
 
 
 def test_the_two_emails_have_their_own_subject():
-    verify, _, _ = render_auth_code_email(code=CODE, purpose="verify", expires_minutes=10)
+    verify, _, _ = render_auth_code_email(
+        code=CODE, purpose="verify", expires_minutes=10
+    )
     reset, _, _ = render_auth_code_email(code=CODE, purpose="reset", expires_minutes=10)
     assert "Verifica" in verify and "Recupera" in reset
 
@@ -129,7 +137,10 @@ def test_a_sender_different_from_the_account_is_reported_clearly():
 
 
 def test_a_display_name_in_smtp_from_is_accepted():
-    assert smtp_configuration_problem(make_settings(SMTP_FROM=f"Mantix <{SENDER}>")) is None
+    assert (
+        smtp_configuration_problem(make_settings(SMTP_FROM=f"Mantix <{SENDER}>"))
+        is None
+    )
 
 
 def test_blank_values_count_as_missing_and_do_not_break_the_settings():
@@ -157,7 +168,8 @@ class FailingSender:
 
 async def test_a_failed_delivery_does_not_raise_and_logs_without_secrets(caplog):
     error = smtplib.SMTPAuthenticationError(
-        535, f"5.7.8 Username and Password not accepted for {RECIPIENT} {SMTP_PASSWORD}".encode()
+        535,
+        f"5.7.8 Username and Password not accepted for {RECIPIENT} {SMTP_PASSWORD}".encode(),
     )
     service = MobileAuthService(None, make_settings(), sender=FailingSender(error))  # type: ignore[arg-type]
     with caplog.at_level(logging.DEBUG):
@@ -186,7 +198,9 @@ def test_startup_warns_about_missing_variables_and_about_personal_smtp(caplog):
     assert "desarrollo o demostración" in caplog.text
 
 
-def test_startup_with_complete_settings_only_gives_the_demo_notice_and_no_secrets(caplog):
+def test_startup_with_complete_settings_only_gives_the_demo_notice_and_no_secrets(
+    caplog,
+):
     with caplog.at_level(logging.DEBUG):
         log_mail_startup_notice(make_settings())
     assert "desarrollo o demostración" in caplog.text

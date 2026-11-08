@@ -32,7 +32,10 @@ class RecordingSender:
 @pytest.fixture
 async def user(db_session: AsyncSession) -> User:
     account = User(
-        email=EMAIL, full_name="Ana", is_active=True, password_hash="x",
+        email=EMAIL,
+        full_name="Ana",
+        is_active=True,
+        password_hash="x",
         email_verified_at=datetime.now(UTC),
     )
     db_session.add(account)
@@ -51,12 +54,16 @@ def service(session: AsyncSession, sender: RecordingSender) -> MobileAuthService
 
 async def record(session: AsyncSession, user: User, purpose: str) -> AuthEmailCode:
     result = await session.execute(
-        select(AuthEmailCode).where(AuthEmailCode.user_id == user.id, AuthEmailCode.purpose == purpose)
+        select(AuthEmailCode).where(
+            AuthEmailCode.user_id == user.id, AuthEmailCode.purpose == purpose
+        )
     )
     return result.scalar_one()
 
 
-async def test_forgot_password_answers_normally_when_the_delivery_fails(db_session, user):
+async def test_forgot_password_answers_normally_when_the_delivery_fails(
+    db_session, user
+):
     sender = RecordingSender(error=RuntimeError("smtp down"))
     await service(db_session, sender).forgot_password(EMAIL)  # must not raise
 
@@ -64,7 +71,9 @@ async def test_forgot_password_answers_normally_when_the_delivery_fails(db_sessi
     assert (await record(db_session, user, "reset")).attempts == 0
 
 
-async def test_resend_verification_for_a_verified_or_unknown_account_sends_nothing(db_session, user):
+async def test_resend_verification_for_a_verified_or_unknown_account_sends_nothing(
+    db_session, user
+):
     sender = RecordingSender()
     svc = service(db_session, sender)
     await svc.resend_verification(EMAIL)  # already verified
@@ -73,7 +82,9 @@ async def test_resend_verification_for_a_verified_or_unknown_account_sends_nothi
     assert sender.sent == []
 
 
-async def test_a_second_request_inside_the_wait_does_not_reset_the_attempts(db_session, user):
+async def test_a_second_request_inside_the_wait_does_not_reset_the_attempts(
+    db_session, user
+):
     sender = RecordingSender()
     svc = service(db_session, sender)
     await svc.forgot_password(EMAIL)
@@ -89,7 +100,9 @@ async def test_a_second_request_inside_the_wait_does_not_reset_the_attempts(db_s
     assert row.attempts == 3 and row.code_hash == first_hash
 
 
-async def test_the_recovery_email_carries_the_account_address_as_recipient(db_session, user):
+async def test_the_recovery_email_carries_the_account_address_as_recipient(
+    db_session, user
+):
     sender = RecordingSender()
     await service(db_session, sender).forgot_password(EMAIL)
 
