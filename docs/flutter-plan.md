@@ -9,9 +9,10 @@ Decisiones y reglas aprobadas para migrar Mantix a una app móvil. La app usa la
 | Plataformas | Solo Android |
 | Identificador | `com.suleysuarez.mantix`; nombre visible «Mantix» |
 | Ubicación | Un solo repositorio de GitHub (`MANTIX`) con dos carpetas: `WEB/` (backend, frontend, docs de la web y Compose) y `MOVIL/` (el proyecto Flutter). En local, la app se desarrolla en `MANTIX-MOVIL`, una copia de trabajo (git worktree) del mismo repositorio. `MOVIL/` incluye además `backend/` (copia de `WEB/backend` con ajustes para Clerk nativo) y su propio `docker-compose.yml`, con base de datos y puertos aparte del stack de la web |
-| Autenticación | **Clerk**, con `clerk_flutter` (beta, mantenido por la comunidad, no es oficial de Clerk). Probado con un inicio de sesión real: ver «Resultados de la Fase 0.5». El refresco y la rotación de tokens los gestiona Clerk, no el backend. La publishable key entra por `--dart-define`; la secret key vive solo en el backend |
-| Backend del móvil | Copia propia en `MOVIL/backend`; `WEB/backend` no se modifica. Los tokens de Clerk del móvil no traen el claim `azp`, y el SDK del backend rechaza un token sin `azp` si hay orígenes autorizados configurados. La copia valida el `azp` por su cuenta: si el token lo trae debe estar en `CLERK_AUTHORIZED_PARTIES`; si no lo trae, el SDK sigue verificando firma, emisor y expiración. **Riesgo asumido:** las dos copias pueden divergir, y cualquier arreglo en una habrá que repetirlo en la otra |
+| Autenticación (**OBSOLETO en el móvil**, se conserva como historial; vigente: fila siguiente) | **Clerk**, con `clerk_flutter` (beta, mantenido por la comunidad, no es oficial de Clerk). Probado con un inicio de sesión real: ver «Resultados de la Fase 0.5». El refresco y la rotación de tokens los gestiona Clerk, no el backend. La publishable key entra por `--dart-define`; la secret key vive solo en el backend |
+| Backend del móvil (**OBSOLETO en lo del `azp`**: la app ya no usa tokens de Clerk; la web sí) | Copia propia en `MOVIL/backend`; `WEB/backend` no se modifica. Los tokens de Clerk del móvil no traen el claim `azp`, y el SDK del backend rechaza un token sin `azp` si hay orígenes autorizados configurados. La copia valida el `azp` por su cuenta: si el token lo trae debe estar en `CLERK_AUTHORIZED_PARTIES`; si no lo trae, el SDK sigue verificando firma, emisor y expiración. **Riesgo asumido:** las dos copias pueden divergir, y cualquier arreglo en una habrá que repetirlo en la otra |
 | Permisos | Solo los permisos efectivos de `GET /auth/me`; nunca nombres de rol. Los permisos solo ocultan y deshabilitan: la autorización real es del backend |
+| Autenticación (**vigente**) | Nativa de Mantix: correo y contraseña, con verificación por código enviado por SMTP. La web Angular sigue con Clerk. Detalle en «Autenticación nativa del móvil (vigente)» |
 | Cuenta pendiente | Lista de **roles** vacía (igual que la web) → pantalla «pendiente de aprobación». Con roles pero **cero permisos** → pantalla «Sin acceso asignado». Son dos casos distintos |
 | Home | Función pura `home_resolver` sobre los permisos; el primero que coincida (ver abajo); si ninguno, Perfil |
 | Rol Auditor | Fuera de la app móvil: sin home, sin pantallas y sin tests propios. El backend y la web no se tocan; si alguien tiene ese rol, la app lo trata como cualquier rol, por sus permisos |
@@ -61,7 +62,7 @@ Paquetes: `flutter_bloc` 9.1.1, `bloc` 9.2.1, `equatable` 3.0.0; en pruebas `blo
 
 ### Reglas
 
-1. Cada flujo con eventos (auth, listados, detalle, formularios, dashboard…) es un **Bloc** con tres archivos en `presentation/bloc/`: `<x>_bloc.dart`, `<x>_event.dart` y `<x>_state.dart` (los dos últimos con `part of`).
+1. Cada flujo con eventos (auth, listados, detalle, formularios, dashboard…) es un **Bloc** con tres archivos en `bloc/<mod>/`: `<x>_bloc.dart`, `<x>_event.dart` y `<x>_state.dart` (los dos últimos con `part of`).
 2. Un **Cubit** solo para estado derivado o trivial. Hoy hay uno: `PermissionsCubit`, derivado del `AuthBloc`, sin eventos propios. El filtro de estado de «Mis solicitudes» y el texto del buscador de equipos son estado efímero de la pantalla (`setState`); al cambiar, la pantalla crea un Bloc nuevo con una `key`.
 3. Las pantallas solo reaccionan con `BlocBuilder`, `BlocListener`, `BlocSelector` o `context.select`; ninguna llama a un repositorio ni a Dio.
 4. Los estados son `Equatable` y explícitos (inicial/cargando, éxito, vacío y error con el `Failure` sellado). **Ningún estado guarda tokens.** Los eventos son clases selladas.
@@ -74,22 +75,76 @@ Paquetes: `flutter_bloc` 9.1.1, `bloc` 9.2.1, `equatable` 3.0.0; en pruebas `blo
 
 ```
 lib/
-  core/{auth/{bloc,...}, network/{paged,...}, errors, routing, theme, ...}
-  shared/                       widgets reutilizables (sin estado de negocio)
-  features/<módulo>/{data, presentation/{bloc, <pantallas>}}
+  main.dart
+  pages/<mod>/ widgets/<mod|shared>/ models/<mod>/ services/ repositories/<mod>/ bloc/<mod>/
+  core/{app.dart, config, errors, format, routing, theme, validation}
 ```
+
+Regla «qué va dónde»:
+
+```
+pages/<mod>/         Pantalla completa (una por ruta). Solo BlocBuilder/BlocListener; sin Dio ni repositorios.
+widgets/<mod|shared>/ Componentes reutilizables sin lógica de negocio.
+models/<mod>/        Clases de datos (Equatable, fromJson a mano). Sin Flutter ni red.
+services/            Cliente HTTP, interceptor, proveedor de token (Clerk/nativo), descargas.
+repositories/<mod>/  Un repositorio por módulo; usa services y devuelve models o Failure.
+bloc/<mod>/          Un Bloc por flujo: <x>_bloc.dart, <x>_event.dart, <x>_state.dart. Cubit solo si es trivial.
+core/                Transversal: app.dart, theme, routing, config, errors, format, validation.
+test/                Espejo de lib/ (test/bloc/requests/, test/pages/requests/...).
+assets/, pubspec.yaml, README.md   Fuera de lib.
+```
+
+Ejemplo, módulo nuevo `tickets`:
+  models/tickets/ticket_models.dart
+  repositories/tickets/tickets_repository.dart
+  bloc/tickets/tickets_{bloc,event,state}.dart
+  pages/tickets/tickets_screen.dart
+  widgets/tickets/ticket_card.dart      (solo si se reutiliza)
+  core/routing/app_router.dart          (añadir la ruta)
+  test/bloc/tickets/, test/pages/tickets/
+
+Migración de estructura: rama `refactor/mobile-structure`, un commit por capa, sin cambios de comportamiento (`features/` y `shared/` ya no existen).
+
+### Equivalencia con la estructura exigida
+
+La estructura que se exige tiene seis carpetas dentro de `lib/` más `main.dart`, y fuera de `lib/` están `assets/`, `test/`, `pubspec.yaml` y `README.md`. Así se corresponde con `MOVIL/`:
+
+| Exigido | En el proyecto | Qué contiene |
+|---|---|---|
+| `lib/main.dart` | `lib/main.dart` | Punto de entrada: arma Dio, repositorios y `AuthBloc`, y llama a `runApp`. |
+| `lib/pages` | `lib/pages/<mod>/` | Pantallas completas (auth, home, profile, requests, dev). |
+| `lib/widgets` | `lib/widgets/{shared,auth}/` | Componentes reutilizables sin lógica de negocio. |
+| `lib/models` | `lib/models/` | Clases de datos con `Equatable`: perfil, página, solicitudes. |
+| `lib/services` | `lib/services/` | Cliente HTTP (Dio) con su interceptor, proveedor de token. |
+| `lib/repositories` | `lib/repositories/<mod>/` | Acceso a datos por módulo (auth, home, requests). |
+| `lib/bloc` | `lib/bloc/<mod>/` | Un Bloc por flujo (auth, paged, requests) con `_bloc`, `_event` y `_state`. |
+| `assets/` | `MOVIL/assets/` | Imágenes. |
+| `test/` | `MOVIL/test/` | Espejo de `lib/`. |
+| `pubspec.yaml`, `README.md` | `MOVIL/` | Igual. |
+
+**Por qué existe `lib/core/` y qué contiene.** No está en la lista exigida: se añadió porque hay código que no es de una sola capa y que usan todas. Si se repartiera por las seis carpetas, `pages` o `bloc` tendrían que importarse entre sí, y varias piezas no encajan en ninguna (tema, rutas, configuración). Contiene solo código transversal:
+
+- `app.dart`: widget raíz (`MantixApp`) con los `RepositoryProvider` y `BlocProvider` globales.
+- `config/`: configuración por `--dart-define` (`API_BASE_URL`, `APP_VERSION`).
+- `errors/`: `Failure`, traducción de errores HTTP por código y mensajes en español.
+- `format/`: formateo de fechas y metadatos de estados y prioridades.
+- `routing/`: `go_router`, redirecciones por sesión y permiso, `home_resolver`.
+- `theme/`: colores, tokens y tema (los colores solo se leen de aquí).
+- `validation/`: validadores de formularios.
+
+Regla para decidir: si algo lo usan varias capas y no habla con la API ni guarda estado de un flujo, va en `core/`. Si es de un flujo o de un módulo, va en su capa. `core/` no contiene Blocs, repositorios, modelos ni pantallas.
 
 ### Ejemplo: formulario de nueva solicitud
 
 ```dart
-// presentation/bloc/create_request_event.dart
+// bloc/requests/create_request_event.dart
 sealed class CreateRequestEvent { const CreateRequestEvent(); }
 class CreateRequestSubmitted extends CreateRequestEvent {
   const CreateRequestSubmitted(this.request);
   final NewRequest request;
 }
 
-// presentation/bloc/create_request_state.dart
+// bloc/requests/create_request_state.dart
 enum CreateStatus { initial, submitting, success, failure }
 class CreateRequestState extends Equatable { /* status, createdId, failure */ }
 
@@ -103,7 +158,37 @@ BlocProvider(
 );
 ```
 
-### Sesión: cómo el `AuthBloc` envuelve a Clerk
+### Autenticación nativa del móvil (vigente)
+
+Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_auth.py`, `api/routes/mobile_auth.py`).
+
+**Endpoints** (prefijo `/mobile-auth`, públicos): `register`, `verify-email`, `resend-verification`, `login`, `forgot-password`, `reset-password`. `GET /auth/me` carga el perfil, los roles y los permisos con el token propio.
+
+**Flujo:**
+1. `register` crea la cuenta sin verificar y envía un código de 6 dígitos al correo (202).
+2. `verify-email` recibe correo, código **y contraseña**: consume el código, fija la contraseña (la elige quien tiene el código en su buzón), marca el correo como verificado y devuelve la sesión. Sin verificar no se puede iniciar sesión.
+3. `login` devuelve el token. Las cuentas nuevas no reciben roles: quedan pendientes hasta que un administrador asigne uno. Excepción: la primera cuenta verificada de una base sin administradores recibe ADMIN.
+4. Recuperación: `forgot-password` envía un código; `reset-password` lo consume y fija la contraseña nueva.
+
+**Códigos:** 6 dígitos, caducan a los 10 minutos (`AUTH_VERIFICATION_EXPIRE_MINUTES`), un solo uso, 5 intentos por código y guardados con HMAC-SHA256 con una clave derivada de `MOBILE_JWT_SECRET`. Pedir otro código invalida el anterior.
+
+**Contraseñas:** Argon2id (`pwdlib`), de 10 a 128 caracteres con mayúscula, minúscula y dígito.
+
+**Token:** JWT HS256 con prefijo `mjwt.`, firmado con `MOBILE_JWT_SECRET` (solo en el backend), 480 minutos por defecto. **No hay refresco.** El token lleva la versión de sesión de la cuenta (`users.token_version`, claim `ver`): `POST /mobile-auth/logout` y `reset-password` la incrementan y con eso dejan de servir todos los tokens anteriores, en todos los dispositivos. En cada petición se comprueba además que la cuenta siga activa y verificada. Los tokens emitidos antes de existir el claim cuentan como versión 0.
+
+**Cierre de sesión en la app:** `AuthBloc` llama a `AuthRepository.revokeSession()` (`POST /mobile-auth/logout`, 5 s como máximo) y después borra el token local. Es de mejor esfuerzo: sin red o con error del servidor, el cierre local continúa. Cerrar sesión en un dispositivo cierra la sesión en todos. Una sesión expirada no llama al servidor.
+
+**Almacenamiento en la app:** `flutter_secure_storage` (`NativeAuthProvider`, Keystore en Android). El `AuthBloc` solo pregunta al `AuthProvider` y no guarda el token en sus estados.
+
+**Correo:** SMTP (Gmail con contraseña de aplicación) con STARTTLS obligatorio y verificación del certificado. Solo para desarrollo o demostración. Un envío fallido no cambia la respuesta de la API (siempre 202). Un único limitador: 60 s entre correos a la misma cuenta, 5 por hora por cuenta y 60 por hora en total, en memoria. Configuración en `MOVIL/backend/README.md`.
+
+**Límites de la API:** 120 peticiones por minuto por IP en toda la API y 20 por minuto en `/mobile-auth/*`, en memoria del proceso.
+
+**Pendiente de seguridad (sin decidir):** refresco de tokens con rotación; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
+
+### Sesión: cómo el `AuthBloc` envuelve a Clerk (OBSOLETO, historial)
+
+> **OBSOLETO:** la app ya no usa Clerk. Se conserva como historial; lo vigente está en la sección anterior.
 
 Clerk sigue siendo la **única fuente de verdad** de «hay sesión» y de los tokens (los guarda y renueva el SDK). El `AuthBloc` no copia nada de eso: solo pregunta al `AuthProvider` (`accessToken()`, `signOut()`) y escucha su flujo `signInChanges`, que emite cuando Clerk inicia o cierra sesión por su cuenta. Con cada cambio carga `GET /auth/me` y traduce el resultado en un `AuthState`: `AuthUnknown`, `AuthUnauthenticated`, `AuthUnavailable`, `AuthPending` (roles vacíos), `AuthNoAccess` (roles sin permisos) o `Authenticated`. Así no hay dos estados de sesión que puedan discrepar.
 
@@ -114,7 +199,7 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | Fase | Contenido |
 | --- | --- |
 | 0 | Auditoría de reutilización (hecha) |
-| 0.5 | Prueba de concepto de autenticación con Clerk (**hecha**; ver resultados abajo) |
+| 0.5 | Prueba de concepto de autenticación con Clerk (**hecha**; **obsoleta**: sustituida por la autenticación nativa; ver resultados abajo como historial) |
 | 1 | Backend mínimo (se aplica a `MOVIL/backend`, no a `WEB/backend`): códigos de error específicos y estables con tabla documentada, corregir la descripción obsoleta de `/equipment/{id}/attachments` y la lista de roles en `main.py`, exportar el OpenAPI como artefacto de CI (**hecha**; ver «Resultado de la Fase 1») |
 | 2 | Base Flutter y autenticación (**hecha**) |
 | 3 | Componentes y sistema de diseño (**hecha**; falta revisarla a ojo en el teléfono) |
@@ -123,7 +208,7 @@ Errores: tipo sellado `Failure` (red, 401, 403, 404, 409, 422 con campos, servid
 | 6 | Supervisor |
 | 7 | Administrador |
 | 8 | Capacidades móviles (push, escaneo de QR) |
-| 9 | Calidad y entrega. Incluye almacenamiento seguro de la sesión de Clerk (ver «Sesión de Clerk en almacenamiento seguro») |
+| 9 | Calidad y entrega. El almacenamiento seguro de la sesión ya está resuelto con la autenticación nativa (ver «Sesión de Clerk en almacenamiento seguro», obsoleta) |
 
 Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 
@@ -147,7 +232,9 @@ Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 - Estados del ticket: `GET /maintenance/requests/workflow`.
 - Referencia completa: `docs/api-reference.md`.
 
-## Resultados de la Fase 0.5 (Clerk en el móvil)
+## Resultados de la Fase 0.5 (Clerk en el móvil) — OBSOLETO, historial
+
+> **OBSOLETO:** la app móvil ya no usa Clerk ni `clerk_flutter`. Estos resultados (incluido el problema del claim `azp`) se conservan solo como historial.
 
 Medidos con un inicio de sesión real en un teléfono Android, contra el backend del móvil.
 
@@ -186,12 +273,14 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - `MOVIL/backend` es una copia de `WEB/backend`: sincronizar los arreglos que se hagan en cualquiera de las dos.
 - La suite completa de `MOVIL/backend` aún no corre en CI: el workflow `mobile-backend.yml` solo exporta el OpenAPI y comprueba los documentos generados. Falta replicar el job con PostgreSQL de `.github/workflows/ci.yml`.
 - Diagnosticar el acceso con Google.
-- Unificar en un solo backend (`WEB/backend`): llevar allí los `code` de error, `error_codes.py`, los scripts de OpenAPI y la validación de `azp`, y eliminar `MOVIL/backend`. Propuesta pendiente de aprobación.
+- **DECISIÓN PENDIENTE (no aprobada): unificar en un solo backend (`WEB/backend`).** Ya no incluye la validación de `azp` para el móvil (obsoleta). Sí incluiría los `code` de error, `error_codes.py`, los scripts de OpenAPI y **la autenticación nativa** (`mobile_auth`, `email_sender`, `code_email_limiter`, columnas `password_hash` y `email_verified_at`, tabla `auth_email_codes` y las migraciones `f5b6c7d8e9a0` y `f6c7d8e9a0b1`). Riesgos: dos esquemas distintos sobre la misma base si una copia migra y la otra no, y el desfase de modelos que detecta el CI. Orden propuesto en PR separados: corregir en `MOVIL/backend`, pruebas y CI de `MOVIL/backend`, modelo y migraciones en `WEB/backend`, servicio y rutas en `WEB/backend`, apuntar la app y retirar `MOVIL/backend` solo con aprobación.
 - Equipos: `GET /equipment` entrega a un Solicitante todo el catálogo, con custodio y ubicación. Si se quiere limitar, hace falta un alcance por usuario o un permiso nuevo en `WEB/backend` (afecta también a la web).
 - Equipos: no hay búsqueda exacta por `asset_tag`; el escaneo de QR de la Fase 8 la necesitará (filtro `asset_tag` o comparar en el cliente).
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
 
-## Sesión de Clerk en almacenamiento seguro (Fase 9)
+## Sesión de Clerk en almacenamiento seguro (Fase 9) — OBSOLETO, resuelto
+
+> **OBSOLETO:** `NativeAuthProvider` guarda el token propio con `flutter_secure_storage` y `clerk_flutter` ya no está en el proyecto. El `Persistor` que se planteaba aquí no hace falta.
 
 **Hallazgo:** `clerk_flutter` guarda la sesión en `clerk_sdk.json`, dentro de los documentos privados de la app, y no en almacenamiento seguro. `flutter_secure_storage` está declarado en `pubspec.yaml` pero no se usa en `lib/`.
 

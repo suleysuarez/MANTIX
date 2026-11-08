@@ -36,7 +36,9 @@ async def get_auth_context(
     return AuthContext.from_user(user)
 
 
-def _forbidden(detail: str = "No tienes permiso para realizar esta acción.") -> HTTPException:
+def _forbidden(
+    detail: str = "No tienes permiso para realizar esta acción.",
+) -> HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -45,7 +47,8 @@ class RequirePermission:
         self.code = code
 
     async def __call__(
-        self, request: Request,
+        self,
+        request: Request,
         context: Annotated[AuthContext, Depends(get_auth_context)],
     ) -> AuthContext:
         if not context.has_permission(self.code):
@@ -59,12 +62,16 @@ class AuthenticatedOnly:
 
 
 class RequireSession(AuthenticatedOnly):
-    async def __call__(self, user: Annotated[User, Depends(get_authenticated_user)]) -> User:
+    async def __call__(
+        self, user: Annotated[User, Depends(get_authenticated_user)]
+    ) -> User:
         return user
 
 
 class RequireAuthenticated(AuthenticatedOnly):
-    async def __call__(self, context: Annotated[AuthContext, Depends(get_auth_context)]) -> AuthContext:
+    async def __call__(
+        self, context: Annotated[AuthContext, Depends(get_auth_context)]
+    ) -> AuthContext:
         return context
 
 

@@ -22,15 +22,15 @@ La app móvil usa autenticación nativa Mantix con correo y contraseña. Las cue
 
 La app Flutter usa los endpoints nativos de FastAPI: `/mobile-auth/register`, `/verify-email`, `/login`, `/resend-verification`, `/forgot-password` y `/reset-password`. El backend firma tokens Mantix y Flutter los guarda con `flutter_secure_storage` (Keystore/Keychain).
 
-Los códigos de verificación y recuperación se envían mediante Resend. Las cuentas registradas no reciben roles automáticamente: quedan pendientes hasta que un administrador asigne el rol correspondiente. La app consulta `GET /auth/me` para cargar roles y permisos.
+Los códigos de verificación y recuperación se envían por SMTP (cuenta de Gmail con contraseña de aplicación; ver `backend/README.md`). Las cuentas registradas no reciben roles automáticamente: quedan pendientes hasta que un administrador asigne el rol correspondiente. La app consulta `GET /auth/me` para cargar roles y permisos.
 
 **La autenticación Clerk de Angular/web no se modifica.** FastAPI acepta tanto los tokens Clerk existentes como los tokens nativos de la app.
 
-Variables privadas del backend: `MOBILE_JWT_SECRET`, `MOBILE_ACCESS_TOKEN_MINUTES` (480 por defecto), `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. El remitente de Resend debe pertenecer a un dominio verificado. Nunca se incluyen en `dart_defines.json`.
+Variables privadas del backend: `MOBILE_JWT_SECRET`, `MOBILE_ACCESS_TOKEN_MINUTES` (480 por defecto), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. `SMTP_FROM` debe ser la misma cuenta que `SMTP_USERNAME`. Nunca se incluyen en `dart_defines.json`.
 
 ## Ejecutar
 
-1. Configura `MOVIL/backend/.env` con la cadena de conexión de **Neon** en `DATABASE_URL` (formato `postgresql://...`, con SSL habilitado; no uses `db` como host), `MOBILE_JWT_SECRET` (mínimo 32 bytes), `RESEND_API_KEY`, `RESEND_FROM_EMAIL` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. Si quieres que la web y Flutter compartan los mismos usuarios y datos, usa la misma base de datos Neon que tiene configurada `WEB/backend/.env`. No subas este archivo al repositorio.
+1. Configura `MOVIL/backend/.env` con la cadena de conexión de **Neon** en `DATABASE_URL` (formato `postgresql://...`, con SSL habilitado; no uses `db` como host), `MOBILE_JWT_SECRET` (mínimo 32 bytes), las cinco variables `SMTP_*` y `AUTH_VERIFICATION_EXPIRE_MINUTES`. Si quieres que la web y Flutter compartan los mismos usuarios y datos, usa la misma base de datos Neon que tiene configurada `WEB/backend/.env`. No subas este archivo al repositorio.
 2. Aplica las migraciones de forma explícita contra Neon: `docker compose run --build --rm backend alembic upgrade head` (ejecútalo una vez después de configurar `MOVIL/backend/.env` y antes de iniciar la API).
 3. Levanta el backend móvil con `docker compose up --build -d` dentro de `MOVIL/`; escucha en el puerto 8001 y usa el `DATABASE_URL` de Neon definido en `MOVIL/backend/.env`. El stack móvil ya no inicia una base PostgreSQL local.
 4. Crea tu archivo de variables a partir del ejemplo (`dart_defines.json` está ignorado por Git):
@@ -67,20 +67,31 @@ flutter test
 
 ```text
 lib/
-  core/
-    auth/        perfil, home_resolver, sesión y origen del token (Clerk)
-    config/      configuración por --dart-define
-    domain/      metadatos de tickets
-    errors/      Failure, códigos de error y mensajes en español
-    network/     cliente HTTP (Dio), paginación y providers
-    routing/     router y redirecciones por sesión
-    theme/       paleta, tokens y tema
-    validation/  validadores de formularios
-  shared/        componentes reutilizables (estados cargando, vacío y error, chips, diálogos...)
-  features/      auth, home (marcadores), profile, requests (Solicitante), dev (galería, solo debug)
+  main.dart
+  pages/         pantallas completas, por módulo (auth, home, profile, requests, dev)
+  widgets/       componentes reutilizables (shared, auth)
+  models/        clases de datos (auth, requests, page_info)
+  services/      cliente HTTP (Dio), proveedor de token (nativo), interceptor
+  repositories/  acceso a datos por módulo (auth, home, requests)
+  bloc/          un Bloc por flujo (auth, paged, requests)
+  core/          app.dart, config, errors, format, routing, theme, validation
+assets/          imágenes
+test/            espejo de lib/
 backend/         API FastAPI compartida: Clerk web + autenticación nativa móvil
 docs/            error-codes.md, api-reference.md, rbac-matriz.md
 ```
+
+## Qué va dónde
+
+- `pages/<mod>`: pantalla completa por ruta; solo `BlocBuilder`/`BlocListener`, sin Dio ni repositorios.
+- `widgets/<mod|shared>`: componentes reutilizables sin lógica de negocio.
+- `models/<mod>`: clases de datos con `Equatable`; sin Flutter ni red.
+- `services/`: cliente HTTP, interceptor, proveedor de token.
+- `repositories/<mod>`: un repositorio por módulo; usa services y devuelve models o `Failure`.
+- `bloc/<mod>`: un Bloc por flujo con `_bloc`, `_event` y `_state`.
+- `core/`: transversal (app, config, errors, format, routing, theme, validation).
+
+Ejemplo, módulo nuevo `tickets`: `models/tickets/ticket_models.dart`, `repositories/tickets/tickets_repository.dart`, `bloc/tickets/tickets_{bloc,event,state}.dart`, `pages/tickets/tickets_screen.dart`, la ruta en `core/routing/app_router.dart` y el espejo en `test/`.
 
 ## Reglas que ya se cumplen en el código
 

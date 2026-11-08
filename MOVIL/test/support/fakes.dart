@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:mantix/core/auth/auth_provider.dart';
+import 'package:mantix/services/auth_provider.dart';
 
 /// Adaptador HTTP en memoria: cada petición pasa por [handler] y se registra.
 class FakeAdapter implements HttpClientAdapter {

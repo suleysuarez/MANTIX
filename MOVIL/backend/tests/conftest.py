@@ -7,7 +7,9 @@ a fresh schema (create_all/drop_all) and an isolated session.
 """
 
 import os
+import smtplib
 from collections.abc import AsyncIterator
+from urllib.parse import urlparse
 
 # Must be set before `app.main` is imported: many tests hammer the API from one IP.
 os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "0")
@@ -25,10 +27,34 @@ from app.db.base import Base
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
 
 
+def _assert_disposable_database(url: str) -> None:
+    """The fixture below drops every table: only a local database named `*_test`."""
+    parsed = urlparse(url)
+    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"} or not (
+        parsed.path.lstrip("/").endswith("_test")
+    ):
+        pytest.fail(
+            "TEST_DATABASE_URL must point to a local database whose name ends in "
+            "'_test'; refusing to drop tables anywhere else."
+        )
+
+
+@pytest.fixture(autouse=True)
+def _no_real_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test may open an SMTP connection; tests that need one install a fake."""
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("tests must not open real SMTP connections")
+
+    monkeypatch.setattr(smtplib, "SMTP", refuse)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", refuse)
+
+
 @pytest.fixture
 async def db_session() -> AsyncIterator[AsyncSession]:
     if not TEST_DATABASE_URL:
         pytest.skip("TEST_DATABASE_URL is not set")
+    _assert_disposable_database(TEST_DATABASE_URL)
     url = Settings(database_url=TEST_DATABASE_URL).database_url
     engine = create_async_engine(url)
     async with engine.begin() as conn:

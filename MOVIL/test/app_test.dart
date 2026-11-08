@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/app.dart';
-import 'package:mantix/core/auth/auth_repository.dart';
-import 'package:mantix/core/auth/bloc/auth_bloc.dart';
+import 'package:mantix/core/app.dart';
+import 'package:mantix/repositories/auth/auth_repository.dart';
+import 'package:mantix/bloc/auth/auth_bloc.dart';
+import 'package:mantix/services/native_auth_provider.dart';
 import 'package:mantix/core/config/app_config.dart';
-import 'package:mantix/core/network/api_client.dart';
-import 'package:mantix/features/requests/data/requests_repository.dart';
+import 'package:mantix/services/api_client.dart';
+import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
+import 'package:mantix/repositories/home/dashboard_repository.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'support/fakes.dart';
 
@@ -33,7 +36,12 @@ Widget appWith({String? token = 'token-0', required Object body}) {
   );
   authBloc = AuthBloc(auth: auth, repository: AuthRepository(dio))..add(const AuthStarted());
   addTearDown(authBloc.close);
-  return MantixApp(authBloc: authBloc, requestsRepository: RequestsRepository(dio));
+  return MantixApp(
+    authBloc: authBloc,
+    requestsRepository: RequestsRepository(dio),
+    mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
+    dashboardRepository: DashboardRepository(dio),
+  );
 }
 
 void main() {
@@ -41,7 +49,7 @@ void main() {
     await tester.pumpWidget(appWith(token: null, body: {}));
     await tester.pumpAndSettle();
 
-    expect(find.text('Inicio de sesión no disponible'), findsOneWidget);
+    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
   });
 
   testWidgets('cuenta sin roles muestra pendiente de aprobación', (tester) async {
@@ -90,6 +98,6 @@ void main() {
     await tester.tap(find.text('Cerrar sesión'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Inicio de sesión no disponible'), findsOneWidget);
+    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
   });
 }

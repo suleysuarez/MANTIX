@@ -38,6 +38,7 @@ from app.core.middleware import (
 )
 from app.db.session import async_session_maker
 from app.jobs import build_scheduler
+from app.services.email_sender import log_mail_startup_notice
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -59,7 +60,10 @@ REST API for **Mantix**, a technology-equipment maintenance system.
 
 TAGS_METADATA = [
     {"name": "authentication", "description": "Current user, roles and permissions."},
-    {"name": "mobile-authentication", "description": "Native mobile registration, verification and password recovery."},
+    {
+        "name": "mobile-authentication",
+        "description": "Native mobile registration, verification and password recovery.",
+    },
     {"name": "administration", "description": "User onboarding and role assignment."},
     {"name": "equipment", "description": "Equipment catalog, locations and custody."},
     {
@@ -102,6 +106,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Start the background scheduler with the app and stop it on shutdown."""
     scheduler = None
     application.state.scheduler = None
+    log_mail_startup_notice(settings)
     if settings.scheduler_enabled and async_session_maker is not None:
         scheduler = build_scheduler(settings, async_session_maker)
         scheduler.start()
@@ -117,6 +122,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             scheduler.shutdown(wait=False)
 
 
+MOBILE_AUTH_LIMIT_PER_MINUTE = 20
+
 # La documentación interactiva solo se expone fuera de producción.
 app = FastAPI(
     lifespan=lifespan,
@@ -131,6 +138,14 @@ app = FastAPI(
 )
 
 app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.rate_limit_per_minute)
+# Credential and code endpoints get a much tighter per-IP limit than the rest of the API.
+app.add_middleware(
+    RateLimitMiddleware,
+    limit_per_minute=0
+    if settings.rate_limit_per_minute <= 0
+    else MOBILE_AUTH_LIMIT_PER_MINUTE,
+    path_prefix="/mobile-auth/",
+)
 app.add_middleware(RequestLoggingMiddleware)
 # CORS se añade al final para quedar como capa más externa: así incluso los 429 y
 # los 500 llevan cabeceras CORS y el navegador puede leer su cuerpo.

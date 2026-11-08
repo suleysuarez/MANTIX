@@ -94,10 +94,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         app: ASGIApp,
         limit_per_minute: int,
         window_seconds: float = 60.0,
+        path_prefix: str | None = None,
     ):
         super().__init__(app)
         self.limit = limit_per_minute
         self.window = window_seconds
+        # When set, only paths under this prefix are counted by this instance.
+        self.path_prefix = path_prefix
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
     async def dispatch(
@@ -107,6 +110,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.limit <= 0
             or request.method == "OPTIONS"
             or request.url.path in self.EXEMPT_PATHS
+            or (
+                self.path_prefix is not None
+                and not request.url.path.startswith(self.path_prefix)
+            )
         ):
             return await call_next(request)
 

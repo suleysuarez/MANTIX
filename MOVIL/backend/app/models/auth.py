@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Identity,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -41,6 +42,10 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # Mobile access tokens carry this number; bumping it revokes every token issued before.
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     employee_code: Mapped[str | None] = mapped_column(
@@ -118,18 +123,23 @@ class AuthEmailCode(Base):
         BigInteger, Identity(always=False), primary_key=True
     )
     user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     purpose: Mapped[str] = mapped_column(String(10), nullable=False)
     code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     user: Mapped["User"] = relationship()
-    
+
 
 class Role(Base):
     __tablename__ = "roles"
