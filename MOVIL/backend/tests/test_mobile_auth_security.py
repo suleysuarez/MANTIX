@@ -10,12 +10,14 @@ import re
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.exceptions import ForbiddenError
 from app.models.auth import Role, User, UserRole
+from app.schemas.mobile_auth import MobileVerifyEmailRequest
 from app.services import mobile_auth
 from app.services.code_email_limiter import CodeEmailLimiter
 from app.services.mobile_auth import MobileAuthService
@@ -74,7 +76,7 @@ async def test_the_first_verified_account_still_becomes_admin(db_session, admin_
     sender = RecordingSender()
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_OWNER)
-    await service.verify_email(email=EMAIL, code=sender.last_code())
+    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
 
     assert await role_assignments(db_session) == 1
 
@@ -103,7 +105,7 @@ async def test_a_code_sent_for_the_previous_registration_cannot_verify_the_new_o
     await blocked.register(email=EMAIL, password=PASSWORD_OWNER)
 
     with pytest.raises(ForbiddenError):
-        await service.verify_email(email=EMAIL, code=stale_code)
+        await service.verify_email(email=EMAIL, code=stale_code, password=PASSWORD_OWNER)
 
 
 async def test_the_fresh_code_verifies_the_new_registration(db_session, admin_role):
@@ -111,7 +113,7 @@ async def test_the_fresh_code_verifies_the_new_registration(db_session, admin_ro
     service = build(db_session, sender)
     await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
     await service.register(email=EMAIL, password=PASSWORD_OWNER)
-    await service.verify_email(email=EMAIL, code=sender.last_code())
+    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
 
     assert (await user_row(db_session)).email_verified_at is not None
 
@@ -155,3 +157,40 @@ async def test_login_with_a_wrong_password_gives_the_same_error(db_session):
         await build(db_session, RecordingSender()).login(email=EMAIL, password="Incorrecta123")
 
     assert error.value.code == "auth_invalid_credentials"
+
+
+async def test_the_password_sent_with_the_code_wins_even_if_the_attacker_registers_last(db_session, admin_role):
+    sender = RecordingSender()
+    service = build(db_session, sender)
+    await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
+    await service.register(email=EMAIL, password=PASSWORD_OWNER)
+    await service.register(email=EMAIL, password=PASSWORD_ATTACKER)  # the attacker goes last
+    # The mailbox owner verifies the code that reached the mailbox, with their own password.
+    await service.verify_email(email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER)
+
+    hash_ = (await user_row(db_session)).password_hash
+    assert mobile_auth._passwords.verify(PASSWORD_OWNER, hash_)
+    assert not mobile_auth._passwords.verify(PASSWORD_ATTACKER, hash_)
+    with pytest.raises(ForbiddenError):
+        await service.login(email=EMAIL, password=PASSWORD_ATTACKER)
+
+
+async def test_a_wrong_code_does_not_change_the_stored_password(db_session, admin_role):
+    sender = RecordingSender()
+    service = build(db_session, sender)
+    await service.register(email=EMAIL, password=PASSWORD_ATTACKER)
+    before = (await user_row(db_session)).password_hash
+    wrong = "000000" if sender.last_code() != "000000" else "000001"
+
+    with pytest.raises(ForbiddenError):
+        await service.verify_email(email=EMAIL, code=wrong, password=PASSWORD_OWNER)
+
+    assert (await user_row(db_session)).password_hash == before
+
+
+def test_verify_email_requires_a_strong_password():
+    ok = {"email": EMAIL, "code": "123456", "password": PASSWORD_OWNER}
+    assert MobileVerifyEmailRequest(**ok).password == PASSWORD_OWNER
+    for bad in (None, "corta1A", "sinmayusculas123", "SINMINUSCULAS123", "SinNumeros-aqui"):
+        with pytest.raises(ValidationError):
+            MobileVerifyEmailRequest(**{**ok, "password": bad})
