@@ -174,7 +174,7 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 
 **Contraseñas:** Argon2id (`pwdlib`), de 10 a 128 caracteres con mayúscula, minúscula y dígito.
 
-**Token:** JWT HS256 con prefijo `mjwt.`, firmado con `MOBILE_JWT_SECRET` (solo en el backend), 480 minutos por defecto. **No hay refresco ni revocación:** cerrar sesión solo borra el token del teléfono. En cada petición se comprueba que la cuenta siga activa y verificada.
+**Token:** JWT HS256 con prefijo `mjwt.`, firmado con `MOBILE_JWT_SECRET` (solo en el backend), 480 minutos por defecto. **No hay refresco.** El token lleva la versión de sesión de la cuenta (`users.token_version`, claim `ver`): `POST /mobile-auth/logout` y `reset-password` la incrementan y con eso dejan de servir todos los tokens anteriores, en todos los dispositivos. En cada petición se comprueba además que la cuenta siga activa y verificada. Los tokens emitidos antes de existir el claim cuentan como versión 0.
 
 **Almacenamiento en la app:** `flutter_secure_storage` (`NativeAuthProvider`, Keystore en Android). El `AuthBloc` solo pregunta al `AuthProvider` y no guarda el token en sus estados.
 
@@ -182,7 +182,7 @@ Sustituye a Clerk en la app. El backend es `MOVIL/backend` (`services/mobile_aut
 
 **Límites de la API:** 120 peticiones por minuto por IP en toda la API y 20 por minuto en `/mobile-auth/*`, en memoria del proceso.
 
-**Pendiente de seguridad (sin decidir):** revocación de tokens al cerrar sesión o restablecer la contraseña (hace falta una columna y una migración); ligar la contraseña al código en el reintento de registro; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
+**Pendiente de seguridad (sin decidir):** la app todavía no llama a `/mobile-auth/logout` al cerrar sesión (requiere un cambio en Flutter, sin aprobar); refresco de tokens con rotación; ligar la contraseña al código en el reintento de registro; respuestas que revelan si un correo existe (409 y `auth_email_already_verified`); las cuentas creadas primero en la web no pueden fijar una contraseña en el móvil.
 
 ### Sesión: cómo el `AuthBloc` envuelve a Clerk (OBSOLETO, historial)
 

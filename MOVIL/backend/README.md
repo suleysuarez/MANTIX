@@ -38,6 +38,13 @@ No hay valores por defecto. Nunca subas el `.env` ni pegues la contraseña en me
 - `/mobile-auth/*`: además, **20 peticiones por minuto por IP**.
 - Detrás de un proxy inverso, todas las peticiones llegan con la IP del proxy y comparten contador. Arranca `uvicorn` con `--proxy-headers` y la variable `FORWARDED_ALLOW_IPS` con la IP del proxy para que se use la IP real del cliente. Sin proxy no hace falta nada.
 
+## Sesión y revocación
+
+- El token de acceso es un JWT que dura 480 minutos por defecto (`MOBILE_ACCESS_TOKEN_MINUTES`). No hay refresco.
+- Cada token lleva la versión de sesión de la cuenta (`users.token_version`). `POST /mobile-auth/logout` (con el token en `Authorization: Bearer`) y `reset-password` la incrementan, y todos los tokens anteriores de esa cuenta dejan de servir, en todos los dispositivos.
+- Migración: `a7b8c9d0e1f2_user_token_version.py` añade la columna con valor 0. Los tokens emitidos antes de esta versión no llevan el dato y cuentan como versión 0, así que siguen válidos hasta el primer cierre de sesión o restablecimiento.
+- La app Flutter aún no llama a `/mobile-auth/logout`: hoy cerrar sesión solo borra el token del teléfono.
+
 ## Registro de una cuenta ya iniciada y no verificada
 
 Si alguien vuelve a registrar un correo que quedó sin verificar, la **última contraseña enviada reemplaza a la anterior** y el código anterior deja de servir. Así quien pre-registró un correo ajeno no conserva su contraseña cuando el dueño verifica. Riesgo residual: un atacante que vuelva a registrar justo antes de que el dueño introduzca su código aún puede dejar su contraseña. El arreglo completo es ligar la contraseña al código (columna nueva y migración); está pendiente de decisión.
