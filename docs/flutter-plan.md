@@ -61,7 +61,7 @@ Paquetes: `flutter_bloc` 9.1.1, `bloc` 9.2.1, `equatable` 3.0.0; en pruebas `blo
 
 ### Reglas
 
-1. Cada flujo con eventos (auth, listados, detalle, formularios, dashboard…) es un **Bloc** con tres archivos en `presentation/bloc/`: `<x>_bloc.dart`, `<x>_event.dart` y `<x>_state.dart` (los dos últimos con `part of`).
+1. Cada flujo con eventos (auth, listados, detalle, formularios, dashboard…) es un **Bloc** con tres archivos en `bloc/<mod>/`: `<x>_bloc.dart`, `<x>_event.dart` y `<x>_state.dart` (los dos últimos con `part of`).
 2. Un **Cubit** solo para estado derivado o trivial. Hoy hay uno: `PermissionsCubit`, derivado del `AuthBloc`, sin eventos propios. El filtro de estado de «Mis solicitudes» y el texto del buscador de equipos son estado efímero de la pantalla (`setState`); al cambiar, la pantalla crea un Bloc nuevo con una `key`.
 3. Las pantallas solo reaccionan con `BlocBuilder`, `BlocListener`, `BlocSelector` o `context.select`; ninguna llama a un repositorio ni a Dio.
 4. Los estados son `Equatable` y explícitos (inicial/cargando, éxito, vacío y error con el `Failure` sellado). **Ningún estado guarda tokens.** Los eventos son clases selladas.
@@ -74,22 +74,47 @@ Paquetes: `flutter_bloc` 9.1.1, `bloc` 9.2.1, `equatable` 3.0.0; en pruebas `blo
 
 ```
 lib/
-  core/{auth/{bloc,...}, network/{paged,...}, errors, routing, theme, ...}
-  shared/                       widgets reutilizables (sin estado de negocio)
-  features/<módulo>/{data, presentation/{bloc, <pantallas>}}
+  main.dart
+  pages/<mod>/ widgets/<mod|shared>/ models/<mod>/ services/ repositories/<mod>/ bloc/<mod>/
+  core/{app.dart, config, errors, format, routing, theme, validation}
 ```
+
+Regla «qué va dónde»:
+
+```
+pages/<mod>/         Pantalla completa (una por ruta). Solo BlocBuilder/BlocListener; sin Dio ni repositorios.
+widgets/<mod|shared>/ Componentes reutilizables sin lógica de negocio.
+models/<mod>/        Clases de datos (Equatable, fromJson a mano). Sin Flutter ni red.
+services/            Cliente HTTP, interceptor, proveedor de token (Clerk/nativo), descargas.
+repositories/<mod>/  Un repositorio por módulo; usa services y devuelve models o Failure.
+bloc/<mod>/          Un Bloc por flujo: <x>_bloc.dart, <x>_event.dart, <x>_state.dart. Cubit solo si es trivial.
+core/                Transversal: app.dart, theme, routing, config, errors, format, validation.
+test/                Espejo de lib/ (test/bloc/requests/, test/pages/requests/...).
+assets/, pubspec.yaml, README.md   Fuera de lib.
+```
+
+Ejemplo, módulo nuevo `tickets`:
+  models/tickets/ticket_models.dart
+  repositories/tickets/tickets_repository.dart
+  bloc/tickets/tickets_{bloc,event,state}.dart
+  pages/tickets/tickets_screen.dart
+  widgets/tickets/ticket_card.dart      (solo si se reutiliza)
+  core/routing/app_router.dart          (añadir la ruta)
+  test/bloc/tickets/, test/pages/tickets/
+
+Migración de estructura: rama `refactor/mobile-structure`, un commit por capa, sin cambios de comportamiento (`features/` y `shared/` ya no existen).
 
 ### Ejemplo: formulario de nueva solicitud
 
 ```dart
-// presentation/bloc/create_request_event.dart
+// bloc/requests/create_request_event.dart
 sealed class CreateRequestEvent { const CreateRequestEvent(); }
 class CreateRequestSubmitted extends CreateRequestEvent {
   const CreateRequestSubmitted(this.request);
   final NewRequest request;
 }
 
-// presentation/bloc/create_request_state.dart
+// bloc/requests/create_request_state.dart
 enum CreateStatus { initial, submitting, success, failure }
 class CreateRequestState extends Equatable { /* status, createdId, failure */ }
 

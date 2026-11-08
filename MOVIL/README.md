@@ -67,20 +67,31 @@ flutter test
 
 ```text
 lib/
-  core/
-    auth/        perfil, home_resolver, sesión y origen del token (Clerk)
-    config/      configuración por --dart-define
-    domain/      metadatos de tickets
-    errors/      Failure, códigos de error y mensajes en español
-    network/     cliente HTTP (Dio), paginación y providers
-    routing/     router y redirecciones por sesión
-    theme/       paleta, tokens y tema
-    validation/  validadores de formularios
-  shared/        componentes reutilizables (estados cargando, vacío y error, chips, diálogos...)
-  features/      auth, home (marcadores), profile, requests (Solicitante), dev (galería, solo debug)
+  main.dart
+  pages/         pantallas completas, por módulo (auth, home, profile, requests, dev)
+  widgets/       componentes reutilizables (shared, auth)
+  models/        clases de datos (auth, requests, page_info)
+  services/      cliente HTTP (Dio), proveedor de token (nativo), interceptor
+  repositories/  acceso a datos por módulo (auth, home, requests)
+  bloc/          un Bloc por flujo (auth, paged, requests)
+  core/          app.dart, config, errors, format, routing, theme, validation
+assets/          imágenes
+test/            espejo de lib/
 backend/         API FastAPI compartida: Clerk web + autenticación nativa móvil
 docs/            error-codes.md, api-reference.md, rbac-matriz.md
 ```
+
+## Qué va dónde
+
+- `pages/<mod>`: pantalla completa por ruta; solo `BlocBuilder`/`BlocListener`, sin Dio ni repositorios.
+- `widgets/<mod|shared>`: componentes reutilizables sin lógica de negocio.
+- `models/<mod>`: clases de datos con `Equatable`; sin Flutter ni red.
+- `services/`: cliente HTTP, interceptor, proveedor de token.
+- `repositories/<mod>`: un repositorio por módulo; usa services y devuelve models o `Failure`.
+- `bloc/<mod>`: un Bloc por flujo con `_bloc`, `_event` y `_state`.
+- `core/`: transversal (app, config, errors, format, routing, theme, validation).
+
+Ejemplo, módulo nuevo `tickets`: `models/tickets/ticket_models.dart`, `repositories/tickets/tickets_repository.dart`, `bloc/tickets/tickets_{bloc,event,state}.dart`, `pages/tickets/tickets_screen.dart`, la ruta en `core/routing/app_router.dart` y el espejo en `test/`.
 
 ## Reglas que ya se cumplen en el código
 
