@@ -5,7 +5,7 @@ import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import '../../support/fakes.dart';
-import '../../features/requests/support.dart';
+import '../../support/requests_support.dart';
 
 void main() {
   group('listRequests', () {

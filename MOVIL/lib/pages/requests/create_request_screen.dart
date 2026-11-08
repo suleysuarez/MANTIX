@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/domain/ticket_meta.dart';
-import '../../../core/errors/failure.dart';
-import '../../../core/theme/app_tokens.dart';
-import '../../../core/validation/validators.dart';
-import '../../../widgets/shared/app_text_field.dart';
-import '../../../models/requests/request_models.dart';
-import '../../../repositories/requests/requests_repository.dart';
-import '../../../bloc/requests/create_request_bloc.dart';
+import '../../core/domain/ticket_meta.dart';
+import '../../core/errors/failure.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../core/validation/validators.dart';
+import '../../widgets/shared/app_text_field.dart';
+import '../../models/requests/request_models.dart';
+import '../../repositories/requests/requests_repository.dart';
+import '../../bloc/requests/create_request_bloc.dart';
 import 'equipment_picker_screen.dart';
 import 'my_requests_screen.dart';
 

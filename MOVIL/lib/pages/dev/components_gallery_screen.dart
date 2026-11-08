@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/domain/ticket_meta.dart';
-import '../../../core/errors/failure.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_tokens.dart';
-import '../../../core/validation/validators.dart';
-import '../../../widgets/shared/app_chip.dart';
-import '../../../widgets/shared/app_text_field.dart';
-import '../../../widgets/shared/confirm_dialog.dart';
-import '../../../widgets/shared/empty_state.dart';
-import '../../../widgets/shared/error_state.dart';
-import '../../../widgets/shared/glass_card.dart';
-import '../../../widgets/shared/skeleton.dart';
+import '../../core/domain/ticket_meta.dart';
+import '../../core/errors/failure.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../core/validation/validators.dart';
+import '../../widgets/shared/app_chip.dart';
+import '../../widgets/shared/app_text_field.dart';
+import '../../widgets/shared/confirm_dialog.dart';
+import '../../widgets/shared/empty_state.dart';
+import '../../widgets/shared/error_state.dart';
+import '../../widgets/shared/glass_card.dart';
+import '../../widgets/shared/skeleton.dart';
 
 /// Galería de componentes para revisar el sistema de diseño en un dispositivo.
 /// Solo se registra en modo debug; no existe en las compilaciones de producción.

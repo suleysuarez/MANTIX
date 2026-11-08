@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/models/requests/request_models.dart';
-import 'package:mantix/features/requests/presentation/equipment_picker_screen.dart';
+import 'package:mantix/pages/requests/equipment_picker_screen.dart';
 
 import '../../support/fakes.dart';
-import 'support.dart';
+import '../../support/requests_support.dart';
 
 void main() {
   testWidgets('lista los equipos sin mostrar custodio ni ubicación', (tester) async {

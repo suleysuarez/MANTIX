@@ -11,7 +11,7 @@ import 'package:mantix/bloc/requests/request_detail_bloc.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../support/fakes.dart';
-import '../../features/requests/support.dart';
+import '../../support/requests_support.dart';
 
 class MockRequestsRepository extends Mock implements RequestsRepository {}
 

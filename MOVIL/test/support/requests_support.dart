@@ -10,7 +10,7 @@ import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
-import '../../support/fakes.dart';
+import 'fakes.dart';
 
 Map<String, Object?> ticketJson({
   int id = 1,

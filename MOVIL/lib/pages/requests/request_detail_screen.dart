@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/domain/ticket_meta.dart';
-import '../../../core/format/formatters.dart';
-import '../../../core/theme/app_tokens.dart';
-import '../../../widgets/shared/app_chip.dart';
-import '../../../widgets/shared/async_view.dart';
-import '../../../models/requests/request_models.dart';
-import '../../../repositories/requests/requests_repository.dart';
-import '../../../bloc/requests/request_detail_bloc.dart';
+import '../../core/domain/ticket_meta.dart';
+import '../../core/format/formatters.dart';
+import '../../core/theme/app_tokens.dart';
+import '../../widgets/shared/app_chip.dart';
+import '../../widgets/shared/async_view.dart';
+import '../../models/requests/request_models.dart';
+import '../../repositories/requests/requests_repository.dart';
+import '../../bloc/requests/request_detail_bloc.dart';
 
 /// Detalle de una solicitud: datos, estado, historial y adjuntos (solo lectura).
 class RequestDetailScreen extends StatelessWidget {

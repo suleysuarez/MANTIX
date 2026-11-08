@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../bloc/auth/auth_bloc.dart';
-import '../../../core/auth/home_resolver.dart';
-import '../../../widgets/shared/status_message.dart';
-import '../../dev/presentation/components_gallery_screen.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../core/auth/home_resolver.dart';
+import '../../widgets/shared/status_message.dart';
+import '../dev/components_gallery_screen.dart';
 
 /// Marcador de cada pantalla de inicio hasta que se construyan en las fases 4 a 7.
 /// Mientras tanto ofrece cerrar sesión y, en debug, la galería de componentes.

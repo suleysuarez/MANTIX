@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../bloc/auth/auth_bloc.dart';
-import '../../../core/auth/home_resolver.dart';
-import '../../../models/auth/user_profile.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../widgets/shared/status_message.dart';
-import '../../../repositories/home/dashboard_repository.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../core/auth/home_resolver.dart';
+import '../../models/auth/user_profile.dart';
+import '../../core/theme/app_colors.dart';
+import '../../widgets/shared/status_message.dart';
+import '../../repositories/home/dashboard_repository.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, required this.destination});

@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/features/requests/presentation/create_request_screen.dart';
+import 'package:mantix/pages/requests/create_request_screen.dart';
 
 import '../../support/fakes.dart';
-import 'support.dart';
+import '../../support/requests_support.dart';
 
 /// Servidor de prueba: lista equipos y crea tickets según [onCreate].
 FakeAdapter server({ResponseBody Function(RequestOptions)? onCreate}) => FakeAdapter((options) {

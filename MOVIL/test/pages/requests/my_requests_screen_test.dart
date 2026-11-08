@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/features/requests/presentation/my_requests_screen.dart';
+import 'package:mantix/pages/requests/my_requests_screen.dart';
 import 'package:mantix/widgets/shared/app_chip.dart';
 import 'package:mantix/widgets/shared/skeleton.dart';
 
 import '../../support/fakes.dart';
-import 'support.dart';
+import '../../support/requests_support.dart';
 
 void main() {
   testWidgets('muestra el esqueleto mientras carga y luego las solicitudes', (tester) async {

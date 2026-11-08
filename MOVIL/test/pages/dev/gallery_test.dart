@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/domain/ticket_meta.dart';
-import 'package:mantix/features/dev/presentation/components_gallery_screen.dart';
+import 'package:mantix/pages/dev/components_gallery_screen.dart';
 
-import '../support/pump_app.dart';
+import '../../support/pump_app.dart';
 
 void main() {
   Future<void> useSmallPhone(WidgetTester tester) async {
