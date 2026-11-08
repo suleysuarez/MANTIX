@@ -17,7 +17,7 @@ import '../../pages/requests/create_request_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
 import '../../pages/requests/request_detail_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
-import '../auth/home_resolver.dart';
+import 'home_resolver.dart';
 import '../../models/auth/user_profile.dart';
 
 abstract final class AppRoutes {

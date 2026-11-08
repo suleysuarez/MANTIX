@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/domain/ticket_meta.dart';
+import '../../core/format/ticket_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 

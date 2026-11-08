@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/domain/ticket_meta.dart';
+import '../../core/format/ticket_meta.dart';
 import '../../core/errors/failure.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/validation/validators.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/auth/auth_bloc.dart';
-import 'package:mantix/core/auth/home_resolver.dart';
+import 'package:mantix/core/routing/home_resolver.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/routing/app_router.dart';

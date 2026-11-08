@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/permissions_cubit.dart';
-import '../../core/auth/home_resolver.dart';
-import '../../core/domain/ticket_meta.dart';
+import '../../core/routing/home_resolver.dart';
+import '../../core/format/ticket_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../bloc/paged/paged_bloc.dart';
 import '../../core/theme/app_tokens.dart';

@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/domain/ticket_meta.dart';
+import 'package:mantix/core/format/ticket_meta.dart';
 import 'package:mantix/core/theme/app_colors.dart';
 
 /// Relación de contraste WCAG entre dos colores.

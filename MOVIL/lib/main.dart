@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'app.dart';
+import 'core/app.dart';
 import 'services/native_auth_provider.dart';
 import 'repositories/auth/auth_repository.dart';
 import 'bloc/auth/auth_bloc.dart';

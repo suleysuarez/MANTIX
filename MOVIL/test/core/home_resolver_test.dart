@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantix/core/auth/home_resolver.dart';
+import 'package:mantix/core/routing/home_resolver.dart';
 
 void main() {
   group('resolveHome', () {

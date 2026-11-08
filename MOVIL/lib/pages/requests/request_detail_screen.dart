@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/domain/ticket_meta.dart';
+import '../../core/format/ticket_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../widgets/shared/app_chip.dart';
