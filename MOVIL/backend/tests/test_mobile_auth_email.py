@@ -42,7 +42,10 @@ async def user(db_session: AsyncSession) -> User:
 
 def service(session: AsyncSession, sender: RecordingSender) -> MobileAuthService:
     return MobileAuthService(
-        session, Settings(_env_file=None), sender=sender, limiter=CodeEmailLimiter()
+        session,
+        Settings(_env_file=None, MOBILE_JWT_SECRET="test-only-secret-" + "x" * 32),
+        sender=sender,
+        limiter=CodeEmailLimiter(),
     )
 
 
