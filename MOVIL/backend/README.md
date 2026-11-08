@@ -32,6 +32,16 @@ No hay valores por defecto. Nunca subas el `.env` ni pegues la contraseña en me
 - Límites de envío, en un solo limitador: mínimo **60 s** entre correos a la misma cuenta, **5 por hora** por cuenta y **60 por hora** en todo el sistema. Si se superan, no se emite código nuevo (el código vigente y sus intentos no se tocan) y la respuesta sigue siendo 202.
 - **Limitación:** los contadores viven en la memoria del proceso. Se reinician al arrancar y no se comparten entre procesos ni réplicas. Es aceptable para la demo; en producción haría falta un almacén compartido.
 
+## Límites de la API
+
+- Toda la API: `RATE_LIMIT_PER_MINUTE` por IP (120 por defecto), en memoria del proceso.
+- `/mobile-auth/*`: además, **20 peticiones por minuto por IP**.
+- Detrás de un proxy inverso, todas las peticiones llegan con la IP del proxy y comparten contador. Arranca `uvicorn` con `--proxy-headers` y la variable `FORWARDED_ALLOW_IPS` con la IP del proxy para que se use la IP real del cliente. Sin proxy no hace falta nada.
+
+## Registro de una cuenta ya iniciada y no verificada
+
+Si alguien vuelve a registrar un correo que quedó sin verificar, la **última contraseña enviada reemplaza a la anterior** y el código anterior deja de servir. Así quien pre-registró un correo ajeno no conserva su contraseña cuando el dueño verifica. Riesgo residual: un atacante que vuelva a registrar justo antes de que el dueño introduzca su código aún puede dejar su contraseña. El arreglo completo es ligar la contraseña al código (columna nueva y migración); está pendiente de decisión.
+
 ## Pruebas
 
 Las pruebas nunca envían correos ni abren conexiones SMTP (`tests/conftest.py` lo impide). Las que usan base de datos exigen `TEST_DATABASE_URL` apuntando a una base **local** cuyo nombre termine en `_test`; con otra URL se niegan a ejecutarse. Nunca las apuntes a una base compartida o a Neon.
