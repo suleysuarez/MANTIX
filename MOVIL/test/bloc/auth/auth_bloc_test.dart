@@ -158,6 +158,100 @@ void main() {
     expect(bloc.state, const AuthUnauthenticated());
   });
 
+  group('cerrar sesión en el servidor', () {
+    Future<AuthBloc> signedInBloc(FakeAuthProvider auth, FakeAdapter adapter, {bool expiredCallback = false}) async {
+      late final AuthBloc bloc;
+      final dio = createApiClient(
+        config: config,
+        auth: auth,
+        adapter: adapter,
+        onSessionExpired: expiredCallback ? () => bloc.add(const AuthSessionExpired()) : null,
+      );
+      bloc = AuthBloc(auth: auth, repository: AuthRepository(dio));
+      addTearDown(bloc.close);
+      bloc.add(const AuthStarted());
+      await bloc.stream.firstWhere((s) => s is Authenticated);
+      return bloc;
+    }
+
+    List<RequestOptions> logoutCalls(FakeAdapter adapter) => adapter.requests.where((r) => r.path == '/mobile-auth/logout').toList();
+
+    test('pide revocar los tokens con el token de la sesión antes de borrarlo', () async {
+      final auth = FakeAuthProvider();
+      final adapter = FakeAdapter((_) => jsonResponse(200, me()));
+      final bloc = await signedInBloc(auth, adapter);
+
+      bloc.add(const AuthSignOutRequested());
+      await bloc.stream.firstWhere((s) => s is AuthUnauthenticated);
+
+      final calls = logoutCalls(adapter);
+      expect(calls, hasLength(1));
+      expect(calls.single.method, 'POST');
+      expect(calls.single.headers['Authorization'], 'Bearer token-0');
+      expect(auth.signedOut, isTrue);
+    });
+
+    test('si el servidor no responde, la sesión se cierra igual', () async {
+      final auth = FakeAuthProvider();
+      final adapter = FakeAdapter((options) {
+        if (options.path == '/mobile-auth/logout') {
+          throw DioException(requestOptions: options, type: DioExceptionType.connectionError);
+        }
+        return jsonResponse(200, me());
+      });
+      final bloc = await signedInBloc(auth, adapter);
+
+      bloc.add(const AuthSignOutRequested());
+      await bloc.stream.firstWhere((s) => s is AuthUnauthenticated);
+
+      expect(auth.signedOut, isTrue);
+      expect(bloc.state, const AuthUnauthenticated());
+    });
+
+    test('si el servidor da un error, la sesión se cierra igual', () async {
+      final auth = FakeAuthProvider();
+      final adapter = FakeAdapter((options) {
+        if (options.path == '/mobile-auth/logout') return jsonResponse(500, {'detail': 'x', 'code': 'internal_error'});
+        return jsonResponse(200, me());
+      });
+      final bloc = await signedInBloc(auth, adapter);
+
+      bloc.add(const AuthSignOutRequested());
+      await bloc.stream.firstWhere((s) => s is AuthUnauthenticated);
+
+      expect(auth.signedOut, isTrue);
+      expect(bloc.state, const AuthUnauthenticated());
+    });
+
+    test('con un token ya revocado (401) termina sin el mensaje de sesión expirada', () async {
+      final auth = FakeAuthProvider();
+      final adapter = FakeAdapter((options) {
+        if (options.path == '/mobile-auth/logout') return jsonResponse(401, {'detail': 'x', 'code': 'unauthorized'});
+        return jsonResponse(200, me());
+      });
+      final bloc = await signedInBloc(auth, adapter, expiredCallback: true);
+
+      bloc.add(const AuthSignOutRequested());
+      await bloc.stream.firstWhere((s) => s is AuthUnauthenticated);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(auth.signedOut, isTrue);
+      expect(bloc.state, const AuthUnauthenticated());
+    });
+
+    test('una sesión expirada no llama al servidor para cerrar sesión', () async {
+      final auth = FakeAuthProvider();
+      final adapter = FakeAdapter((_) => jsonResponse(200, me()));
+      final bloc = await signedInBloc(auth, adapter);
+
+      bloc.add(const AuthSessionExpired());
+      await bloc.stream.firstWhere((s) => s is AuthUnauthenticated);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(logoutCalls(adapter), isEmpty);
+    });
+  });
+
   test('la sesión expirada cierra la sesión con un mensaje claro y avisa una sola vez', () async {
     final auth = FakeAuthProvider();
     final bloc = authBloc(auth: auth, adapter: FakeAdapter((_) => jsonResponse(200, me())));
