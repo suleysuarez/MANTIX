@@ -11,7 +11,7 @@ import {
 import { Subject, Subscription, debounceTime } from 'rxjs';
 
 import { EQUIPMENT_STATUSES, statusInfo } from '../../core/equipment-status';
-import { EquipmentType, ReportFormat } from '../../core/equipment.service';
+import { EquipmentType } from '../../core/equipment.service';
 import { EquipmentFilters, EquipmentView } from '../../core/equipment.store';
 
 export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
@@ -21,96 +21,65 @@ export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
   { value: 'status', label: 'Estado' },
 ];
 
-/** Dumb component: búsqueda con debounce, filtros, orden, cambio de vista y exportación. */
+/** Búsqueda compacta y filtros desplegables para el catálogo de equipos. */
 @Component({
   selector: 'app-equipment-toolbar',
   standalone: true,
   template: `
-    <section aria-label="Filtros del catálogo"
-      class="flex flex-col items-stretch justify-between gap-4 rounded-2xl !border !border-slate-200/80 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-      <div class="flex flex-1 flex-wrap items-center gap-3">
-        <div class="relative min-w-[240px] flex-1">
-          <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
-          <input type="search" [value]="filters.search" (input)="onSearch($any($event.target).value)"
-            placeholder="Buscar por código, serie, marca o modelo…" aria-label="Buscar equipos"
-            class="w-full rounded-xl !border !border-slate-200 bg-slate-50/70 py-2.5 pl-10 pr-4 text-xs transition-all focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
-        </div>
-
-        <select aria-label="Categoría" [value]="filters.typeId ?? ''"
-          (change)="filtersChange.emit({ typeId: toNumber($any($event.target).value) })"
-          class="rounded-xl !border !border-slate-200 bg-slate-50/70 px-3 py-2.5 text-xs font-medium text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
-          <option value="">Todas las categorías</option>
-          @for (type of types; track type.id) {
-            <option [value]="type.id" [selected]="type.id === filters.typeId">{{ type.name }}</option>
-          }
-        </select>
-
-        <select aria-label="Estado" (change)="filtersChange.emit({ status: $any($event.target).value })"
-          class="rounded-xl !border !border-slate-200 bg-slate-50/70 px-3 py-2.5 text-xs font-medium text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20">
-          <option value="" [selected]="!filters.status">Todos los estados</option>
-          @if (filters.status.includes(',')) {
-            <option [value]="filters.status" selected>Varios estados</option>
-          }
-          @for (status of statuses; track status) {
-            <option [value]="status" [selected]="status === filters.status">{{ label(status) }}</option>
-          }
-        </select>
-
-
-        <select aria-label="Ordenar por" (change)="sortChange.emit($any($event.target).value)"
-          class="hidden rounded-xl !border !border-slate-200 bg-slate-50/70 px-3 py-2.5 text-xs font-medium text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 2xl:block">
-          @for (option of sortOptions; track option.value) {
-            <option [value]="option.value" [selected]="option.value === sort">{{ option.label }}</option>
-          }
-        </select>
-
-        <button type="button" (click)="filtersReset.emit()" title="Restablecer filtros" aria-label="Restablecer filtros"
-          class="bg-transparent rounded-xl p-2.5 !text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
-          <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+    <section aria-label="Herramientas del catálogo" class="relative flex w-full items-center gap-2 rounded-2xl !border !border-slate-200/80 bg-white p-3 shadow-sm">
+      <div class="relative min-w-0 flex-1">
+        <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[19px] text-slate-400">search</span>
+        <input type="search" [value]="filters.search" (input)="onSearch($any($event.target).value)" placeholder="Buscar equipo..." aria-label="Buscar equipos"
+          class="w-full rounded-xl !border !border-slate-200 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm text-slate-700 transition-all placeholder:text-slate-400 focus:border-brand-accent focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-accent/20" />
+      </div>
+      <button type="button" (click)="filtersOpen.set(!filtersOpen())" [attr.aria-expanded]="filtersOpen()" aria-controls="equipment-filter-panel" aria-label="Filtros" title="Filtros"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent px-0 text-white shadow-sm transition-colors hover:bg-brand-accentDeep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep">
+        <span class="material-symbols-outlined text-[22px]" aria-hidden="true">filter_alt</span>
+      </button>
+      <div class="flex shrink-0 items-center rounded-xl !border !border-slate-200 bg-slate-100 p-1" role="group" aria-label="Tipo de vista">
+        <button type="button" (click)="viewChange.emit('table')" [attr.aria-pressed]="view === 'table'" aria-label="Vista de tabla" title="Tabla"
+          class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+          [class]="view === 'table' ? 'bg-white !text-brand-accentDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
+          <span class="material-symbols-outlined text-[18px]">table_rows</span>
+        </button>
+        <button type="button" (click)="viewChange.emit('grid')" [attr.aria-pressed]="view === 'grid'" aria-label="Vista de cuadrícula" title="Cuadrícula"
+          class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+          [class]="view === 'grid' ? 'bg-white !text-brand-accentDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
+          <span class="material-symbols-outlined text-[18px]">grid_view</span>
         </button>
       </div>
-
-      <div class="flex items-center gap-2 self-end lg:self-auto">
-        <div class="flex items-center rounded-xl !border !border-slate-200 bg-slate-100 p-1" role="group" aria-label="Tipo de vista">
-          <button type="button" (click)="viewChange.emit('table')" [attr.aria-pressed]="view === 'table'"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 !text-xs transition-colors"
-            [class]="view === 'table' ? 'bg-white !font-semibold !text-slate-800 shadow-sm' : 'bg-transparent !font-medium !text-slate-500 hover:text-slate-800'">
-            <span class="material-symbols-outlined text-[16px]" [class]="view === 'table' ? 'text-sky-600' : ''">table_rows</span>
-            <span class="hidden sm:inline">Tabla</span>
-          </button>
-          <button type="button" (click)="viewChange.emit('grid')" [attr.aria-pressed]="view === 'grid'"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 !text-xs transition-colors"
-            [class]="view === 'grid' ? 'bg-white !font-semibold !text-slate-800 shadow-sm' : 'bg-transparent !font-medium !text-slate-500 hover:text-slate-800'">
-            <span class="material-symbols-outlined text-[16px]" [class]="view === 'grid' ? 'text-sky-600' : ''">grid_view</span>
-            <span class="hidden sm:inline">Cuadrícula</span>
+      @if (filtersOpen()) {
+        <div id="equipment-filter-panel" class="absolute right-3 top-full z-30 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xl" aria-label="Opciones de filtrado">
+          <label class="grid gap-1.5 text-xs font-semibold text-slate-600">Categoría
+            <select aria-label="Categoría" [value]="filters.typeId ?? ''" (change)="filtersChange.emit({ typeId: toNumber($any($event.target).value) })"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20">
+              <option value="">Todas las categorías</option>
+              @for (type of types; track type.id) { <option [value]="type.id">{{ type.name }}</option> }
+            </select>
+          </label>
+          <label class="grid gap-1.5 text-xs font-semibold text-slate-600">Estado
+            <select aria-label="Estado" [value]="filters.status" (change)="filtersChange.emit({ status: $any($event.target).value })"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20">
+              <option value="">Todos los estados</option>
+              @if (filters.status.includes(',')) { <option [value]="filters.status">Varios estados</option> }
+              @for (status of statuses; track status) { <option [value]="status">{{ label(status) }}</option> }
+            </select>
+          </label>
+          <label class="grid gap-1.5 text-xs font-semibold text-slate-600">Ordenar por
+            <select aria-label="Ordenar por" [value]="sort" (change)="sortChange.emit($any($event.target).value)"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20">
+              @for (option of sortOptions; track option.value) { <option [value]="option.value">{{ option.label }}</option> }
+            </select>
+          </label>
+          <button type="button" (click)="filtersReset.emit(); filtersOpen.set(false)"
+            class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50">
+            <span class="material-symbols-outlined text-[17px]">restart_alt</span>Restablecer filtros
           </button>
         </div>
-
-        @if (canExport) {
-          <div class="relative">
-            <button type="button" (click)="menuOpen.set(!menuOpen())" [disabled]="exporting"
-              [attr.aria-expanded]="menuOpen()" aria-haspopup="menu"
-              class="flex items-center gap-2 rounded-xl !border !border-slate-200 bg-white px-3.5 py-2 !text-xs !font-semibold !text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-60">
-              <span class="material-symbols-outlined text-[18px] text-slate-400">download</span>
-              <span>{{ exporting ? 'Generando…' : 'Exportar' }}</span>
-            </button>
-            @if (menuOpen()) {
-              <div class="fixed inset-0 z-30" (click)="menuOpen.set(false)" aria-hidden="true"></div>
-              <div role="menu" class="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl !border !border-slate-200 bg-white py-1 shadow-lg">
-                @for (format of formats; track format.value) {
-                  <button type="button" role="menuitem" (click)="choose(format.value)"
-                    class="bg-transparent flex w-full items-center gap-2 px-3 py-2 text-left !text-xs !font-medium !text-slate-700 hover:bg-slate-50">
-                    <span class="material-symbols-outlined text-[18px] text-slate-400">{{ format.icon }}</span>{{ format.label }}
-                  </button>
-                }
-              </div>
-            }
-          </div>
-        }
-      </div>
+      }
     </section>
   `,
-  host: { class: 'block' },
+  host: { class: 'block w-full' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EquipmentToolbarComponent implements OnInit, OnDestroy {
@@ -118,23 +87,15 @@ export class EquipmentToolbarComponent implements OnInit, OnDestroy {
   @Input() sort = 'asset_tag';
   @Input() view: EquipmentView = 'table';
   @Input() types: readonly EquipmentType[] = [];
-  @Input() canExport = false;
-  @Input() exporting = false;
 
   @Output() readonly filtersChange = new EventEmitter<Partial<EquipmentFilters>>();
   @Output() readonly sortChange = new EventEmitter<string>();
   @Output() readonly viewChange = new EventEmitter<EquipmentView>();
   @Output() readonly filtersReset = new EventEmitter<void>();
-  @Output() readonly exportRequested = new EventEmitter<ReportFormat>();
 
   readonly statuses = EQUIPMENT_STATUSES;
   readonly sortOptions = SORT_OPTIONS;
-  readonly formats: readonly { value: ReportFormat; label: string; icon: string }[] = [
-    { value: 'xlsx', label: 'Excel (.xlsx)', icon: 'table' },
-    { value: 'csv', label: 'CSV (.csv)', icon: 'csv' },
-    { value: 'pdf', label: 'PDF (.pdf)', icon: 'picture_as_pdf' },
-  ];
-  readonly menuOpen = signal(false);
+  readonly filtersOpen = signal(false);
 
   private readonly typed = new Subject<string>();
   private subscription?: Subscription;
@@ -161,8 +122,4 @@ export class EquipmentToolbarComponent implements OnInit, OnDestroy {
     return value ? Number(value) : null;
   }
 
-  choose(format: ReportFormat): void {
-    this.menuOpen.set(false);
-    this.exportRequested.emit(format);
-  }
 }
