@@ -41,7 +41,7 @@ class RequestsRepository {
           'status': ?status,
           if (term != null && term.isNotEmpty) 'search': term,
           if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
-          if (dateTo != null) 'date_to': dateTo.toUtc().toIso8601String(),
+          if (dateTo != null) 'date_to': dateTo.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)).toUtc().toIso8601String(),
         });
         return PagedResult(
           items: _list(response.data, TicketListItem.fromJson),
