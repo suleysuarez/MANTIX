@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { EquipmentDetailStore } from '../../core/equipment-detail.store';
-import { Attachment, Equipment, ReportFormat } from '../../core/equipment.service';
+import { Attachment, Equipment } from '../../core/equipment.service';
 import { EquipmentFilters, EquipmentStore, EquipmentView, SaveRequest } from '../../core/equipment.store';
 import { PermissionsService } from '../../core/permissions.service';
 import { SchedulePayload } from '../../core/schedules.service';
@@ -17,7 +17,6 @@ import { EquipmentToolbarComponent } from './equipment-toolbar.component';
 
 interface Abilities {
   manage: boolean;
-  exportReports: boolean;
   attach: boolean;
   schedule: boolean;
   createTicket: boolean;
@@ -26,7 +25,6 @@ interface Abilities {
 
 const NO_ABILITIES: Abilities = {
   manage: false,
-  exportReports: false,
   attach: false,
   schedule: false,
   createTicket: false,
@@ -96,13 +94,11 @@ const NO_ABILITIES: Abilities = {
           [sort]="state.sort"
           [view]="state.view"
           [types]="state.types"
-          [canExport]="abilities().exportReports"
-          [exporting]="state.exporting"
           (filtersChange)="setFilters($event)"
           (sortChange)="setSort($event)"
           (viewChange)="setView($event)"
           (filtersReset)="reset()"
-          (exportRequested)="export($event)" />
+          />
 
         <section class="flex flex-col overflow-hidden rounded-2xl !border !border-slate-200/90 bg-white shadow-[0_4px_20px_-2px_rgba(13,31,56,0.03)]" aria-label="Listado de equipos">
           @if (state.view === 'table') {
@@ -112,7 +108,7 @@ const NO_ABILITIES: Abilities = {
             <app-equipment-grid [equipment]="state.items" [loading]="state.loading" [filtered]="isFiltered(state.filters)"
               [canManage]="abilities().manage" (view)="view($event)" (edit)="openEdit($event)" />
           }
-          <app-pagination noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
+          <app-pagination centered noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
         </section>
 
         <footer class="flex items-center justify-between !border-t !border-slate-200/80 pb-2 pt-4 text-[11px] text-slate-400">
@@ -175,15 +171,14 @@ export class EquipmentListComponent implements OnInit {
     this.detailStore.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.store.refresh());
     this.store.load();
     const can = (code: string) => this.permissions.can(code).catch(() => false);
-    const [manage, exportReports, attach, schedule, createTicket, readMaintenance] = await Promise.all([
+    const [manage, attach, schedule, createTicket, readMaintenance] = await Promise.all([
       can('equipos:editar'),
-      can('reportes:exportar'),
       can('equipos:adjuntar'),
       can('mantenimiento:crear'),
       can('solicitudes:crear'),
       can('tickets:ver'),
     ]);
-    this.abilities.set({ manage, exportReports, attach, schedule, createTicket, readMaintenance });
+    this.abilities.set({ manage, attach, schedule, createTicket, readMaintenance });
   }
 
   isFiltered(filters: EquipmentFilters): boolean {
@@ -208,10 +203,6 @@ export class EquipmentListComponent implements OnInit {
 
   setPage(page: number): void {
     this.store.setPage(page);
-  }
-
-  export(format: ReportFormat): void {
-    this.store.export(format);
   }
 
   dismissNotice(): void {
