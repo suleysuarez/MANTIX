@@ -29,6 +29,10 @@ Failure mapDioException(DioException error) {
       return NotFoundFailure(code: code, requestId: requestId, message: specific);
     case 409:
       return ConflictFailure(code: code, requestId: requestId, message: specific);
+    case 413:
+      return ValidationFailure(code: code, requestId: requestId, message: specific ?? 'El archivo supera el tamaño máximo permitido.');
+    case 415:
+      return ValidationFailure(code: code, requestId: requestId, message: specific ?? 'Tipo de archivo o formato no admitido. Usa PDF, JPG, PNG o TXT.');
     case 422:
       return ValidationFailure(fieldErrors: _fieldErrors(map['errors']), code: code, requestId: requestId);
     default:

@@ -42,8 +42,8 @@ class ConflictFailure extends Failure {
 
 /// Un 422: `fieldErrors` asocia cada campo con su mensaje para mostrarlo bajo el campo.
 class ValidationFailure extends Failure {
-  const ValidationFailure({this.fieldErrors = const {}, super.code, super.requestId})
-      : super('Revisa los datos ingresados.');
+  const ValidationFailure({this.fieldErrors = const {}, super.code, super.requestId, String? message})
+      : super(message ?? 'Revisa los datos ingresados.');
 
   final Map<String, String> fieldErrors;
 

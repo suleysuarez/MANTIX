@@ -21,6 +21,9 @@ const Map<String, String> messagesByErrorCode = {
   'equipment_identifier_taken': 'Ya existe un equipo con esa etiqueta o número de serie.',
   'equipment_serial_taken': 'Ya existe un equipo con ese número de serie.',
   // Adjuntos
+  // Archivos
+  'payload_too_large': 'El archivo supera el tamaño máximo permitido (10 MB).',
+  'unsupported_media_type': 'Tipo de archivo o formato no admitido. Usa PDF, JPG, PNG o TXT.',
   'attachment_not_found': 'Ese archivo ya no existe.',
   'attachment_limit_reached': 'Se alcanzó el máximo de archivos adjuntos.',
   'attachment_equipment_forbidden': 'No tienes permiso para adjuntar archivos a equipos.',

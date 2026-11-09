@@ -81,11 +81,11 @@ void main() {
       expect(orphans, isEmpty, reason: 'códigos que el backend no documenta (¿se renombraron?)');
     });
 
-    test('cada código solo se usa en un estado donde la app lo traduce (403, 404 o 409)', () {
+    test('cada código solo se usa en un estado donde la app lo traduce (403, 404, 409, 413 o 415)', () {
       final documented = documentedCodes();
       final wrong = {
         for (final code in messagesByErrorCode.keys)
-          if (!{403, 404, 409}.contains(documented[code])) code: documented[code],
+          if (!{403, 404, 409, 413, 415}.contains(documented[code])) code: documented[code],
       };
 
       expect(wrong, isEmpty);
