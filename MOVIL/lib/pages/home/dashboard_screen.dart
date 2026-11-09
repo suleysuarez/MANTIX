@@ -6,8 +6,9 @@ import '../../bloc/auth/auth_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/ticket_meta.dart';
 import '../../core/routing/home_resolver.dart';
-import '../../models/auth/user_profile.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/home/mantix_app_bar.dart';
+import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/status_message.dart';
 import '../../repositories/home/dashboard_repository.dart';
 
@@ -31,21 +32,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _alerts = {};
   List<dynamic> _topEquipment = [];
   List<dynamic> _technicians = [];
-
-  static const _navItems = <_NavItem>[
-    _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
-    _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
-    _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
-    _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver', 'solicitudes:ver_todos']),
-    _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
-    _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
-    _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
-    _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
-    _NavItem('Usuarios', Icons.manage_accounts_outlined, '/modulos/usuarios', 'usuarios:ver'),
-    _NavItem('Roles y permisos', Icons.admin_panel_settings_outlined, '/modulos/roles', 'usuarios:asignar'),
-    _NavItem('Usuarios pendientes', Icons.how_to_reg_outlined, '/modulos/usuarios-pendientes', 'usuarios:asignar'),
-    _NavItem('Configuración', Icons.settings_outlined, '/modulos/configuracion', 'configuracion:ver'),
-  ];
 
   @override
   void initState() {
@@ -139,54 +125,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final isGlobal = profile.can('dashboard:ver_todos');
         return Scaffold(
           backgroundColor: const Color(0xFFF2F7FC),
-          drawer: _buildDrawer(profile),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFF071D35),
-            foregroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-            titleSpacing: 0,
-            title: const _BrandLogo(asset: _BrandLogo.markAsset, height: 26),
-            actions: [
-              IconButton(
-                tooltip: 'Ver alertas',
-                onPressed: _scrollToAlerts,
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.notifications_none_rounded, size: 25),
-                    if (_tickets.isNotEmpty || _downEquipment.isNotEmpty)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(color: AppColors.mustard, shape: BoxShape.circle),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 10, left: 2),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => context.go('/perfil'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: AppColors.sky,
-                        child: Text(_initials(profile.fullName), style: const TextStyle(color: AppColors.navy, fontSize: 11, fontWeight: FontWeight.w800)),
-                      ),
-                      const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                    ]),
-                  ),
-                ),
-              ),
-            ],
+          drawer: MantixDrawer(profile: profile, selectedPath: widget.destination.path),
+          appBar: MantixAppBar(
+            profile: profile,
+            hasAlerts: _tickets.isNotEmpty || _downEquipment.isNotEmpty,
+            onAlertsPressed: _scrollToAlerts,
           ),
           body: RefreshIndicator(
             onRefresh: _load,
@@ -327,167 +270,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDrawer(UserProfile profile) {
-    final allowed = _navItems.where((item) =>
-      (item.permission == null && item.anyPermissions.isEmpty) ||
-      (item.permission != null && profile.can(item.permission!)) ||
-      item.anyPermissions.any(profile.can),
-    ).toList();
-    final homePath = resolveHome(profile.permissions).path;
-    return Drawer(
-      width: 306,
-      backgroundColor: const Color(0xFF0B2341),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B1F3A), Color(0xFF12365C)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
-              child: Row(
-                children: [
-                  const Expanded(child: Align(alignment: Alignment.centerLeft, child: _BrandLogo(asset: _BrandLogo.wordmarkAsset, height: 28))),
-                  IconButton(
-                    tooltip: 'Cerrar menú',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  for (final item in allowed)
-                    _DrawerItem(
-                      item: item,
-                      selected: item.path == homePath || (item.path == '/inicio/dashboard-global' && widget.destination == HomeDestination.globalDashboard) || (item.path == '/inicio/dashboard' && widget.destination == HomeDestination.ownDashboard),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        final target = item.label == 'Dashboard' ? homePath : item.path;
-                        context.go(target);
-                      },
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8, bottom: 8),
-                    child: Text('PERFIL', style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
-                  ),
-                  Material(
-                    color: const Color(0xFF24476B),
-                    borderRadius: BorderRadius.circular(15),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(15),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        context.go('/perfil');
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(11),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: AppColors.sky,
-                              child: Text(_initials(profile.fullName), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800)),
-                            ),
-                            const SizedBox(width: 11),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(profile.fullName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                                  Text(_roleLabel(profile), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () => context.read<AuthBloc>().add(const AuthSignOutRequested()),
-                    icon: const Icon(Icons.logout_rounded, size: 18),
-                    label: const Text('Cerrar sesión'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _roleLabel(UserProfile profile) {
-    if (profile.roles.isEmpty) return 'Usuario';
-    return switch (profile.roles.first.toLowerCase()) {
-      'admin' || 'administrator' || 'administrador' => 'Administrador',
-      'super_admin' || 'superadmin' => 'Superadministrador',
-      'technician' || 'tecnico' || 'técnico' => 'Técnico',
-      'requester' || 'solicitante' => 'Solicitante',
-      final value => value.replaceAll('_', ' '),
-    };
-  }
-
   void _scrollToAlerts() {
     final context = _alertsKey.currentContext;
     if (context != null) Scrollable.ensureVisible(context, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
   }
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).take(2);
-    final value = parts.map((part) => part[0].toUpperCase()).join();
-    return value.isEmpty ? 'M' : value;
-  }
-}
-
-class _NavItem {
-  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const []]);
-  final String label;
-  final IconData icon;
-  final String path;
-  final String? permission;
-  final List<String> anyPermissions;
-}
-
-class _BrandLogo extends StatelessWidget {
-  const _BrandLogo({required this.asset, this.height = 22});
-
-  /// Solo la «M» (encabezado) y el logo completo recortado (panel lateral), derivados de
-  /// `mantix_logo.webp` sin el espacio transparente que sobra.
-  static const markAsset = 'assets/images/mantix_m.webp';
-  static const wordmarkAsset = 'assets/images/mantix_wordmark.webp';
-
-  final String asset;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => Image.asset(
-    asset,
-    height: height,
-    fit: BoxFit.contain,
-    filterQuality: FilterQuality.medium,
-    semanticLabel: 'MANTIX',
-  );
 }
 
 class _WelcomeHero extends StatelessWidget {
@@ -1097,35 +884,6 @@ class _AlertRow extends StatelessWidget {
       ],
       const Icon(Icons.chevron_right_rounded, color: AppColors.slate, size: 18),
     ]),
-  );
-}
-
-class _DrawerItem extends StatelessWidget {
-  const _DrawerItem({required this.item, required this.selected, required this.onTap});
-  final _NavItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 3),
-    child: Material(
-      color: selected ? const Color(0xFF2878AA) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: 48,
-          child: Row(children: [
-            const SizedBox(width: 15),
-            Icon(item.icon, color: Colors.white.withValues(alpha: selected ? 1 : 0.82), size: 21),
-            const SizedBox(width: 14),
-            Expanded(child: Text(item.label, style: TextStyle(color: Colors.white.withValues(alpha: selected ? 1 : 0.88), fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.w500))),
-          ]),
-        ),
-      ),
-    ),
   );
 }
 
