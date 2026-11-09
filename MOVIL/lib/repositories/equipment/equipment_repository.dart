@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 import '../../core/errors/failure_mapper.dart';
+import '../../models/equipment/attachment_models.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/page_info.dart';
 
@@ -90,5 +91,54 @@ class EquipmentRepository {
   Future<void> assignCustody(int equipmentId, int userId) => _guard(() async {
         await _dio.post<Object?>('/equipment/$equipmentId/custody', data: {'assigned_to_user_id': userId});
         _changes.add(null);
+      });
+
+  static String _mimeType(String fileName) => switch (AttachmentRules.extensionOf(fileName)) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'pdf' => 'application/pdf',
+        _ => 'text/plain',
+      };
+
+  /// Sube un adjunto del equipo (requiere `equipos:adjuntar`). El archivo se envía desde su
+  /// ruta, por partes, sin cargarlo entero en memoria; [onProgress] recibe de 0 a 1. Un 413
+  /// (demasiado grande) o un 415 (tipo no admitido) llegan como `ValidationFailure`.
+  Future<void> uploadAttachment(int equipmentId, AttachmentFile file, {void Function(double progress)? onProgress}) => _guard(() async {
+        final form = FormData.fromMap({
+          'file': await MultipartFile.fromFile(file.path, filename: sanitizeFileName(file.name), contentType: DioMediaType.parse(_mimeType(file.name))),
+        });
+        await _dio.post<Object?>(
+          '/equipment/$equipmentId/attachments',
+          data: form,
+          onSendProgress: (sent, total) {
+            if (total > 0) onProgress?.call(sent / total);
+          },
+        );
+      });
+
+  /// Descarga el inventario (`GET /reports/equipment`, requiere `reportes:exportar`) en
+  /// streaming a [savePath]. [format] es `xlsx`, `csv` o `pdf`; el filtro de estado y el de
+  /// categoría se aplican, el de texto no existe en el servidor.
+  Future<void> downloadEquipmentReport({
+    required String format,
+    required String savePath,
+    String? statuses,
+    int? typeId,
+    void Function(double progress)? onProgress,
+  }) => _guard(() async {
+        await _dio.download(
+          '/reports/equipment',
+          savePath,
+          queryParameters: {
+            'format': format,
+            if (statuses != null && statuses.isNotEmpty) 'status': statuses,
+            'equipment_type_id': ?typeId,
+          },
+          // El servidor genera el archivo antes de enviar el primer byte.
+          options: Options(receiveTimeout: const Duration(seconds: 120)),
+          onReceiveProgress: (received, total) {
+            if (total > 0) onProgress?.call(received / total);
+          },
+        );
       });
 }

@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
+import 'package:mantix/models/equipment/attachment_models.dart';
 import 'package:mantix/models/equipment/equipment_models.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 
@@ -178,4 +183,201 @@ void main() {
       await expectLater(EquipmentRepository(dioWith(adapter)).assignCustody(7, 9), throwsA(isA<ForbiddenFailure>()));
     });
   });
+
+  group('uploadAttachment', () {
+    late Directory directory;
+
+    setUp(() => directory = Directory.systemTemp.createTempSync('mantix_upload_test_'));
+    tearDown(() {
+      // En Windows el adaptador simulado puede dejar abierto el archivo; no es un fallo de la prueba.
+      try {
+        directory.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Se limpia con la carpeta temporal del sistema.
+      }
+    });
+
+    AttachmentFile fileOnDisk(String name, {int bytes = 4096}) {
+      final file = File('${directory.path}${Platform.pathSeparator}$name')..writeAsBytesSync(Uint8List(bytes));
+      return AttachmentFile(path: file.path, name: name, size: bytes);
+    }
+
+    test('envía el archivo desde su ruta, como multipart «file», con el nombre saneado y su tipo', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(201, {'id': 1}));
+      final file = fileOnDisk('foto.jpg');
+
+      await EquipmentRepository(dioWith(adapter)).uploadAttachment(7, AttachmentFile(path: file.path, name: '/storage/DCIM/mi   foto?.jpg', size: file.size));
+
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(request.path, '/equipment/7/attachments');
+      final form = request.data as FormData;
+      expect(form.files.single.key, 'file');
+      expect(form.files.single.value.filename, 'mi foto_.jpg');
+      expect(form.files.single.value.contentType.toString(), 'image/jpeg');
+    });
+
+    test('cada extensión viaja con su tipo', () async {
+      final types = <String?>[];
+      final adapter = FakeAdapter((options) {
+        types.add((options.data as FormData).files.single.value.contentType?.mimeType);
+        return jsonResponse(201, {});
+      });
+      final repository = EquipmentRepository(dioWith(adapter));
+
+      for (final name in ['a.png', 'b.pdf', 'c.txt']) {
+        await repository.uploadAttachment(7, fileOnDisk(name));
+      }
+
+      expect(types, ['image/png', 'application/pdf', 'text/plain']);
+    });
+
+    test('informa el avance de 0 a 1 mientras se envía', () async {
+      final progress = <double>[];
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'))..httpClientAdapter = _ReadingAdapter();
+
+      await EquipmentRepository(dio).uploadAttachment(7, fileOnDisk('grande.pdf', bytes: 300000), onProgress: progress.add);
+
+      expect(progress, isNotEmpty);
+      expect(progress.last, 1);
+      expect(progress.every((value) => value > 0 && value <= 1), isTrue);
+    });
+
+    test('no sube un archivo que ya no existe (falla antes de enviar nada)', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(201, {}));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).uploadAttachment(7, AttachmentFile(path: '${directory.path}/borrado.jpg', name: 'borrado.jpg', size: 10)),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(adapter.requests, isEmpty);
+    });
+
+    test('un 413 llega como fallo de datos con el mensaje de «demasiado grande»', () async {
+      final adapter = FakeAdapter((_) => errorResponse(413, code: 'payload_too_large'));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).uploadAttachment(7, fileOnDisk('a.pdf')),
+        throwsA(isA<ValidationFailure>().having((f) => f.message, 'message', 'El archivo supera el tamaño máximo permitido (10 MB).')),
+      );
+    });
+
+    test('un 415 llega como fallo de datos con el mensaje de «tipo no admitido»', () async {
+      final adapter = FakeAdapter((_) => errorResponse(415, code: 'unsupported_media_type'));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).uploadAttachment(7, fileOnDisk('a.pdf')),
+        throwsA(isA<ValidationFailure>().having((f) => f.message, 'message', contains('Tipo de archivo o formato no admitido'))),
+      );
+    });
+
+    test('un 413 o un 415 con un código desconocido conservan su mensaje por estado', () async {
+      for (final (status, text) in [(413, 'tamaño máximo'), (415, 'no admitido')]) {
+        final adapter = FakeAdapter((_) => errorResponse(status, code: 'codigo_nuevo'));
+
+        await expectLater(
+          EquipmentRepository(dioWith(adapter)).uploadAttachment(7, fileOnDisk('a.pdf')),
+          throwsA(isA<ValidationFailure>().having((f) => f.message, 'message', contains(text))),
+        );
+      }
+    });
+
+    test('un 422 trae los errores por campo', () async {
+      final adapter = FakeAdapter((_) => errorResponse(422, errors: [
+            {'field': 'file', 'message': 'El contenido no coincide con la extensión.', 'type': 'value_error'},
+          ]));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).uploadAttachment(7, fileOnDisk('a.pdf')),
+        throwsA(isA<ValidationFailure>().having((f) => f.fieldErrors['file'], 'file', contains('no coincide'))),
+      );
+    });
+
+    test('sin permiso (403) y con el máximo de adjuntos (409) usan sus mensajes específicos', () async {
+      await expectLater(
+        EquipmentRepository(dioWith(FakeAdapter((_) => errorResponse(403, code: 'attachment_equipment_forbidden')))).uploadAttachment(7, fileOnDisk('a.pdf')),
+        throwsA(isA<ForbiddenFailure>().having((f) => f.message, 'message', 'No tienes permiso para adjuntar archivos a equipos.')),
+      );
+      await expectLater(
+        EquipmentRepository(dioWith(FakeAdapter((_) => errorResponse(409, code: 'attachment_limit_reached')))).uploadAttachment(7, fileOnDisk('a.pdf')),
+        throwsA(isA<ConflictFailure>().having((f) => f.message, 'message', 'Se alcanzó el máximo de archivos adjuntos.')),
+      );
+    });
+  });
+
+  group('downloadEquipmentReport', () {
+    late Directory directory;
+
+    setUp(() => directory = Directory.systemTemp.createTempSync('mantix_download_test_'));
+    tearDown(() {
+      // En Windows el adaptador simulado puede dejar abierto el archivo; no es un fallo de la prueba.
+      try {
+        directory.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Se limpia con la carpeta temporal del sistema.
+      }
+    });
+
+    ResponseBody bytes(List<int> data, {int status = 200}) =>
+        ResponseBody.fromBytes(data, status, headers: {'content-length': ['${data.length}']});
+
+    test('descarga en streaming al archivo indicado con el formato y los filtros', () async {
+      final adapter = FakeAdapter((_) => bytes(List.filled(1000, 7)));
+      final path = '${directory.path}/equipos.xlsx';
+
+      await EquipmentRepository(dioWith(adapter)).downloadEquipmentReport(format: 'xlsx', savePath: path, statuses: 'in_repair', typeId: 2);
+
+      final request = adapter.requests.single;
+      expect(request.path, '/reports/equipment');
+      expect(request.queryParameters, {'format': 'xlsx', 'status': 'in_repair', 'equipment_type_id': 2});
+      expect(File(path).lengthSync(), 1000);
+      expect(request.receiveTimeout, const Duration(seconds: 120));
+    });
+
+    test('sin filtros solo envía el formato', () async {
+      final adapter = FakeAdapter((_) => bytes([1, 2, 3]));
+
+      await EquipmentRepository(dioWith(adapter)).downloadEquipmentReport(format: 'csv', savePath: '${directory.path}/e.csv', statuses: '');
+
+      expect(adapter.requests.single.queryParameters, {'format': 'csv'});
+    });
+
+    test('informa el avance hasta el 100 %', () async {
+      final adapter = FakeAdapter((_) => bytes(List.filled(2000, 1)));
+      final progress = <double>[];
+
+      await EquipmentRepository(dioWith(adapter)).downloadEquipmentReport(format: 'pdf', savePath: '${directory.path}/e.pdf', onProgress: progress.add);
+
+      expect(progress.last, 1);
+    });
+
+    test('un 403 sale como ForbiddenFailure y no deja el archivo a medias', () async {
+      final adapter = FakeAdapter((_) => errorResponse(403));
+      final path = '${directory.path}/e.xlsx';
+
+      await expectLater(EquipmentRepository(dioWith(adapter)).downloadEquipmentReport(format: 'xlsx', savePath: path), throwsA(isA<ForbiddenFailure>()));
+      expect(File(path).existsSync(), isFalse);
+    });
+
+    test('sin conexión sale como NetworkFailure', () async {
+      final adapter = FakeAdapter((options) => throw DioException(requestOptions: options, type: DioExceptionType.connectionError));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).downloadEquipmentReport(format: 'xlsx', savePath: '${directory.path}/e.xlsx'),
+        throwsA(isA<NetworkFailure>()),
+      );
+    });
+  });
+}
+
+/// Adaptador que lee el cuerpo enviado, como hace uno real, para que Dio informe el avance.
+class _ReadingAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    await requestStream?.drain<void>();
+    return jsonResponse(201, {'id': 1});
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
