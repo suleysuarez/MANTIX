@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/equipment/equipment_list_bloc.dart';
@@ -18,6 +19,7 @@ import '../../widgets/shared/app_chip.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/paged_list_view.dart';
 import '../../widgets/shared/status_message.dart';
+import 'create_equipment_screen.dart';
 
 /// Gestión de equipos: contadores por estado que filtran el catálogo, búsqueda y listado.
 class EquipmentScreen extends StatefulWidget {
@@ -94,6 +96,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
             builder: (context, state) => PagedListView<Equipment>(
               value: state,
               header: _Header(
+                canCreate: profile.can('equipos:crear'),
                 group: _group,
                 onGroupSelected: (group) => setState(() => _group = group),
                 total: state.status == PagedStatus.success ? state.info?.total : null,
@@ -133,8 +136,10 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.group, required this.onGroupSelected, required this.searchField, this.total});
+  const _Header({required this.group, required this.onGroupSelected, required this.searchField, required this.canCreate, this.total});
 
+  /// Muestra el botón «Nuevo equipo» (permiso `equipos:crear`).
+  final bool canCreate;
   final EquipmentGroup group;
   final ValueChanged<EquipmentGroup> onGroupSelected;
   final Widget searchField;
@@ -146,12 +151,29 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(14)),
-        child: Icon(Icons.devices_other_rounded, color: EquipmentColors.info.foreground, size: 24),
-      ),
+      Row(children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(14)),
+          child: Icon(Icons.devices_other_rounded, color: EquipmentColors.info.foreground, size: 24),
+        ),
+        const Spacer(),
+        if (canCreate)
+          FilledButton.tonalIcon(
+            onPressed: () => context.push(CreateEquipmentScreen.path),
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Nuevo equipo'),
+            style: FilledButton.styleFrom(
+              backgroundColor: EquipmentColors.info.background,
+              foregroundColor: EquipmentColors.info.foreground,
+              minimumSize: const Size(0, 46),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+          ),
+      ]),
       const SizedBox(height: 12),
       const Text('GESTIÓN DE EQUIPOS', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
       const SizedBox(height: 6),
@@ -235,7 +257,7 @@ class _SummaryCards extends StatelessWidget {
         children: [
           GridView(
             // El alto crece con el tamaño de letra del sistema para que nada se corte.
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 168 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 146 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: cards,
@@ -290,7 +312,7 @@ class _SummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: selected ? colors.dot : const Color(0xFFE5EEF6), width: selected ? 1.6 : 1),
@@ -301,10 +323,10 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Row(children: [
                 Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(11)),
-                  child: Icon(icon, color: colors.dot, size: 19),
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, color: colors.dot, size: 17),
                 ),
                 const Spacer(),
                 Flexible(
@@ -315,10 +337,10 @@ class _SummaryCard extends StatelessWidget {
                   ),
                 ),
               ]),
-              const SizedBox(height: 8),
-              Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 28, fontWeight: FontWeight.w900, height: 1.05)),
+              const SizedBox(height: 6),
+              Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 24, fontWeight: FontWeight.w900, height: 1.05)),
               const SizedBox(height: 2),
-              Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10.5, height: 1.25)),
+              Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10, height: 1.2)),
               const Spacer(),
               const Divider(height: 12, thickness: 1, color: Color(0xFFEEF3F8)),
               Row(children: [

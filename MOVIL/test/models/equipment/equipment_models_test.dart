@@ -83,4 +83,47 @@ void main() {
     expect(EquipmentGroup.maintenance.filter, 'in_repair');
     expect(EquipmentGroup.offline.filter, 'lost,retired,disposed');
   });
+  group('EquipmentType', () {
+    test('lee la categoría', () {
+      final type = EquipmentType.fromJson(const {'id': 2, 'code': 'PRINTER', 'name': 'Impresora'});
+
+      expect(type, const EquipmentType(id: 2, code: 'PRINTER', name: 'Impresora'));
+    });
+  });
+
+  group('NewEquipment.toJson', () {
+    test('solo envía lo obligatorio cuando el resto está vacío', () {
+      const equipment = NewEquipment(assetTag: 'EQ-029', typeId: 1, brand: 'Dell', model: 'Latitude', serialNumber: '', description: '', purchaseCost: '');
+
+      expect(equipment.toJson(), {'asset_tag': 'EQ-029', 'equipment_type_id': 1, 'brand': 'Dell', 'model': 'Latitude'});
+    });
+
+    test('envía los opcionales con fechas AAAA-MM-DD', () {
+      final equipment = NewEquipment(
+        assetTag: 'EQ-029',
+        typeId: 1,
+        brand: 'Dell',
+        model: 'Latitude',
+        serialNumber: 'SN-1',
+        description: 'i7, 16 GB',
+        purchaseDate: DateTime(2026, 1, 5),
+        purchaseCost: '1250.50',
+        warrantyStart: DateTime(2026, 1, 5),
+        warrantyEnd: DateTime(2029, 11, 30),
+      );
+
+      expect(equipment.toJson(), {
+        'asset_tag': 'EQ-029',
+        'equipment_type_id': 1,
+        'brand': 'Dell',
+        'model': 'Latitude',
+        'serial_number': 'SN-1',
+        'description': 'i7, 16 GB',
+        'purchase_date': '2026-01-05',
+        'purchase_cost': '1250.50',
+        'warranty_start_date': '2026-01-05',
+        'warranty_end_date': '2029-11-30',
+      });
+    });
+  });
 }

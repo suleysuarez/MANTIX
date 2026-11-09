@@ -95,3 +95,69 @@ class EquipmentSummary extends Equatable {
   @override
   List<Object?> get props => [total, byStatus];
 }
+
+/// Categoría de equipo (`GET /equipment/types`).
+class EquipmentType extends Equatable {
+  const EquipmentType({required this.id, required this.code, required this.name});
+
+  factory EquipmentType.fromJson(Map<String, Object?> json) => EquipmentType(
+        id: json['id']! as int,
+        code: (json['code'] as String?) ?? '',
+        name: json['name']! as String,
+      );
+
+  final int id;
+  final String code;
+  final String name;
+
+  @override
+  List<Object?> get props => [id, code, name];
+}
+
+String _isoDate(DateTime date) => '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+/// Datos del formulario «Nuevo equipo» (`POST /equipment`). El estado inicial lo fija el servidor.
+class NewEquipment extends Equatable {
+  const NewEquipment({
+    required this.assetTag,
+    required this.typeId,
+    required this.brand,
+    required this.model,
+    this.serialNumber,
+    this.description,
+    this.purchaseDate,
+    this.purchaseCost,
+    this.warrantyStart,
+    this.warrantyEnd,
+  });
+
+  final String assetTag;
+  final int typeId;
+  final String brand;
+  final String model;
+  final String? serialNumber;
+  final String? description;
+  final DateTime? purchaseDate;
+
+  /// Importe con punto decimal y como máximo dos decimales (por ejemplo `1250.50`).
+  final String? purchaseCost;
+  final DateTime? warrantyStart;
+  final DateTime? warrantyEnd;
+
+  /// Solo se envían los campos opcionales que tienen valor.
+  Map<String, Object?> toJson() => {
+        'asset_tag': assetTag,
+        'equipment_type_id': typeId,
+        'brand': brand,
+        'model': model,
+        if (serialNumber != null && serialNumber!.isNotEmpty) 'serial_number': serialNumber,
+        if (description != null && description!.isNotEmpty) 'description': description,
+        if (purchaseDate != null) 'purchase_date': _isoDate(purchaseDate!),
+        if (purchaseCost != null && purchaseCost!.isNotEmpty) 'purchase_cost': purchaseCost,
+        if (warrantyStart != null) 'warranty_start_date': _isoDate(warrantyStart!),
+        if (warrantyEnd != null) 'warranty_end_date': _isoDate(warrantyEnd!),
+      };
+
+  @override
+  List<Object?> get props => [assetTag, typeId, brand, model, serialNumber, description, purchaseDate, purchaseCost, warrantyStart, warrantyEnd];
+}

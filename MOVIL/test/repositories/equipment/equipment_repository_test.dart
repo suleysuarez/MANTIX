@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
+import 'package:mantix/models/equipment/equipment_models.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
@@ -56,6 +57,63 @@ void main() {
     test('un error del servidor sale como Failure sin detalles internos', () async {
       final adapter = FakeAdapter((_) => errorResponse(500));
       await expectLater(EquipmentRepository(dioWith(adapter)).summary(), throwsA(isA<ServerFailure>()));
+    });
+  });
+  group('types', () {
+    test('lee las categorías', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, [
+            {'id': 1, 'code': 'LAPTOP', 'name': 'Laptop'},
+            {'id': 2, 'code': 'PRINTER', 'name': 'Impresora'},
+          ]));
+      final types = await EquipmentRepository(dioWith(adapter)).types();
+
+      expect(adapter.requests.single.path, '/equipment/types');
+      expect(types.map((t) => t.name), ['Laptop', 'Impresora']);
+    });
+  });
+
+  group('create', () {
+    const equipment = NewEquipment(assetTag: 'EQ-029', typeId: 1, brand: 'Dell', model: 'Latitude');
+
+    test('hace POST con el cuerpo del formulario, devuelve el equipo y avisa del cambio', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(201, equipmentItemJson()));
+      final repository = EquipmentRepository(dioWith(adapter));
+      var changes = 0;
+      final subscription = repository.changes.listen((_) => changes++);
+      addTearDown(subscription.cancel);
+
+      final created = await repository.create(equipment);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(adapter.requests.single.method, 'POST');
+      expect(adapter.requests.single.path, '/equipment');
+      expect(adapter.requests.single.data, equipment.toJson());
+      expect(created.assetTag, 'DEMO-007');
+      expect(changes, 1);
+    });
+
+    test('una etiqueta repetida sale como ConflictFailure con su código y no avisa del cambio', () async {
+      final adapter = FakeAdapter((_) => errorResponse(409, code: 'equipment_identifier_taken'));
+      final repository = EquipmentRepository(dioWith(adapter));
+      var changes = 0;
+      final subscription = repository.changes.listen((_) => changes++);
+      addTearDown(subscription.cancel);
+
+      await expectLater(repository.create(equipment), throwsA(isA<ConflictFailure>().having((f) => f.code, 'code', 'equipment_identifier_taken')));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(changes, 0);
+    });
+
+    test('un 422 trae los errores por campo', () async {
+      final adapter = FakeAdapter((_) => errorResponse(422, errors: [
+            {'field': 'brand', 'message': 'Campo requerido', 'type': 'missing'},
+          ]));
+
+      await expectLater(
+        EquipmentRepository(dioWith(adapter)).create(equipment),
+        throwsA(isA<ValidationFailure>().having((f) => f.fieldErrors.keys, 'campos', contains('brand'))),
+      );
     });
   });
 }

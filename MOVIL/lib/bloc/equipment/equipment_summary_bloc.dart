@@ -16,9 +16,11 @@ class EquipmentSummaryBloc extends Bloc<EquipmentSummaryEvent, EquipmentSummaryS
   EquipmentSummaryBloc({required this._repository}) : super(const EquipmentSummaryState()) {
     on<EquipmentSummaryStarted>(_onLoad);
     on<EquipmentSummaryRefreshed>(_onLoad);
+    _changes = _repository.changes.listen((_) => add(const EquipmentSummaryRefreshed()));
   }
 
   final EquipmentRepository _repository;
+  late final StreamSubscription<void> _changes;
 
   /// Vuelve a pedir los contadores y espera a que termine; sirve al «tirar para refrescar».
   Future<void> refresh() {
@@ -37,5 +39,11 @@ class EquipmentSummaryBloc extends Bloc<EquipmentSummaryEvent, EquipmentSummaryS
     } finally {
       if (event is EquipmentSummaryRefreshed) event.done?.complete();
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _changes.cancel();
+    return super.close();
   }
 }

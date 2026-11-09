@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/auth/auth_bloc.dart';
+import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/pages/equipment/equipment_screen.dart';
@@ -11,23 +12,15 @@ import 'package:mantix/repositories/equipment/equipment_repository.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
 import '../../support/fakes.dart';
+import '../../support/header_support.dart';
 import '../../support/requests_support.dart';
-
-class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
 const _summaryJson = {
   'total': 38,
   'by_status': {'assigned': 20, 'in_storage': 11, 'in_repair': 3, 'lost': 1, 'retired': 2, 'disposed': 1},
 };
 
-UserProfile _profile() => const UserProfile(
-      id: 1,
-      email: 'ana@mantix.test',
-      fullName: 'Ana Pérez',
-      isActive: true,
-      roles: ['ADMIN'],
-      permissions: {'equipos:ver', 'equipos:crear'},
-    );
+UserProfile _profile(Set<String> permissions) => testProfile(permissions: permissions);
 
 final _laptop = equipmentItemJson();
 final _printer = equipmentItemJson(overrides: {
@@ -43,28 +36,31 @@ final _printer = equipmentItemJson(overrides: {
 });
 
 void main() {
-  late _MockAuthBloc authBloc;
+  late MockAuthBloc authBloc;
   late FakeAdapter adapter;
   late ResponseBody Function(RequestOptions) listHandler;
   late ResponseBody Function(RequestOptions) summaryHandler;
 
   setUp(() {
-    authBloc = _MockAuthBloc();
+    authBloc = MockAuthBloc();
     listHandler = (_) => pagedResponse([_laptop, _printer]);
     summaryHandler = (_) => jsonResponse(200, _summaryJson);
     adapter = FakeAdapter((options) => options.path == '/equipment/summary' ? summaryHandler(options) : listHandler(options));
   });
 
-  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1}) async {
+  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1, Set<String> permissions = const {'equipos:ver', 'equipos:crear'}}) async {
     tester.view.physicalSize = const Size(390, 3200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    whenListen(authBloc, const Stream<AuthState>.empty(), initialState: Authenticated(_profile()));
+    whenListen(authBloc, const Stream<AuthState>.empty(), initialState: Authenticated(_profile(permissions)));
     await tester.pumpWidget(
       RepositoryProvider<EquipmentRepository>.value(
         value: EquipmentRepository(dioWith(adapter)),
-        child: BlocProvider<AuthBloc>.value(
-          value: authBloc,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<AuthBloc>.value(value: authBloc),
+            BlocProvider<NotificationsBloc>.value(value: notificationsBloc()),
+          ],
           child: MaterialApp(
             theme: AppTheme.light(),
             builder: (context, app) => MediaQuery(
@@ -249,5 +245,18 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Dell Latitude 5420'), findsOneWidget);
+  });
+
+  testWidgets('con el permiso equipos:crear aparece «Nuevo equipo»', (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.text('Nuevo equipo'), findsOneWidget);
+  });
+
+  testWidgets('sin el permiso equipos:crear no aparece «Nuevo equipo»', (tester) async {
+    await pumpScreen(tester, permissions: const {'equipos:ver'});
+
+    expect(find.text('Nuevo equipo'), findsNothing);
+    expect(find.text('GESTIÓN DE EQUIPOS'), findsOneWidget);
   });
 }

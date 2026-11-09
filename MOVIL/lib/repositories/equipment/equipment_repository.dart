@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 import '../../core/errors/failure_mapper.dart';
@@ -10,6 +12,10 @@ class EquipmentRepository {
   EquipmentRepository(this._dio);
 
   final Dio _dio;
+  final _changes = StreamController<void>.broadcast();
+
+  /// Emite cuando el catálogo cambia (por ejemplo, se registra un equipo): los listados se recargan solos.
+  Stream<void> get changes => _changes.stream;
 
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {
@@ -40,5 +46,20 @@ class EquipmentRepository {
   Future<EquipmentSummary> summary() => _guard(() async {
         final response = await _dio.get<Map<String, Object?>>('/equipment/summary');
         return EquipmentSummary.fromJson(response.data!);
+      });
+
+  Future<List<EquipmentType>> types() => _guard(() async {
+        final response = await _dio.get<Object?>('/equipment/types');
+        final data = response.data;
+        return [if (data is List) for (final item in data) EquipmentType.fromJson((item as Map).cast<String, Object?>())];
+      });
+
+  /// Registra un equipo. Un 422 llega como `ValidationFailure` (errores por campo) y una etiqueta o
+  /// serie repetida como `ConflictFailure` con el código `equipment_identifier_taken`.
+  Future<Equipment> create(NewEquipment equipment) => _guard(() async {
+        final response = await _dio.post<Map<String, Object?>>('/equipment', data: equipment.toJson());
+        final created = Equipment.fromJson(response.data!);
+        _changes.add(null);
+        return created;
       });
 }
