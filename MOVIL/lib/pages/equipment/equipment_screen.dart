@@ -5,23 +5,27 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/equipment/equipment_catalog_bloc.dart';
 import '../../bloc/equipment/equipment_list_bloc.dart';
 import '../../bloc/equipment/equipment_summary_bloc.dart';
-import '../../bloc/paged/paged_bloc.dart';
 import '../../core/format/equipment_meta.dart';
-import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
+import '../../widgets/equipment/equipment_list_views.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
-import '../../widgets/shared/app_chip.dart';
 import '../../widgets/shared/empty_state.dart';
-import '../../widgets/shared/paged_list_view.dart';
+import '../../widgets/shared/error_state.dart';
+import '../../widgets/shared/skeleton.dart';
 import '../../widgets/shared/status_message.dart';
 import 'create_equipment_screen.dart';
 
-/// Gestión de equipos: contadores por estado que filtran el catálogo, búsqueda y listado.
+/// Marca del desplegable de estado cuando el filtro viene de una tarjeta con varios estados.
+const _multipleStatuses = '__multiple__';
+
+/// Gestión de equipos: contadores por estado, filtros, búsqueda y listado en tabla o cuadrícula
+/// con paginación.
 class EquipmentScreen extends StatefulWidget {
   const EquipmentScreen({super.key});
 
@@ -33,26 +37,62 @@ class EquipmentScreen extends StatefulWidget {
 
 class _EquipmentScreenState extends State<EquipmentScreen> {
   /// Filtros elegidos: estado efímero de la pantalla. Cambiarlos crea un `EquipmentListBloc` nuevo.
-  EquipmentGroup _group = EquipmentGroup.all;
+  String? _statuses;
+  int? _typeId;
   String _search = '';
+  EquipmentView _view = EquipmentView.table;
+  int _pageSize = 10;
 
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
-  // Con una GlobalKey el campo conserva el foco y el teclado cuando el listado se recrea.
-  final _searchKey = GlobalKey();
   Timer? _debounce;
+
+  late final EquipmentRepository _repository;
+  late final EquipmentSummaryBloc _summaryBloc;
+  late final EquipmentCatalogBloc _catalogBloc;
+  late EquipmentListBloc _listBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = context.read<EquipmentRepository>();
+    _summaryBloc = EquipmentSummaryBloc(repository: _repository)..add(const EquipmentSummaryStarted());
+    _catalogBloc = EquipmentCatalogBloc(repository: _repository)..add(const EquipmentCatalogStarted());
+    _listBloc = _newListBloc();
+  }
+
+  EquipmentListBloc _newListBloc() => EquipmentListBloc(
+        repository: _repository,
+        statuses: _statuses,
+        search: _search,
+        typeId: _typeId,
+        pageSize: _pageSize,
+      )..add(const EquipmentListStarted());
 
   @override
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
+    unawaited(_summaryBloc.close());
+    unawaited(_catalogBloc.close());
+    unawaited(_listBloc.close());
     super.dispose();
+  }
+
+  /// Aplica un cambio de filtro y empieza el listado de nuevo desde la página 1.
+  void _applyFilters(void Function() change) {
+    setState(() {
+      change();
+      final previous = _listBloc;
+      _listBloc = _newListBloc();
+      unawaited(previous.close());
+    });
   }
 
   void _applySearch(String value) {
     final term = value.trim();
-    if (mounted && term != _search) setState(() => _search = term);
+    if (mounted && term != _search) _applyFilters(() => _search = term);
   }
 
   void _onSearchChanged(String value) {
@@ -66,10 +106,35 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _applySearch('');
   }
 
-  Future<void> _refresh(BuildContext context) => Future.wait([
-        context.read<EquipmentListBloc>().refresh(),
-        context.read<EquipmentSummaryBloc>().refresh(),
-      ]);
+  void _resetFilters() {
+    _debounce?.cancel();
+    _searchController.clear();
+    _applyFilters(() {
+      _search = '';
+      _typeId = null;
+      _statuses = null;
+    });
+  }
+
+  Future<void> _refresh() => Future.wait([_listBloc.refresh(), _summaryBloc.refresh()]);
+
+  /// Tarjeta del resumen que coincide con el filtro de estado actual (`null` si ninguna).
+  EquipmentGroup? get _activeGroup {
+    final csv = _statuses;
+    if (csv == null) return EquipmentGroup.all;
+    final wanted = csv.split(',').toSet();
+    for (final group in EquipmentGroup.values) {
+      final statuses = group.statuses;
+      if (statuses != null && statuses.length == wanted.length && statuses.toSet().containsAll(wanted)) return group;
+    }
+    return null;
+  }
+
+  String? get _statusDropdownValue {
+    final csv = _statuses;
+    if (csv == null) return null;
+    return knownEquipmentStatuses.contains(csv) ? csv : _multipleStatuses;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,56 +143,58 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     if (profile == null) {
       return const StatusMessage(icon: Icons.devices_other_rounded, title: 'Equipos', message: 'No encontramos los datos de tu sesión.');
     }
-    final filtered = _group != EquipmentGroup.all || _search.isNotEmpty;
-    return BlocProvider(
-      create: (context) => EquipmentSummaryBloc(repository: context.read<EquipmentRepository>())..add(const EquipmentSummaryStarted()),
+    final filtered = _statuses != null || _typeId != null || _search.isNotEmpty;
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: _summaryBloc),
+        BlocProvider.value(value: _catalogBloc),
+        BlocProvider.value(value: _listBloc),
+      ],
       child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: EquipmentScreen.path),
-        body: BlocProvider(
-          key: ValueKey('${_group.name}|$_search'),
-          create: (context) => EquipmentListBloc(
-            repository: context.read<EquipmentRepository>(),
-            statuses: _group.filter,
-            search: _search,
-          )..add(const PagedStarted()),
-          child: BlocBuilder<EquipmentListBloc, PagedListState<Equipment>>(
-            builder: (context, state) => PagedListView<Equipment>(
-              value: state,
-              header: _Header(
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              _Header(
                 canCreate: profile.can('equipos:crear'),
-                group: _group,
-                onGroupSelected: (group) => setState(() => _group = group),
-                total: state.status == PagedStatus.success ? state.info?.total : null,
-                searchField: _SearchField(
-                  key: _searchKey,
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                  onChanged: _onSearchChanged,
-                  onSubmitted: (value) {
-                    _debounce?.cancel();
-                    _applySearch(value);
-                  },
-                  onClear: _clearSearch,
-                ),
+                group: _activeGroup,
+                onGroupSelected: (group) => _applyFilters(() => _statuses = group.filter),
               ),
-              onRefresh: () => _refresh(context),
-              onLoadMore: () => context.read<EquipmentListBloc>().add(const PagedLoadMoreRequested()),
-              itemBuilder: (context, item) => _EquipmentCard(item: item),
-              empty: EmptyState(
-                icon: Icons.devices_other_rounded,
-                title: filtered ? 'Ningún equipo coincide con los filtros' : 'Aún no hay equipos registrados',
-                message: filtered ? 'Prueba con otra búsqueda o muestra todo el catálogo.' : null,
-                actionLabel: filtered ? 'Ver todo el catálogo' : null,
-                onAction: filtered
-                    ? () {
-                        _clearSearch();
-                        setState(() => _group = EquipmentGroup.all);
-                      }
-                    : null,
+              const SizedBox(height: 16),
+              _SearchField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onChanged: _onSearchChanged,
+                onSubmitted: (value) {
+                  _debounce?.cancel();
+                  _applySearch(value);
+                },
+                onClear: _clearSearch,
               ),
-            ),
+              const SizedBox(height: 10),
+              _FilterRow(
+                typeId: _typeId,
+                statusValue: _statusDropdownValue,
+                onType: (id) => _applyFilters(() => _typeId = id),
+                onStatus: (status) => _applyFilters(() => _statuses = status),
+                onReset: _resetFilters,
+              ),
+              const SizedBox(height: 10),
+              _ViewToggle(view: _view, onChanged: (view) => setState(() => _view = view)),
+              const SizedBox(height: 14),
+              _ListSection(
+                view: _view,
+                pageSize: _pageSize,
+                filtered: filtered,
+                onPageSize: (size) => _applyFilters(() => _pageSize = size),
+                onResetFilters: _resetFilters,
+              ),
+            ],
           ),
         ),
       ),
@@ -136,16 +203,12 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.group, required this.onGroupSelected, required this.searchField, required this.canCreate, this.total});
+  const _Header({required this.group, required this.onGroupSelected, required this.canCreate});
 
   /// Muestra el botón «Nuevo equipo» (permiso `equipos:crear`).
   final bool canCreate;
-  final EquipmentGroup group;
+  final EquipmentGroup? group;
   final ValueChanged<EquipmentGroup> onGroupSelected;
-  final Widget searchField;
-
-  /// Equipos que coinciden con los filtros (`null` mientras carga).
-  final int? total;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -183,13 +246,6 @@ class _Header extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       _SummaryCards(group: group, onGroupSelected: onGroupSelected),
-      const SizedBox(height: 16),
-      searchField,
-      if (total != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 10, left: 4),
-          child: Text(total == 1 ? '1 equipo' : '$total equipos', style: const TextStyle(color: AppColors.slate, fontSize: 11.5, fontWeight: FontWeight.w600)),
-        ),
     ],
   );
 }
@@ -197,7 +253,7 @@ class _Header extends StatelessWidget {
 class _SummaryCards extends StatelessWidget {
   const _SummaryCards({required this.group, required this.onGroupSelected});
 
-  final EquipmentGroup group;
+  final EquipmentGroup? group;
   final ValueChanged<EquipmentGroup> onGroupSelected;
 
   static String _rate(double? value) => value == null ? '–' : '${value.toStringAsFixed(1).replaceAll('.', ',')}% tasa';
@@ -357,7 +413,7 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({super.key, required this.controller, required this.focusNode, required this.onChanged, required this.onSubmitted, required this.onClear});
+  const _SearchField({required this.controller, required this.focusNode, required this.onChanged, required this.onSubmitted, required this.onClear});
 
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -392,76 +448,180 @@ class _SearchField extends StatelessWidget {
   );
 }
 
-class _EquipmentCard extends StatelessWidget {
-  const _EquipmentCard({required this.item});
+/// Categoría y estado como desplegables, y el botón que limpia todos los filtros.
+class _FilterRow extends StatelessWidget {
+  const _FilterRow({required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
 
-  final Equipment item;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = equipmentStatusMeta(item.status);
-    final lastMaintenance = item.lastMaintenanceAt;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFE5EEF6)),
-        boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(13)),
-              child: Icon(equipmentCategoryIcon(item.typeCode), color: EquipmentColors.info.foreground, size: 22),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${item.brand} ${item.model}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF153A60), fontSize: 14, fontWeight: FontWeight.w800, height: 1.2)),
-                const SizedBox(height: 5),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFE2E8F0))),
-                  child: Text(item.assetTag, style: const TextStyle(color: Color(0xFF334155), fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'monospace')),
-                ),
-              ]),
-            ),
-            const SizedBox(width: 8),
-            Flexible(child: AppChip(label: status.label, colors: status.colors, semanticPrefix: 'Estado')),
-          ]),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(20)),
-            child: Text(item.typeName, style: TextStyle(color: EquipmentColors.info.foreground, fontSize: 10.5, fontWeight: FontWeight.w700)),
-          ),
-          const Divider(height: 20, color: Color(0xFFEEF3F8)),
-          _DetailRow(icon: Icons.place_outlined, text: item.locationName ?? 'Sin ubicación'),
-          const SizedBox(height: 6),
-          _DetailRow(icon: Icons.person_outline_rounded, text: item.custodianName ?? 'Sin custodio'),
-          const SizedBox(height: 6),
-          _DetailRow(icon: Icons.build_outlined, text: lastMaintenance == null ? 'Sin mantenimientos' : 'Último mantenimiento: ${formatDate(lastMaintenance.toLocal())}'),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
+  final int? typeId;
+  final String? statusValue;
+  final ValueChanged<int?> onType;
+  final ValueChanged<String?> onStatus;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    Icon(icon, size: 15, color: AppColors.slate),
-    const SizedBox(width: 7),
-    Expanded(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF475569), fontSize: 11.5))),
-  ]);
+        Expanded(
+          child: BlocBuilder<EquipmentCatalogBloc, EquipmentCatalogState>(
+            builder: (context, state) {
+              final known = state.types.any((type) => type.id == typeId);
+              return _FilterBox<int?>(
+                label: 'Categoría',
+                value: known ? typeId : null,
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
+                  for (final type in state.types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: onType,
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _FilterBox<String?>(
+            label: 'Estado',
+            value: statusValue,
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados', overflow: TextOverflow.ellipsis)),
+              for (final status in knownEquipmentStatuses) DropdownMenuItem<String?>(value: status, child: Text(equipmentStatusMeta(status).label, overflow: TextOverflow.ellipsis)),
+              if (statusValue == _multipleStatuses) const DropdownMenuItem<String?>(value: _multipleStatuses, child: Text('Varios estados', overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (value) {
+              if (value != _multipleStatuses) onStatus(value);
+            },
+          ),
+        ),
+        const SizedBox(width: 4),
+        IconButton(tooltip: 'Limpiar filtros', onPressed: onReset, icon: const Icon(Icons.refresh_rounded), color: AppColors.slate),
+      ]);
+}
+
+class _FilterBox<T> extends StatelessWidget {
+  const _FilterBox({required this.label, required this.value, required this.items, required this.onChanged});
+
+  final String label;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: label,
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE5EEF6))),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              isExpanded: true,
+              value: value,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
+              style: const TextStyle(color: Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.w600),
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      );
+}
+
+/// Alterna entre tabla y cuadrícula.
+class _ViewToggle extends StatelessWidget {
+  const _ViewToggle({required this.view, required this.onChanged});
+
+  final EquipmentView view;
+  final ValueChanged<EquipmentView> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: const Color(0xFFEAF2FA), borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Expanded(child: _ViewOption(label: 'Tabla', icon: Icons.table_rows_rounded, selected: view == EquipmentView.table, onTap: () => onChanged(EquipmentView.table))),
+          Expanded(child: _ViewOption(label: 'Cuadrícula', icon: Icons.grid_view_rounded, selected: view == EquipmentView.grid, onTap: () => onChanged(EquipmentView.grid))),
+        ]),
+      );
+}
+
+class _ViewOption extends StatelessWidget {
+  const _ViewOption({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            height: 40,
+            decoration: BoxDecoration(
+              color: selected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+              boxShadow: selected ? const [BoxShadow(color: Color(0x140B1F3A), blurRadius: 6, offset: Offset(0, 2))] : null,
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 18, color: selected ? EquipmentColors.info.foreground : AppColors.slate),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? const Color(0xFF0B1F3A) : AppColors.slate, fontSize: 13, fontWeight: FontWeight.w700))),
+            ]),
+          ),
+        ),
+      );
+}
+
+/// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
+class _ListSection extends StatelessWidget {
+  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onPageSize, required this.onResetFilters});
+
+  final EquipmentView view;
+  final int pageSize;
+  final bool filtered;
+  final ValueChanged<int> onPageSize;
+  final VoidCallback onResetFilters;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<EquipmentListBloc, EquipmentListState>(
+        builder: (context, state) {
+          final bloc = context.read<EquipmentListBloc>();
+          if (state.status == EquipmentListStatus.loading) return const SizedBox(height: 320, child: SkeletonList());
+          if (state.status == EquipmentListStatus.failure) {
+            return SizedBox(height: 340, child: ErrorState(failure: state.failure!, onRetry: () => bloc.add(const EquipmentListRefreshed())));
+          }
+          if (state.items.isEmpty) {
+            return SizedBox(
+              height: 340,
+              child: EmptyState(
+                icon: Icons.devices_other_rounded,
+                title: filtered ? 'Ningún equipo coincide con los filtros' : 'Aún no hay equipos registrados',
+                message: filtered ? 'Prueba con otra búsqueda o muestra todo el catálogo.' : null,
+                actionLabel: filtered ? 'Ver todo el catálogo' : null,
+                onAction: filtered ? onResetFilters : null,
+              ),
+            );
+          }
+          void open(Equipment item) => showEquipmentDetails(context, item);
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (state.loadingPage) const Padding(padding: EdgeInsets.only(bottom: 6), child: LinearProgressIndicator(minHeight: 2)),
+            if (view == EquipmentView.table) EquipmentTable(items: state.items, onOpen: open) else EquipmentGrid(items: state.items, onOpen: open),
+            const SizedBox(height: 16),
+            EquipmentPagination(
+              page: state.page,
+              totalPages: state.totalPages,
+              total: state.total,
+              shown: state.items.length,
+              pageSize: pageSize,
+              onPage: (page) => bloc.add(EquipmentPageSelected(page)),
+              onPageSize: onPageSize,
+            ),
+            const SizedBox(height: 24),
+          ]);
+        },
+      );
 }
