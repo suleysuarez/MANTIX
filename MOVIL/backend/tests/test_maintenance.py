@@ -541,9 +541,7 @@ async def list_for(service, actor):
 
 @pytest.mark.asyncio
 async def test_list_items_carry_the_equipment_tag_brand_and_model():
-    service = service_with_fakes(
-        equipment={1: make_equipment(1), 2: make_equipment(2)}
-    )
+    service = service_with_fakes(equipment={1: make_equipment(1), 2: make_equipment(2)})
     supervisor = make_actor(1, role_codes=("SUPERVISOR",))
     await create_ticket(service, requester_id=100)
     result = await service.list_requests(
