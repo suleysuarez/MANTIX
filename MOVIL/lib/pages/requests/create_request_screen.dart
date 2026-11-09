@@ -18,19 +18,25 @@ const requestDescriptionMax = 2000;
 
 /// Formulario para reportar un problema con un equipo.
 class CreateRequestScreen extends StatelessWidget {
-  const CreateRequestScreen({super.key});
+  const CreateRequestScreen({super.key, this.title = 'Nueva solicitud', this.submitLabel = 'Enviar solicitud'});
+
+  final String title;
+  final String submitLabel;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreateRequestBloc(repository: context.read<RequestsRepository>()),
-      child: const _CreateRequestForm(),
+      child: _CreateRequestForm(title: title, submitLabel: submitLabel),
     );
   }
 }
 
 class _CreateRequestForm extends StatefulWidget {
-  const _CreateRequestForm();
+  const _CreateRequestForm({required this.title, required this.submitLabel});
+
+  final String title;
+  final String submitLabel;
 
   @override
   State<_CreateRequestForm> createState() => _CreateRequestFormState();
@@ -106,7 +112,7 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
     return BlocListener<CreateRequestBloc, CreateRequestState>(
       listener: _onResult,
       child: Scaffold(
-      appBar: AppBar(title: const Text('Nueva solicitud')),
+      appBar: AppBar(title: Text(widget.title)),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -182,7 +188,7 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
               onPressed: submitting ? null : _submit,
               child: submitting
                   ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Enviando'))
-                  : const Text('Enviar solicitud'),
+                  : Text(widget.submitLabel),
             ),
           ],
         ),

@@ -18,6 +18,7 @@ import '../../pages/equipment/equipment_screen.dart';
 import '../../pages/requests/create_request_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
 import '../../pages/requests/request_detail_screen.dart';
+import '../../pages/tickets/tickets_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import 'home_resolver.dart';
 import '../../models/auth/user_profile.dart';
@@ -56,6 +57,13 @@ String _activeTarget(UserProfile profile, String location) {
     AppRoutes.unavailable,
   };
   if (gate.contains(location)) return resolveHome(profile.permissions).path;
+  // La bandeja de tickets admite cualquiera de los alcances de lectura:
+  // propios, asignados o todos. El backend limita los registros devueltos.
+  const ticketReadPermissions = {'tickets:ver', 'tickets:ver_asignados', 'tickets:ver_todos'};
+  if (location == TicketRoutes.list &&
+      !profile.permissions.any(ticketReadPermissions.contains)) {
+    return resolveHome(profile.permissions).path;
+  }
   // Rutas que exigen un permiso: sin él se vuelve al inicio. Solo oculta la
   // pantalla; la autorización real es del backend.
   final required = _routePermissions[location];
@@ -65,6 +73,7 @@ String _activeTarget(UserProfile profile, String location) {
 
 const _routePermissions = {
   RequestRoutes.create: 'solicitudes:crear',
+  TicketRoutes.create: 'solicitudes:crear',
   EquipmentScreen.path: 'equipos:ver',
   CreateEquipmentScreen.path: 'equipos:crear',
 };
@@ -102,6 +111,8 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
       GoRoute(path: EquipmentScreen.path, builder: (_, _) => const EquipmentScreen()),
       GoRoute(path: CreateEquipmentScreen.path, builder: (_, _) => const CreateEquipmentScreen()),
+      GoRoute(path: TicketRoutes.list, builder: (_, _) => const TicketsScreen()),
+      GoRoute(path: TicketRoutes.create, builder: (_, _) => const CreateRequestScreen(title: 'Crear nuevo ticket', submitLabel: 'Guardar y registrar ticket')),
       GoRoute(path: '/modulos/:module', builder: (_, state) => ModulePlaceholderScreen(module: state.pathParameters['module'] ?? '')),
       // Solo en debug: no existe en las compilaciones de producción.
       if (kDebugMode) GoRoute(path: ComponentsGalleryScreen.path, builder: (_, _) => const ComponentsGalleryScreen()),
