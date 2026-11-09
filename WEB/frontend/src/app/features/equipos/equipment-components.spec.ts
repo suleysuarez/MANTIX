@@ -207,17 +207,13 @@ describe('EquipmentToolbarComponent', () => {
     expect(changes).toEqual([{ typeId: 1 }, { status: 'in_repair' }]);
   });
 
-  it('only offers the export menu with permission and emits the chosen format', () => {
+  it('keeps export controls out and reveals filters from a compact icon button', () => {
     expect(text(fixture)).not.toContain('Exportar');
-    fixture.componentRef.setInput('canExport', true);
-    fixture.detectChanges();
-    const formats: string[] = [];
-    fixture.componentInstance.exportRequested.subscribe((value) => formats.push(value));
+    expect((fixture.nativeElement as HTMLElement).querySelector('[aria-label="Filtros"]')).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('select').length).toBe(0);
 
-    click(fixture, '[aria-haspopup=menu]');
-    click(fixture, '[role=menuitem]', 1);
-
-    expect(formats).toEqual(['csv']);
+    click(fixture, '[aria-label="Filtros"]');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('select').length).toBe(3);
   });
 
   it('switches the view and resets the filters', () => {
@@ -227,6 +223,7 @@ describe('EquipmentToolbarComponent', () => {
     fixture.componentInstance.filtersReset.subscribe(() => resets++);
 
     click(fixture, '[role=group] button', 1);
+    click(fixture, '[aria-label="Filtros"]');
     click(fixture, '[aria-label="Restablecer filtros"]');
 
     expect(views).toEqual(['grid']);
