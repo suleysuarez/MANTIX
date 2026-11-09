@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/equipment/attachments_bloc.dart';
 import '../../bloc/equipment/create_equipment_bloc.dart';
 import '../../bloc/equipment/equipment_catalog_bloc.dart';
 import '../../core/errors/failure.dart';
@@ -12,6 +13,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/validation/validators.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
+import '../../services/device_services.dart';
+import '../../widgets/equipment/attachments_section.dart';
 import '../../widgets/equipment/custodian_picker.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
@@ -33,6 +36,14 @@ class CreateEquipmentScreen extends StatelessWidget {
         providers: [
           BlocProvider(create: (context) => CreateEquipmentBloc(repository: context.read<EquipmentRepository>())),
           BlocProvider(create: (context) => EquipmentCatalogBloc(repository: context.read<EquipmentRepository>())..add(const EquipmentCatalogStarted())),
+          BlocProvider(create: (context) {
+            final device = context.read<DeviceServices>();
+            final auth = context.read<AuthBloc>().state;
+            final bloc = AttachmentsBloc(repository: context.read<EquipmentRepository>(), images: device.imagePicker, files: device.filePicker);
+            // Si Android cerró la app mientras se tomaba una foto, se recupera al volver.
+            if (auth is Authenticated && auth.profile.can('equipos:adjuntar')) bloc.add(const LostPhotoRecoveryRequested());
+            return bloc;
+          }),
         ],
         child: const _CreateEquipmentForm(),
       );
@@ -61,6 +72,9 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
   DateTime? _purchase;
   DateTime? _warrantyStart;
   DateTime? _warrantyEnd;
+
+  /// Equipo ya registrado cuyos adjuntos se están subiendo (o fallaron); `null` mientras se rellena.
+  Equipment? _created;
 
   /// Errores del servidor (422) por campo; se borran al editar el campo.
   Map<String, String> _serverErrors = const {};
@@ -118,8 +132,17 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
   void _onResult(BuildContext context, CreateEquipmentState state) {
     final messenger = ScaffoldMessenger.of(context);
     if (state.status == CreateEquipmentStatus.success) {
-      context.pop();
-      messenger.showSnackBar(SnackBar(content: Text(['Equipo registrado.', ...state.warnings].join(' '))));
+      final created = state.created;
+      final attachments = context.read<AttachmentsBloc>();
+      if (created == null || attachments.state.drafts.isEmpty) {
+        context.pop();
+        messenger.showSnackBar(SnackBar(content: Text(['Equipo registrado.', ...state.warnings].join(' '))));
+        return;
+      }
+      // El equipo ya existe: se suben los adjuntos y la pantalla muestra el resultado de cada uno.
+      setState(() => _created = created);
+      if (state.warnings.isNotEmpty) messenger.showSnackBar(SnackBar(content: Text(state.warnings.join(' '))));
+      attachments.add(AttachmentsUploadRequested(created.id));
     } else if (state.status == CreateEquipmentStatus.failure) {
       final failure = state.failure!;
       if (failure is ValidationFailure) {
@@ -128,6 +151,18 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
       }
       messenger.showSnackBar(SnackBar(content: Text(failure.message)));
     }
+  }
+
+  void _onAttachments(BuildContext context, AttachmentsState state) {
+    final messenger = ScaffoldMessenger.of(context);
+    final notice = state.notice;
+    if (notice != null) messenger.showSnackBar(SnackBar(content: Text(notice.message)));
+  }
+
+  void _onUploadFinished(BuildContext context, AttachmentsState state) {
+    if (_created == null || !state.allDone) return;
+    context.pop();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Equipo registrado y ${state.drafts.length} ${state.drafts.length == 1 ? 'adjunto subido' : 'adjuntos subidos'}.')));
   }
 
   Future<void> _pickCustodian() async {
@@ -144,15 +179,36 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
     final catalog = context.watch<EquipmentCatalogBloc>().state;
     final canLocate = profile?.can('equipos:editar') ?? false;
     final canAssign = profile?.can('equipos:asignar') ?? false;
-    return BlocListener<CreateEquipmentBloc, CreateEquipmentState>(
-      listenWhen: (previous, current) => previous.status != current.status,
-      listener: _onResult,
+    final canAttach = profile?.can('equipos:adjuntar') ?? false;
+    final uploading = context.select((AttachmentsBloc bloc) => bloc.state.uploading);
+    final hasFailed = context.select((AttachmentsBloc bloc) => bloc.state.hasFailed);
+    final stage = _created == null ? _Stage.filling : (uploading ? _Stage.uploading : _Stage.finished);
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<CreateEquipmentBloc, CreateEquipmentState>(
+          listenWhen: (previous, current) => previous.status != current.status,
+          listener: _onResult,
+        ),
+        BlocListener<AttachmentsBloc, AttachmentsState>(listenWhen: (previous, current) => previous.notice != current.notice, listener: _onAttachments),
+        BlocListener<AttachmentsBloc, AttachmentsState>(listenWhen: (previous, current) => previous.uploading && !current.uploading, listener: _onUploadFinished),
+      ],
       child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: profile == null ? AppBar(title: const Text('Registrar nuevo equipo')) : MantixAppBar(profile: profile),
         drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: EquipmentScreen.path),
-        bottomNavigationBar: _ActionBar(submitting: submitting, onCancel: () => context.pop(), onSubmit: _submit),
-        body: Form(
+        bottomNavigationBar: stage == _Stage.filling
+            ? _ActionBar(submitting: submitting, onCancel: () => context.pop(), onSubmit: _submit)
+            : _ResultsBar(
+                uploading: stage == _Stage.uploading,
+                canRetry: hasFailed,
+                onRetry: () => context.read<AttachmentsBloc>().add(const AttachmentsRetryRequested()),
+                onClose: () => context.pop(),
+              ),
+        body: stage != _Stage.filling
+            ? ListView(padding: const EdgeInsets.all(16), children: const [
+                Card(child: Padding(padding: EdgeInsets.all(16), child: AttachmentResults())),
+              ])
+            : Form(
           key: _formKey,
           child: ListView(
             padding: const EdgeInsets.all(16),
@@ -384,6 +440,11 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
                       ),
                     ),
                   ]),
+                  if (canAttach) ...[
+                    const SizedBox(height: 22),
+                    _SectionTitle(number: (canLocate || canAssign ? 3 : 2) + 1, title: 'Adjuntos'),
+                    AttachmentsSection(enabled: !submitting),
+                  ],
                 ]),
               ),
               const SizedBox(height: 16),
@@ -566,6 +627,45 @@ class _DateField extends StatelessWidget {
                 : IconButton(tooltip: 'Quitar fecha', icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => onChanged(null)),
           ),
           child: Text(value == null ? 'Elegir fecha' : formatDate(value!), style: TextStyle(color: value == null ? AppColors.slate : const Color(0xFF0B1F3A), fontSize: value == null ? 13 : 14)),
+        ),
+      );
+}
+
+enum _Stage { filling, uploading, finished }
+
+/// Barra inferior tras registrar el equipo: «Reintentar fallidos» (si los hay) y «Cerrar».
+class _ResultsBar extends StatelessWidget {
+  const _ResultsBar({required this.uploading, required this.canRetry, required this.onRetry, required this.onClose});
+
+  final bool uploading;
+  final bool canRetry;
+  final VoidCallback onRetry;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Color(0x140B1F3A), blurRadius: 16, offset: Offset(0, -4))]),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Row(children: [
+              Expanded(child: OutlinedButton(key: const Key('results-close'), onPressed: uploading ? null : onClose, child: const Text('Cerrar'))),
+              if (canRetry) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    key: const Key('results-retry'),
+                    onPressed: uploading ? null : onRetry,
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0B1F3A), foregroundColor: Colors.white),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('REINTENTAR FALLIDOS'),
+                  ),
+                ),
+              ],
+            ]),
+          ),
         ),
       );
 }

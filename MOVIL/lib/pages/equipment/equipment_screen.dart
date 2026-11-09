@@ -6,13 +6,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/equipment/equipment_catalog_bloc.dart';
+import '../../bloc/equipment/equipment_export_bloc.dart';
 import '../../bloc/equipment/equipment_list_bloc.dart';
 import '../../bloc/equipment/equipment_summary_bloc.dart';
 import '../../core/format/equipment_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
+import '../../services/device_services.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
+import '../../widgets/equipment/export_button.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -50,6 +53,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   late final EquipmentRepository _repository;
   late final EquipmentSummaryBloc _summaryBloc;
   late final EquipmentCatalogBloc _catalogBloc;
+  late final EquipmentExportBloc _exportBloc;
   late EquipmentListBloc _listBloc;
 
   @override
@@ -58,6 +62,8 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _repository = context.read<EquipmentRepository>();
     _summaryBloc = EquipmentSummaryBloc(repository: _repository)..add(const EquipmentSummaryStarted());
     _catalogBloc = EquipmentCatalogBloc(repository: _repository)..add(const EquipmentCatalogStarted());
+    final device = context.read<DeviceServices>();
+    _exportBloc = EquipmentExportBloc(repository: _repository, share: device.share, tempFiles: device.tempFiles);
     _listBloc = _newListBloc();
   }
 
@@ -76,6 +82,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _searchFocus.dispose();
     unawaited(_summaryBloc.close());
     unawaited(_catalogBloc.close());
+    unawaited(_exportBloc.close());
     unawaited(_listBloc.close());
     super.dispose();
   }
@@ -149,8 +156,12 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
         BlocProvider.value(value: _summaryBloc),
         BlocProvider.value(value: _catalogBloc),
         BlocProvider.value(value: _listBloc),
+        BlocProvider.value(value: _exportBloc),
       ],
-      child: Scaffold(
+      child: BlocListener<EquipmentExportBloc, EquipmentExportState>(
+        listenWhen: (previous, current) => previous.status != current.status && (current.status == ExportStatus.empty || current.status == ExportStatus.failure),
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message ?? 'No pudimos exportar el inventario.'))),
+        child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: EquipmentScreen.path),
@@ -185,6 +196,10 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 onReset: _resetFilters,
               ),
               const SizedBox(height: 10),
+              if (profile.can('reportes:exportar')) ...[
+                Align(alignment: Alignment.centerRight, child: ExportButton(statuses: _statuses, typeId: _typeId)),
+                const SizedBox(height: 10),
+              ],
               _ViewToggle(view: _view, onChanged: (view) => setState(() => _view = view)),
               const SizedBox(height: 14),
               _ListSection(
@@ -196,6 +211,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

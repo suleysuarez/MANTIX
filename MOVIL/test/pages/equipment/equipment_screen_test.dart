@@ -8,9 +8,11 @@ import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/pages/equipment/equipment_screen.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
+import 'package:mantix/services/device_services.dart';
 import 'package:mantix/widgets/equipment/equipment_list_views.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
+import '../../support/device_fakes.dart';
 import '../../support/fakes.dart';
 import '../../support/header_support.dart';
 import '../../support/requests_support.dart';
@@ -58,13 +60,15 @@ void main() {
         });
   });
 
-  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1, Set<String> permissions = const {'equipos:ver', 'equipos:crear'}}) async {
+  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1, Set<String> permissions = const {'equipos:ver', 'equipos:crear'}, DeviceServices? device}) async {
     tester.view.physicalSize = const Size(390, 3600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     whenListen(authBloc, const Stream<AuthState>.empty(), initialState: Authenticated(testProfile(permissions: permissions)));
     await tester.pumpWidget(
-      RepositoryProvider<EquipmentRepository>.value(
+      RepositoryProvider<DeviceServices>.value(
+        value: device ?? fakeDevice(),
+        child: RepositoryProvider<EquipmentRepository>.value(
         value: EquipmentRepository(dioWith(adapter)),
         child: MultiBlocProvider(
           providers: [
@@ -79,6 +83,7 @@ void main() {
             ),
             home: const EquipmentScreen(),
           ),
+        ),
         ),
       ),
     );

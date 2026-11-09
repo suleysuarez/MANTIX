@@ -13,6 +13,7 @@ import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
 import '../repositories/notifications/notifications_repository.dart';
 import '../repositories/requests/requests_repository.dart';
+import '../services/device_services.dart';
 
 class MantixApp extends StatefulWidget {
   const MantixApp({
@@ -23,6 +24,7 @@ class MantixApp extends StatefulWidget {
     required this.dashboardRepository,
     required this.equipmentRepository,
     required this.notificationsRepository,
+    this.deviceServices,
   });
 
   final AuthBloc authBloc;
@@ -32,12 +34,16 @@ class MantixApp extends StatefulWidget {
   final EquipmentRepository equipmentRepository;
   final NotificationsRepository notificationsRepository;
 
+  /// Cámara, selectores, compartir y archivos temporales; las pruebas pasan simulacros.
+  final DeviceServices? deviceServices;
+
   @override
   State<MantixApp> createState() => _MantixAppState();
 }
 
 class _MantixAppState extends State<MantixApp> {
   late final GoRouterRefreshStream _refresh = GoRouterRefreshStream(widget.authBloc.stream);
+  late final DeviceServices _device = widget.deviceServices ?? DeviceServices();
   late final GoRouter _router = createAppRouter(authBloc: widget.authBloc, refresh: _refresh);
 
   @override
@@ -56,6 +62,7 @@ class _MantixAppState extends State<MantixApp> {
         RepositoryProvider.value(value: widget.dashboardRepository),
         RepositoryProvider.value(value: widget.equipmentRepository),
         RepositoryProvider.value(value: widget.notificationsRepository),
+        RepositoryProvider.value(value: _device),
       ],
       child: MultiBlocProvider(
         providers: [
