@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../bloc/auth/auth_bloc.dart';
+import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/home/mantix_app_bar.dart';
+import '../../widgets/home/mantix_drawer.dart';
 
 class ModulePlaceholderScreen extends StatelessWidget {
   const ModulePlaceholderScreen({super.key, required this.module});
@@ -22,13 +28,12 @@ class ModulePlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = _titles[module] ?? 'Módulo';
+    final auth = context.watch<AuthBloc>().state;
+    final profile = auth is Authenticated ? auth.profile : null;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F7FC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF071D35),
-        foregroundColor: Colors.white,
-        title: Text(title),
-      ),
+      appBar: profile == null ? AppBar(title: Text(title)) : MantixAppBar(profile: profile),
+      drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: '/modulos/$module'),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
@@ -50,11 +55,12 @@ class ModulePlaceholderScreen extends StatelessWidget {
                 style: TextStyle(color: AppColors.slate, fontSize: 13, height: 1.5),
               ),
               const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.arrow_back_rounded),
-                label: const Text('Volver'),
-              ),
+              if (profile != null)
+                FilledButton.icon(
+                  onPressed: () => context.go(resolveHome(profile.permissions).path),
+                  icon: const Icon(Icons.home_rounded),
+                  label: const Text('Ir al inicio'),
+                ),
             ],
           ),
         ),

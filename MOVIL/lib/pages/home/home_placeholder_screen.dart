@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
+import '../../widgets/home/mantix_app_bar.dart';
+import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/status_message.dart';
 import '../dev/components_gallery_screen.dart';
 
@@ -26,7 +28,9 @@ class HomePlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StatusMessage(
+    final auth = context.watch<AuthBloc>().state;
+    final profile = auth is Authenticated ? auth.profile : null;
+    final body = StatusMessage(
       icon: Icons.construction,
       title: titleOf(destination),
       message: 'Esta pantalla se construye en una fase posterior.',
@@ -42,6 +46,12 @@ class HomePlaceholderScreen extends StatelessWidget {
           child: const Text('Cerrar sesión'),
         ),
       ],
+    );
+    if (profile == null) return body;
+    return Scaffold(
+      appBar: MantixAppBar(profile: profile),
+      drawer: MantixDrawer(profile: profile, selectedPath: destination.path),
+      body: body,
     );
   }
 }

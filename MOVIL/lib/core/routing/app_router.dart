@@ -13,6 +13,8 @@ import '../../pages/home/home_placeholder_screen.dart';
 import '../../pages/home/dashboard_screen.dart';
 import '../../pages/home/module_placeholder_screen.dart';
 import '../../pages/profile/profile_screen.dart';
+import '../../pages/equipment/create_equipment_screen.dart';
+import '../../pages/equipment/equipment_screen.dart';
 import '../../pages/requests/create_request_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
 import '../../pages/requests/request_detail_screen.dart';
@@ -61,7 +63,11 @@ String _activeTarget(UserProfile profile, String location) {
   return location;
 }
 
-const _routePermissions = {RequestRoutes.create: 'solicitudes:crear'};
+const _routePermissions = {
+  RequestRoutes.create: 'solicitudes:crear',
+  EquipmentScreen.path: 'equipos:ver',
+  CreateEquipmentScreen.path: 'equipos:crear',
+};
 
 /// Hace que `go_router` reevalúe `redirect` cada vez que el [Stream] emite.
 /// Así el router solo reacciona al estado de sesión; no contiene lógica de negocio.
@@ -94,6 +100,8 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: HomeDestination.profile.path, builder: (_, _) => const ProfileScreen()),
       GoRoute(path: HomeDestination.globalDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.globalDashboard)),
       GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
+      GoRoute(path: EquipmentScreen.path, builder: (_, _) => const EquipmentScreen()),
+      GoRoute(path: CreateEquipmentScreen.path, builder: (_, _) => const CreateEquipmentScreen()),
       GoRoute(path: '/modulos/:module', builder: (_, state) => ModulePlaceholderScreen(module: state.pathParameters['module'] ?? '')),
       // Solo en debug: no existe en las compilaciones de producción.
       if (kDebugMode) GoRoute(path: ComponentsGalleryScreen.path, builder: (_, _) => const ComponentsGalleryScreen()),

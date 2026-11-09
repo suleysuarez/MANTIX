@@ -7,7 +7,9 @@ import 'bloc/auth/auth_bloc.dart';
 import 'core/config/app_config.dart';
 import 'services/api_client.dart';
 import 'repositories/auth/mobile_auth_repository.dart';
+import 'repositories/equipment/equipment_repository.dart';
 import 'repositories/home/dashboard_repository.dart';
+import 'repositories/notifications/notifications_repository.dart';
 import 'repositories/requests/requests_repository.dart';
 
 Future<void> main() async {
@@ -28,5 +30,7 @@ Future<void> main() async {
     requestsRepository: RequestsRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, auth),
     dashboardRepository: DashboardRepository(dio),
+    equipmentRepository: EquipmentRepository(dio),
+    notificationsRepository: NotificationsRepository(dio),
   ));
 }

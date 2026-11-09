@@ -225,6 +225,33 @@ Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 
 **Fuera de esta fase, por decidir:** subir y descargar adjuntos (necesita un selector de archivos como dependencia nueva y manejo de descargas), cancelar una solicitud y elegir categoría.
 
+## Gestión de equipos (pasos 1 a 3: consulta, alta, filtros y paginación)
+
+Pantalla `/modulos/equipos` (`pages/equipment/equipment_screen.dart`), solo con el permiso `equipos:ver` (lo exige el router y el menú). Sigue la web: título y descripción, cuatro tarjetas con los contadores por estado y el listado del catálogo.
+
+- **Tarjetas** (`GET /equipment/summary`): Total, Operativos (`assigned` + `in_storage`, con la tasa sobre el total), En mantenimiento (`in_repair`) y Crítico (`lost`, `retired`, `disposed`). Las agrupaciones son las de la web. Cada tarjeta es un botón que filtra el listado por sus estados (`status=a,b,c`); la tarjeta activa queda marcada.
+- **Listado** (`GET /equipment`, más recientes primero): en **tabla** (una fila por equipo: marca y modelo, descripción o «Serie: …», etiqueta, ubicación y estado) o en **cuadrícula** de dos columnas; tocar un equipo abre su ficha (solo lectura). Buscador por etiqueta, serie, marca o modelo (máximo 100 caracteres, con 400 ms de espera). Estados de carga, vacío (distinto con y sin filtros), error con reintento; el encabezado siempre es visible.
+- **Filtros:** las tarjetas, un desplegable de categoría (`equipment_type_id`) y otro de estado (`status`, uno solo; «Varios estados» cuando el filtro viene de una tarjeta). El botón «Limpiar filtros» quita búsqueda, categoría y estado. Cualquier filtro vuelve a la página 1.
+- **Paginación por páginas** (excepción a la regla general de «size=20 y scroll infinito», pedida para este módulo): «Mostrando 1 – 10 de 38 equipos», botones de página (primera, última y vecinas de la actual), anterior y siguiente, y tamaño de página de 10 (por defecto), 20 o 50. Los datos de la página se siguen viendo mientras llega la siguiente.
+- **Bloc:** `EquipmentListBloc` (por páginas; cambiar un filtro o el tamaño de página crea uno nuevo, moverse entre páginas es un evento), `EquipmentSummaryBloc` (contadores) y `EquipmentCatalogBloc` (categorías y ubicaciones, para el filtro y el formulario). La pantalla solo usa `BlocBuilder`.
+- **Widgets compartidos nuevos** (`widgets/home/`): `MantixAppBar` (la «M» a la izquierda y el avatar), `MantixDrawer` (menú por permisos, con la pantalla actual resaltada) y `BrandLogo`; el dashboard los usa también. `PagedListView` admite un `header` que se desplaza con la lista.
+- **Los decimales** de la tasa llevan coma («81,6% tasa»); la maqueta usaba punto.
+
+- **Registrar nuevo equipo** (solo con `equipos:crear`; la ruta `/modulos/equipos/nuevo` también lo exige). Panel con secciones numeradas: **1 Información general** (código de activo, categoría, marca y modelo obligatorios; serie y descripción opcionales), **2 Asignación y ubicación** (ubicación física con `GET /locations` y responsable buscado por nombre o correo con `GET /equipment/custodian-candidates`; cada campo solo se ofrece con `equipos:editar` y `equipos:asignar`) y **3 Estado y garantía** (estado obligatorio, «En almacén» por defecto, costo, fecha de adquisición y garantía). Valida en el cliente (costo sin negativos y con dos decimales como máximo, fecha de adquisición no futura, garantía coherente), muestra bajo cada campo los errores 422 y avisa con un mensaje específico si la etiqueta o la serie ya existen (409).
+- **Ubicación y responsable no van en el alta:** `POST /equipment` no los admite, así que se asignan después con `POST /equipment/{id}/location` y `POST /equipment/{id}/custody`. Si el equipo se registra pero una asignación falla, el alta cuenta como hecha y un aviso explica qué no se pudo asignar. Al terminar, el listado y los contadores se recargan solos (`EquipmentRepository.changes`).
+
+**Pendiente de este módulo** (sin hacer):
+- **Exportar** (`GET /reports/equipment?format=csv|xlsx|pdf`, permiso `reportes:exportar`) y **subir imágenes o fichas** como adjuntos del equipo (`POST /equipment/{id}/attachments`, permiso `equipos:adjuntar`; PDF, JPG, PNG o TXT, hasta 10 MB): necesitan paquetes que el proyecto no tiene (elegir archivos del teléfono, p. ej. `file_picker`, y compartir o guardar el archivo exportado, p. ej. `share_plus`). Pendiente de aprobar su incorporación.
+- Edición del equipo (`equipos:editar`), reasignar custodio y ubicación desde la ficha, y ver los adjuntos.
+
+## Notificaciones y encabezado de los módulos
+
+Todos los módulos con menú (dashboard, equipos, solicitudes, bandeja, reportes y los módulos aún sin construir) comparten `MantixAppBar` y `MantixDrawer`: la «M» a la izquierda, la campana de notificaciones, el avatar (abre el perfil) y el menú por permisos.
+
+- **Campana:** muestra un punto cuando hay notificaciones sin leer y abre un panel (`GET /notifications`) con título, mensaje y fecha. Tocar una sin leer la marca como leída (`POST /notifications/{id}/read`) y «Marcar todas como leídas» usa `POST /notifications/read-all`. Se actualiza al instante en pantalla y, si el servidor falla, se vuelve a pedir la bandeja.
+- **Bloc:** `NotificationsBloc` es global (vive en `MantixApp`): carga la bandeja al iniciar sesión, la vacía al cerrarla y se refresca al abrir el panel. Las «alertas» del dashboard («Atención inmediata») siguen en su sección y ya no se muestran en la campana.
+- **Sin actualización automática:** la bandeja se actualiza al iniciar sesión y al abrir el panel; no hay sondeo periódico ni notificaciones push.
+
 ## Contrato de la API que usa la app
 
 - Listados: array JSON plano; total en `X-Total-Count`, `X-Page`, `X-Page-Size`, `X-Total-Pages`. Parámetros `page`, `size` (máximo 500), `sort`, `search`. `/notifications` es la excepción (`limit`, `offset`, `{unread_count, items}`).

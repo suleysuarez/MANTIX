@@ -128,3 +128,13 @@ abstract final class AuthTokens {
   static const double logoClearance = 16;
   static const double cardRadius = 28;
 }
+
+
+/// Tonos del catálogo de equipos (los mismos cuatro que la web) más uno informativo.
+abstract final class EquipmentColors {
+  static const ChipColors ok = ChipColors(background: Color(0xFFECFDF5), foreground: Color(0xFF047857), dot: Color(0xFF10B981));
+  static const ChipColors warn = ChipColors(background: Color(0xFFFFFBEB), foreground: Color(0xFFB45309), dot: AppColors.mustard);
+  static const ChipColors bad = ChipColors(background: Color(0xFFFFF1F2), foreground: Color(0xFFBE123C), dot: Color(0xFFF43F5E));
+  static const ChipColors neutral = ChipColors(background: Color(0xFFF1F5F9), foreground: Color(0xFF475569), dot: Color(0xFF94A3B8));
+  static const ChipColors info = ChipColors(background: Color(0xFFF0F9FF), foreground: Color(0xFF0369A1), dot: Color(0xFF0EA5E9));
+}

@@ -7,7 +7,9 @@ import 'package:mantix/services/native_auth_provider.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/services/api_client.dart';
 import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
+import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/home/dashboard_repository.dart';
+import 'package:mantix/repositories/notifications/notifications_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'support/fakes.dart';
@@ -25,13 +27,15 @@ Map<String, Object?> me(List<String> roles, List<String> permissions) => {
     };
 
 /// Monta la app completa con el mismo cableado que `main`, pero con un servidor falso.
-Widget appWith({String? token = 'token-0', required Object body}) {
+Widget appWith({String? token = 'token-0', required Object body, void Function(FakeAdapter adapter)? onAdapter}) {
   final auth = FakeAuthProvider(token: token);
+  final adapter = FakeAdapter((_) => jsonResponse(200, body));
+  onAdapter?.call(adapter);
   late final AuthBloc authBloc;
   final dio = createApiClient(
     config: config,
     auth: auth,
-    adapter: FakeAdapter((_) => jsonResponse(200, body)),
+    adapter: adapter,
     onSessionExpired: () => authBloc.add(const AuthSessionExpired()),
   );
   authBloc = AuthBloc(auth: auth, repository: AuthRepository(dio))..add(const AuthStarted());
@@ -41,6 +45,8 @@ Widget appWith({String? token = 'token-0', required Object body}) {
     requestsRepository: RequestsRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
     dashboardRepository: DashboardRepository(dio),
+    equipmentRepository: EquipmentRepository(dio),
+    notificationsRepository: NotificationsRepository(dio),
   );
 }
 
@@ -99,5 +105,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bienvenido de nuevo'), findsOneWidget);
+  });
+  testWidgets('al iniciar sesión se cargan las notificaciones y sin sesión no se piden', (tester) async {
+    late FakeAdapter signedIn;
+    await tester.pumpWidget(appWith(body: me(['TECNICO'], ['tickets:ver_asignados']), onAdapter: (a) => signedIn = a));
+    await tester.pumpAndSettle();
+    expect(signedIn.requests.where((r) => r.path == '/notifications'), isNotEmpty);
+
+    late FakeAdapter signedOut;
+    await tester.pumpWidget(appWith(token: null, body: {}, onAdapter: (a) => signedOut = a));
+    await tester.pumpAndSettle();
+    expect(signedOut.requests.where((r) => r.path == '/notifications'), isEmpty);
   });
 }

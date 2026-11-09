@@ -133,4 +133,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 2'), findsOneWidget);
   });
+  testWidgets('trae el encabezado de los módulos con el título «Mis solicitudes»', (tester) async {
+    final adapter = FakeAdapter((_) => pagedResponse([]));
+    await pumpScreen(tester, const MyRequestsScreen(), adapter);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Notificaciones'), findsOneWidget);
+    expect(find.byTooltip('Perfil'), findsOneWidget);
+    expect(find.text('Mis solicitudes'), findsOneWidget);
+  });
 }

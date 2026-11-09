@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/permissions_cubit.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/format/ticket_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../bloc/paged/paged_bloc.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../widgets/home/mantix_app_bar.dart';
+import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/app_chip.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/paged_list_view.dart';
@@ -35,17 +38,11 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     final canCreate = context.select((PermissionsCubit cubit) => cubit.state.can('solicitudes:crear'));
+    final auth = context.watch<AuthBloc>().state;
+    final profile = auth is Authenticated ? auth.profile : null;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mis solicitudes'),
-        actions: [
-          IconButton(
-            tooltip: 'Perfil',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => context.push(HomeDestination.profile.path),
-          ),
-        ],
-      ),
+      appBar: profile == null ? AppBar(title: const Text('Mis solicitudes')) : MantixAppBar(profile: profile),
+      drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: HomeDestination.myRequests.path),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => context.push(RequestRoutes.create),
@@ -55,6 +52,11 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
           : null,
       body: Column(
         children: [
+          if (profile != null)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+              child: Align(alignment: Alignment.centerLeft, child: Text('Mis solicitudes', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 20, fontWeight: FontWeight.w800))),
+            ),
           _StatusFilter(selected: _status, onSelected: (value) => setState(() => _status = value)),
           Expanded(
             child: BlocProvider(
