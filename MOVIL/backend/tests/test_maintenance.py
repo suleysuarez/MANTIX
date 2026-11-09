@@ -540,6 +540,26 @@ async def list_for(service, actor):
 
 
 @pytest.mark.asyncio
+async def test_list_items_carry_the_equipment_tag_brand_and_model():
+    service = service_with_fakes(
+        equipment={1: make_equipment(1), 2: make_equipment(2)}
+    )
+    supervisor = make_actor(1, role_codes=("SUPERVISOR",))
+    await create_ticket(service, requester_id=100)
+    result = await service.list_requests(
+        status=None, priority=None, equipment_id=None, actor=supervisor
+    )
+    dumped = result.items[0].model_dump()
+    assert dumped["equipment_id"] == 1
+    assert dumped["equipment"] == {
+        "id": 1,
+        "asset_tag": "EQ-1",
+        "brand": "Acme",
+        "model": "X1",
+    }
+
+
+@pytest.mark.asyncio
 async def test_a_supervisor_may_work_every_card():
     service = service_with_fakes()
     first = await create_ticket(service, requester_id=100)

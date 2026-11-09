@@ -184,7 +184,10 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         date_to: datetime | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[MaintenanceRequest]:
-        query = select(MaintenanceRequest)
+        # One batched query for the page's equipment (never one per ticket).
+        query = select(MaintenanceRequest).options(
+            selectinload(MaintenanceRequest.equipment)
+        )
         clause = self._scope_clause(scope)
         if clause is not None:
             query = query.where(clause)
