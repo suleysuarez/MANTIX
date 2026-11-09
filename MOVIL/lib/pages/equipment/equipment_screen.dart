@@ -202,17 +202,20 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      builder: (sheetContext) => BlocProvider<EquipmentCatalogBloc>.value(
+        value: _catalogBloc,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Filtros', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.navy)),
           const SizedBox(height: 14),
           _FilterRow(typeId: _typeId, statusValue: _statusDropdownValue,
             onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
             onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
             onReset: () { _resetFilters(); Navigator.pop(sheetContext); }),
-          const SizedBox(height: 8),
-        ]),
+            const SizedBox(height: 8),
+          ]),
+        ),
       ),
     );
   }
