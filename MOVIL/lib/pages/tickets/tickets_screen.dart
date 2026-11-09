@@ -33,7 +33,6 @@ class TicketsScreen extends StatefulWidget {
 class _TicketsScreenState extends State<TicketsScreen> {
   final _searchController = TextEditingController();
   String? _status;
-  String? _kanbanStatus;
   String _search = '';
   DateTime? _dateFrom;
   DateTime? _dateTo;
@@ -158,26 +157,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       ),
                     ],
                   ),
-                  if (_kanban) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 42,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final lane in _lanes)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 7),
-                              child: ChoiceChip(
-                                label: Text(statusMeta(lane).label),
-                                selected: (_kanbanStatus ?? 'submitted') == lane,
-                                onSelected: (_) => setState(() => _kanbanStatus = lane),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   switch (state.status) {
                     PagedStatus.loading => const _TicketLoading(),
@@ -342,11 +321,11 @@ class _TicketKanbanBoard extends StatelessWidget {
   final Future<void> Function(TicketListItem, String) onMove;
 
   static const transitions = <String, Set<String>>{
-    'submitted': {'triaged', 'assigned', 'cancelled'},
-    'triaged': {'assigned', 'cancelled'},
-    'assigned': {'in_progress', 'cancelled'},
-    'in_progress': {'waiting', 'resolved', 'cancelled'},
-    'waiting': {'in_progress', 'cancelled'},
+    'submitted': {},
+    'triaged': {},
+    'assigned': {'in_progress'},
+    'in_progress': {'waiting'},
+    'waiting': {'in_progress'},
     'resolved': {'closed', 'in_progress'},
     'closed': {},
     'cancelled': {},
