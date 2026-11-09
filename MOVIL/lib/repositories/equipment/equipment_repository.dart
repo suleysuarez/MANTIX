@@ -27,13 +27,14 @@ class EquipmentRepository {
 
   /// [statuses] es el valor del filtro `status` (lista separada por comas, ver
   /// [EquipmentGroup.filter]); [search] busca por etiqueta, serie, marca o modelo.
-  Future<PagedResult<Equipment>> listEquipment({int page = 1, String? statuses, String? search}) => _guard(() async {
+  Future<PagedResult<Equipment>> listEquipment({int page = 1, int size = PageInfo.defaultPageSize, String? statuses, String? search, int? typeId}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/equipment', queryParameters: {
           'page': page,
-          'size': PageInfo.defaultPageSize,
+          'size': size,
           'sort': '-created_at',
           if (statuses != null && statuses.isNotEmpty) 'status': statuses,
+          'equipment_type_id': ?typeId,
           if (term != null && term.isNotEmpty) 'search': term,
         });
         final data = response.data;
@@ -61,5 +62,33 @@ class EquipmentRepository {
         final created = Equipment.fromJson(response.data!);
         _changes.add(null);
         return created;
+      });
+
+  Future<List<EquipmentLocation>> locations() => _guard(() async {
+        final response = await _dio.get<Object?>('/locations');
+        final data = response.data;
+        return [if (data is List) for (final item in data) EquipmentLocation.fromJson((item as Map).cast<String, Object?>())];
+      });
+
+  /// Usuarios activos cuyo nombre o correo contiene [search] (máximo 20; requiere `equipos:asignar`).
+  Future<List<CustodianCandidate>> custodianCandidates(String? search) => _guard(() async {
+        final term = search?.trim();
+        final response = await _dio.get<Object?>('/equipment/custodian-candidates', queryParameters: {
+          if (term != null && term.isNotEmpty) 'search': term,
+        });
+        final data = response.data;
+        return [if (data is List) for (final item in data) CustodianCandidate.fromJson((item as Map).cast<String, Object?>())];
+      });
+
+  /// Coloca el equipo en una ubicación (requiere `equipos:editar`).
+  Future<void> assignLocation(int equipmentId, int locationId) => _guard(() async {
+        await _dio.post<Object?>('/equipment/$equipmentId/location', data: {'location_id': locationId});
+        _changes.add(null);
+      });
+
+  /// Deja el equipo a cargo de un usuario (requiere `equipos:asignar`).
+  Future<void> assignCustody(int equipmentId, int userId) => _guard(() async {
+        await _dio.post<Object?>('/equipment/$equipmentId/custody', data: {'assigned_to_user_id': userId});
+        _changes.add(null);
       });
 }

@@ -116,4 +116,66 @@ void main() {
       );
     });
   });
+  group('listEquipment con página, tamaño y categoría', () {
+    test('envía el tamaño de página y la categoría', () async {
+      final adapter = FakeAdapter((_) => pagedResponse([]));
+      await EquipmentRepository(dioWith(adapter)).listEquipment(page: 3, size: 50, typeId: 2);
+
+      expect(adapter.requests.single.queryParameters, {'page': 3, 'size': 50, 'sort': '-created_at', 'equipment_type_id': 2});
+    });
+  });
+
+  group('locations y custodios', () {
+    test('locations lee las ubicaciones', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, [
+            {'id': 3, 'code': 'HQ', 'name': 'Sede central', 'kind': 'site', 'parent_id': null},
+          ]));
+      final locations = await EquipmentRepository(dioWith(adapter)).locations();
+
+      expect(adapter.requests.single.path, '/locations');
+      expect(locations.single.name, 'Sede central');
+    });
+
+    test('custodianCandidates busca por texto recortado y lee usuarios', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, [
+            {'id': 9, 'full_name': 'Ana Pérez', 'email': 'ana@example.com'},
+          ]));
+      final candidates = await EquipmentRepository(dioWith(adapter)).custodianCandidates('  ana ');
+
+      expect(adapter.requests.single.path, '/equipment/custodian-candidates');
+      expect(adapter.requests.single.queryParameters, {'search': 'ana'});
+      expect(candidates.single.fullName, 'Ana Pérez');
+    });
+
+    test('custodianCandidates sin texto no envía búsqueda', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, []));
+      await EquipmentRepository(dioWith(adapter)).custodianCandidates('  ');
+
+      expect(adapter.requests.single.queryParameters, isEmpty);
+    });
+
+    test('assignLocation y assignCustody hacen POST con su cuerpo y avisan del cambio', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, equipmentItemJson()));
+      final repository = EquipmentRepository(dioWith(adapter));
+      var changes = 0;
+      final subscription = repository.changes.listen((_) => changes++);
+      addTearDown(subscription.cancel);
+
+      await repository.assignLocation(7, 3);
+      await repository.assignCustody(7, 9);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(adapter.requests[0].path, '/equipment/7/location');
+      expect(adapter.requests[0].data, {'location_id': 3});
+      expect(adapter.requests[1].path, '/equipment/7/custody');
+      expect(adapter.requests[1].data, {'assigned_to_user_id': 9});
+      expect(changes, 2);
+    });
+
+    test('un 403 al asignar sale como ForbiddenFailure', () async {
+      final adapter = FakeAdapter((_) => errorResponse(403));
+
+      await expectLater(EquipmentRepository(dioWith(adapter)).assignCustody(7, 9), throwsA(isA<ForbiddenFailure>()));
+    });
+  });
 }

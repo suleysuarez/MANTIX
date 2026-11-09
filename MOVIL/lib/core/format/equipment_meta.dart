@@ -27,3 +27,6 @@ IconData equipmentCategoryIcon(String typeCode) => switch (typeCode.toUpperCase(
       'MOBILE_DEVICE' => Icons.smartphone_rounded,
       _ => Icons.devices_other_rounded,
     };
+
+/// Estados de un equipo, en el orden en que se ofrecen en los filtros y formularios.
+const List<String> knownEquipmentStatuses = ['in_storage', 'assigned', 'in_repair', 'lost', 'retired', 'disposed'];

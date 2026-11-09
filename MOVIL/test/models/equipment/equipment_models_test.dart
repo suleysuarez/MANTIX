@@ -9,7 +9,7 @@ Map<String, Object?> equipmentItemJson({Map<String, Object?>? overrides}) => {
       'equipment_type': {'id': 1, 'code': 'LAPTOP', 'name': 'Laptop'},
       'brand': 'Dell',
       'model': 'Latitude 5420',
-      'description': null,
+      'description': 'Equipo de demostración',
       'status': 'assigned',
       'created_at': '2026-10-01T10:00:00Z',
       'current_location': {'id': 3, 'code': 'HQ', 'name': 'Sede central'},
@@ -27,6 +27,7 @@ void main() {
       expect(item.assetTag, 'DEMO-007');
       expect(item.brand, 'Dell');
       expect(item.model, 'Latitude 5420');
+      expect(item.description, 'Equipo de demostración');
       expect(item.status, 'assigned');
       expect(item.typeCode, 'LAPTOP');
       expect(item.typeName, 'Laptop');
@@ -95,7 +96,7 @@ void main() {
     test('solo envía lo obligatorio cuando el resto está vacío', () {
       const equipment = NewEquipment(assetTag: 'EQ-029', typeId: 1, brand: 'Dell', model: 'Latitude', serialNumber: '', description: '', purchaseCost: '');
 
-      expect(equipment.toJson(), {'asset_tag': 'EQ-029', 'equipment_type_id': 1, 'brand': 'Dell', 'model': 'Latitude'});
+      expect(equipment.toJson(), {'asset_tag': 'EQ-029', 'equipment_type_id': 1, 'brand': 'Dell', 'model': 'Latitude', 'status': 'in_storage'});
     });
 
     test('envía los opcionales con fechas AAAA-MM-DD', () {
@@ -104,6 +105,7 @@ void main() {
         typeId: 1,
         brand: 'Dell',
         model: 'Latitude',
+        status: 'in_repair',
         serialNumber: 'SN-1',
         description: 'i7, 16 GB',
         purchaseDate: DateTime(2026, 1, 5),
@@ -117,6 +119,7 @@ void main() {
         'equipment_type_id': 1,
         'brand': 'Dell',
         'model': 'Latitude',
+        'status': 'in_repair',
         'serial_number': 'SN-1',
         'description': 'i7, 16 GB',
         'purchase_date': '2026-01-05',
@@ -125,5 +128,18 @@ void main() {
         'warranty_end_date': '2029-11-30',
       });
     });
+  });
+  test('la ubicación y el responsable no viajan en el alta', () {
+    const equipment = NewEquipment(assetTag: 'EQ-029', typeId: 1, brand: 'Dell', model: 'Latitude', locationId: 4, custodianId: 9);
+
+    expect(equipment.toJson().keys, isNot(contains('location_id')));
+    expect(equipment.toJson().keys, isNot(contains('assigned_to_user_id')));
+    expect(equipment.locationId, 4);
+    expect(equipment.custodianId, 9);
+  });
+
+  test('lee una ubicación y un posible responsable', () {
+    expect(EquipmentLocation.fromJson(const {'id': 3, 'code': 'HQ', 'name': 'Sede central', 'kind': 'site', 'parent_id': null}), const EquipmentLocation(id: 3, code: 'HQ', name: 'Sede central'));
+    expect(CustodianCandidate.fromJson(const {'id': 9, 'full_name': 'Ana Pérez', 'email': 'ana@example.com'}), const CustodianCandidate(id: 9, fullName: 'Ana Pérez', email: 'ana@example.com'));
   });
 }

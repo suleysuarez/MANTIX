@@ -29,6 +29,7 @@ class Equipment extends Equatable {
     required this.typeCode,
     required this.typeName,
     this.serialNumber,
+    this.description,
     this.locationName,
     this.custodianName,
     this.lastMaintenanceAt,
@@ -41,6 +42,7 @@ class Equipment extends Equatable {
       id: json['id']! as int,
       assetTag: json['asset_tag']! as String,
       serialNumber: json['serial_number'] as String?,
+      description: json['description'] as String?,
       brand: json['brand']! as String,
       model: json['model']! as String,
       status: json['status']! as String,
@@ -55,6 +57,7 @@ class Equipment extends Equatable {
   final int id;
   final String assetTag;
   final String? serialNumber;
+  final String? description;
   final String brand;
   final String model;
   final String status;
@@ -65,7 +68,7 @@ class Equipment extends Equatable {
   final DateTime? lastMaintenanceAt;
 
   @override
-  List<Object?> get props => [id, assetTag, serialNumber, brand, model, status, typeCode, typeName, locationName, custodianName, lastMaintenanceAt];
+  List<Object?> get props => [id, assetTag, serialNumber, description, brand, model, status, typeCode, typeName, locationName, custodianName, lastMaintenanceAt];
 }
 
 /// Contadores del catálogo por estado (`GET /equipment/summary`).
@@ -123,6 +126,9 @@ class NewEquipment extends Equatable {
     required this.typeId,
     required this.brand,
     required this.model,
+    this.status = 'in_storage',
+    this.locationId,
+    this.custodianId,
     this.serialNumber,
     this.description,
     this.purchaseDate,
@@ -135,6 +141,11 @@ class NewEquipment extends Equatable {
   final int typeId;
   final String brand;
   final String model;
+  final String status;
+
+  /// Ubicación y responsable: no van en el alta, se asignan después con sus propios endpoints.
+  final int? locationId;
+  final int? custodianId;
   final String? serialNumber;
   final String? description;
   final DateTime? purchaseDate;
@@ -150,6 +161,7 @@ class NewEquipment extends Equatable {
         'equipment_type_id': typeId,
         'brand': brand,
         'model': model,
+        'status': status,
         if (serialNumber != null && serialNumber!.isNotEmpty) 'serial_number': serialNumber,
         if (description != null && description!.isNotEmpty) 'description': description,
         if (purchaseDate != null) 'purchase_date': _isoDate(purchaseDate!),
@@ -159,5 +171,41 @@ class NewEquipment extends Equatable {
       };
 
   @override
-  List<Object?> get props => [assetTag, typeId, brand, model, serialNumber, description, purchaseDate, purchaseCost, warrantyStart, warrantyEnd];
+  List<Object?> get props => [assetTag, typeId, brand, model, status, locationId, custodianId, serialNumber, description, purchaseDate, purchaseCost, warrantyStart, warrantyEnd];
+}
+
+/// Ubicación física o área (`GET /locations`).
+class EquipmentLocation extends Equatable {
+  const EquipmentLocation({required this.id, required this.code, required this.name});
+
+  factory EquipmentLocation.fromJson(Map<String, Object?> json) => EquipmentLocation(
+        id: json['id']! as int,
+        code: (json['code'] as String?) ?? '',
+        name: json['name']! as String,
+      );
+
+  final int id;
+  final String code;
+  final String name;
+
+  @override
+  List<Object?> get props => [id, code, name];
+}
+
+/// Usuario que puede quedar como responsable de un equipo (`GET /equipment/custodian-candidates`).
+class CustodianCandidate extends Equatable {
+  const CustodianCandidate({required this.id, required this.fullName, required this.email});
+
+  factory CustodianCandidate.fromJson(Map<String, Object?> json) => CustodianCandidate(
+        id: json['id']! as int,
+        fullName: json['full_name']! as String,
+        email: (json['email'] as String?) ?? '',
+      );
+
+  final int id;
+  final String fullName;
+  final String email;
+
+  @override
+  List<Object?> get props => [id, fullName, email];
 }
