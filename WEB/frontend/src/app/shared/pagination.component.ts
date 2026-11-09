@@ -17,7 +17,7 @@ const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outli
   template: `
     @if (visible()) {
       <nav [attr.aria-label]="'Paginación de ' + noun()"
-        class="flex flex-col items-center justify-between gap-3 px-1 py-2 text-[12px] text-on-surface-variant sm:flex-row">
+        class="flex w-full flex-col items-center justify-center gap-3 px-1 py-2 text-[12px] text-on-surface-variant">
         <span role="status">
           @if (total() === null) {
             Página <strong class="text-on-surface">{{ page() }}</strong>
@@ -28,7 +28,7 @@ const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outli
             de <strong class="text-on-surface">{{ total() }}</strong>{{ filtered() ? ' con los filtros aplicados' : '' }}
           }
         </span>
-        <div class="flex items-center gap-1.5">
+        <div class="flex w-full items-center justify-center gap-1.5">
           @if (page() > 1) {
             <button type="button" (click)="go(page() - 1)" [disabled]="loading()" aria-label="Página anterior"
               [class]="focus + ' flex h-8 items-center gap-1 rounded-lg border border-brand-grey bg-transparent px-2.5 text-[12px] font-semibold !text-brand-accentDeep hover:bg-surface-container-high disabled:opacity-40'">
