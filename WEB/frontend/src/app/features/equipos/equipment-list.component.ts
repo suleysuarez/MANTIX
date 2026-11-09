@@ -108,7 +108,7 @@ const NO_ABILITIES: Abilities = {
             <app-equipment-grid [equipment]="state.items" [loading]="state.loading" [filtered]="isFiltered(state.filters)"
               [canManage]="abilities().manage" (view)="view($event)" (edit)="openEdit($event)" />
           }
-          <app-pagination centered noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
+          <app-pagination noun="equipos" [filtered]="isFiltered(state.filters)" [page]="state.page" [pageSize]="state.pageSize" [total]="state.total" [loading]="state.loading" (pageChange)="setPage($event)" />
         </section>
 
         <footer class="flex items-center justify-between !border-t !border-slate-200/80 pb-2 pt-4 text-[11px] text-slate-400">
