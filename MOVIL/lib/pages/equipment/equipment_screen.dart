@@ -42,7 +42,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   String _search = '';
   EquipmentView _view = EquipmentView.table;
   static const int _pageSize = 10;
-  bool _filtersOpen = false;
 
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
