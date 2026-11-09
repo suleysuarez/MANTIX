@@ -17,7 +17,7 @@ import '../../pages/equipment/create_equipment_screen.dart';
 import '../../pages/equipment/equipment_screen.dart';
 import '../../pages/requests/create_request_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
-import '../../pages/requests/request_detail_screen.dart';
+import '../../pages/requests/request_detail_screen.dart';\nimport '../../pages/tickets/tickets_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import 'home_resolver.dart';
 import '../../models/auth/user_profile.dart';
