@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/ticket_meta.dart';
-import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
@@ -195,7 +194,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                   ],
                   const SizedBox(height: 12),
                   switch (state.status) {
-                    PagedStatus.initial || PagedStatus.loading => const _TicketLoading(),
+                    PagedStatus.loading => const _TicketLoading(),
                     PagedStatus.failure => EmptyState(
                         icon: Icons.cloud_off_outlined,
                         title: 'No pudimos cargar los tickets',
