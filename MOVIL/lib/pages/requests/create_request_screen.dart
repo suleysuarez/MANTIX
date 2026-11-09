@@ -18,7 +18,10 @@ const requestDescriptionMax = 2000;
 
 /// Formulario para reportar un problema con un equipo.
 class CreateRequestScreen extends StatelessWidget {
-  const CreateRequestScreen({super.key});
+  const CreateRequestScreen({super.key, this.title = 'Nueva solicitud', this.submitLabel = 'Enviar solicitud'});
+
+  final String title;
+  final String submitLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +33,10 @@ class CreateRequestScreen extends StatelessWidget {
 }
 
 class _CreateRequestForm extends StatefulWidget {
-  const _CreateRequestForm();
+  const _CreateRequestForm({required this.title, required this.submitLabel});
+
+  final String title;
+  final String submitLabel;
 
   @override
   State<_CreateRequestForm> createState() => _CreateRequestFormState();
