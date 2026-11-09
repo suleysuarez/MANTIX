@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
+import 'date_range_dialog.dart';
 
 /// Hoja inferior de filtros: título, campos apilados con etiqueta y un pie con «Limpiar»
 /// y, si [onApply] existe, «Aplicar».
@@ -114,15 +115,7 @@ class DateRangeFilterField extends StatelessWidget {
   final ValueChanged<DateTimeRange?> onChanged;
 
   Future<void> _pick(BuildContext context) async {
-    final today = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(today.year, today.month, today.day),
-      initialDateRange: value,
-      helpText: label,
-      saveText: 'Aceptar',
-    );
+    final picked = await showDateRangeDialog(context, initial: value);
     if (picked != null) onChanged(picked);
   }
 
