@@ -70,4 +70,12 @@ void main() {
     // El detalle de una solicitud no exige ese permiso.
     expect(redirect(withoutPermission, '/solicitudes/5'), isNull);
   });
+  test('la gestión de equipos exige el permiso equipos:ver', () {
+    final withPermission = signedIn(profile(permissions: const {'equipos:ver', 'tickets:ver_asignados'}));
+    final withoutPermission = signedIn(profile(permissions: const {'tickets:ver_asignados'}));
+    expect(redirect(withPermission, '/modulos/equipos'), isNull);
+    expect(redirect(withoutPermission, '/modulos/equipos'), HomeDestination.assignedInbox.path);
+    // Los demás módulos siguen sin exigir un permiso propio en el router.
+    expect(redirect(withoutPermission, '/modulos/tickets'), isNull);
+  });
 }

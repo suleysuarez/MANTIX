@@ -7,6 +7,7 @@ import 'package:mantix/services/native_auth_provider.dart';
 import 'package:mantix/core/config/app_config.dart';
 import 'package:mantix/services/api_client.dart';
 import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
+import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/home/dashboard_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
@@ -41,6 +42,7 @@ Widget appWith({String? token = 'token-0', required Object body}) {
     requestsRepository: RequestsRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
     dashboardRepository: DashboardRepository(dio),
+    equipmentRepository: EquipmentRepository(dio),
   );
 }
 

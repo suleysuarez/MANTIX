@@ -8,6 +8,7 @@ import '../bloc/auth/permissions_cubit.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 import '../repositories/auth/mobile_auth_repository.dart';
+import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
 import '../repositories/requests/requests_repository.dart';
 
@@ -18,12 +19,14 @@ class MantixApp extends StatefulWidget {
     required this.requestsRepository,
     required this.mobileAuthRepository,
     required this.dashboardRepository,
+    required this.equipmentRepository,
   });
 
   final AuthBloc authBloc;
   final RequestsRepository requestsRepository;
   final MobileAuthRepository mobileAuthRepository;
   final DashboardRepository dashboardRepository;
+  final EquipmentRepository equipmentRepository;
 
   @override
   State<MantixApp> createState() => _MantixAppState();
@@ -47,6 +50,7 @@ class _MantixAppState extends State<MantixApp> {
         RepositoryProvider.value(value: widget.requestsRepository),
         RepositoryProvider.value(value: widget.mobileAuthRepository),
         RepositoryProvider.value(value: widget.dashboardRepository),
+        RepositoryProvider.value(value: widget.equipmentRepository),
       ],
       child: MultiBlocProvider(
         providers: [
