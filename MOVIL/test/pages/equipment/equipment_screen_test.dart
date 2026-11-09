@@ -165,9 +165,10 @@ void main() {
     expect(lastQuery()['status'], 'assigned,in_storage');
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
-    expect(find.text('Varios estados'), findsOneWidget);
+    // Aparece en el chip de filtro activo y en el desplegable de la hoja.
+    expect(find.text('Varios estados'), findsNWidgets(2));
     // El panel de filtros es un modal, no una ruta con botón de navegación.
-    Navigator.of(tester.element(find.text('Varios estados'))).pop();
+    Navigator.of(tester.element(find.text('Varios estados').last)).pop();
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ver equipos en mantenimiento'));
@@ -235,7 +236,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Limpiar filtros'));
+    await tester.tap(find.text('Limpiar'));
     await tester.pumpAndSettle();
 
     expect(lastQuery().keys, isNot(contains('status')));

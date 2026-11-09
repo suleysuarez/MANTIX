@@ -9,10 +9,12 @@ import '../../bloc/equipment/equipment_catalog_bloc.dart';
 import '../../bloc/equipment/equipment_list_bloc.dart';
 import '../../bloc/equipment/equipment_summary_bloc.dart';
 import '../../core/format/equipment_meta.dart';
+import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
+import '../../widgets/shared/filter_widgets.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -39,6 +41,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   /// Filtros elegidos: estado efímero de la pantalla. Cambiarlos crea un `EquipmentListBloc` nuevo.
   String? _statuses;
   int? _typeId;
+  DateTimeRange? _dates;
   String _search = '';
   EquipmentView _view = EquipmentView.table;
   static const int _pageSize = 10;
@@ -66,6 +69,8 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
         statuses: _statuses,
         search: _search,
         typeId: _typeId,
+        dateFrom: _dates?.start,
+        dateTo: _dates?.end,
         pageSize: _pageSize,
       )..add(const EquipmentListStarted());
 
@@ -113,6 +118,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
       _search = '';
       _typeId = null;
       _statuses = null;
+      _dates = null;
     });
   }
 
@@ -143,7 +149,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     if (profile == null) {
       return const StatusMessage(icon: Icons.devices_other_rounded, title: 'Equipos', message: 'No encontramos los datos de tu sesión.');
     }
-    final filtered = _statuses != null || _typeId != null || _search.isNotEmpty;
+    final filtered = _statuses != null || _typeId != null || _dates != null || _search.isNotEmpty;
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _summaryBloc),
@@ -180,6 +186,18 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 const SizedBox(width: 8),
                 Material(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(13), child: IconButton(tooltip: 'Filtros', onPressed: _showFilters, icon: Icon(Icons.filter_alt_rounded, color: EquipmentColors.info.foreground))),
               ]),
+              if (_typeId != null || _statuses != null || _dates != null) ...[
+                const SizedBox(height: 8),
+                _ActiveFilters(
+                  types: _catalogBloc.state.types,
+                  typeId: _typeId,
+                  statuses: _statuses,
+                  dates: _dates,
+                  onClearType: () => _applyFilters(() => _typeId = null),
+                  onClearStatus: () => _applyFilters(() => _statuses = null),
+                  onClearDates: () => _applyFilters(() => _dates = null),
+                ),
+              ],
               const SizedBox(height: 10),
               _ViewToggle(view: _view, onChanged: (view) => setState(() => _view = view)),
               const SizedBox(height: 14),
@@ -204,17 +222,15 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
       backgroundColor: Colors.white,
       builder: (sheetContext) => BlocProvider<EquipmentCatalogBloc>.value(
         value: _catalogBloc,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text('Filtros', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.navy)),
-          const SizedBox(height: 14),
-          _FilterRow(types: _catalogBloc.state.types, typeId: _typeId, statusValue: _statusDropdownValue,
-            onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
-            onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
-            onReset: () { _resetFilters(); Navigator.pop(sheetContext); }),
-            const SizedBox(height: 8),
-          ]),
+        child: _FilterForm(
+          types: _catalogBloc.state.types,
+          typeId: _typeId,
+          statusValue: _statusDropdownValue,
+          dates: _dates,
+          onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
+          onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
+          onDates: (range) { _applyFilters(() => _dates = range); Navigator.pop(sheetContext); },
+          onReset: () { _resetFilters(); Navigator.pop(sheetContext); },
         ),
       ),
     );
@@ -467,22 +483,26 @@ class _SearchField extends StatelessWidget {
   );
 }
 
-/// Categoría y estado como desplegables, y el botón que limpia todos los filtros.
-class _FilterRow extends StatelessWidget {
-  const _FilterRow({required this.types, required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
+/// Contenido de la hoja de filtros: categoría, estado y fecha de registro, uno bajo otro.
+class _FilterForm extends StatelessWidget {
+  const _FilterForm({required this.types, required this.typeId, required this.statusValue, required this.dates, required this.onType, required this.onStatus, required this.onDates, required this.onReset});
 
   final List<EquipmentType> types;
   final int? typeId;
   final String? statusValue;
+  final DateTimeRange? dates;
   final ValueChanged<int?> onType;
   final ValueChanged<String?> onStatus;
+  final ValueChanged<DateTimeRange?> onDates;
   final VoidCallback onReset;
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Expanded(
-          child: _FilterBox<int?>(
+  Widget build(BuildContext context) => FilterSheet(
+        onReset: onReset,
+        children: [
+          FilterDropdown<int?>(
             label: 'Categoría',
+            icon: Icons.category_outlined,
             value: types.any((type) => type.id == typeId) ? typeId : null,
             items: [
               const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
@@ -490,11 +510,9 @@ class _FilterRow extends StatelessWidget {
             ],
             onChanged: onType,
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _FilterBox<String?>(
+          FilterDropdown<String?>(
             label: 'Estado',
+            icon: Icons.flag_outlined,
             value: statusValue,
             items: [
               const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados', overflow: TextOverflow.ellipsis)),
@@ -505,39 +523,38 @@ class _FilterRow extends StatelessWidget {
               if (value != _multipleStatuses) onStatus(value);
             },
           ),
-        ),
-        const SizedBox(width: 4),
-        IconButton(tooltip: 'Limpiar filtros', onPressed: onReset, icon: const Icon(Icons.refresh_rounded), color: AppColors.slate),
-      ]);
+          DateRangeFilterField(label: 'Fecha de registro', value: dates, onChanged: onDates),
+        ],
+      );
 }
 
-class _FilterBox<T> extends StatelessWidget {
-  const _FilterBox({required this.label, required this.value, required this.items, required this.onChanged});
+/// Filtros aplicados, cada uno con su equis para quitarlo sin abrir la hoja.
+class _ActiveFilters extends StatelessWidget {
+  const _ActiveFilters({required this.types, required this.typeId, required this.statuses, required this.dates, required this.onClearType, required this.onClearStatus, required this.onClearDates});
 
-  final String label;
-  final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+  final List<EquipmentType> types;
+  final int? typeId;
+  final String? statuses;
+  final DateTimeRange? dates;
+  final VoidCallback onClearType;
+  final VoidCallback onClearStatus;
+  final VoidCallback onClearDates;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        label: label,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE5EEF6))),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
-              isExpanded: true,
-              value: value,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
-              style: const TextStyle(color: Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.w600),
-              items: items,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final typeName = types.where((type) => type.id == typeId).map((type) => type.name).firstOrNull ?? 'Categoría';
+    final statusLabel = statuses == null
+        ? null
+        : knownEquipmentStatuses.contains(statuses) ? equipmentStatusMeta(statuses!).label : 'Varios estados';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(spacing: 8, runSpacing: 4, children: [
+        if (typeId != null) ActiveFilterChip(label: typeName, onRemove: onClearType),
+        if (statusLabel != null) ActiveFilterChip(label: statusLabel, onRemove: onClearStatus),
+        if (dates != null) ActiveFilterChip(label: '${formatDate(dates!.start)} – ${formatDate(dates!.end)}', onRemove: onClearDates),
+      ]),
+    );
+  }
 }
 
 /// Alterna entre tabla y cuadrícula.

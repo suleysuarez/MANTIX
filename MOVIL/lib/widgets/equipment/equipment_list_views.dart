@@ -4,6 +4,8 @@ import '../../core/format/equipment_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
+export '../shared/page_number_bar.dart' show pageButtons;
+import '../shared/page_number_bar.dart';
 import '../shared/app_chip.dart';
 
 /// Cómo se muestra el listado de equipos.
@@ -200,18 +202,6 @@ class _GridTile extends StatelessWidget {
   }
 }
 
-/// Páginas que se muestran como botones: la primera, la última y las vecinas de la actual
-/// (`null` marca un hueco).
-List<int?> pageButtons(int page, int totalPages) {
-  final shown = <int>{1, totalPages, page - 1, page, page + 1}.where((p) => p >= 1 && p <= totalPages).toList()..sort();
-  final result = <int?>[];
-  for (var i = 0; i < shown.length; i++) {
-    if (i > 0 && shown[i] - shown[i - 1] > 1) result.add(null);
-    result.add(shown[i]);
-  }
-  return result;
-}
-
 /// «Mostrando 1 – 5 de 38 equipos», tamaño de página y botones de página.
 class EquipmentPagination extends StatelessWidget {
   const EquipmentPagination({
@@ -244,49 +234,9 @@ class EquipmentPagination extends StatelessWidget {
         child: Text('Mostrando $from – $to de $total equipos', style: const TextStyle(color: AppColors.slate, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
       const SizedBox(height: 10),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _PageButton(icon: Icons.chevron_left_rounded, tooltip: 'Página anterior', onTap: page > 1 ? () => onPage(page - 1) : null),
-          for (final number in pageButtons(page, totalPages))
-            if (number == null)
-              const SizedBox(width: 28, child: Center(child: Text('…', style: TextStyle(color: AppColors.slate))))
-            else
-              _PageButton(label: '$number', selected: number == page, tooltip: 'Página $number', onTap: number == page ? null : () => onPage(number)),
-          _PageButton(icon: Icons.chevron_right_rounded, tooltip: 'Página siguiente', onTap: page < totalPages ? () => onPage(page + 1) : null),
-        ]),
+      PageNumberBar(page: page, totalPages: totalPages, onPage: onPage, selectedColor: EquipmentColors.info.dot),
     ]);
   }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({this.label, this.icon, required this.tooltip, this.selected = false, this.onTap});
-
-  final String? label;
-  final IconData? icon;
-  final String tooltip;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Semantics(
-        button: true,
-        selected: selected,
-        child: InkResponse(
-          onTap: onTap,
-          radius: 22,
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: selected ? EquipmentColors.info.dot : Colors.transparent),
-            child: label != null
-                ? Text(label!, style: TextStyle(color: selected ? Colors.white : const Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.w800))
-                : Icon(icon, size: 22, color: onTap == null ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
-          ),
-        ),
-        ),
-      );
 }
 
 /// Ficha del equipo en una hoja inferior (solo lectura).

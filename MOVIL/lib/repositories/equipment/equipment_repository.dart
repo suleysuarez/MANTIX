@@ -28,7 +28,7 @@ class EquipmentRepository {
 
   /// [statuses] es el valor del filtro `status` (lista separada por comas, ver
   /// [EquipmentGroup.filter]); [search] busca por etiqueta, serie, marca o modelo.
-  Future<PagedResult<Equipment>> listEquipment({int page = 1, int size = PageInfo.defaultPageSize, String? statuses, String? search, int? typeId}) => _guard(() async {
+  Future<PagedResult<Equipment>> listEquipment({int page = 1, int size = PageInfo.defaultPageSize, String? statuses, String? search, int? typeId, DateTime? dateFrom, DateTime? dateTo}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/equipment', queryParameters: {
           'page': page,
@@ -37,6 +37,8 @@ class EquipmentRepository {
           if (statuses != null && statuses.isNotEmpty) 'status': statuses,
           'equipment_type_id': ?typeId,
           if (term != null && term.isNotEmpty) 'search': term,
+          if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
+          if (dateTo != null) 'date_to': dateTo.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)).toUtc().toIso8601String(),
         });
         final data = response.data;
         return PagedResult(
