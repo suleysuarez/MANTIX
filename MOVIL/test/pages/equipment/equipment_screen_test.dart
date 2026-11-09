@@ -166,7 +166,8 @@ void main() {
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
     expect(find.text('Varios estados'), findsOneWidget);
-    await tester.pageBack();
+    // El panel de filtros es un modal, no una ruta con botón de navegación.
+    Navigator.of(tester.element(find.text('Varios estados'))).pop();
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ver equipos en mantenimiento'));
