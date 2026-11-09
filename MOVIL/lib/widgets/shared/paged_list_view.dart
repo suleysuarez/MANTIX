@@ -14,6 +14,7 @@ class PagedListView<T> extends StatefulWidget {
     required this.onRefresh,
     required this.onLoadMore,
     required this.empty,
+    this.header,
   });
 
   final PagedListState<T> value;
@@ -23,6 +24,10 @@ class PagedListView<T> extends StatefulWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
   final Widget empty;
+
+  /// Contenido que se desplaza con la lista, encima del primer elemento. También se
+  /// muestra mientras carga, si falla o si no hay elementos.
+  final Widget? header;
 
   @override
   State<PagedListView<T>> createState() => _PagedListViewState<T>();
@@ -52,7 +57,9 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
   @override
   Widget build(BuildContext context) {
     final value = widget.value;
-    return AsyncView<PagedListState<T>>(
+    final header = widget.header;
+    final hasItems = value.status == PagedStatus.success && value.items.isNotEmpty;
+    final view = AsyncView<PagedListState<T>>(
       loaded: value.status == PagedStatus.success ? value : null,
       failure: value.failure,
       onRetry: widget.onRefresh,
@@ -64,13 +71,31 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
           controller: _controller,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppSpacing.lg),
-          itemCount: state.items.length + 1,
+          itemCount: state.items.length + 1 + (header == null ? 0 : 1),
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
           itemBuilder: (context, index) {
+            if (header != null) {
+              if (index == 0) return header;
+              index -= 1;
+            }
             if (index < state.items.length) return widget.itemBuilder(context, state.items[index]);
             return _Footer(state: state, onLoadMore: widget.onLoadMore);
           },
         ),
+      ),
+    );
+    if (header == null || hasItems) return view;
+    // Cargando, con error o sin elementos: el encabezado sigue visible y el estado va debajo.
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          header,
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: 380, child: view),
+        ],
       ),
     );
   }
