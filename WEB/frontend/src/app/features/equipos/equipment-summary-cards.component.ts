@@ -11,19 +11,19 @@ import { EquipmentSummary } from '../../core/equipment.service';
   selector: 'app-equipment-summary-cards',
   standalone: true,
   template: `
-    <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumen del catálogo">
+    <section class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumen del catálogo">
       <button type="button" (click)="filterChange.emit('')" [attr.aria-pressed]="active === 'all'"
-        class="group rounded-xl !border bg-white p-3 text-left shadow-[0_4px_20px_-2px_rgba(13,31,56,0.04)] transition-all hover:border-sky-300 hover:shadow-md"
+        class="group rounded-2xl !border bg-white p-5 text-left shadow-[0_4px_20px_-2px_rgba(13,31,56,0.04)] transition-all hover:border-sky-300 hover:shadow-md"
         [class]="active === 'all' ? '!border-sky-400 ring-2 ring-sky-100' : '!border-slate-200/90'">
-        <div class="mb-2 flex items-center justify-between">
-          <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-brand-accentDeep transition-transform group-hover:scale-105">
-            <span class="material-symbols-outlined text-[18px]">devices</span>
+        <div class="mb-3 flex items-center justify-between">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-brand-accentDeep transition-transform group-hover:scale-105">
+            <span class="material-symbols-outlined text-[22px]">devices</span>
           </span>
           <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Total</span>
         </div>
-        <div class="text-2xl font-extrabold tracking-tight text-slate-900">{{ summary ? summary.total : '–' }}</div>
+        <div class="text-3xl font-extrabold tracking-tight text-slate-900">{{ summary ? summary.total : '–' }}</div>
         <p class="mt-1 text-xs font-medium text-slate-500">Equipos registrados en inventario</p>
-        <div class="mt-2 flex items-center justify-between !border-t !border-slate-100 pt-2 text-[10px] font-semibold text-sky-600">
+        <div class="mt-3 flex items-center justify-between !border-t !border-slate-100 pt-3 text-[11px] font-semibold text-sky-600">
           <span>Ver todo el catálogo</span>
           <span class="material-symbols-outlined text-[14px] transition-transform group-hover:translate-x-1">arrow_forward</span>
         </div>
