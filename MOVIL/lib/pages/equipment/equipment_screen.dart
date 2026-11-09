@@ -189,7 +189,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 view: _view,
                 pageSize: _pageSize,
                 filtered: filtered,
-                onPageSize: (size) => _applyFilters(() => _pageSize = size),
                 onResetFilters: _resetFilters,
               ),
             ],
@@ -597,12 +596,11 @@ class _ViewOption extends StatelessWidget {
 
 /// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
 class _ListSection extends StatelessWidget {
-  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onPageSize, required this.onResetFilters});
+  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onResetFilters});
 
   final EquipmentView view;
   final int pageSize;
   final bool filtered;
-  final ValueChanged<int> onPageSize;
   final VoidCallback onResetFilters;
 
   @override
@@ -637,7 +635,6 @@ class _ListSection extends StatelessWidget {
               shown: state.items.length,
               pageSize: pageSize,
               onPage: (page) => bloc.add(EquipmentPageSelected(page)),
-              onPageSize: onPageSize,
             ),
             const SizedBox(height: 24),
           ]);
