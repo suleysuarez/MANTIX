@@ -225,7 +225,7 @@ Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 
 **Fuera de esta fase, por decidir:** subir y descargar adjuntos (necesita un selector de archivos como dependencia nueva y manejo de descargas), cancelar una solicitud y elegir categoría.
 
-## Gestión de equipos (paso 1: consulta)
+## Gestión de equipos (pasos 1 y 2: consulta y alta)
 
 Pantalla `/modulos/equipos` (`pages/equipment/equipment_screen.dart`), solo con el permiso `equipos:ver` (lo exige el router y el menú). Sigue la web: título y descripción, cuatro tarjetas con los contadores por estado y el listado del catálogo.
 
@@ -235,7 +235,17 @@ Pantalla `/modulos/equipos` (`pages/equipment/equipment_screen.dart`), solo con 
 - **Widgets compartidos nuevos** (`widgets/home/`): `MantixAppBar` (la «M» a la izquierda y el avatar), `MantixDrawer` (menú por permisos, con la pantalla actual resaltada) y `BrandLogo`; el dashboard los usa también. `PagedListView` admite un `header` que se desplaza con la lista.
 - **Los decimales** de la tasa llevan coma («81,6% tasa»); la maqueta usaba punto.
 
-**Pendiente de este módulo** (siguientes pasos, sin hacer): «Nuevo equipo» (`POST /equipment`, permiso `equipos:crear`), detalle y edición (`equipos:editar`), asignar custodio y ubicación (`equipos:asignar`), filtro por categoría y orden, adjuntos, exportar e importar.
+- **Nuevo equipo** (paso 2): el botón «Nuevo equipo» del encabezado (solo con `equipos:crear`; la ruta `/modulos/equipos/nuevo` también lo exige) abre un formulario con etiqueta, categoría (`GET /equipment/types`), marca y modelo obligatorios, y número de serie, descripción, costo, fecha de adquisición y garantía opcionales. Valida en el cliente (costo sin negativos y con dos decimales como máximo, fecha de adquisición no futura, garantía coherente), muestra bajo cada campo los errores 422 del servidor y avisa con un mensaje específico si la etiqueta o la serie ya existen (409). El equipo se registra en almacén y, al guardar, el listado y los contadores se recargan solos (`EquipmentRepository.changes`). `CreateEquipmentBloc` carga las categorías y envía el alta.
+
+**Pendiente de este módulo** (sin hacer): estado y ubicación al crear (hoy el servidor deja el equipo en almacén; después se asigna), detalle y edición (`equipos:editar`), asignar custodio y ubicación (`equipos:asignar`), filtro por categoría y orden, adjuntos, exportar e importar.
+
+## Notificaciones y encabezado de los módulos
+
+Todos los módulos con menú (dashboard, equipos, solicitudes, bandeja, reportes y los módulos aún sin construir) comparten `MantixAppBar` y `MantixDrawer`: la «M» a la izquierda, la campana de notificaciones, el avatar (abre el perfil) y el menú por permisos.
+
+- **Campana:** muestra un punto cuando hay notificaciones sin leer y abre un panel (`GET /notifications`) con título, mensaje y fecha. Tocar una sin leer la marca como leída (`POST /notifications/{id}/read`) y «Marcar todas como leídas» usa `POST /notifications/read-all`. Se actualiza al instante en pantalla y, si el servidor falla, se vuelve a pedir la bandeja.
+- **Bloc:** `NotificationsBloc` es global (vive en `MantixApp`): carga la bandeja al iniciar sesión, la vacía al cerrarla y se refresca al abrir el panel. Las «alertas» del dashboard («Atención inmediata») siguen en su sección y ya no se muestran en la campana.
+- **Sin actualización automática:** la bandeja se actualiza al iniciar sesión y al abrir el panel; no hay sondeo periódico ni notificaciones push.
 
 ## Contrato de la API que usa la app
 
