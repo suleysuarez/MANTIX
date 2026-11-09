@@ -33,18 +33,18 @@ export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
           class="w-full rounded-xl !border !border-slate-200 bg-slate-50/70 py-2.5 pl-10 pr-3 text-sm text-slate-700 transition-all placeholder:text-slate-400 focus:border-brand-accentDeep focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-accentDeep/20" />
       </div>
       <button type="button" (click)="filtersOpen.set(!filtersOpen())" [attr.aria-expanded]="filtersOpen()" aria-controls="equipment-filter-panel" aria-label="Filtros" title="Filtros"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accentDeep/20 bg-brand-accentDeep px-0 text-white shadow-sm transition-colors hover:bg-brand-accentDeepDeep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeepDeep">
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accentDeep/20 bg-brand-accentDeep px-0 text-white shadow-sm transition-colors hover:bg-brand-accentDeep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accentDeep">
         <span class="material-symbols-outlined text-[22px]" aria-hidden="true">filter_alt</span>
       </button>
       <div class="flex shrink-0 items-center rounded-xl !border !border-slate-200 bg-slate-100 p-1" role="group" aria-label="Tipo de vista">
         <button type="button" (click)="viewChange.emit('table')" [attr.aria-pressed]="view === 'table'" aria-label="Vista de tabla" title="Tabla"
           class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-          [class]="view === 'table' ? 'bg-white !text-brand-accentDeepDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
+          [class]="view === 'table' ? 'bg-white !text-brand-accentDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
           <span class="material-symbols-outlined text-[18px]">table_rows</span>
         </button>
         <button type="button" (click)="viewChange.emit('grid')" [attr.aria-pressed]="view === 'grid'" aria-label="Vista de cuadrícula" title="Cuadrícula"
           class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-          [class]="view === 'grid' ? 'bg-white !text-brand-accentDeepDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
+          [class]="view === 'grid' ? 'bg-white !text-brand-accentDeep shadow-sm' : 'bg-transparent !text-slate-500 hover:text-slate-800'">
           <span class="material-symbols-outlined text-[18px]">grid_view</span>
         </button>
       </div>
