@@ -57,6 +57,13 @@ String _activeTarget(UserProfile profile, String location) {
     AppRoutes.unavailable,
   };
   if (gate.contains(location)) return resolveHome(profile.permissions).path;
+  // La bandeja de tickets admite cualquiera de los alcances de lectura:
+  // propios, asignados o todos. El backend limita los registros devueltos.
+  const ticketReadPermissions = {'tickets:ver', 'tickets:ver_asignados', 'tickets:ver_todos'};
+  if (location == TicketRoutes.list &&
+      !profile.permissions.any(ticketReadPermissions.contains)) {
+    return resolveHome(profile.permissions).path;
+  }
   // Rutas que exigen un permiso: sin él se vuelve al inicio. Solo oculta la
   // pantalla; la autorización real es del backend.
   final required = _routePermissions[location];
@@ -66,7 +73,6 @@ String _activeTarget(UserProfile profile, String location) {
 
 const _routePermissions = {
   RequestRoutes.create: 'solicitudes:crear',
-  TicketRoutes.list: 'tickets:ver',
   TicketRoutes.create: 'solicitudes:crear',
   EquipmentScreen.path: 'equipos:ver',
   CreateEquipmentScreen.path: 'equipos:crear',
