@@ -282,67 +282,11 @@ void main() {
   });
 
   group('listado: exportar', () {
-    const exporter = {'equipos:ver', 'reportes:exportar'};
-
-    testWidgets('sin el permiso de exportar no aparece el botón', (tester) async {
-      await pump(tester, {'equipos:ver'}, start: EquipmentScreen.path);
+    testWidgets('el listado no muestra la acción de exportar, incluso con permiso', (tester) async {
+      await pump(tester, {'equipos:ver', 'reportes:exportar'}, start: EquipmentScreen.path);
 
       expect(find.byKey(const Key('export-button')), findsNothing);
-    });
-
-    testWidgets('con el permiso se elige el formato, se descarga, se comparte y se borra el temporal', (tester) async {
-      await pump(tester, exporter, start: EquipmentScreen.path);
-
-      await tester.tap(find.byKey(const Key('export-button')));
-      await tester.pumpAndSettle();
-      expect(find.text('Excel'), findsOneWidget);
-      expect(find.text('CSV'), findsOneWidget);
-      expect(find.text('PDF'), findsOneWidget);
-      expect(find.textContaining('la búsqueda por texto no se incluye'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('export-csv')));
-      await tester.pumpAndSettle();
-
-      expect(repository.downloads.single, (format: 'csv', statuses: null, typeId: null));
-      expect(share.shared.single.mimeType, 'text/csv');
-      expect(temp.deleted, temp.created);
-    });
-
-    testWidgets('si no hay equipos que exportar avisa y no comparte', (tester) async {
-      temp.size = 0;
-      await pump(tester, exporter, start: EquipmentScreen.path);
-
-      await tester.tap(find.byKey(const Key('export-button')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('export-xlsx')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No hay equipos para exportar con estos filtros.'), findsOneWidget);
-      expect(share.shared, isEmpty);
-    });
-
-    testWidgets('si el servidor responde 403 avisa que no tiene permiso', (tester) async {
-      repository.downloadFailure = const ForbiddenFailure();
-      await pump(tester, exporter, start: EquipmentScreen.path);
-
-      await tester.tap(find.byKey(const Key('export-button')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('export-pdf')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No tienes permiso para exportar el inventario.'), findsOneWidget);
-      expect(share.shared, isEmpty);
-    });
-
-    testWidgets('si falla la red avisa con el mensaje de conexión', (tester) async {
-      repository.downloadFailure = const NetworkFailure();
-      await pump(tester, exporter, start: EquipmentScreen.path);
-
-      await tester.tap(find.byKey(const Key('export-button')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('export-xlsx')));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('Revisa tu conexión'), findsOneWidget);
+      expect(find.text('Exportar'), findsNothing);
     });
   });
 }

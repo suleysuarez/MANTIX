@@ -6,16 +6,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/equipment/equipment_catalog_bloc.dart';
-import '../../bloc/equipment/equipment_export_bloc.dart';
 import '../../bloc/equipment/equipment_list_bloc.dart';
 import '../../bloc/equipment/equipment_summary_bloc.dart';
 import '../../core/format/equipment_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
-import '../../services/device_services.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
-import '../../widgets/equipment/export_button.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -44,7 +41,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   int? _typeId;
   String _search = '';
   EquipmentView _view = EquipmentView.table;
-  int _pageSize = 10;
+  static const int _pageSize = 10;
 
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
@@ -53,7 +50,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   late final EquipmentRepository _repository;
   late final EquipmentSummaryBloc _summaryBloc;
   late final EquipmentCatalogBloc _catalogBloc;
-  late final EquipmentExportBloc _exportBloc;
   late EquipmentListBloc _listBloc;
 
   @override
@@ -62,8 +58,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _repository = context.read<EquipmentRepository>();
     _summaryBloc = EquipmentSummaryBloc(repository: _repository)..add(const EquipmentSummaryStarted());
     _catalogBloc = EquipmentCatalogBloc(repository: _repository)..add(const EquipmentCatalogStarted());
-    final device = context.read<DeviceServices>();
-    _exportBloc = EquipmentExportBloc(repository: _repository, share: device.share, tempFiles: device.tempFiles);
     _listBloc = _newListBloc();
   }
 
@@ -82,7 +76,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _searchFocus.dispose();
     unawaited(_summaryBloc.close());
     unawaited(_catalogBloc.close());
-    unawaited(_exportBloc.close());
     unawaited(_listBloc.close());
     super.dispose();
   }
@@ -156,12 +149,8 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
         BlocProvider.value(value: _summaryBloc),
         BlocProvider.value(value: _catalogBloc),
         BlocProvider.value(value: _listBloc),
-        BlocProvider.value(value: _exportBloc),
       ],
-      child: BlocListener<EquipmentExportBloc, EquipmentExportState>(
-        listenWhen: (previous, current) => previous.status != current.status && (current.status == ExportStatus.empty || current.status == ExportStatus.failure),
-        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message ?? 'No pudimos exportar el inventario.'))),
-        child: Scaffold(
+      child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: EquipmentScreen.path),
@@ -176,8 +165,9 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 group: _activeGroup,
                 onGroupSelected: (group) => _applyFilters(() => _statuses = group.filter),
               ),
-              const SizedBox(height: 16),
-              _SearchField(
+              const SizedBox(height: 12),
+              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                Expanded(child: _SearchField(
                 controller: _searchController,
                 focusNode: _searchFocus,
                 onChanged: _onSearchChanged,
@@ -186,32 +176,45 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                   _applySearch(value);
                 },
                 onClear: _clearSearch,
-              ),
+              )),
+                const SizedBox(width: 8),
+                Material(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(13), child: IconButton(tooltip: 'Filtros', onPressed: _showFilters, icon: Icon(Icons.filter_alt_rounded, color: EquipmentColors.info.foreground))),
+              ]),
               const SizedBox(height: 10),
-              _FilterRow(
-                typeId: _typeId,
-                statusValue: _statusDropdownValue,
-                onType: (id) => _applyFilters(() => _typeId = id),
-                onStatus: (status) => _applyFilters(() => _statuses = status),
-                onReset: _resetFilters,
-              ),
-              const SizedBox(height: 10),
-              if (profile.can('reportes:exportar')) ...[
-                Align(alignment: Alignment.centerRight, child: ExportButton(statuses: _statuses, typeId: _typeId)),
-                const SizedBox(height: 10),
-              ],
               _ViewToggle(view: _view, onChanged: (view) => setState(() => _view = view)),
               const SizedBox(height: 14),
               _ListSection(
                 view: _view,
                 pageSize: _pageSize,
                 filtered: filtered,
-                onPageSize: (size) => _applyFilters(() => _pageSize = size),
                 onResetFilters: _resetFilters,
               ),
             ],
           ),
         ),
+        ),
+      );
+  }
+
+  Future<void> _showFilters() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) => BlocProvider<EquipmentCatalogBloc>.value(
+        value: _catalogBloc,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Filtros', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.navy)),
+          const SizedBox(height: 14),
+          _FilterRow(types: _catalogBloc.state.types, typeId: _typeId, statusValue: _statusDropdownValue,
+            onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
+            onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
+            onReset: () { _resetFilters(); Navigator.pop(sheetContext); }),
+            const SizedBox(height: 8),
+          ]),
         ),
       ),
     );
@@ -329,7 +332,7 @@ class _SummaryCards extends StatelessWidget {
         children: [
           GridView(
             // El alto crece con el tamaño de letra del sistema para que nada se corte.
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 146 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 126 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: cards,
@@ -384,7 +387,7 @@ class _SummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: selected ? colors.dot : const Color(0xFFE5EEF6), width: selected ? 1.6 : 1),
@@ -395,8 +398,8 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Row(children: [
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 26,
+                  height: 26,
                   decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(10)),
                   child: Icon(icon, color: colors.dot, size: 17),
                 ),
@@ -409,12 +412,12 @@ class _SummaryCard extends StatelessWidget {
                   ),
                 ),
               ]),
-              const SizedBox(height: 6),
-              Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 24, fontWeight: FontWeight.w900, height: 1.05)),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 21, fontWeight: FontWeight.w900, height: 1.05)),
               const SizedBox(height: 2),
               Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10, height: 1.2)),
               const Spacer(),
-              const Divider(height: 12, thickness: 1, color: Color(0xFFEEF3F8)),
+              const Divider(height: 8, thickness: 1, color: Color(0xFFEEF3F8)),
               Row(children: [
                 Expanded(child: Text(action, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: colors.foreground, fontSize: 10.5, fontWeight: FontWeight.w800))),
                 const SizedBox(width: 4),
@@ -466,8 +469,9 @@ class _SearchField extends StatelessWidget {
 
 /// Categoría y estado como desplegables, y el botón que limpia todos los filtros.
 class _FilterRow extends StatelessWidget {
-  const _FilterRow({required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
+  const _FilterRow({required this.types, required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
 
+  final List<EquipmentType> types;
   final int? typeId;
   final String? statusValue;
   final ValueChanged<int?> onType;
@@ -477,19 +481,14 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
         Expanded(
-          child: BlocBuilder<EquipmentCatalogBloc, EquipmentCatalogState>(
-            builder: (context, state) {
-              final known = state.types.any((type) => type.id == typeId);
-              return _FilterBox<int?>(
-                label: 'Categoría',
-                value: known ? typeId : null,
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
-                  for (final type in state.types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: onType,
-              );
-            },
+          child: _FilterBox<int?>(
+            label: 'Categoría',
+            value: types.any((type) => type.id == typeId) ? typeId : null,
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
+              for (final type in types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: onType,
           ),
         ),
         const SizedBox(width: 8),
@@ -594,12 +593,11 @@ class _ViewOption extends StatelessWidget {
 
 /// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
 class _ListSection extends StatelessWidget {
-  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onPageSize, required this.onResetFilters});
+  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onResetFilters});
 
   final EquipmentView view;
   final int pageSize;
   final bool filtered;
-  final ValueChanged<int> onPageSize;
   final VoidCallback onResetFilters;
 
   @override
@@ -634,7 +632,6 @@ class _ListSection extends StatelessWidget {
               shown: state.items.length,
               pageSize: pageSize,
               onPage: (page) => bloc.add(EquipmentPageSelected(page)),
-              onPageSize: onPageSize,
             ),
             const SizedBox(height: 24),
           ]);

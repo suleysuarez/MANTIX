@@ -163,7 +163,12 @@ void main() {
     await tester.tap(find.text('Filtrar operativos'));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'assigned,in_storage');
+    await tester.tap(find.byTooltip('Filtros'));
+    await tester.pumpAndSettle();
     expect(find.text('Varios estados'), findsOneWidget);
+    // El panel de filtros es un modal, no una ruta con botón de navegación.
+    Navigator.of(tester.element(find.text('Varios estados'))).pop();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ver equipos en mantenimiento'));
     await tester.pumpAndSettle();
@@ -181,6 +186,8 @@ void main() {
   testWidgets('el desplegable de estado filtra por un estado', (tester) async {
     await pumpScreen(tester);
 
+    await tester.tap(find.byTooltip('Filtros'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButton<String?>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('En mantenimiento').last);
@@ -192,6 +199,8 @@ void main() {
   testWidgets('el desplegable de categoría filtra por categoría', (tester) async {
     await pumpScreen(tester);
 
+    await tester.tap(find.byTooltip('Filtros'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButton<int?>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Impresora').last);
@@ -224,6 +233,8 @@ void main() {
     expect(lastQuery()['status'], 'assigned,in_storage');
     expect(lastQuery()['search'], 'dell');
 
+    await tester.tap(find.byTooltip('Filtros'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Limpiar filtros'));
     await tester.pumpAndSettle();
 
@@ -254,7 +265,7 @@ void main() {
       await pumpScreen(tester);
 
       expect(find.text('Mostrando 1 – 10 de 25 equipos'), findsOneWidget);
-      expect(find.text('10 por página'), findsOneWidget);
+      expect(find.textContaining('por página'), findsNothing);
       expect(find.byTooltip('Página anterior'), findsOneWidget);
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
     });
@@ -295,20 +306,17 @@ void main() {
       expect(listRequests(), hasLength(onLast));
     });
 
-    testWidgets('cambiar el tamaño de página vuelve a la página 1', (tester) async {
+    testWidgets('no muestra selector de tamaño y conserva diez equipos por página', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
+
+      expect(find.textContaining('por página'), findsNothing);
       await tester.tap(find.descendant(of: find.byType(EquipmentPagination), matching: find.text('2')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('10 por página'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('20 por página').last);
-      await tester.pumpAndSettle();
-
-      expect(lastQuery()['size'], 20);
-      expect(lastQuery()['page'], 1);
-      expect(find.text('Mostrando 1 – 20 de 25 equipos'), findsOneWidget);
+      expect(lastQuery()['size'], 10);
+      expect(lastQuery()['page'], 2);
+      expect(find.text('Mostrando 11 – 20 de 25 equipos'), findsOneWidget);
     });
 
     test('pageButtons muestra la primera, la última y las vecinas con huecos', () {
