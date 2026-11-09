@@ -70,7 +70,6 @@ class _EquipmentPickerScreenState extends State<EquipmentPickerScreen> {
                   value: state,
                   onRefresh: context.read<EquipmentSearchBloc>().refresh,
                   onLoadMore: () => context.read<EquipmentSearchBloc>().add(const PagedLoadMoreRequested()),
-                  onPage: (page) => context.read<EquipmentSearchBloc>().add(PagedPageSelected(page)),
                   empty: EmptyState(
                     icon: Icons.search_off,
                     title: 'No encontramos equipos',

@@ -32,11 +32,11 @@ class RequestsRepository {
   }
 
   /// Los tickets que el servidor deja ver a quien llama, acotados por sus permisos.
-  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search, DateTime? dateFrom, DateTime? dateTo}) => _guard(() async {
+  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search, DateTime? dateFrom, DateTime? dateTo, int size = PageInfo.defaultPageSize}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/maintenance/requests', queryParameters: {
           'page': page,
-          'size': PageInfo.defaultPageSize,
+          'size': size,
           'sort': '-created_at',
           'status': ?status,
           if (term != null && term.isNotEmpty) 'search': term,
@@ -72,11 +72,11 @@ class RequestsRepository {
       });
 
   /// Búsqueda parcial por etiqueta, serie, marca o modelo.
-  Future<PagedResult<EquipmentOption>> searchEquipment({String? search, int page = 1}) => _guard(() async {
+  Future<PagedResult<EquipmentOption>> searchEquipment({String? search, int page = 1, int size = PageInfo.defaultPageSize}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/equipment', queryParameters: {
           'page': page,
-          'size': PageInfo.defaultPageSize,
+          'size': size,
           if (term != null && term.isNotEmpty) 'search': term,
         });
         return PagedResult(

@@ -7,7 +7,7 @@ import '../../repositories/requests/requests_repository.dart';
 
 /// Bandeja de tickets para los perfiles que tienen permiso de consulta global o asignada.
 class TicketsBloc extends PagedBloc<TicketListItem> {
-  TicketsBloc({required RequestsRepository repository, this.status, this.search, this.dateFrom, this.dateTo}) : _repository = repository {
+  TicketsBloc({required RequestsRepository repository, this.status, this.search, this.dateFrom, this.dateTo, super.pageSize}) : _repository = repository {
     _changes = repository.changes.listen((_) => add(const PagedRefreshed()));
   }
 
@@ -20,7 +20,7 @@ class TicketsBloc extends PagedBloc<TicketListItem> {
 
   @override
   Future<PagedResult<TicketListItem>> fetch(int page) =>
-      _repository.listRequests(page: page, status: status, search: search, dateFrom: dateFrom, dateTo: dateTo);
+      _repository.listRequests(page: page, status: status, search: search, dateFrom: dateFrom, dateTo: dateTo, size: pageSize);
 
   @override
   Future<void> close() async {

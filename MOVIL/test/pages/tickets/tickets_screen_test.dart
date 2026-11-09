@@ -88,14 +88,35 @@ void main() {
     await pumpScreen(tester, const TicketsScreen(), adapter);
     await tester.pumpAndSettle();
 
-    expect(find.text('Mostrando 1 – 1 de 41 tickets'), findsOneWidget);
-    await tester.scrollUntilVisible(find.byTooltip('Página 3'), 300, scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.byTooltip('Página 3'));
+    expect(find.text('1-1 de 41'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byTooltip('Página siguiente'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byTooltip('Página siguiente'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
 
     expect(adapter.requests.last.queryParameters['page'], 3);
     expect(find.text('Ticket de la página 3'), findsWidgets);
     expect(find.text('Cargar más tickets'), findsNothing);
+  });
+
+  testWidgets('cambiar el tamaño de página pide size=10 desde la página 1', (tester) async {
+    final adapter = FakeAdapter((options) {
+      final page = options.queryParameters['page'] as int? ?? 1;
+      return pagedResponse([ticketJson(id: page)], page: page, totalPages: 3, total: 41);
+    });
+    await pumpScreen(tester, const TicketsScreen(), adapter);
+    await tester.pumpAndSettle();
+    expect(adapter.requests.last.queryParameters['size'], 20);
+
+    await tester.scrollUntilVisible(find.byType(DropdownButton<int>), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byType(DropdownButton<int>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10 por página').last);
+    await tester.pumpAndSettle();
+
+    expect(adapter.requests.last.queryParameters['size'], 10);
+    expect(adapter.requests.last.queryParameters['page'], 1);
   });
 
   testWidgets('muestra el botón de creación solo con permiso', (tester) async {

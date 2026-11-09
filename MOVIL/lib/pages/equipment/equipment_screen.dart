@@ -15,6 +15,7 @@ import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
 import '../../widgets/shared/filter_widgets.dart';
+import '../../widgets/shared/paginator.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -44,7 +45,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   DateTimeRange? _dates;
   String _search = '';
   EquipmentView _view = EquipmentView.table;
-  static const int _pageSize = 10;
+  int _pageSize = 10;
 
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
@@ -204,6 +205,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
               _ListSection(
                 view: _view,
                 pageSize: _pageSize,
+                onPageSize: (size) => _applyFilters(() => _pageSize = size),
                 filtered: filtered,
                 onResetFilters: _resetFilters,
               ),
@@ -610,10 +612,11 @@ class _ViewOption extends StatelessWidget {
 
 /// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
 class _ListSection extends StatelessWidget {
-  const _ListSection({required this.view, required this.pageSize, required this.filtered, required this.onResetFilters});
+  const _ListSection({required this.view, required this.pageSize, required this.onPageSize, required this.filtered, required this.onResetFilters});
 
   final EquipmentView view;
   final int pageSize;
+  final ValueChanged<int> onPageSize;
   final bool filtered;
   final VoidCallback onResetFilters;
 
@@ -642,13 +645,15 @@ class _ListSection extends StatelessWidget {
             if (state.loadingPage) const Padding(padding: EdgeInsets.only(bottom: 6), child: LinearProgressIndicator(minHeight: 2)),
             if (view == EquipmentView.table) EquipmentTable(items: state.items, onOpen: open) else EquipmentGrid(items: state.items, onOpen: open),
             const SizedBox(height: 16),
-            EquipmentPagination(
+            Paginator(
               page: state.page,
               totalPages: state.totalPages,
               total: state.total,
               shown: state.items.length,
               pageSize: pageSize,
+              loading: state.loadingPage,
               onPage: (page) => bloc.add(EquipmentPageSelected(page)),
+              onPageSize: onPageSize,
             ),
             const SizedBox(height: 24),
           ]);

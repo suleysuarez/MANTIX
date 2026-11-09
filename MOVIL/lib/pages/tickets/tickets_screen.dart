@@ -15,7 +15,7 @@ import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/filter_widgets.dart';
-import '../../widgets/shared/page_number_bar.dart';
+import '../../widgets/shared/paginator.dart';
 import '../../widgets/tickets/ticket_cards.dart';
 import '../../widgets/tickets/ticket_kanban.dart';
 import '../../widgets/tickets/ticket_summary.dart';
@@ -43,6 +43,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
   String _search = '';
   DateTimeRange? _dates;
   bool _kanban = false;
+  int _pageSize = 20;
   int _kanbanPage = 0;
 
   static const _filters = <(String, String?)>[
@@ -120,13 +121,14 @@ class _TicketsScreenState extends State<TicketsScreen> {
     final theme = Theme.of(context);
 
     return BlocProvider(
-      key: ValueKey('$_status|$_search|$_dates'),
+      key: ValueKey('$_status|$_search|$_dates|$_pageSize'),
       create: (context) => TicketsBloc(
         repository: context.read<RequestsRepository>(),
         status: _status,
         search: _search,
         dateFrom: _dates?.start,
         dateTo: _dates?.end,
+        pageSize: _pageSize,
       )..add(const PagedStarted()),
       child: Builder(
         builder: (context) => Scaffold(
@@ -235,6 +237,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                           loadingPage: state.loadingMore,
                           pageFailure: state.loadMoreFailure?.message,
                           onOpen: (item) => context.push(RequestRoutes.detail(item.id)),
+                          onPageSize: (size) => setState(() => _pageSize = size),
                           onPage: (page) {
                             context.read<TicketsBloc>().add(PagedPageSelected(page));
                             _kanbanPage = 0;
@@ -330,6 +333,7 @@ class _TicketResults extends StatelessWidget {
     required this.pageFailure,
     required this.onOpen,
     required this.onPage,
+    required this.onPageSize,
   });
 
   final List<TicketListItem> items;
@@ -343,6 +347,7 @@ class _TicketResults extends StatelessWidget {
   final String? pageFailure;
   final ValueChanged<TicketListItem> onOpen;
   final ValueChanged<int> onPage;
+  final ValueChanged<int> onPageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -366,9 +371,7 @@ class _TicketResults extends StatelessWidget {
           Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         if (info != null) ...[
           const SizedBox(height: 8),
-          Text('Mostrando ${(info!.page - 1) * info!.pageSize + 1} – ${(info!.page - 1) * info!.pageSize + items.length} de ${info!.total} tickets', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AppColors.slate)),
-          const SizedBox(height: 8),
-          PageNumberBar(page: info!.page, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage),
+          Paginator(page: info!.page, pageSize: info!.pageSize, shown: items.length, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
         ],
       ],
     );

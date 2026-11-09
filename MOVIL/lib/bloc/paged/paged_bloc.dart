@@ -16,12 +16,15 @@ typedef PageFetcher<T> = Future<PagedResult<T>> Function(int page);
 /// Base de un listado paginado. Los eventos y el estado son comunes; cada listado
 /// concreto (por ejemplo «mis solicitudes») solo aporta cómo pedir una página.
 abstract class PagedBloc<T> extends Bloc<PagedEvent, PagedListState<T>> {
-  PagedBloc() : super(PagedListState<T>()) {
+  PagedBloc({this.pageSize = PageInfo.defaultPageSize}) : super(PagedListState<T>()) {
     on<PagedStarted>(_onRefresh);
     on<PagedRefreshed>(_onRefresh);
     on<PagedLoadMoreRequested>(_onLoadMore);
     on<PagedPageSelected>(_onPageSelected);
   }
+
+  /// Elementos por página que pide [fetch]. Cambiarlo es crear un Bloc nuevo (vuelve a la página 1).
+  final int pageSize;
 
   Future<PagedResult<T>> fetch(int page);
 

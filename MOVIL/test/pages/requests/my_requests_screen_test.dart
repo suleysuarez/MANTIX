@@ -106,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 1'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Página 2'));
+    await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 1'), findsNothing);
     expect(find.text('Solicitud de la página 2'), findsOneWidget);
@@ -123,12 +123,12 @@ void main() {
     await pumpScreen(tester, const MyRequestsScreen(), adapter);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Página 2'));
+    await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 1'), findsOneWidget);
 
     failSecond = false;
-    await tester.tap(find.byTooltip('Página 2'));
+    await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 2'), findsOneWidget);
   });

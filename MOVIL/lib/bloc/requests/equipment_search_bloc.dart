@@ -5,11 +5,11 @@ import '../../repositories/requests/requests_repository.dart';
 
 /// Resultados del selector de equipo; [search] es el texto buscado.
 class EquipmentSearchBloc extends PagedBloc<EquipmentOption> {
-  EquipmentSearchBloc({required this._repository, this.search = ''});
+  EquipmentSearchBloc({required this._repository, this.search = '', super.pageSize});
 
   final RequestsRepository _repository;
   final String search;
 
   @override
-  Future<PagedResult<EquipmentOption>> fetch(int page) => _repository.searchEquipment(search: search, page: page);
+  Future<PagedResult<EquipmentOption>> fetch(int page) => _repository.searchEquipment(search: search, page: page, size: pageSize);
 }

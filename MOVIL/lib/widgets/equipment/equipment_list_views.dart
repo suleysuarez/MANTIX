@@ -4,8 +4,6 @@ import '../../core/format/equipment_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
-export '../shared/page_number_bar.dart' show pageButtons;
-import '../shared/page_number_bar.dart';
 import '../shared/app_chip.dart';
 
 /// Cómo se muestra el listado de equipos.
@@ -199,43 +197,6 @@ class _GridTile extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// «Mostrando 1 – 5 de 38 equipos», tamaño de página y botones de página.
-class EquipmentPagination extends StatelessWidget {
-  const EquipmentPagination({
-    super.key,
-    required this.page,
-    required this.totalPages,
-    required this.total,
-    required this.shown,
-    required this.pageSize,
-    required this.onPage,
-    
-  });
-
-  final int page;
-  final int totalPages;
-  final int total;
-
-  /// Equipos en la página actual.
-  final int shown;
-  final int pageSize;
-  final ValueChanged<int> onPage;
-
-  @override
-  Widget build(BuildContext context) {
-    final from = total == 0 ? 0 : (page - 1) * pageSize + 1;
-    final to = total == 0 ? 0 : from + shown - 1;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text('Mostrando $from – $to de $total equipos', style: const TextStyle(color: AppColors.slate, fontSize: 12, fontWeight: FontWeight.w600)),
-      ),
-      const SizedBox(height: 10),
-      PageNumberBar(page: page, totalPages: totalPages, onPage: onPage, selectedColor: EquipmentColors.info.dot),
-    ]);
   }
 }
 

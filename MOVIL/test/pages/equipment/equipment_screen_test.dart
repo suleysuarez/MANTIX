@@ -213,7 +213,7 @@ void main() {
   testWidgets('filtrar vuelve a la página 1 y no vuelve a pedir los contadores', (tester) async {
     listHandler = (options) => pagedByQuery(options);
     await pumpScreen(tester);
-    await tester.tap(find.descendant(of: find.byType(EquipmentPagination), matching: find.text('2')));
+    await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
     expect(lastQuery()['page'], 2);
 
@@ -265,9 +265,9 @@ void main() {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
-      expect(find.text('Mostrando 1 – 10 de 25 equipos'), findsOneWidget);
-      expect(find.textContaining('por página'), findsNothing);
-      expect(find.byTooltip('Página anterior'), findsOneWidget);
+      expect(find.text('1-10 de 25'), findsOneWidget);
+      expect(find.byType(DropdownButton<int>), findsOneWidget);
+      expect(find.byTooltip('Página anterior'), findsNothing, reason: 'en la página 1 no hay «anterior»');
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
     });
 
@@ -275,57 +275,50 @@ void main() {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
-      await tester.tap(find.descendant(of: find.byType(EquipmentPagination), matching: find.text('2')));
+      await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
 
       expect(lastQuery()['page'], 2);
-      expect(find.text('Mostrando 11 – 20 de 25 equipos'), findsOneWidget);
+      expect(find.text('11-20 de 25'), findsOneWidget);
       expect(find.text('EQ-11'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
       expect(lastQuery()['page'], 3);
-      expect(find.text('Mostrando 21 – 25 de 25 equipos'), findsOneWidget);
+      expect(find.text('21-25 de 25'), findsOneWidget);
     });
 
-    testWidgets('en la primera página no se puede retroceder y en la última no se puede avanzar', (tester) async {
+    testWidgets('en la primera página no hay «anterior» y en la última no hay «siguiente»', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
-      final requests = listRequests().length;
-
-      await tester.tap(find.byTooltip('Página anterior'));
-      await tester.pumpAndSettle();
-      expect(listRequests(), hasLength(requests));
+      expect(find.byTooltip('Página anterior'), findsNothing);
 
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
+      expect(find.byTooltip('Página anterior'), findsOneWidget);
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
-      final onLast = listRequests().length;
-      await tester.tap(find.byTooltip('Página siguiente'));
-      await tester.pumpAndSettle();
-      expect(listRequests(), hasLength(onLast));
+      expect(find.text('21-25 de 25'), findsOneWidget);
+      expect(find.byTooltip('Página siguiente'), findsNothing, reason: 'en la última no hay «siguiente»');
     });
 
-    testWidgets('no muestra selector de tamaño y conserva diez equipos por página', (tester) async {
+    testWidgets('conserva diez equipos por página y el selector vuelve a la página 1 con el tamaño nuevo', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
-      expect(find.textContaining('por página'), findsNothing);
-      await tester.tap(find.descendant(of: find.byType(EquipmentPagination), matching: find.text('2')));
+      await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
 
       expect(lastQuery()['size'], 10);
       expect(lastQuery()['page'], 2);
-      expect(find.text('Mostrando 11 – 20 de 25 equipos'), findsOneWidget);
-    });
+      expect(find.text('11-20 de 25'), findsOneWidget);
 
-    test('pageButtons muestra la primera, la última y las vecinas con huecos', () {
-      expect(pageButtons(1, 3), [1, 2, 3]);
-      expect(pageButtons(1, 10), [1, 2, null, 10]);
-      expect(pageButtons(5, 10), [1, null, 4, 5, 6, null, 10]);
-      expect(pageButtons(10, 10), [1, null, 9, 10]);
-      expect(pageButtons(1, 1), [1]);
+      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('5 por página').last);
+      await tester.pumpAndSettle();
+      expect(lastQuery()['size'], 5);
+      expect(lastQuery()['page'], 1);
     });
   });
 

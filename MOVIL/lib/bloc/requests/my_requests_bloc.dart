@@ -8,7 +8,7 @@ import '../../repositories/requests/requests_repository.dart';
 /// Mis solicitudes; [status] es el filtro de estado (`null`: todas). Se recarga
 /// sola cuando el repositorio avisa de que se creó una solicitud.
 class MyRequestsBloc extends PagedBloc<TicketListItem> {
-  MyRequestsBloc({required RequestsRepository repository, this.status}) : _repository = repository {
+  MyRequestsBloc({required RequestsRepository repository, this.status, super.pageSize}) : _repository = repository {
     _changes = repository.changes.listen((_) => add(const PagedRefreshed()));
   }
 
@@ -17,7 +17,7 @@ class MyRequestsBloc extends PagedBloc<TicketListItem> {
   late final StreamSubscription<void> _changes;
 
   @override
-  Future<PagedResult<TicketListItem>> fetch(int page) => _repository.listRequests(page: page, status: status);
+  Future<PagedResult<TicketListItem>> fetch(int page) => _repository.listRequests(page: page, status: status, size: pageSize);
 
   @override
   Future<void> close() async {

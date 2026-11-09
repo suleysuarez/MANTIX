@@ -34,6 +34,7 @@ class MyRequestsScreen extends StatefulWidget {
 class _MyRequestsScreenState extends State<MyRequestsScreen> {
   /// Filtro elegido: estado efímero de la pantalla. Cambiarlo crea un `MyRequestsBloc` nuevo.
   String? _status;
+  int _pageSize = 20;
 
   @override
   Widget build(BuildContext context) {
@@ -60,15 +61,16 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
           _StatusFilter(selected: _status, onSelected: (value) => setState(() => _status = value)),
           Expanded(
             child: BlocProvider(
-              key: ValueKey(_status),
+              key: ValueKey('$_status|$_pageSize'),
               create: (context) =>
-                  MyRequestsBloc(repository: context.read<RequestsRepository>(), status: _status)..add(const PagedStarted()),
+                  MyRequestsBloc(repository: context.read<RequestsRepository>(), status: _status, pageSize: _pageSize)..add(const PagedStarted()),
               child: BlocBuilder<MyRequestsBloc, PagedListState<TicketListItem>>(
                 builder: (context, state) => PagedListView<TicketListItem>(
                   value: state,
                   onRefresh: context.read<MyRequestsBloc>().refresh,
                   onLoadMore: () => context.read<MyRequestsBloc>().add(const PagedLoadMoreRequested()),
                   onPage: (page) => context.read<MyRequestsBloc>().add(PagedPageSelected(page)),
+                  onPageSize: (size) => setState(() => _pageSize = size),
                   itemBuilder: (context, item) => _RequestCard(item: item),
                   empty: EmptyState(
                     icon: Icons.assignment_outlined,
