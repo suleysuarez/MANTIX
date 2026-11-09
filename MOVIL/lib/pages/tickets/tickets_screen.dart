@@ -35,6 +35,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
   String? _status;
   String? _kanbanStatus;
   String _search = '';
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
   bool _kanban = false;
 
   static const _filters = <(String, String?)>[
@@ -69,11 +71,13 @@ class _TicketsScreenState extends State<TicketsScreen> {
     }
 
     return BlocProvider(
-      key: ValueKey('$_status|$_search'),
+      key: ValueKey('$_status|$_search|$_dateFrom|$_dateTo'),
       create: (context) => TicketsBloc(
         repository: context.read<RequestsRepository>(),
         status: _status,
         search: _search,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
       )..add(const PagedStarted()),
       child: Builder(
         builder: (context) => Scaffold(
@@ -118,38 +122,20 @@ class _TicketsScreenState extends State<TicketsScreen> {
                   const SizedBox(height: 16),
                   if (state.status == PagedStatus.success) _TicketSummary(items: state.items, total: state.info?.total),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _searchController,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _applySearch(),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por número, título o descripción…',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(
-                        tooltip: 'Buscar',
-                        onPressed: _applySearch,
-                        icon: const Icon(Icons.arrow_forward_rounded),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 42,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final filter in _filters)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(filter.$1),
-                              selected: _status == filter.$2,
-                              onSelected: (_) => setState(() => _status = filter.$2),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _searchController, textInputAction: TextInputAction.search, onSubmitted: (_) => _applySearch(), decoration: InputDecoration(hintText: 'Buscar tickets…', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded))))),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(tooltip: 'Filtros', onPressed: () async {
+                      var status = _status; var from = _dateFrom; var to = _dateTo;
+                      final result = await showModalBottomSheet<(String?, DateTime?, DateTime?)>(context: context, showDragHandle: true, builder: (sheet) => StatefulBuilder(builder: (context, setSheet) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        DropdownButtonFormField<String?>(initialValue: status, decoration: const InputDecoration(labelText: 'Estado'), items: [const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')), for (final f in _filters.skip(1)) DropdownMenuItem<String?>(value: f.$2, child: Text(f.$1))], onChanged: (v) => setSheet(() => status = v)),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(onPressed: () async { final r = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: from != null && to != null ? DateTimeRange(start: from!, end: to!) : null); if (r != null) setSheet(() { from = r.start; to = r.end; }); }, icon: const Icon(Icons.date_range), label: const Text('Filtrar por fecha')),
+                        Row(children: [TextButton(onPressed: () => setSheet(() { status = null; from = null; to = null; }), child: const Text('Limpiar')), const Spacer(), FilledButton(onPressed: () => Navigator.pop(sheet, (status, from, to)), child: const Text('Aplicar'))]),
+                      ]))));
+                      if (result != null && mounted) setState(() { _status = result.$1; _dateFrom = result.$2; _dateTo = result.$3; });
+                    }, icon: const Icon(Icons.filter_alt_rounded)),
+                  ]),
                   const SizedBox(height: 12),
                   Row(
                     children: [
