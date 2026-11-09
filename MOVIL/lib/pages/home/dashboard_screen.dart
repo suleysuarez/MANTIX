@@ -23,7 +23,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _scrollController = ScrollController();
-  final _alertsKey = GlobalKey();
   String _period = '30d';
   bool _loading = true;
   String? _error;
@@ -126,11 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Scaffold(
           backgroundColor: const Color(0xFFF2F7FC),
           drawer: MantixDrawer(profile: profile, selectedPath: widget.destination.path),
-          appBar: MantixAppBar(
-            profile: profile,
-            hasAlerts: _tickets.isNotEmpty || _downEquipment.isNotEmpty,
-            onAlertsPressed: _scrollToAlerts,
-          ),
+          appBar: MantixAppBar(profile: profile),
           body: RefreshIndicator(
             onRefresh: _load,
             color: AppColors.steel,
@@ -175,7 +170,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _TechnicianPerformance(items: _technicians),
                 ),
                 const SizedBox(height: 14),
-                Container(key: _alertsKey),
                 _SectionCard(
                   title: 'Atención inmediata',
                   subtitle: 'Lo que necesita acción ahora',
@@ -265,14 +259,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: cards.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 168),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, mainAxisExtent: 148 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.5)),
       itemBuilder: (context, index) => _KpiCard(data: cards[index]),
     );
-  }
-
-  void _scrollToAlerts() {
-    final context = _alertsKey.currentContext;
-    if (context != null) Scrollable.ensureVisible(context, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
   }
 
 }
@@ -332,21 +321,23 @@ class _WelcomeHero extends StatelessWidget {
                   // Texto centrado en el espacio bajo la etiqueta, un poco por encima del centro.
                   Expanded(
                     child: Align(
-                      alignment: const Alignment(0, -0.2),
+                      alignment: const Alignment(-1, -0.2),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(
                             width: 250,
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Text('Sistema Inteligente\nde Mantenimiento', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 21, height: 1.1, fontWeight: FontWeight.w900)),
+                              alignment: Alignment.centerLeft,
+                              child: Text('Sistema Inteligente\nde Mantenimiento', textAlign: TextAlign.left, style: TextStyle(color: Colors.white, fontSize: 21, height: 1.1, fontWeight: FontWeight.w900)),
                             ),
                           ),
                           const SizedBox(height: 6),
                           const SizedBox(
                             width: 230,
-                            child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.', textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3)),
+                            child: Text('Gestión de incidentes y control en tiempo real del parque tecnológico empresarial.', textAlign: TextAlign.left, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3)),
                           ),
                         ],
                       ),
@@ -423,23 +414,23 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5EEF6)), boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))]),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Container(width: 27, height: 27, decoration: BoxDecoration(color: const Color(0xFFEAF5FF), borderRadius: BorderRadius.circular(9)), child: Icon(data.icon, color: const Color(0xFF2678C8), size: 16)),
+          Container(width: 24, height: 24, decoration: BoxDecoration(color: const Color(0xFFEAF5FF), borderRadius: BorderRadius.circular(8)), child: Icon(data.icon, color: const Color(0xFF2678C8), size: 14)),
           const SizedBox(width: 7),
           Expanded(child: Text(data.label.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9, fontWeight: FontWeight.w800))),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(data.value, style: const TextStyle(color: Color(0xFF153A60), fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.6)))),
+          Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(data.value, style: const TextStyle(color: Color(0xFF153A60), fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -0.5)))),
           if (data.spark.length >= 2) SizedBox(width: 48, height: 22, child: CustomPaint(painter: _SparklinePainter(data.spark))),
         ]),
         const SizedBox(height: 3),
-        Text(data.caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9.5, height: 1.2)),
+        Text(data.caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 9, height: 1.15)),
         const Spacer(),
         if (data.change != null)
           Row(children: [

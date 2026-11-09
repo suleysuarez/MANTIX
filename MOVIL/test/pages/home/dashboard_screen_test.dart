@@ -8,7 +8,10 @@ import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/pages/home/dashboard_screen.dart';
 import 'package:mantix/repositories/home/dashboard_repository.dart';
+import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../support/header_support.dart';
 
 class _MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -86,8 +89,11 @@ void main() {
     await tester.pumpWidget(
       RepositoryProvider<DashboardRepository>.value(
         value: repository,
-        child: BlocProvider<AuthBloc>.value(
-          value: authBloc,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<AuthBloc>.value(value: authBloc),
+            BlocProvider<NotificationsBloc>.value(value: notificationsBloc()),
+          ],
           child: MaterialApp(
             theme: AppTheme.light(),
             builder: (context, app) => MediaQuery(
@@ -139,15 +145,22 @@ void main() {
     expect(tester.getTopRight(find.text('12 meses')).dx, greaterThan(300));
   });
 
-  testWidgets('el texto de la tarjeta de bienvenida está centrado y no pegado abajo', (tester) async {
+  testWidgets('el texto de la tarjeta de bienvenida va a la izquierda y no pegado abajo', (tester) async {
     await pumpDashboard(tester);
 
     final title = find.text('Sistema Inteligente\nde Mantenimiento');
     final hero = tester.getRect(find.ancestor(of: title, matching: find.byType(ClipRRect)).first);
-    final center = tester.getCenter(title);
+    final subtitle = find.textContaining('control en tiempo real');
 
-    expect((center.dx - hero.center.dx).abs(), lessThan(6), reason: 'centrado horizontalmente');
-    expect(center.dy, inInclusiveRange(hero.top + hero.height * 0.3, hero.top + hero.height * 0.6), reason: 'un poco por encima del centro, no al fondo');
+    expect(tester.getTopLeft(title).dx - hero.left, lessThan(30), reason: 'alineado a la izquierda, con el margen de la tarjeta');
+    expect(tester.getTopLeft(subtitle).dx - hero.left, lessThan(30));
+    expect(tester.getCenter(title).dy, inInclusiveRange(hero.top + hero.height * 0.3, hero.top + hero.height * 0.6), reason: 'un poco por encima del centro, no al fondo');
+  });
+
+  testWidgets('el encabezado trae la campana de notificaciones', (tester) async {
+    await pumpDashboard(tester);
+
+    expect(find.byTooltip('Notificaciones'), findsOneWidget);
   });
 
   testWidgets('los indicadores muestran valor, variación y nota con los datos reales', (tester) async {

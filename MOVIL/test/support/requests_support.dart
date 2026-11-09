@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/bloc/auth/permissions_cubit.dart';
+import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'fakes.dart';
+import 'header_support.dart';
 
 Map<String, Object?> ticketJson({
   int id = 1,
@@ -131,8 +134,12 @@ Future<GoRouter> pumpScreen(
   await tester.pumpWidget(
     RepositoryProvider(
       create: (_) => RequestsRepository(dioWith(adapter)),
-      child: BlocProvider.value(
-        value: permissionsCubit(permissions),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: permissionsCubit(permissions)),
+          BlocProvider<AuthBloc>.value(value: authenticatedBloc(testProfile(permissions: permissions))),
+          BlocProvider<NotificationsBloc>.value(value: notificationsBloc()),
+        ],
         child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
       ),
     ),
