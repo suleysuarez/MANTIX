@@ -225,6 +225,18 @@ Verificación previa de la Fase 4 (hecha): ver «Resultado de la Fase 4».
 
 **Fuera de esta fase, por decidir:** subir y descargar adjuntos (necesita un selector de archivos como dependencia nueva y manejo de descargas), cancelar una solicitud y elegir categoría.
 
+## Gestión de equipos (paso 1: consulta)
+
+Pantalla `/modulos/equipos` (`pages/equipment/equipment_screen.dart`), solo con el permiso `equipos:ver` (lo exige el router y el menú). Sigue la web: título y descripción, cuatro tarjetas con los contadores por estado y el listado del catálogo.
+
+- **Tarjetas** (`GET /equipment/summary`): Total, Operativos (`assigned` + `in_storage`, con la tasa sobre el total), En mantenimiento (`in_repair`) y Crítico (`lost`, `retired`, `disposed`). Las agrupaciones son las de la web. Cada tarjeta es un botón que filtra el listado por sus estados (`status=a,b,c`); la tarjeta activa queda marcada.
+- **Listado** (`GET /equipment`, `size=20`, más recientes primero, scroll infinito): marca y modelo, etiqueta, estado, categoría, ubicación, custodio y último mantenimiento. Buscador por etiqueta, serie, marca o modelo (máximo 100 caracteres), con 400 ms de espera. Estados de carga, vacío (distinto con y sin filtros), error con reintento; el encabezado siempre es visible.
+- **Bloc:** `EquipmentListBloc` (hereda de `PagedBloc`; cambiar un filtro crea uno nuevo) y `EquipmentSummaryBloc` (contadores). La pantalla solo usa `BlocBuilder`.
+- **Widgets compartidos nuevos** (`widgets/home/`): `MantixAppBar` (la «M» a la izquierda y el avatar), `MantixDrawer` (menú por permisos, con la pantalla actual resaltada) y `BrandLogo`; el dashboard los usa también. `PagedListView` admite un `header` que se desplaza con la lista.
+- **Los decimales** de la tasa llevan coma («81,6% tasa»); la maqueta usaba punto.
+
+**Pendiente de este módulo** (siguientes pasos, sin hacer): «Nuevo equipo» (`POST /equipment`, permiso `equipos:crear`), detalle y edición (`equipos:editar`), asignar custodio y ubicación (`equipos:asignar`), filtro por categoría y orden, adjuntos, exportar e importar.
+
 ## Contrato de la API que usa la app
 
 - Listados: array JSON plano; total en `X-Total-Count`, `X-Page`, `X-Page-Size`, `X-Total-Pages`. Parámetros `page`, `size` (máximo 500), `sort`, `search`. `/notifications` es la excepción (`limit`, `offset`, `{unread_count, items}`).
