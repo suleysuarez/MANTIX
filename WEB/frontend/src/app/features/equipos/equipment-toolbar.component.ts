@@ -71,7 +71,7 @@ export const SORT_OPTIONS: readonly { value: string; label: string }[] = [
               @for (option of sortOptions; track option.value) { <option [value]="option.value">{{ option.label }}</option> }
             </select>
           </label>
-          <button type="button" (click)="filtersReset.emit(); filtersOpen.set(false)"
+          <button type="button" aria-label="Restablecer filtros" (click)="filtersReset.emit(); filtersOpen.set(false)"
             class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50">
             <span class="material-symbols-outlined text-[17px]">restart_alt</span>Restablecer filtros
           </button>
