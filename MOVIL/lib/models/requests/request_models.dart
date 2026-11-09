@@ -18,6 +18,7 @@ class TicketListItem extends Equatable {
     required this.status,
     required this.createdAt,
     this.category,
+    this.canAct = false,
   });
 
   factory TicketListItem.fromJson(Map<String, Object?> json) => TicketListItem(
@@ -28,6 +29,7 @@ class TicketListItem extends Equatable {
         status: json['status']! as String,
         category: json['category'] as String?,
         createdAt: _date(json['created_at']),
+        canAct: json['can_act'] as bool? ?? false,
       );
 
   final int id;
@@ -37,9 +39,10 @@ class TicketListItem extends Equatable {
   final String status;
   final String? category;
   final DateTime createdAt;
+  final bool canAct;
 
   @override
-  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt];
+  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt, canAct];
 }
 
 class EquipmentRef extends Equatable {
