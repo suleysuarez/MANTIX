@@ -31,13 +31,15 @@ class RequestsRepository {
     return [for (final item in data) parse((item as Map).cast<String, Object?>())];
   }
 
-  /// Los tickets que el servidor deja ver a quien llama: para un Solicitante, los suyos.
-  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status}) => _guard(() async {
+  /// Los tickets que el servidor deja ver a quien llama, acotados por sus permisos.
+  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search}) => _guard(() async {
+        final term = search?.trim();
         final response = await _dio.get<Object?>('/maintenance/requests', queryParameters: {
           'page': page,
           'size': PageInfo.defaultPageSize,
           'sort': '-created_at',
           'status': ?status,
+          if (term != null && term.isNotEmpty) 'search': term,
         });
         return PagedResult(
           items: _list(response.data, TicketListItem.fromJson),
@@ -62,8 +64,7 @@ class RequestsRepository {
         return created;
       });
 
-  /// Búsqueda parcial por etiqueta, serie, marca o modelo (el backend no tiene
-  /// búsqueda exacta por etiqueta).
+  /// Búsqueda parcial por etiqueta, serie, marca o modelo.
   Future<PagedResult<EquipmentOption>> searchEquipment({String? search, int page = 1}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/equipment', queryParameters: {
