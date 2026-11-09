@@ -130,7 +130,10 @@ async def test_ticket_list_preloads_equipment_without_a_query_per_row(db_session
 
     statements: list[str] = []
     sync_engine = db_session.bind.sync_engine
-    listener = lambda *args: statements.append(args[2])  # noqa: E731
+
+    def listener(*args):
+        statements.append(args[2])
+
     event.listen(sync_engine, "before_cursor_execute", listener)
     try:
         page = await MaintenanceRepository(db_session).list_requests(
