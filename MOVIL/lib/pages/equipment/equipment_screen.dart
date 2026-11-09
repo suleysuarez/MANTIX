@@ -209,7 +209,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Filtros', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.navy)),
           const SizedBox(height: 14),
-          _FilterRow(typeId: _typeId, statusValue: _statusDropdownValue,
+          _FilterRow(types: _catalogBloc.state.types, typeId: _typeId, statusValue: _statusDropdownValue,
             onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
             onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
             onReset: () { _resetFilters(); Navigator.pop(sheetContext); }),
@@ -469,8 +469,9 @@ class _SearchField extends StatelessWidget {
 
 /// Categoría y estado como desplegables, y el botón que limpia todos los filtros.
 class _FilterRow extends StatelessWidget {
-  const _FilterRow({required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
+  const _FilterRow({required this.types, required this.typeId, required this.statusValue, required this.onType, required this.onStatus, required this.onReset});
 
+  final List<EquipmentType> types;
   final int? typeId;
   final String? statusValue;
   final ValueChanged<int?> onType;
@@ -480,19 +481,14 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
         Expanded(
-          child: BlocBuilder<EquipmentCatalogBloc, EquipmentCatalogState>(
-            builder: (context, state) {
-              final known = state.types.any((type) => type.id == typeId);
-              return _FilterBox<int?>(
-                label: 'Categoría',
-                value: known ? typeId : null,
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
-                  for (final type in state.types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: onType,
-              );
-            },
+          child: _FilterBox<int?>(
+            label: 'Categoría',
+            value: types.any((type) => type.id == typeId) ? typeId : null,
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
+              for (final type in types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: onType,
           ),
         ),
         const SizedBox(width: 8),
