@@ -29,7 +29,13 @@ void main() {
     await pumpScreen(tester, const TicketsScreen(), adapter);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Enviados'));
+    await tester.tap(find.byTooltip('Filtros'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String?>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Enviados').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
     await tester.pumpAndSettle();
 
     expect(adapter.requests.last.path, '/maintenance/requests');
@@ -58,13 +64,10 @@ void main() {
 
     await tester.tap(find.text('Kanban'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(ChoiceChip, 'Enviado'), findsOneWidget);
+    expect(find.text('Enviado'), findsWidgets);
+    expect(find.text('Resuelto'), findsWidgets);
     expect(find.text('La laptop no enciende'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Resuelto'));
-    await tester.pumpAndSettle();
     expect(find.text('Equipo reparado'), findsOneWidget);
-    expect(find.text('La laptop no enciende'), findsNothing);
   });
 
   testWidgets('muestra el botón de creación solo con permiso', (tester) async {

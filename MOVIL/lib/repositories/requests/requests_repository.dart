@@ -32,7 +32,7 @@ class RequestsRepository {
   }
 
   /// Los tickets que el servidor deja ver a quien llama, acotados por sus permisos.
-  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search}) => _guard(() async {
+  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search, DateTime? dateFrom, DateTime? dateTo}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/maintenance/requests', queryParameters: {
           'page': page,
@@ -40,11 +40,18 @@ class RequestsRepository {
           'sort': '-created_at',
           'status': ?status,
           if (term != null && term.isNotEmpty) 'search': term,
+          if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
+          if (dateTo != null) 'date_to': dateTo.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)).toUtc().toIso8601String(),
         });
         return PagedResult(
           items: _list(response.data, TicketListItem.fromJson),
           info: PageInfo.fromHeaders(response.headers),
         );
+      });
+
+  Future<void> transitionStatus(int id, String status) => _guard(() async {
+        await _dio.post<Object?>('/maintenance/requests/$id/status', data: {'status': status});
+        _changes.add(null);
       });
 
   Future<TicketDetail> getRequest(int id) => _guard(() async {

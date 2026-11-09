@@ -33,8 +33,9 @@ class TicketsScreen extends StatefulWidget {
 class _TicketsScreenState extends State<TicketsScreen> {
   final _searchController = TextEditingController();
   String? _status;
-  String? _kanbanStatus;
   String _search = '';
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
   bool _kanban = false;
 
   static const _filters = <(String, String?)>[
@@ -69,11 +70,13 @@ class _TicketsScreenState extends State<TicketsScreen> {
     }
 
     return BlocProvider(
-      key: ValueKey('$_status|$_search'),
+      key: ValueKey('$_status|$_search|$_dateFrom|$_dateTo'),
       create: (context) => TicketsBloc(
         repository: context.read<RequestsRepository>(),
         status: _status,
         search: _search,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
       )..add(const PagedStarted()),
       child: Builder(
         builder: (context) => Scaffold(
@@ -118,38 +121,20 @@ class _TicketsScreenState extends State<TicketsScreen> {
                   const SizedBox(height: 16),
                   if (state.status == PagedStatus.success) _TicketSummary(items: state.items, total: state.info?.total),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _searchController,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _applySearch(),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por número, título o descripción…',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(
-                        tooltip: 'Buscar',
-                        onPressed: _applySearch,
-                        icon: const Icon(Icons.arrow_forward_rounded),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 42,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final filter in _filters)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(filter.$1),
-                              selected: _status == filter.$2,
-                              onSelected: (_) => setState(() => _status = filter.$2),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _searchController, textInputAction: TextInputAction.search, onSubmitted: (_) => _applySearch(), decoration: InputDecoration(hintText: 'Buscar tickets…', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded))))),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(tooltip: 'Filtros', onPressed: () async {
+                      var status = _status; var from = _dateFrom; var to = _dateTo;
+                      final result = await showModalBottomSheet<(String?, DateTime?, DateTime?)>(context: context, showDragHandle: true, builder: (sheet) => StatefulBuilder(builder: (context, setSheet) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        DropdownButtonFormField<String?>(initialValue: status, decoration: const InputDecoration(labelText: 'Estado'), items: [const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')), for (final f in _filters.skip(1)) DropdownMenuItem<String?>(value: f.$2, child: Text(f.$1))], onChanged: (v) => setSheet(() => status = v)),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(onPressed: () async { final r = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: from != null && to != null ? DateTimeRange(start: from!, end: to!) : null); if (r != null) setSheet(() { from = r.start; to = r.end; }); }, icon: const Icon(Icons.date_range), label: const Text('Filtrar por fecha')),
+                        Row(children: [TextButton(onPressed: () => setSheet(() { status = null; from = null; to = null; }), child: const Text('Limpiar')), const Spacer(), FilledButton(onPressed: () => Navigator.pop(sheet, (status, from, to)), child: const Text('Aplicar'))]),
+                      ]))));
+                      if (result != null && mounted) setState(() { _status = result.$1; _dateFrom = result.$2; _dateTo = result.$3; });
+                    }, icon: const Icon(Icons.filter_alt_rounded)),
+                  ]),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -172,26 +157,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       ),
                     ],
                   ),
-                  if (_kanban) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 42,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final lane in _lanes)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 7),
-                              child: ChoiceChip(
-                                label: Text(statusMeta(lane).label),
-                                selected: (_kanbanStatus ?? 'submitted') == lane,
-                                onSelected: (_) => setState(() => _kanbanStatus = lane),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   switch (state.status) {
                     PagedStatus.loading => const _TicketLoading(),
@@ -203,10 +168,16 @@ class _TicketsScreenState extends State<TicketsScreen> {
                         onAction: () => context.read<TicketsBloc>().add(const PagedStarted()),
                       ),
                     PagedStatus.success => _TicketResults(
-                        items: _kanban
-                            ? state.items.where((item) => item.status == (_kanbanStatus ?? 'submitted')).toList()
-                            : state.items,
+                        items: state.items,
                         kanban: _kanban,
+                        lanes: _lanes,
+                        onMove: (item, status) async {
+                          try {
+                            await context.read<RequestsRepository>().transitionStatus(item.id, status);
+                          } catch (error) {
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo cambiar el estado: $error')));
+                          }
+                        },
                         hasMore: state.hasMore,
                         loadingMore: state.loadingMore,
                         loadMoreFailure: state.loadMoreFailure?.message,
@@ -290,6 +261,8 @@ class _TicketResults extends StatelessWidget {
   const _TicketResults({
     required this.items,
     required this.kanban,
+    required this.lanes,
+    required this.onMove,
     required this.hasMore,
     required this.loadingMore,
     required this.loadMoreFailure,
@@ -299,6 +272,8 @@ class _TicketResults extends StatelessWidget {
 
   final List<TicketListItem> items;
   final bool kanban;
+  final List<String> lanes;
+  final Future<void> Function(TicketListItem, String) onMove;
   final bool hasMore;
   final bool loadingMore;
   final String? loadMoreFailure;
@@ -316,10 +291,13 @@ class _TicketResults extends StatelessWidget {
     }
     return Column(
       children: [
-        for (final item in items) ...[
-          _TicketCard(item: item, onTap: () => onOpen(item), compact: kanban),
-          const SizedBox(height: 9),
-        ],
+        if (kanban)
+          _TicketKanbanBoard(items: items, lanes: lanes, onOpen: onOpen, onMove: onMove)
+        else
+          for (final item in items) ...[
+            _TicketCard(item: item, onTap: () => onOpen(item), compact: false),
+            const SizedBox(height: 9),
+          ],
         if (loadMoreFailure != null)
           Text(loadMoreFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         if (hasMore)
@@ -333,6 +311,70 @@ class _TicketResults extends StatelessWidget {
       ],
     );
   }
+}
+
+class _TicketKanbanBoard extends StatelessWidget {
+  const _TicketKanbanBoard({required this.items, required this.lanes, required this.onOpen, required this.onMove});
+  final List<TicketListItem> items;
+  final List<String> lanes;
+  final ValueChanged<TicketListItem> onOpen;
+  final Future<void> Function(TicketListItem, String) onMove;
+
+  static const transitions = <String, Set<String>>{
+    'submitted': {},
+    'triaged': {},
+    'assigned': {'in_progress'},
+    'in_progress': {'waiting'},
+    'waiting': {'in_progress'},
+    'resolved': {'closed', 'in_progress'},
+    'closed': {},
+    'cancelled': {},
+  };
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 540,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      children: [
+        for (final lane in lanes)
+          Container(
+            width: 238,
+            margin: const EdgeInsets.only(right: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFFF2F7FB), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(statusMeta(lane).label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
+                CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Text('${items.where((i) => i.status == lane).length}', style: Theme.of(context).textTheme.labelSmall)),
+              ]),
+              const SizedBox(height: 10),
+              Expanded(child: DragTarget<TicketListItem>(
+                onWillAcceptWithDetails: (details) => details.data.status != lane && (transitions[details.data.status]?.contains(lane) ?? false) && details.data.canAct,
+                onAcceptWithDetails: (details) => onMove(details.data, lane),
+                builder: (context, candidates, rejected) => Container(
+                  decoration: BoxDecoration(color: candidates.isEmpty ? Colors.transparent : const Color(0xFFDCEEFF), borderRadius: BorderRadius.circular(12)),
+                  child: ListView(children: [
+                    for (final item in items.where((i) => i.status == lane))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: item.canAct
+                          ? Draggable<TicketListItem>(
+                              data: item,
+                              feedback: Material(elevation: 5, borderRadius: BorderRadius.circular(12), child: SizedBox(width: 210, child: _TicketCard(item: item, onTap: () {}, compact: true))),
+                              childWhenDragging: Opacity(opacity: .35, child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true)),
+                              child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
+                            )
+                          : _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
+                      ),
+                  ]),
+                ),
+              )),
+            ]),
+          ),
+      ],
+    ),
+  );
 }
 
 class _TicketCard extends StatelessWidget {

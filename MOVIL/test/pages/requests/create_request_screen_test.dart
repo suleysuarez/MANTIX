@@ -21,8 +21,8 @@ Future<void> chooseEquipment(WidgetTester tester) async {
 }
 
 Future<void> fillForm(WidgetTester tester, {String title = 'No enciende', String description = 'Pantalla negra'}) async {
-  await tester.enterText(find.widgetWithText(TextFormField, 'Título'), title);
-  await tester.enterText(find.widgetWithText(TextFormField, 'Descripción'), description);
+  await tester.enterText(find.byType(TextFormField).at(0), title);
+  await tester.enterText(find.byType(TextFormField).at(1), description);
 }
 
 Future<void> submit(WidgetTester tester) async {
@@ -99,7 +99,7 @@ void main() {
     expect(find.text('El título ya existe'), findsOneWidget);
     expect(find.text('Enviar solicitud'), findsOneWidget, reason: 'el formulario sigue disponible');
 
-    await tester.enterText(find.widgetWithText(TextFormField, 'Título'), 'Otro título');
+    await tester.enterText(find.byType(TextFormField).at(0), 'Otro título');
     await tester.pump();
     expect(find.text('El título ya existe'), findsNothing);
   });

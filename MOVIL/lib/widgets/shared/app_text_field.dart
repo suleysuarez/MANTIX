@@ -22,6 +22,7 @@ class AppTextField extends StatelessWidget {
     this.obscureText = false,
     this.enabled = true,
     this.onChanged,
+    this.prefixIcon,
   });
 
   final String label;
@@ -36,6 +37,7 @@ class AppTextField extends StatelessWidget {
   final bool obscureText;
   final bool enabled;
   final ValueChanged<String>? onChanged;
+  final Widget? prefixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,7 @@ class AppTextField extends StatelessWidget {
       onChanged: onChanged,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator == null ? null : (value) => validator!(Validators.normalize(value)),
-      decoration: InputDecoration(labelText: label, hintText: hint, errorText: errorText),
+      decoration: InputDecoration(labelText: label, hintText: hint, errorText: errorText, prefixIcon: prefixIcon),
     );
   }
 }

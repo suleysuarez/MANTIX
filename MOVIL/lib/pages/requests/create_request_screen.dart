@@ -118,13 +118,13 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Text('Equipo', style: theme.textTheme.labelLarge),
+            _RequiredLabel('Equipo tecnológico', style: theme.textTheme.labelLarge),
             const SizedBox(height: AppSpacing.xs),
             Card(
               margin: EdgeInsets.zero,
               child: ListTile(
                 minVerticalPadding: AppSpacing.md,
-                leading: const Icon(Icons.devices_other_outlined),
+                leading: const Icon(Icons.monitor_outlined),
                 title: Text(_equipment?.label ?? 'Elegir equipo'),
                 subtitle: _equipment == null || _equipment!.typeName.isEmpty ? null : Text(_equipment!.typeName),
                 trailing: const Icon(Icons.chevron_right),
@@ -140,10 +140,13 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
                   : Text(equipmentError, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
             ),
             const SizedBox(height: AppSpacing.lg),
+            _RequiredLabel('Título de la incidencia', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 6),
             AppTextField(
-              label: 'Título',
+              label: '',
               hint: 'Por ejemplo: la laptop no enciende',
               controller: _title,
+              prefixIcon: const Icon(Icons.sell_outlined),
               enabled: !submitting,
               maxLength: requestTitleMax,
               textInputAction: TextInputAction.next,
@@ -152,10 +155,13 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
               validator: Validators.all([Validators.required('El título'), Validators.maxLength(requestTitleMax, 'El título')]),
             ),
             const SizedBox(height: AppSpacing.md),
+            _RequiredLabel('Descripción detallada', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 6),
             AppTextField(
-              label: 'Descripción',
+              label: '',
               hint: 'Cuéntanos qué pasa y desde cuándo',
               controller: _description,
+              prefixIcon: const Icon(Icons.notes_rounded),
               enabled: !submitting,
               maxLines: 5,
               maxLength: requestDescriptionMax,
@@ -168,21 +174,29 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
               ]),
             ),
             const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<String>(
-              initialValue: _priority,
-              decoration: InputDecoration(labelText: 'Prioridad', errorText: _serverErrors['priority']),
-              items: [
-                for (final code in knownPriorities.reversed)
-                  DropdownMenuItem(value: code, child: Text(priorityMeta(code).label)),
+            _RequiredLabel('Prioridad', style: theme.textTheme.labelLarge, required: false),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                for (final code in const ['low', 'medium', 'high', 'critical'])
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 5),
+                      child: _PriorityOption(
+                        code: code,
+                        selected: _priority == code,
+                        enabled: !submitting,
+                        onTap: () {
+                          setState(() => _priority = code);
+                          _clearServerError('priority');
+                        },
+                      ),
+                    ),
+                  ),
               ],
-              onChanged: submitting
-                  ? null
-                  : (value) {
-                      if (value == null) return;
-                      setState(() => _priority = value);
-                      _clearServerError('priority');
-                    },
             ),
+            if (_serverErrors['priority'] != null)
+              Padding(padding: const EdgeInsets.only(top: 6), child: Text(_serverErrors['priority']!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
             const SizedBox(height: AppSpacing.xl),
             FilledButton(
               onPressed: submitting ? null : _submit,
@@ -194,6 +208,50 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
         ),
       ),
     ),
+    );
+  }
+}
+
+
+class _RequiredLabel extends StatelessWidget {
+  const _RequiredLabel(this.value, {required this.style, this.required = true});
+  final String value;
+  final TextStyle? style;
+  final bool required;
+  @override
+  Widget build(BuildContext context) => RichText(text: TextSpan(style: style, children: [
+    TextSpan(text: value),
+    if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFD6A52A), fontWeight: FontWeight.w800)),
+  ]));
+}
+
+class _PriorityOption extends StatelessWidget {
+  const _PriorityOption({required this.code, required this.selected, required this.enabled, required this.onTap});
+  final String code;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final colors = switch (code) {
+      'low' => (const Color(0xFFFFF3D6), const Color(0xFF9A7415)),
+      'medium' => (const Color(0xFFE2F4E9), const Color(0xFF287A4D)),
+      'high' => (const Color(0xFFFFE9D8), const Color(0xFFB65B18)),
+      _ => (const Color(0xFFFFE2E2), const Color(0xFFB83232)),
+    };
+    return Material(
+      color: selected ? colors.$1 : Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 3),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? colors.$2 : const Color(0xFFDCE4EC), width: selected ? 1.6 : 1)),
+          child: Text(priorityMeta(code).label, maxLines: 1, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w800)),
+        ),
+      ),
     );
   }
 }
