@@ -12,7 +12,6 @@ import '../../core/format/equipment_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
-import '../../services/device_services.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
