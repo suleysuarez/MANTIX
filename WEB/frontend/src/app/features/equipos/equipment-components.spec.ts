@@ -197,6 +197,7 @@ describe('EquipmentToolbarComponent', () => {
   it('turns select values into typed filters', () => {
     const changes: unknown[] = [];
     fixture.componentInstance.filtersChange.subscribe((value) => changes.push(value));
+    click(fixture, '[aria-label="Filtros"]');
     const selects = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLSelectElement>('select');
 
     selects[0].value = '1';
