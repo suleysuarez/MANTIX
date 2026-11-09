@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/tickets/tickets_screen.dart';
-import 'package:mantix/widgets/shared/app_chip.dart';
+import 'package:mantix/widgets/tickets/ticket_cards.dart';
 
 import '../../support/fakes.dart';
 import '../../support/requests_support.dart';
@@ -16,12 +16,14 @@ void main() {
     await pumpScreen(tester, const TicketsScreen(), adapter);
     await tester.pumpAndSettle();
 
-    expect(find.text('Gestión de tickets'), findsOneWidget);
+    expect(find.text('GESTIÓN DE TICKETS'), findsOneWidget);
     expect(find.text('3 tickets'), findsOneWidget);
-    expect(find.text('La laptop no enciende'), findsOneWidget);
-    expect(find.text('Ventilador con ruido'), findsOneWidget);
-    expect(find.widgetWithText(StatusChip, 'Enviado'), findsOneWidget);
-    expect(find.widgetWithText(PriorityChip, 'Crítica'), findsOneWidget);
+    // El ticket de prioridad alta también aparece en «Requieren atención prioritaria».
+    expect(find.text('Requieren atención prioritaria'), findsOneWidget);
+    expect(find.text('La laptop no enciende'), findsWidgets);
+    expect(find.text('Ventilador con ruido'), findsWidgets);
+    expect(find.text('Enviado'), findsWidgets);
+    expect(find.widgetWithText(PriorityPill, 'Crítica'), findsWidgets);
   });
 
   testWidgets('filtra por grupo de estado desde el servidor', (tester) async {
@@ -31,7 +33,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String?>));
+    await tester.tap(find.byType(DropdownButton<String?>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Enviados').last);
     await tester.pumpAndSettle();
@@ -64,10 +66,36 @@ void main() {
 
     await tester.tap(find.text('Kanban'));
     await tester.pumpAndSettle();
+    expect(find.text('1/4'), findsOneWidget);
     expect(find.text('Enviado'), findsWidgets);
+    expect(find.text('La laptop no enciende'), findsWidgets);
+
+    // Las columnas se deslizan de dos en dos: «Resuelto» está en la tercera página.
+    await tester.tap(find.byTooltip('Columnas siguientes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Columnas siguientes'));
+    await tester.pumpAndSettle();
+    expect(find.text('3/4'), findsOneWidget);
     expect(find.text('Resuelto'), findsWidgets);
-    expect(find.text('La laptop no enciende'), findsOneWidget);
     expect(find.text('Equipo reparado'), findsOneWidget);
+  });
+
+  testWidgets('la paginación numerada pide la página elegida', (tester) async {
+    final adapter = FakeAdapter((options) {
+      final page = options.queryParameters['page'] as int? ?? 1;
+      return pagedResponse([ticketJson(id: page, title: 'Ticket de la página $page')], page: page, totalPages: 3, total: 41);
+    });
+    await pumpScreen(tester, const TicketsScreen(), adapter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mostrando 1 – 1 de 41 tickets'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byTooltip('Página 3'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byTooltip('Página 3'));
+    await tester.pumpAndSettle();
+
+    expect(adapter.requests.last.queryParameters['page'], 3);
+    expect(find.text('Ticket de la página 3'), findsWidgets);
+    expect(find.text('Cargar más tickets'), findsNothing);
   });
 
   testWidgets('muestra el botón de creación solo con permiso', (tester) async {

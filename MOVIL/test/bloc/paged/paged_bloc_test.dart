@@ -63,6 +63,29 @@ void main() {
   );
 
   blocTest<_Numbers, PagedListState<int>>(
+    'pageSelected sustituye los elementos por los de la página pedida',
+    build: () => _Numbers([
+      [1, 2],
+      [3, 4],
+      [5, 6],
+    ]),
+    act: (bloc) async {
+      bloc.add(const PagedStarted());
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const PagedPageSelected(3));
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const PagedPageSelected(3));
+    },
+    wait: const Duration(milliseconds: 10),
+    expect: () => [
+      loaded([1, 2], 1, 3),
+      loaded([1, 2], 1, 3, loadingMore: true),
+      loaded([5, 6], 3, 3),
+    ],
+    verify: (bloc) => expect(bloc.asked, [1, 3], reason: 'pedir la página actual no repite la petición'),
+  );
+
+  blocTest<_Numbers, PagedListState<int>>(
     'loadMore añade la siguiente página y se detiene en la última',
     build: () => _Numbers([
       [1, 2],

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import '../theme/app_colors.dart';
 
 /// Cómo se muestra un estado o una prioridad: etiqueta en español y colores.
@@ -41,3 +43,34 @@ const List<String> knownStatuses = [
 ];
 
 const List<String> knownPriorities = ['critical', 'high', 'medium', 'low'];
+
+/// Icono de cada estado, para las columnas del Kanban.
+IconData statusIcon(String code) => switch (code) {
+      'submitted' => Icons.send_rounded,
+      'triaged' => Icons.fact_check_outlined,
+      'assigned' => Icons.assignment_ind_outlined,
+      'in_progress' => Icons.settings_outlined,
+      'waiting' => Icons.hourglass_bottom_rounded,
+      'resolved' => Icons.check_circle_outline_rounded,
+      'closed' => Icons.lock_outline_rounded,
+      'cancelled' => Icons.cancel_outlined,
+      _ => Icons.help_outline_rounded,
+    };
+
+/// Icono del ticket según su categoría (por palabras clave); equipo genérico si no hay.
+IconData categoryIcon(String? category) {
+  final value = (category ?? '').toLowerCase();
+  if (value.contains('red') || value.contains('wifi') || value.contains('conect')) return Icons.wifi_rounded;
+  if (value.contains('soft') || value.contains('sistema') || value.contains('cuenta')) return Icons.settings_outlined;
+  if (value.contains('impres')) return Icons.print_outlined;
+  if (value.contains('móvil') || value.contains('movil') || value.contains('telé')) return Icons.smartphone_rounded;
+  return Icons.desktop_windows_outlined;
+}
+
+/// Icono de la prioridad dentro de su píldora.
+IconData priorityIcon(String code) => switch (code) {
+      'critical' => Icons.priority_high_rounded,
+      'high' => Icons.north_east_rounded,
+      'medium' => Icons.drag_handle_rounded,
+      _ => Icons.south_east_rounded,
+    };

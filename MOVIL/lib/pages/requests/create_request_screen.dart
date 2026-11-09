@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format/ticket_meta.dart';
 import '../../core/errors/failure.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/validation/validators.dart';
 import '../../widgets/shared/app_text_field.dart';
@@ -112,97 +113,138 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
     return BlocListener<CreateRequestBloc, CreateRequestState>(
       listener: _onResult,
       child: Scaffold(
+      backgroundColor: AppColors.canvas,
       appBar: AppBar(title: Text(widget.title)),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            _RequiredLabel('Equipo tecnológico', style: theme.textTheme.labelLarge),
-            const SizedBox(height: AppSpacing.xs),
-            Card(
-              margin: EdgeInsets.zero,
-              child: ListTile(
-                minVerticalPadding: AppSpacing.md,
-                leading: const Icon(Icons.monitor_outlined),
-                title: Text(_equipment?.label ?? 'Elegir equipo'),
-                subtitle: _equipment == null || _equipment!.typeName.isEmpty ? null : Text(_equipment!.typeName),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: submitting ? null : _pickEquipment,
-              ),
-            ),
-            // Siempre presente (vacío si no hay error): si apareciera y desapareciera
-            // desplazaría los campos de la lista y perderían su estado de validación.
-            Padding(
-              padding: EdgeInsets.only(top: equipmentError == null ? 0 : AppSpacing.xs, left: AppSpacing.md),
-              child: equipmentError == null
-                  ? const SizedBox.shrink()
-                  : Text(equipmentError, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _RequiredLabel('Título de la incidencia', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 6),
-            AppTextField(
-              label: '',
-              hint: 'Por ejemplo: la laptop no enciende',
-              controller: _title,
-              prefixIcon: const Icon(Icons.sell_outlined),
-              enabled: !submitting,
-              maxLength: requestTitleMax,
-              textInputAction: TextInputAction.next,
-              errorText: _serverErrors['title'],
-              onChanged: (_) => _clearServerError('title'),
-              validator: Validators.all([Validators.required('El título'), Validators.maxLength(requestTitleMax, 'El título')]),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _RequiredLabel('Descripción detallada', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 6),
-            AppTextField(
-              label: '',
-              hint: 'Cuéntanos qué pasa y desde cuándo',
-              controller: _description,
-              prefixIcon: const Icon(Icons.notes_rounded),
-              enabled: !submitting,
-              maxLines: 5,
-              maxLength: requestDescriptionMax,
-              keyboardType: TextInputType.multiline,
-              errorText: _serverErrors['description'],
-              onChanged: (_) => _clearServerError('description'),
-              validator: Validators.all([
-                Validators.required('La descripción', true),
-                Validators.maxLength(requestDescriptionMax, 'La descripción'),
-              ]),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _RequiredLabel('Prioridad', style: theme.textTheme.labelLarge, required: false),
-            const SizedBox(height: 8),
-            Row(
+            _Section(
+              icon: Icons.devices_other_rounded,
+              title: 'Equipo afectado',
               children: [
-                for (final code in const ['low', 'medium', 'high', 'critical'])
-                  Expanded(
+                _RequiredLabel('Equipo tecnológico', style: theme.textTheme.labelLarge),
+                const SizedBox(height: 6),
+                Material(
+                  color: AppColors.canvas,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.mdAll,
+                    side: BorderSide(color: equipmentError == null ? AppColors.grey : theme.colorScheme.error),
+                  ),
+                  child: InkWell(
+                    borderRadius: AppRadius.mdAll,
+                    onTap: submitting ? null : _pickEquipment,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 5),
-                      child: _PriorityOption(
-                        code: code,
-                        selected: _priority == code,
-                        enabled: !submitting,
-                        onTap: () {
-                          setState(() => _priority = code);
-                          _clearServerError('priority');
-                        },
-                      ),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Row(children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.smAll),
+                          child: const Icon(Icons.desktop_windows_outlined, color: AppColors.steel),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(_equipment?.label ?? 'Elegir equipo', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(color: _equipment == null ? AppColors.slate : AppColors.navy, fontWeight: FontWeight.w700)),
+                            if (_equipment != null && _equipment!.typeName.isNotEmpty)
+                              Text(_equipment!.typeName, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate)),
+                          ]),
+                        ),
+                        const Icon(Icons.search_rounded, color: AppColors.slate),
+                      ]),
                     ),
                   ),
+                ),
+                // Siempre presente (vacío si no hay error): si apareciera y desapareciera
+                // desplazaría los campos de la lista y perderían su estado de validación.
+                Padding(
+                  padding: EdgeInsets.only(top: equipmentError == null ? 0 : AppSpacing.xs, left: AppSpacing.md),
+                  child: equipmentError == null
+                      ? const SizedBox.shrink()
+                      : Text(equipmentError, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+                ),
               ],
             ),
-            if (_serverErrors['priority'] != null)
-              Padding(padding: const EdgeInsets.only(top: 6), child: Text(_serverErrors['priority']!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+            const SizedBox(height: AppSpacing.md),
+            _Section(
+              icon: Icons.edit_note_rounded,
+              title: 'Detalle de la incidencia',
+              children: [
+                _RequiredLabel('Título de la incidencia', style: theme.textTheme.labelLarge),
+                const SizedBox(height: 6),
+                AppTextField(
+                  label: '',
+                  hint: 'Por ejemplo: la laptop no enciende',
+                  controller: _title,
+                  prefixIcon: const Icon(Icons.title_rounded),
+                  enabled: !submitting,
+                  maxLength: requestTitleMax,
+                  textInputAction: TextInputAction.next,
+                  errorText: _serverErrors['title'],
+                  onChanged: (_) => _clearServerError('title'),
+                  validator: Validators.all([Validators.required('El título'), Validators.maxLength(requestTitleMax, 'El título')]),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _RequiredLabel('Descripción detallada', style: theme.textTheme.labelLarge),
+                const SizedBox(height: 6),
+                AppTextField(
+                  label: '',
+                  hint: 'Cuéntanos qué pasa y desde cuándo',
+                  controller: _description,
+                  prefixIcon: const Padding(padding: EdgeInsets.only(bottom: 84), child: Icon(Icons.notes_rounded)),
+                  enabled: !submitting,
+                  maxLines: 5,
+                  maxLength: requestDescriptionMax,
+                  keyboardType: TextInputType.multiline,
+                  errorText: _serverErrors['description'],
+                  onChanged: (_) => _clearServerError('description'),
+                  validator: Validators.all([
+                    Validators.required('La descripción', true),
+                    Validators.maxLength(requestDescriptionMax, 'La descripción'),
+                  ]),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _Section(
+              icon: Icons.flag_outlined,
+              title: 'Prioridad',
+              children: [
+                Row(
+                  children: [
+                    for (final code in const ['low', 'medium', 'high', 'critical'])
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: code == 'critical' ? 0 : 6),
+                          child: _PriorityOption(
+                            code: code,
+                            selected: _priority == code,
+                            enabled: !submitting,
+                            onTap: () {
+                              setState(() => _priority = code);
+                              _clearServerError('priority');
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (_serverErrors['priority'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 6), child: Text(_serverErrors['priority']!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+              ],
+            ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton(
               onPressed: submitting ? null : _submit,
               child: submitting
                   ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Enviando'))
-                  : Text(widget.submitLabel),
+                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.send_rounded, size: 18),
+                      const SizedBox(width: 8),
+                      Text(widget.submitLabel),
+                    ]),
             ),
           ],
         ),
@@ -214,14 +256,13 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
 
 
 class _RequiredLabel extends StatelessWidget {
-  const _RequiredLabel(this.value, {required this.style, this.required = true});
+  const _RequiredLabel(this.value, {required this.style});
   final String value;
   final TextStyle? style;
-  final bool required;
   @override
   Widget build(BuildContext context) => RichText(text: TextSpan(style: style, children: [
     TextSpan(text: value),
-    if (required) const TextSpan(text: ' *', style: TextStyle(color: Color(0xFFD6A52A), fontWeight: FontWeight.w800)),
+    const TextSpan(text: ' *', style: TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w800)),
   ]));
 }
 
@@ -233,25 +274,60 @@ class _PriorityOption extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final colors = switch (code) {
-      'low' => (const Color(0xFFFFF3D6), const Color(0xFF9A7415)),
-      'medium' => (const Color(0xFFE2F4E9), const Color(0xFF287A4D)),
-      'high' => (const Color(0xFFFFE9D8), const Color(0xFFB65B18)),
-      _ => (const Color(0xFFFFE2E2), const Color(0xFFB83232)),
-    };
-    return Material(
-      color: selected ? colors.$1 : Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 3),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: selected ? colors.$2 : const Color(0xFFDCE4EC), width: selected ? 1.6 : 1)),
-          child: Text(priorityMeta(code).label, maxLines: 1, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.$2, fontWeight: FontWeight.w800)),
+    final meta = priorityMeta(code);
+    final colors = meta.colors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? colors.background : Colors.white,
+        borderRadius: AppRadius.mdAll,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: AppRadius.mdAll,
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+            decoration: BoxDecoration(
+              borderRadius: AppRadius.mdAll,
+              border: Border.all(color: selected ? colors.dot : AppColors.grey, width: selected ? 1.8 : 1),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(priorityIcon(code), size: 20, color: selected ? colors.foreground : AppColors.slate),
+              const SizedBox(height: 4),
+              Text(meta.label, maxLines: 1, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: selected ? colors.foreground : AppColors.slate, fontWeight: FontWeight.w800)),
+            ]),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Tarjeta blanca con icono y título que agrupa los campos de una misma parte del formulario.
+class _Section extends StatelessWidget {
+  const _Section({required this.icon, required this.title, required this.children});
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: AppRadius.lgAll, border: Border.all(color: AppColors.skyLight.withValues(alpha: .5))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .45), borderRadius: AppRadius.smAll),
+              child: Icon(icon, size: 18, color: AppColors.steel),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: AppSpacing.md),
+          ...children,
+        ]),
+      );
 }

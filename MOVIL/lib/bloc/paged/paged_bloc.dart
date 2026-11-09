@@ -20,6 +20,7 @@ abstract class PagedBloc<T> extends Bloc<PagedEvent, PagedListState<T>> {
     on<PagedStarted>(_onRefresh);
     on<PagedRefreshed>(_onRefresh);
     on<PagedLoadMoreRequested>(_onLoadMore);
+    on<PagedPageSelected>(_onPageSelected);
   }
 
   Future<PagedResult<T>> fetch(int page);
@@ -84,6 +85,20 @@ abstract class PagedBloc<T> extends Bloc<PagedEvent, PagedListState<T>> {
         info: current.info,
         loadMoreFailure: toFailure(error),
       ));
+    }
+  }
+
+  /// Cambia de página conservando lo mostrado mientras llega la nueva; `loadingMore` indica que
+  /// hay una página en camino. Si falla, la página actual se queda y el error sale en `loadMoreFailure`.
+  Future<void> _onPageSelected(PagedPageSelected event, Emitter<PagedListState<T>> emit) async {
+    final current = state;
+    if (current.status != PagedStatus.success || current.loadingMore || event.page < 1 || event.page == current.info?.page) return;
+    emit(PagedListState(status: PagedStatus.success, items: current.items, info: current.info, loadingMore: true));
+    try {
+      final result = await fetch(event.page);
+      emit(PagedListState(status: PagedStatus.success, items: result.items, info: result.info ?? current.info));
+    } catch (error) {
+      emit(PagedListState(status: PagedStatus.success, items: current.items, info: current.info, loadMoreFailure: toFailure(error)));
     }
   }
 }

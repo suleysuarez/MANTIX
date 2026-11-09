@@ -68,6 +68,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                   value: state,
                   onRefresh: context.read<MyRequestsBloc>().refresh,
                   onLoadMore: () => context.read<MyRequestsBloc>().add(const PagedLoadMoreRequested()),
+                  onPage: (page) => context.read<MyRequestsBloc>().add(PagedPageSelected(page)),
                   itemBuilder: (context, item) => _RequestCard(item: item),
                   empty: EmptyState(
                     icon: Icons.assignment_outlined,

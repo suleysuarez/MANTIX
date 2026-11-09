@@ -92,7 +92,7 @@ void main() {
     expect(find.text('detalle 5'), findsOneWidget);
   });
 
-  testWidgets('con más páginas, «Cargar más» pide la siguiente y la añade', (tester) async {
+  testWidgets('con más páginas, la paginación numerada pide la página y la sustituye', (tester) async {
     final adapter = FakeAdapter((options) {
       final page = options.queryParameters['page'] as int;
       return pagedResponse(
@@ -106,14 +106,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 1'), findsOneWidget);
 
-    await tester.tap(find.text('Cargar más'));
+    await tester.tap(find.byTooltip('Página 2'));
     await tester.pumpAndSettle();
-    expect(find.text('Solicitud de la página 1'), findsOneWidget);
+    expect(find.text('Solicitud de la página 1'), findsNothing);
     expect(find.text('Solicitud de la página 2'), findsOneWidget);
-    expect(find.text('Cargar más'), findsNothing);
+    expect(adapter.requests.last.queryParameters['page'], 2);
   });
 
-  testWidgets('si falla la segunda página la primera sigue visible y se puede reintentar', (tester) async {
+  testWidgets('si falla la segunda página la primera sigue visible y se puede volver a pedir', (tester) async {
     var failSecond = true;
     final adapter = FakeAdapter((options) {
       final page = options.queryParameters['page'] as int;
@@ -123,13 +123,12 @@ void main() {
     await pumpScreen(tester, const MyRequestsScreen(), adapter);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Cargar más'));
+    await tester.tap(find.byTooltip('Página 2'));
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 1'), findsOneWidget);
-    expect(find.text('Reintentar'), findsOneWidget);
 
     failSecond = false;
-    await tester.tap(find.text('Reintentar'));
+    await tester.tap(find.byTooltip('Página 2'));
     await tester.pumpAndSettle();
     expect(find.text('Solicitud de la página 2'), findsOneWidget);
   });

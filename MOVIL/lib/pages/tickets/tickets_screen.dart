@@ -3,17 +3,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/paged/paged_bloc.dart';
+import '../../bloc/tickets/tickets_bloc.dart';
 import '../../core/format/formatters.dart';
-import '../../core/format/ticket_meta.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../models/page_info.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
-import '../../widgets/shared/app_chip.dart';
 import '../../widgets/shared/empty_state.dart';
-import '../../bloc/paged/paged_bloc.dart';
-import '../../bloc/tickets/tickets_bloc.dart';
+import '../../widgets/shared/filter_widgets.dart';
+import '../../widgets/shared/page_number_bar.dart';
+import '../../widgets/tickets/ticket_cards.dart';
+import '../../widgets/tickets/ticket_kanban.dart';
+import '../../widgets/tickets/ticket_summary.dart';
 import '../requests/my_requests_screen.dart';
 
 abstract final class TicketRoutes {
@@ -21,8 +26,8 @@ abstract final class TicketRoutes {
   static const create = '/tickets/nuevo';
 }
 
-/// Gestión móvil de tickets. En pantallas pequeñas, Kanban muestra una columna
-/// seleccionable en vez de comprimir todas las columnas en un tablero horizontal.
+/// Gestión móvil de tickets: resumen, atención prioritaria, filtros y listado en tabla o
+/// Kanban (columnas verticales de color que se deslizan de dos en dos).
 class TicketsScreen extends StatefulWidget {
   const TicketsScreen({super.key});
 
@@ -32,14 +37,15 @@ class TicketsScreen extends StatefulWidget {
 
 class _TicketsScreenState extends State<TicketsScreen> {
   final _searchController = TextEditingController();
+  final _kanbanController = PageController();
+  final _scrollController = ScrollController();
   String? _status;
   String _search = '';
-  DateTime? _dateFrom;
-  DateTime? _dateTo;
+  DateTimeRange? _dates;
   bool _kanban = false;
+  int _kanbanPage = 0;
 
   static const _filters = <(String, String?)>[
-    ('Todos', null),
     ('Enviados', 'submitted,triaged'),
     ('En proceso', 'assigned,in_progress,waiting'),
     ('Resueltos', 'resolved,closed'),
@@ -53,12 +59,55 @@ class _TicketsScreenState extends State<TicketsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _kanbanController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _applySearch() {
     final value = _searchController.text.trim();
     if (value != _search) setState(() => _search = value);
+  }
+
+  String? get _statusLabel => _status == null ? null : _filters.where((f) => f.$2 == _status).map((f) => f.$1).firstOrNull;
+
+  Future<void> _showFilters() async {
+    var status = _status;
+    var dates = _dates;
+    final result = await showModalBottomSheet<(String?, DateTimeRange?)>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheet) => StatefulBuilder(
+        builder: (context, setSheet) => FilterSheet(
+          onReset: () => setSheet(() {
+            status = null;
+            dates = null;
+          }),
+          onApply: () => Navigator.pop(sheet, (status, dates)),
+          children: [
+            FilterDropdown<String?>(
+              label: 'Estado',
+              icon: Icons.flag_outlined,
+              value: status,
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')),
+                for (final f in _filters) DropdownMenuItem<String?>(value: f.$2, child: Text(f.$1)),
+              ],
+              onChanged: (value) => setSheet(() => status = value),
+            ),
+            DateRangeFilterField(value: dates, onChanged: (range) => setSheet(() => dates = range)),
+          ],
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _status = result.$1;
+        _dates = result.$2;
+      });
+    }
   }
 
   @override
@@ -68,18 +117,20 @@ class _TicketsScreenState extends State<TicketsScreen> {
     if (profile == null) {
       return const Scaffold(body: Center(child: Text('No encontramos los datos de tu sesión.')));
     }
+    final theme = Theme.of(context);
 
     return BlocProvider(
-      key: ValueKey('$_status|$_search|$_dateFrom|$_dateTo'),
+      key: ValueKey('$_status|$_search|$_dates'),
       create: (context) => TicketsBloc(
         repository: context.read<RequestsRepository>(),
         status: _status,
         search: _search,
-        dateFrom: _dateFrom,
-        dateTo: _dateTo,
+        dateFrom: _dates?.start,
+        dateTo: _dates?.end,
       )..add(const PagedStarted()),
       child: Builder(
         builder: (context) => Scaffold(
+          backgroundColor: AppColors.canvas,
           appBar: MantixAppBar(profile: profile),
           drawer: MantixDrawer(profile: profile, selectedPath: TicketRoutes.list),
           floatingActionButton: profile.can('solicitudes:crear')
@@ -90,104 +141,112 @@ class _TicketsScreenState extends State<TicketsScreen> {
                 )
               : null,
           body: BlocBuilder<TicketsBloc, PagedListState<TicketListItem>>(
-            builder: (context, state) => RefreshIndicator(
-              onRefresh: context.read<TicketsBloc>().refresh,
-              color: const Color(0xFF3E5C76),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+            builder: (context, state) {
+              final loaded = state.status == PagedStatus.success;
+              final kanbanPages = kanbanPageCount(_lanes.length);
+              return RefreshIndicator(
+                onRefresh: context.read<TicketsBloc>().refresh,
+                color: AppColors.steel,
+                child: ListView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                  children: [
+                    const TicketBanner(),
+                    const SizedBox(height: AppSpacing.md),
+                    if (loaded) ...[
+                      TicketStats(items: state.items, total: state.info?.total),
+                      const SizedBox(height: AppSpacing.lg),
+                      TicketAttention(items: state.items, onOpen: (item) => context.push(RequestRoutes.detail(item.id))),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    Row(children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Gestión de tickets', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text('Consulta y supervisa las incidencias técnicas.', style: Theme.of(context).textTheme.bodySmall),
-                          ],
+                        child: TextField(
+                          controller: _searchController,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _applySearch(),
+                          decoration: InputDecoration(
+                            hintText: 'Buscar por número, título o descripción…',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded)),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: const Color(0xFFE5F2FC), borderRadius: BorderRadius.circular(13)),
-                        child: const Icon(Icons.confirmation_number_outlined, color: Color(0xFF3E5C76)),
+                      const SizedBox(width: AppSpacing.sm),
+                      IconButton.filledTonal(
+                        tooltip: 'Filtros',
+                        onPressed: _showFilters,
+                        style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+                        icon: Badge(isLabelVisible: _status != null || _dates != null, smallSize: 8, child: const Icon(Icons.tune_rounded)),
                       ),
+                    ]),
+                    if (_status != null || _dates != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(spacing: 8, runSpacing: 4, children: [
+                        if (_status != null) ActiveFilterChip(label: _statusLabel ?? 'Estado', onRemove: () => setState(() => _status = null)),
+                        if (_dates != null) ActiveFilterChip(label: '${formatDate(_dates!.start)} – ${formatDate(_dates!.end)}', onRemove: () => setState(() => _dates = null)),
+                      ]),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (state.status == PagedStatus.success) _TicketSummary(items: state.items, total: state.info?.total),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(child: TextField(controller: _searchController, textInputAction: TextInputAction.search, onSubmitted: (_) => _applySearch(), decoration: InputDecoration(hintText: 'Buscar tickets…', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded))))),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(tooltip: 'Filtros', onPressed: () async {
-                      var status = _status; var from = _dateFrom; var to = _dateTo;
-                      final result = await showModalBottomSheet<(String?, DateTime?, DateTime?)>(context: context, showDragHandle: true, builder: (sheet) => StatefulBuilder(builder: (context, setSheet) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        DropdownButtonFormField<String?>(initialValue: status, decoration: const InputDecoration(labelText: 'Estado'), items: [const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')), for (final f in _filters.skip(1)) DropdownMenuItem<String?>(value: f.$2, child: Text(f.$1))], onChanged: (v) => setSheet(() => status = v)),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(onPressed: () async { final r = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: from != null && to != null ? DateTimeRange(start: from!, end: to!) : null); if (r != null) setSheet(() { from = r.start; to = r.end; }); }, icon: const Icon(Icons.date_range), label: const Text('Filtrar por fecha')),
-                        Row(children: [TextButton(onPressed: () => setSheet(() { status = null; from = null; to = null; }), child: const Text('Limpiar')), const Spacer(), FilledButton(onPressed: () => Navigator.pop(sheet, (status, from, to)), child: const Text('Aplicar'))]),
-                      ]))));
-                      if (result != null && mounted) setState(() { _status = result.$1; _dateFrom = result.$2; _dateTo = result.$3; });
-                    }, icon: const Icon(Icons.filter_alt_rounded)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Expanded(
-                        child: Text(
-                          state.status == PagedStatus.success
-                              ? '${state.info?.total ?? state.items.length} tickets'
-                              : 'Tickets recientes',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Tickets recientes', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
+                          Text('Últimos tickets registrados en el sistema', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate)),
+                        ]),
+                      ),
+                      if (loaded && _kanban)
+                        _PageArrows(
+                          page: _kanbanPage,
+                          pages: kanbanPages,
+                          onPrevious: () => _kanbanController.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                          onNext: () => _kanbanController.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                        )
+                      else if (loaded)
+                        Text('${state.info?.total ?? state.items.length} tickets', style: theme.textTheme.labelLarge?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800)),
+                    ]),
+                    const SizedBox(height: AppSpacing.md),
+                    _ViewToggle(kanban: _kanban, onChanged: (value) => setState(() => _kanban = value)),
+                    const SizedBox(height: AppSpacing.md),
+                    switch (state.status) {
+                      PagedStatus.loading => const _TicketLoading(),
+                      PagedStatus.failure => EmptyState(
+                          icon: Icons.cloud_off_outlined,
+                          title: 'No pudimos cargar los tickets',
+                          message: state.failure?.message,
+                          actionLabel: 'Reintentar',
+                          onAction: () => context.read<TicketsBloc>().add(const PagedStarted()),
                         ),
-                      ),
-                      SegmentedButton<bool>(
-                        showSelectedIcon: false,
-                        segments: const [
-                          ButtonSegment(value: false, icon: Icon(Icons.view_agenda_outlined), label: Text('Lista')),
-                          ButtonSegment(value: true, icon: Icon(Icons.view_kanban_outlined), label: Text('Kanban')),
-                        ],
-                        selected: {_kanban},
-                        onSelectionChanged: (value) => setState(() => _kanban = value.first),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  switch (state.status) {
-                    PagedStatus.loading => const _TicketLoading(),
-                    PagedStatus.failure => EmptyState(
-                        icon: Icons.cloud_off_outlined,
-                        title: 'No pudimos cargar los tickets',
-                        message: state.failure?.message,
-                        actionLabel: 'Reintentar',
-                        onAction: () => context.read<TicketsBloc>().add(const PagedStarted()),
-                      ),
-                    PagedStatus.success => _TicketResults(
-                        items: state.items,
-                        kanban: _kanban,
-                        lanes: _lanes,
-                        onMove: (item, status) async {
-                          try {
-                            await context.read<RequestsRepository>().transitionStatus(item.id, status);
-                          } catch (error) {
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo cambiar el estado: $error')));
-                          }
-                        },
-                        hasMore: state.hasMore,
-                        loadingMore: state.loadingMore,
-                        loadMoreFailure: state.loadMoreFailure?.message,
-                        onOpen: (item) => context.push(RequestRoutes.detail(item.id)),
-                        onLoadMore: () => context.read<TicketsBloc>().add(const PagedLoadMoreRequested()),
-                      ),
-                  },
-                ],
-              ),
-            ),
+                      PagedStatus.success => _TicketResults(
+                          items: state.items,
+                          kanban: _kanban,
+                          lanes: _lanes,
+                          controller: _kanbanController,
+                          onPageChanged: (page) => setState(() => _kanbanPage = page),
+                          onMove: (item, status) async {
+                            try {
+                              await context.read<RequestsRepository>().transitionStatus(item.id, status);
+                            } catch (error) {
+                              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo cambiar el estado: $error')));
+                            }
+                          },
+                          info: state.info,
+                          loadingPage: state.loadingMore,
+                          pageFailure: state.loadMoreFailure?.message,
+                          onOpen: (item) => context.push(RequestRoutes.detail(item.id)),
+                          onPage: (page) {
+                            context.read<TicketsBloc>().add(PagedPageSelected(page));
+                            _kanbanPage = 0;
+                            if (_kanbanController.hasClients) _kanbanController.jumpToPage(0);
+                            if (_scrollController.hasClients) _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+                          },
+                        ),
+                    },
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -195,66 +254,67 @@ class _TicketsScreenState extends State<TicketsScreen> {
   }
 }
 
-class _TicketSummary extends StatelessWidget {
-  const _TicketSummary({required this.items, required this.total});
-  final List<TicketListItem> items;
-  final int? total;
+/// Dos botones anchos: Tabla y Kanban.
+class _ViewToggle extends StatelessWidget {
+  const _ViewToggle({required this.kanban, required this.onChanged});
+  final bool kanban;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Expanded(child: _ToggleButton(icon: Icons.table_rows_rounded, label: 'Tabla', selected: !kanban, onTap: () => onChanged(false))),
+        const SizedBox(width: 10),
+        Expanded(child: _ToggleButton(icon: Icons.view_kanban_outlined, label: 'Kanban', selected: kanban, onTap: () => onChanged(true))),
+      ]);
+}
+
+class _ToggleButton extends StatelessWidget {
+  const _ToggleButton({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final sent = items.where((item) => item.status == 'submitted' || item.status == 'triaged').length;
-    final working = items.where((item) => ['assigned', 'in_progress', 'waiting'].contains(item.status)).length;
-    final resolved = items.where((item) => item.status == 'resolved' || item.status == 'closed').length;
-    final cards = [
-      ('Total', total?.toString() ?? items.length.toString(), Icons.confirmation_number_outlined, const Color(0xFFE5F2FC)),
-      ('Enviados', '$sent', Icons.mark_email_unread_outlined, const Color(0xFFE7F0FF)),
-      ('En proceso', '$working', Icons.engineering_outlined, const Color(0xFFFFF4DE)),
-      ('Resueltos', '$resolved', Icons.check_circle_outline, const Color(0xFFE2F6ED)),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 2.35,
-          children: [
-            for (final card in cards)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFFE1EAF2))),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(color: card.$4, borderRadius: BorderRadius.circular(11)),
-                      child: Icon(card.$3, size: 19, color: const Color(0xFF3E5C76)),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(card.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall),
-                          Text(card.$2, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, height: 1.1)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+    final color = selected ? AppColors.steel : AppColors.slate;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? AppColors.skyLight.withValues(alpha: .45) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: selected ? AppColors.steel : AppColors.grey.withValues(alpha: .6))),
+        child: InkWell(
+          borderRadius: AppRadius.lgAll,
+          onTap: onTap,
+          child: SizedBox(
+            height: 48,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 8),
+              Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color, fontWeight: FontWeight.w800)),
+            ]),
+          ),
         ),
-        const SizedBox(height: 5),
-        Text('Indicadores de los tickets cargados', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF778DA9))),
-      ],
+      ),
     );
   }
+}
+
+/// «1/4» con flechas, para moverse entre las páginas del Kanban.
+class _PageArrows extends StatelessWidget {
+  const _PageArrows({required this.page, required this.pages, required this.onPrevious, required this.onNext});
+  final int page;
+  final int pages;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        IconButton(tooltip: 'Columnas anteriores', visualDensity: VisualDensity.compact, onPressed: page > 0 ? onPrevious : null, icon: const Icon(Icons.chevron_left_rounded)),
+        Text('${page + 1}/$pages', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
+        IconButton(tooltip: 'Columnas siguientes', visualDensity: VisualDensity.compact, onPressed: page < pages - 1 ? onNext : null, icon: const Icon(Icons.chevron_right_rounded)),
+      ]);
 }
 
 class _TicketResults extends StatelessWidget {
@@ -262,28 +322,32 @@ class _TicketResults extends StatelessWidget {
     required this.items,
     required this.kanban,
     required this.lanes,
+    required this.controller,
+    required this.onPageChanged,
     required this.onMove,
-    required this.hasMore,
-    required this.loadingMore,
-    required this.loadMoreFailure,
+    required this.info,
+    required this.loadingPage,
+    required this.pageFailure,
     required this.onOpen,
-    required this.onLoadMore,
+    required this.onPage,
   });
 
   final List<TicketListItem> items;
   final bool kanban;
   final List<String> lanes;
+  final PageController controller;
+  final ValueChanged<int> onPageChanged;
   final Future<void> Function(TicketListItem, String) onMove;
-  final bool hasMore;
-  final bool loadingMore;
-  final String? loadMoreFailure;
+  final PageInfo? info;
+  final bool loadingPage;
+  final String? pageFailure;
   final ValueChanged<TicketListItem> onOpen;
-  final VoidCallback onLoadMore;
+  final ValueChanged<int> onPage;
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return EmptyState(
+      return const EmptyState(
         icon: Icons.inbox_outlined,
         title: 'No hay tickets para mostrar',
         message: 'Prueba con otro estado o modifica la búsqueda.',
@@ -292,142 +356,21 @@ class _TicketResults extends StatelessWidget {
     return Column(
       children: [
         if (kanban)
-          _TicketKanbanBoard(items: items, lanes: lanes, onOpen: onOpen, onMove: onMove)
+          TicketKanban(controller: controller, items: items, lanes: lanes, onOpen: onOpen, onMove: onMove, onPageChanged: onPageChanged)
         else
           for (final item in items) ...[
-            _TicketCard(item: item, onTap: () => onOpen(item), compact: false),
-            const SizedBox(height: 9),
+            TicketListCard(item: item, onTap: () => onOpen(item)),
+            const SizedBox(height: 10),
           ],
-        if (loadMoreFailure != null)
-          Text(loadMoreFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        if (hasMore)
-          OutlinedButton.icon(
-            onPressed: loadingMore ? null : onLoadMore,
-            icon: loadingMore
-                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.expand_more),
-            label: Text(loadingMore ? 'Cargando…' : 'Cargar más tickets'),
-          ),
+        if (pageFailure != null)
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        if (info != null) ...[
+          const SizedBox(height: 8),
+          Text('Mostrando ${(info!.page - 1) * info!.pageSize + 1} – ${(info!.page - 1) * info!.pageSize + items.length} de ${info!.total} tickets', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AppColors.slate)),
+          const SizedBox(height: 8),
+          PageNumberBar(page: info!.page, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage),
+        ],
       ],
-    );
-  }
-}
-
-class _TicketKanbanBoard extends StatelessWidget {
-  const _TicketKanbanBoard({required this.items, required this.lanes, required this.onOpen, required this.onMove});
-  final List<TicketListItem> items;
-  final List<String> lanes;
-  final ValueChanged<TicketListItem> onOpen;
-  final Future<void> Function(TicketListItem, String) onMove;
-
-  static const transitions = <String, Set<String>>{
-    'submitted': {},
-    'triaged': {},
-    'assigned': {'in_progress'},
-    'in_progress': {'waiting'},
-    'waiting': {'in_progress'},
-    'resolved': {'closed', 'in_progress'},
-    'closed': {},
-    'cancelled': {},
-  };
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 540,
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      children: [
-        for (final lane in lanes)
-          Container(
-            width: 238,
-            margin: const EdgeInsets.only(right: 10),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFF2F7FB), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(statusMeta(lane).label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
-                CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Text('${items.where((i) => i.status == lane).length}', style: Theme.of(context).textTheme.labelSmall)),
-              ]),
-              const SizedBox(height: 10),
-              Expanded(child: DragTarget<TicketListItem>(
-                onWillAcceptWithDetails: (details) => details.data.status != lane && (transitions[details.data.status]?.contains(lane) ?? false) && details.data.canAct,
-                onAcceptWithDetails: (details) => onMove(details.data, lane),
-                builder: (context, candidates, rejected) => Container(
-                  decoration: BoxDecoration(color: candidates.isEmpty ? Colors.transparent : const Color(0xFFDCEEFF), borderRadius: BorderRadius.circular(12)),
-                  child: ListView(children: [
-                    for (final item in items.where((i) => i.status == lane))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: item.canAct
-                          ? Draggable<TicketListItem>(
-                              data: item,
-                              feedback: Material(elevation: 5, borderRadius: BorderRadius.circular(12), child: SizedBox(width: 210, child: _TicketCard(item: item, onTap: () {}, compact: true))),
-                              childWhenDragging: Opacity(opacity: .35, child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true)),
-                              child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
-                            )
-                          : _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
-                      ),
-                  ]),
-                ),
-              )),
-            ]),
-          ),
-      ],
-    ),
-  );
-}
-
-class _TicketCard extends StatelessWidget {
-  const _TicketCard({required this.item, required this.onTap, required this.compact});
-  final TicketListItem item;
-  final VoidCallback onTap;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: AppRadius.lgAll,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(item.ticketNumber, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800, color: const Color(0xFF3E5C76))),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: Color(0xFF778DA9)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 7,
-                runSpacing: 6,
-                children: [StatusChip(item.status), PriorityChip(item.priority)],
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_outlined, size: 14, color: Color(0xFF778DA9)),
-                    const SizedBox(width: 5),
-                    Text(formatDate(item.createdAt), style: Theme.of(context).textTheme.bodySmall),
-                    if (item.category != null) ...[
-                      const SizedBox(width: 10),
-                      Flexible(child: Text(item.category!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall)),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -437,11 +380,11 @@ class _TicketLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      for (var i = 0; i < 4; i++)
-        const Card(
-          child: SizedBox(height: 92, child: Center(child: LinearProgressIndicator())),
-        ),
-    ],
-  );
+        children: [
+          for (var i = 0; i < 4; i++)
+            const Card(
+              child: SizedBox(height: 92, child: Center(child: LinearProgressIndicator())),
+            ),
+        ],
+      );
 }
