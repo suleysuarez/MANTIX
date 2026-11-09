@@ -9,7 +9,7 @@ import '../shared/app_chip.dart';
 /// Cómo se muestra el listado de equipos.
 enum EquipmentView { table, grid }
 
-const equipmentPageSizes = [10, 20, 50];
+const equipmentPageSizes = [10];
 
 String _subtitle(Equipment item) {
   final description = item.description?.trim();
@@ -222,7 +222,7 @@ class EquipmentPagination extends StatelessWidget {
     required this.shown,
     required this.pageSize,
     required this.onPage,
-    required this.onPageSize,
+    
   });
 
   final int page;
@@ -233,7 +233,6 @@ class EquipmentPagination extends StatelessWidget {
   final int shown;
   final int pageSize;
   final ValueChanged<int> onPage;
-  final ValueChanged<int> onPageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -245,24 +244,7 @@ class EquipmentPagination extends StatelessWidget {
         child: Text('Mostrando $from – $to de $total equipos', style: const TextStyle(color: AppColors.slate, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
       const SizedBox(height: 10),
-      Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          height: 44,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE5EEF6))),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: pageSize,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
-              style: const TextStyle(color: Color(0xFF334155), fontSize: 13, fontWeight: FontWeight.w600),
-              items: [for (final size in equipmentPageSizes) DropdownMenuItem(value: size, child: Text('$size por página'))],
-              onChanged: (size) {
-                if (size != null && size != pageSize) onPageSize(size);
-              },
-            ),
-          ),
-        ),
-        Row(mainAxisSize: MainAxisSize.min, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           _PageButton(icon: Icons.chevron_left_rounded, tooltip: 'Página anterior', onTap: page > 1 ? () => onPage(page - 1) : null),
           for (final number in pageButtons(page, totalPages))
             if (number == null)
@@ -271,7 +253,6 @@ class EquipmentPagination extends StatelessWidget {
               _PageButton(label: '$number', selected: number == page, tooltip: 'Página $number', onTap: number == page ? null : () => onPage(number)),
           _PageButton(icon: Icons.chevron_right_rounded, tooltip: 'Página siguiente', onTap: page < totalPages ? () => onPage(page + 1) : null),
         ]),
-      ]),
     ]);
   }
 }
