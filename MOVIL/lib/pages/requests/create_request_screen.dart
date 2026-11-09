@@ -24,7 +24,7 @@ class CreateRequestScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreateRequestBloc(repository: context.read<RequestsRepository>()),
-      child: const _CreateRequestForm(),
+      child: _CreateRequestForm(title: title, submitLabel: submitLabel),
     );
   }
 }
@@ -106,7 +106,7 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
     return BlocListener<CreateRequestBloc, CreateRequestState>(
       listener: _onResult,
       child: Scaffold(
-      appBar: AppBar(title: const Text('Nueva solicitud')),
+      appBar: AppBar(title: Text(widget.title)),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -182,7 +182,7 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
               onPressed: submitting ? null : _submit,
               child: submitting
                   ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Enviando'))
-                  : const Text('Enviar solicitud'),
+                  : Text(widget.submitLabel),
             ),
           ],
         ),
