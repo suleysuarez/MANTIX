@@ -18,6 +18,7 @@ class TicketListItem extends Equatable {
     required this.status,
     required this.createdAt,
     this.category,
+    this.equipment,
     this.canAct = false,
   });
 
@@ -29,6 +30,8 @@ class TicketListItem extends Equatable {
         status: json['status']! as String,
         category: json['category'] as String?,
         createdAt: _date(json['created_at']),
+        // El servidor puede enviar el equipo dentro de cada ticket; si no, solo trae `equipment_id`.
+        equipment: json['equipment'] is Map ? EquipmentRef.fromJson((json['equipment']! as Map).cast<String, Object?>()) : null,
         canAct: json['can_act'] as bool? ?? false,
       );
 
@@ -39,10 +42,11 @@ class TicketListItem extends Equatable {
   final String status;
   final String? category;
   final DateTime createdAt;
+  final EquipmentRef? equipment;
   final bool canAct;
 
   @override
-  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt, canAct];
+  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt, equipment, canAct];
 }
 
 class EquipmentRef extends Equatable {
@@ -64,6 +68,32 @@ class EquipmentRef extends Equatable {
   List<Object?> get props => [id, assetTag, brand, model];
 
   String get label => '$assetTag · $brand $model';
+}
+
+/// Un estado del flujo de tickets (`GET /maintenance/requests/workflow`): a qué estados puede
+/// pasar, qué datos exige para entrar y si quien llama puede entrar en él.
+class WorkflowStatus extends Equatable {
+  const WorkflowStatus({required this.status, required this.order, required this.allowedTargets, required this.requires, required this.canEnter});
+
+  factory WorkflowStatus.fromJson(Map<String, Object?> json) => WorkflowStatus(
+        status: json['status']! as String,
+        order: json['order'] as int? ?? 0,
+        allowedTargets: [for (final item in (json['allowed_targets'] as List? ?? const [])) item as String],
+        requires: [for (final item in (json['requires'] as List? ?? const [])) item as String],
+        canEnter: json['can_enter'] as bool? ?? false,
+      );
+
+  final String status;
+  final int order;
+  final List<String> allowedTargets;
+
+  /// Datos que hay que pedir antes de entrar en este estado: `category`, `priority`,
+  /// `technician`, `resolution_summary`, `reason`.
+  final List<String> requires;
+  final bool canEnter;
+
+  @override
+  List<Object?> get props => [status, order, allowedTargets, requires, canEnter];
 }
 
 class StatusHistoryEntry extends Equatable {

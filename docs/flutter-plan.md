@@ -306,6 +306,8 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - Equipos: `GET /equipment` no acepta `date_from` ni `date_to`. La app ya los envía desde el filtro «Fecha de registro» (mismo formato que tickets), pero el servidor los ignora hasta que `WEB/backend` filtre por `created_at`.
 - Equipos (app lista, backend pendiente; en `feat/api-mobile-needs`): `equipment_type_id` repetido para varias categorías (hoy `GET /equipment` toma solo uno), `POST /equipment/types` para «Crear nueva» categoría (la app solo ofrece búsqueda), historial de mantenimientos por equipo (la ficha muestra registro, último mantenimiento y tickets) y `equipment` dentro de cada ticket de la lista (nombre del equipo en filas y tarjetas).
 - Tickets: confirmar que `priority` y `equipment_id` admiten varios valores (hoy solo `status` admite lista).
+- Tickets (tablero): desde el tablero solo se pueden mover los estados que exigen texto (resolución al resolver, motivo al cancelar). Pasar a «En triaje» (categoría y prioridad) o «Asignado» (técnico) se hace desde el detalle porque la app aún no tiene catálogo de categorías ni de técnicos; el diálogo lo explica y ofrece abrir el ticket.
+- Tickets: varias prioridades (`priority=critical,high`) y varios equipos (`equipment_id` repetido) los entiende solo el servidor de `feat/api-mobile-needs`; con un solo valor funcionan con el backend actual.
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
 
 ## Sesión de Clerk en almacenamiento seguro (Fase 9) — OBSOLETO, resuelto

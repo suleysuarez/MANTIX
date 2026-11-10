@@ -7,7 +7,7 @@ import '../../repositories/requests/requests_repository.dart';
 
 /// Bandeja de tickets para los perfiles que tienen permiso de consulta global o asignada.
 class TicketsBloc extends PagedBloc<TicketListItem> {
-  TicketsBloc({required RequestsRepository repository, this.status, this.search, this.dateFrom, this.dateTo, super.pageSize}) : _repository = repository {
+  TicketsBloc({required RequestsRepository repository, this.status, this.search, this.dateFrom, this.dateTo, this.priorities = const [], this.equipmentIds = const [], super.pageSize}) : _repository = repository {
     _changes = repository.changes.listen((_) => add(const PagedRefreshed()));
   }
 
@@ -16,11 +16,13 @@ class TicketsBloc extends PagedBloc<TicketListItem> {
   final String? search;
   final DateTime? dateFrom;
   final DateTime? dateTo;
+  final List<String> priorities;
+  final List<int> equipmentIds;
   late final StreamSubscription<void> _changes;
 
   @override
   Future<PagedResult<TicketListItem>> fetch(int page) =>
-      _repository.listRequests(page: page, status: status, search: search, dateFrom: dateFrom, dateTo: dateTo, size: pageSize);
+      _repository.listRequests(page: page, status: status, search: search, dateFrom: dateFrom, dateTo: dateTo, priorities: priorities, equipmentIds: equipmentIds, size: pageSize);
 
   @override
   Future<void> close() async {
