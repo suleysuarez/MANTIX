@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -174,9 +175,11 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         scope: DataScope,
         status: str | None = None,
         priority: str | None = None,
+        priorities: Sequence[str] | None = None,
         category: str | None = None,
         unassigned: bool | None = None,
         equipment_id: int | None = None,
+        equipment_ids: Sequence[int] | None = None,
         requested_by_user_id: int | None = None,
         technician_id: int | None = None,
         search: str | None = None,
@@ -197,6 +200,8 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
             query = query.where(MaintenanceRequest.status.in_(statuses))
         if priority is not None:
             query = query.where(MaintenanceRequest.priority == priority)
+        if priorities:
+            query = query.where(MaintenanceRequest.priority.in_(priorities))
         if category is not None:
             query = query.where(MaintenanceRequest.category == category)
         if unassigned is not None:
@@ -206,6 +211,8 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
             query = query.where(~has_technician if unassigned else has_technician)
         if equipment_id is not None:
             query = query.where(MaintenanceRequest.equipment_id == equipment_id)
+        if equipment_ids:
+            query = query.where(MaintenanceRequest.equipment_id.in_(equipment_ids))
         if requested_by_user_id is not None:
             query = query.where(
                 MaintenanceRequest.requested_by_user_id == requested_by_user_id

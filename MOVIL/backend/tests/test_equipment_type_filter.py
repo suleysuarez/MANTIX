@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_authenticated_user
-from app.api.filters import MAX_FILTER_VALUES
 from app.api.providers import get_equipment_service
+from app.core.filters import MAX_FILTER_VALUES
 from app.main import app
 from app.models.equipment import Equipment, EquipmentType
 from app.repositories.base import Page

@@ -67,6 +67,7 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
         422,
         {
             "invalid_date_range": "La fecha «desde» no puede ser posterior a la fecha «hasta».",
+            "filter_too_many_values": "Un filtro admite como máximo 20 valores.",
         },
     ),
     **_generic(429, {"rate_limited": "Demasiadas peticiones; espera un momento."}),

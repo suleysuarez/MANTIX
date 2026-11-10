@@ -190,4 +190,5 @@ Toda respuesta de error tiene el mismo cuerpo:
 
 | Código | Significado |
 | --- | --- |
+| `filter_too_many_values` | Un filtro admite como máximo 20 valores. |
 | `invalid_date_range` | La fecha «desde» no puede ser posterior a la fecha «hasta». |

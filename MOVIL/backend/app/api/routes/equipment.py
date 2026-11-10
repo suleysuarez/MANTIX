@@ -3,11 +3,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
-from app.api.filters import MAX_FILTER_VALUES
 from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_equipment_service
 from app.api.redaction import hide_one_unless, hide_unless
 from app.core.authz import AuthContext
+from app.core.filters import MAX_FILTER_VALUES
 from app.core.pagination import PageParams
 from app.schemas.equipment import (
     CustodianCandidate,
