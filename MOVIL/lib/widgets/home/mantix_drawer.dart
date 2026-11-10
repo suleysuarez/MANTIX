@@ -17,12 +17,15 @@ String initialsOf(String name) {
 }
 
 class _NavItem {
-  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const []]);
+  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const [], this.hiddenWith]);
   final String label;
   final IconData icon;
   final String path;
   final String? permission;
   final List<String> anyPermissions;
+
+  /// Permiso con el que este elemento sobra (lo reemplaza otra pantalla más completa).
+  final String? hiddenWith;
 }
 
 /// Menú lateral. Solo muestra los módulos para los que el usuario tiene permiso (se
@@ -39,7 +42,8 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
     _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
-    _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver', 'solicitudes:ver_todos']),
+    // Quien ve todas las solicitudes trabaja desde «Solicitudes pendientes»; «Mis solicitudes» es para quien solo ve las suyas.
+    _NavItem('Mis solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver'], 'solicitudes:ver_todos'),
     _NavItem('Solicitudes pendientes', Icons.move_to_inbox_outlined, PendingRequestsScreen.path, 'solicitudes:ver_todos'),
     _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
     _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
@@ -70,9 +74,10 @@ class MantixDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final allowed = _navItems.where((item) =>
-      (item.permission == null && item.anyPermissions.isEmpty) ||
+      (item.hiddenWith == null || !profile.can(item.hiddenWith!)) &&
+      ((item.permission == null && item.anyPermissions.isEmpty) ||
       (item.permission != null && profile.can(item.permission!)) ||
-      item.anyPermissions.any(profile.can),
+      item.anyPermissions.any(profile.can)),
     ).toList();
     final homePath = resolveHome(profile.permissions).path;
     return Drawer(
