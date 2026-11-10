@@ -3,16 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../core/format/ticket_meta.dart';
-import '../../core/format/formatters.dart';
-import '../../core/theme/app_tokens.dart';
-import '../../widgets/shared/app_chip.dart';
-import '../../widgets/shared/async_view.dart';
-import '../../models/requests/request_models.dart';
-import '../../repositories/requests/requests_repository.dart';
 import '../../bloc/requests/request_detail_bloc.dart';
+import '../../repositories/requests/requests_repository.dart';
+import '../../widgets/tickets/ticket_detail_sheet.dart';
 
-/// Detalle de una solicitud: datos, estado, historial y adjuntos (solo lectura).
+/// Detalle de una solicitud como pantalla (desde «Mis solicitudes» y las notificaciones).
+/// Es la misma ficha que la hoja de detalle de Tickets: datos, historial con la creación y
+/// adjuntos, solo lectura. Aquí solo se añade la barra superior y recargar tirando hacia abajo.
 class RequestDetailScreen extends StatelessWidget {
   const RequestDetailScreen({super.key, required this.requestId});
 
@@ -44,126 +41,10 @@ class _RequestDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<RequestDetailBloc>().state;
+    final number = context.select((RequestDetailBloc bloc) => bloc.state.ticket?.ticketNumber);
     return Scaffold(
-      appBar: AppBar(title: Text(state.ticket?.ticketNumber ?? 'Solicitud')),
-      body: AsyncView<TicketDetail>(
-        loaded: state.ticket,
-        failure: state.failure,
-        onRetry: () => _refresh(context),
-        data: (ticket) => RefreshIndicator(
-          onRefresh: () => _refresh(context),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              Text(ticket.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.xs,
-                children: [StatusChip(ticket.status), PriorityChip(ticket.priority)],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _Field(label: 'Equipo', value: ticket.equipment.label),
-              _Field(label: 'Técnico asignado', value: ticket.technicianName ?? 'Sin asignar'),
-              _Field(label: 'Creada', value: formatDateTime(ticket.createdAt)),
-              _Field(label: 'Última actualización', value: formatDateTime(ticket.updatedAt)),
-              _Field(label: 'Descripción', value: ticket.description),
-              if (ticket.resolutionSummary != null) _Field(label: 'Resolución', value: ticket.resolutionSummary!),
-              const SizedBox(height: AppSpacing.md),
-              Text('Historial', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              for (final entry in ticket.history) _HistoryTile(entry: entry),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Adjuntos', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              const _Attachments(),
-            ],
-          ),
-        ),
-      ),
+      appBar: AppBar(title: Text(number ?? 'Solicitud')),
+      body: TicketDetailBody(onRefresh: () => _refresh(context)),
     );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: theme.textTheme.labelMedium),
-          Text(value, style: theme.textTheme.bodyLarge),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({required this.entry});
-
-  final StatusHistoryEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final from = entry.fromStatus == null ? null : statusMeta(entry.fromStatus!).label;
-    final to = statusMeta(entry.toStatus).label;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(from == null ? to : '$from → $to', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-          Text(formatDateTime(entry.changedAt), style: theme.textTheme.bodySmall),
-          if (entry.notes != null) Text(entry.notes!, style: theme.textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-}
-
-/// Los adjuntos cargan aparte: si fallan, el resto del detalle sigue visible.
-class _Attachments extends StatelessWidget {
-  const _Attachments();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<RequestDetailBloc>().state;
-    return switch (state.attachmentsStatus) {
-      LoadStatus.loading => const LinearProgressIndicator(semanticsLabel: 'Cargando adjuntos'),
-      LoadStatus.failure => Row(
-          children: [
-            const Expanded(child: Text('No pudimos cargar los adjuntos.')),
-            TextButton(
-              onPressed: () => context.read<RequestDetailBloc>().add(const RequestAttachmentsRequested()),
-              child: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      LoadStatus.success => state.attachments.isEmpty
-          ? const Text('Esta solicitud no tiene adjuntos.')
-          : Column(
-              children: [
-                for (final item in state.attachments)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(item.mimeType.startsWith('image/') ? Icons.image_outlined : Icons.attach_file),
-                    title: Text(item.fileName),
-                    subtitle: Text(formatFileSize(item.fileSize)),
-                  ),
-              ],
-            ),
-    };
   }
 }

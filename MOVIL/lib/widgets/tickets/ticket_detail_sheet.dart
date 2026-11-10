@@ -30,9 +30,15 @@ Future<void> showTicketDetail(BuildContext context, int ticketId) => showMantixS
     );
 
 class TicketDetailBody extends StatelessWidget {
-  const TicketDetailBody({super.key, this.controller});
+  const TicketDetailBody({super.key, this.controller, this.onRefresh});
 
   final ScrollController? controller;
+
+  /// Si se da, la lista se puede recargar tirando hacia abajo (la pantalla por ruta lo usa; la
+  /// hoja no, porque tirar hacia abajo ahí la arrastra).
+  final Future<void> Function()? onRefresh;
+
+  Widget _scrollable(Widget list) => onRefresh == null ? list : RefreshIndicator(onRefresh: onRefresh!, child: list);
 
   @override
   Widget build(BuildContext context) => BlocBuilder<RequestDetailBloc, RequestDetailState>(
@@ -40,16 +46,17 @@ class TicketDetailBody extends StatelessWidget {
           final ticket = state.ticket;
           if (ticket == null) {
             if (state.status == LoadStatus.failure && state.failure != null) {
-              return ListView(controller: controller, children: [
+              return _scrollable(ListView(controller: controller, physics: const AlwaysScrollableScrollPhysics(), children: [
                 ErrorState(failure: state.failure!, onRetry: () => context.read<RequestDetailBloc>().add(const RequestDetailRequested())),
-              ]);
+              ]));
             }
             return ListView(controller: controller, padding: const EdgeInsets.all(AppSpacing.lg), children: [
               for (var i = 0; i < 4; i++) const Padding(padding: EdgeInsets.only(bottom: AppSpacing.md), child: Skeleton(height: 72)),
             ]);
           }
-          return ListView(
+          return _scrollable(ListView(
             controller: controller,
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
             children: [
               DetailHeader(
@@ -72,7 +79,7 @@ class TicketDetailBody extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
               const DetailSection(icon: Icons.attach_file_rounded, title: 'Adjuntos', children: [_Attachments()]),
             ],
-          );
+          ));
         },
       );
 }

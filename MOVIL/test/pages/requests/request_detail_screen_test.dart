@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/requests/request_detail_screen.dart';
 import 'package:mantix/widgets/shared/skeleton.dart';
+import 'package:mantix/widgets/tickets/ticket_detail_sheet.dart';
 
 import '../../support/fakes.dart';
 import '../../support/requests_support.dart';
@@ -26,10 +27,11 @@ void main() {
       {'id': 1, 'file_name': 'foto.jpg', 'mime_type': 'image/jpeg', 'file_size': 2048},
     ]));
     await pumpScreen(tester, const RequestDetailScreen(requestId: 1), adapter);
-    expect(find.byType(SkeletonList), findsOneWidget);
+    expect(find.byType(Skeleton), findsWidgets);
 
     await tester.pumpAndSettle();
-    expect(find.text('TCK-0001'), findsOneWidget);
+    expect(find.text('TCK-0001'), findsWidgets, reason: 'en la barra y en la cabecera');
+    expect(find.byType(TicketDetailBody), findsOneWidget, reason: 'la misma ficha que la hoja de Tickets');
     expect(find.text('La laptop no enciende'), findsOneWidget);
     expect(find.text('EQ-0012 · Dell Latitude'), findsOneWidget);
     expect(find.text('Luis Técnico'), findsOneWidget);
@@ -42,7 +44,7 @@ void main() {
   testWidgets('sin adjuntos lo dice', (tester) async {
     await pumpScreen(tester, const RequestDetailScreen(requestId: 1), FakeAdapter(routes()));
     await tester.pumpAndSettle();
-    expect(find.text('Esta solicitud no tiene adjuntos.'), findsOneWidget);
+    expect(find.text('Este ticket no tiene adjuntos.'), findsOneWidget);
   });
 
   testWidgets('si fallan los adjuntos el resto del detalle sigue visible', (tester) async {
