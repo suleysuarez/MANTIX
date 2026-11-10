@@ -10,7 +10,7 @@ import 'queue_tones.dart';
 /// Tarjeta de una solicitud en una columna: número, cuánto lleva esperando, título, equipo,
 /// prioridad y categoría. Los nombres salen de las tablas del servidor.
 class QueueCard extends StatelessWidget {
-  const QueueCard({super.key, required this.ticket, required this.now, required this.priorities, required this.categoryNames, this.dimmed = false, this.onTap});
+  const QueueCard({super.key, required this.ticket, required this.now, required this.priorities, required this.categoryNames, this.dimmed = false, this.onTap, this.moveTargets = const [], this.onMove});
 
   final TicketListItem ticket;
 
@@ -22,6 +22,10 @@ class QueueCard extends StatelessWidget {
   /// Con un movimiento en curso la tarjeta se ve atenuada.
   final bool dimmed;
   final VoidCallback? onTap;
+
+  /// Destinos del menú «Mover a…» (estado y nombre); sin ellos no hay menú.
+  final List<({String status, String label})> moveTargets;
+  final ValueChanged<String>? onMove;
 
   String? get _equipment {
     final equipment = ticket.equipment;
@@ -56,6 +60,17 @@ class QueueCard extends StatelessWidget {
                   excludeSemantics: true,
                   child: _Chip(text: formatHours(hours), colors: wait, icon: Icons.schedule_rounded),
                 ),
+                if (moveTargets.isNotEmpty && onMove != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'Mover a…',
+                    icon: const Icon(Icons.more_vert_rounded, color: AppColors.steel),
+                    padding: EdgeInsets.zero,
+                    onSelected: onMove,
+                    itemBuilder: (_) => [
+                      PopupMenuItem<String>(enabled: false, height: 32, child: Text('Mover a…', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.slate, fontWeight: FontWeight.w700))),
+                      for (final target in moveTargets) PopupMenuItem<String>(value: target.status, child: Text(target.label)),
+                    ],
+                  ),
               ]),
               const SizedBox(height: AppSpacing.sm),
               Text(ticket.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
