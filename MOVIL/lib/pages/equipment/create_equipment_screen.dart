@@ -16,6 +16,7 @@ import '../../repositories/equipment/equipment_repository.dart';
 import '../../services/device_services.dart';
 import '../../widgets/equipment/attachments_section.dart';
 import '../../widgets/equipment/custodian_picker.dart';
+import '../../widgets/equipment/create_type_sheet.dart';
 import '../../widgets/shared/mantix_sheet.dart';
 import '../../widgets/shared/search_picker_sheet.dart';
 
@@ -192,6 +193,7 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
     final canLocate = profile?.can('equipos:editar') ?? false;
     final canAssign = profile?.can('equipos:asignar') ?? false;
     final canAttach = profile?.can('equipos:adjuntar') ?? false;
+    final canCreateType = profile?.can('equipos:crear') ?? false;
     final uploading = context.select((AttachmentsBloc bloc) => bloc.state.uploading);
     final hasFailed = context.select((AttachmentsBloc bloc) => bloc.state.hasFailed);
     final stage = _created == null ? _Stage.filling : (uploading ? _Stage.uploading : _Stage.finished);
@@ -262,6 +264,7 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
                           value: _typeId,
                           missing: _typeMissing,
                           serverError: _serverErrors['equipment_type_id'],
+                          canCreate: canCreateType,
                           enabled: !submitting,
                           onChanged: (id) {
                             setState(() {
@@ -526,7 +529,7 @@ class _Labeled extends StatelessWidget {
 }
 
 class _TypeField extends StatelessWidget {
-  const _TypeField({required this.catalog, required this.value, required this.missing, required this.enabled, required this.onChanged, this.serverError});
+  const _TypeField({required this.catalog, required this.value, required this.missing, required this.enabled, required this.onChanged, this.canCreate = false, this.serverError});
 
   final EquipmentCatalogState catalog;
   final int? value;
@@ -535,13 +538,14 @@ class _TypeField extends StatelessWidget {
   final String? serverError;
   final ValueChanged<int?> onChanged;
 
+  /// «Crear nueva» solo se ofrece con el permiso `equipos:crear`.
+  final bool canCreate;
+
   @override
   Widget build(BuildContext context) {
     final loading = catalog.status == CatalogStatus.loading;
     final selected = catalog.types.where((type) => type.id == value).firstOrNull;
     final error = missing ? 'Elige la categoría del equipo.' : serverError;
-    // «Crear nueva» no se ofrece: el servidor aún no tiene un endpoint para crear categorías
-    // (ver «Pendientes de backend» en docs/flutter-plan.md).
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Semantics(
         button: true,
@@ -558,6 +562,16 @@ class _TypeField extends StatelessWidget {
                     title: 'Categoría',
                     hint: 'Buscar categoría',
                     emptyTitle: 'No hay categorías con ese nombre',
+                    createLabel: canCreate ? 'Crear nueva categoría' : null,
+                    onCreate: canCreate
+                        ? () async {
+                            final created = await showCreateTypeSheet(context, existing: catalog.types);
+                            if (created != null && context.mounted && !catalog.types.any((type) => type.id == created.id)) {
+                              context.read<EquipmentCatalogBloc>().add(EquipmentTypeAdded(created));
+                            }
+                            return created;
+                          }
+                        : null,
                     createBloc: (search) => EquipmentTypeSearchBloc(types: catalog.types, search: search),
                     itemBuilder: (context, type, select) => ListTile(
                       minVerticalPadding: 12,

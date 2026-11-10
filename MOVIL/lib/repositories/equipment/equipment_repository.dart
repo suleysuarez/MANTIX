@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../../core/errors/failure_mapper.dart';
 import '../../models/equipment/attachment_models.dart';
 import '../../models/equipment/equipment_models.dart';
+import '../../models/equipment/maintenance_record_models.dart';
 import '../../models/page_info.dart';
 import '../../models/requests/request_models.dart' show Attachment;
 
@@ -51,6 +52,24 @@ class EquipmentRepository {
           items: [if (data is List) for (final item in data) Equipment.fromJson((item as Map).cast<String, Object?>())],
           info: PageInfo.fromHeaders(response.headers),
         );
+      });
+
+  /// Mantenimientos del equipo, el más reciente primero (requiere `tickets:ver_todos`; sin él
+  /// llega un `ForbiddenFailure`).
+  Future<PagedResult<MaintenanceRecord>> maintenanceRecords(int equipmentId, {int page = 1, int size = 10}) => _guard(() async {
+        final response = await _dio.get<Object?>('/equipment/$equipmentId/maintenance-records', queryParameters: {'page': page, 'size': size});
+        final data = response.data;
+        return PagedResult(
+          items: [if (data is List) for (final item in data) MaintenanceRecord.fromJson((item as Map).cast<String, Object?>())],
+          info: PageInfo.fromHeaders(response.headers),
+        );
+      });
+
+  /// Crea una categoría (requiere `equipos:crear`). Un nombre repetido, sin distinguir
+  /// mayúsculas, llega como `ConflictFailure` con el código `equipment_type_name_taken`.
+  Future<EquipmentType> createType(String name) => _guard(() async {
+        final response = await _dio.post<Map<String, Object?>>('/equipment/types', data: {'name': name});
+        return EquipmentType.fromJson(response.data!);
       });
 
   Future<EquipmentSummary> summary() => _guard(() async {

@@ -13,6 +13,13 @@ part 'equipment_catalog_state.dart';
 class EquipmentCatalogBloc extends Bloc<EquipmentCatalogEvent, EquipmentCatalogState> {
   EquipmentCatalogBloc({required this._repository}) : super(const EquipmentCatalogState()) {
     on<EquipmentCatalogStarted>(_onStarted);
+    on<EquipmentTypeAdded>(_onTypeAdded);
+  }
+
+  void _onTypeAdded(EquipmentTypeAdded event, Emitter<EquipmentCatalogState> emit) {
+    if (state.types.any((type) => type.id == event.type.id)) return;
+    final types = [...state.types, event.type]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    emit(EquipmentCatalogState(status: state.status, types: types, locations: state.locations, failure: state.failure));
   }
 
   final EquipmentRepository _repository;

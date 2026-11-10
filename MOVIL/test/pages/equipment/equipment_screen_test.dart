@@ -34,6 +34,23 @@ const _typesJson = [
 ];
 
 final _laptop = equipmentItemJson();
+Map<String, Object?> _record(int id, String type, String result, String diagnosis) => {
+      'id': id,
+      'equipment_id': 7,
+      'request_id': null,
+      'technician_id': 3,
+      'work_type': type,
+      'started_at': '2026-10-${10 + id}T10:00:00Z',
+      'completed_at': null,
+      'diagnosis': diagnosis,
+      'actions_taken': 'Cambio de cable',
+      'result': result,
+      'labor_cost': '40.00',
+      'parts_cost': '15.50',
+      'total_cost': '55.50',
+      'notes': null,
+    };
+
 final _printer = equipmentItemJson(overrides: {
   'id': 8,
   'asset_tag': 'DEMO-008',
@@ -56,15 +73,18 @@ void main() {
   late ResponseBody Function(RequestOptions) listHandler;
   late ResponseBody Function(RequestOptions) summaryHandler;
   late EquipmentRepository repository;
+  late ResponseBody Function(RequestOptions) recordsHandler;
 
   setUp(() {
     createdOnce = false;
     authBloc = MockAuthBloc();
     listHandler = (_) => pagedResponse([_laptop, _printer]);
     summaryHandler = (_) => jsonResponse(200, _summaryJson);
+    recordsHandler = (_) => pagedResponse([_record(1, 'corrective', 'resolved', 'Pantalla negra'), _record(2, 'preventive', 'resolved', 'Limpieza interna')], total: 12);
     adapter = FakeAdapter((options) => switch (options.path) {
           '/equipment' when options.method == 'POST' => jsonResponse(201, equipmentItemJson(overrides: {'id': 99, 'asset_tag': 'EQ-NEW', 'brand': 'Nuevo', 'model': 'Recién creado'})),
           '/maintenance/requests' => pagedResponse([ticketJson(id: 1, title: 'Pantalla rota')]),
+          final path when path.endsWith('/maintenance-records') => recordsHandler(options),
           final path when path.endsWith('/attachments') => jsonResponse(200, [
               {'id': 5, 'file_name': 'factura.pdf', 'mime_type': 'application/pdf', 'file_size': 2048},
             ]),
@@ -110,6 +130,16 @@ void main() {
 
   List<RequestOptions> listRequests() => adapter.requests.where((r) => r.path == '/equipment').toList();
   Map<String, dynamic> lastQuery() => listRequests().last.queryParameters;
+
+  /// La ficha construye sus filas de forma perezosa: se baja hasta que [finder] exista.
+  Future<void> dragTo(WidgetTester tester, Finder finder) async {
+    for (var i = 0; i < 40 && finder.evaluate().isEmpty; i++) {
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -250));
+      await tester.pumpAndSettle();
+    }
+    expect(finder, findsWidgets);
+  }
+
 
   /// Responde como un servidor con [total] equipos repartidos en páginas del tamaño pedido.
   ResponseBody pagedByQuery(RequestOptions options, {int total = 25}) {
@@ -393,13 +423,83 @@ void main() {
     expect(find.textContaining('20 oct 2026'), findsWidgets);
     expect(find.text('GESTIÓN DE EQUIPOS'), findsOneWidget, reason: 'la pantalla de fondo sigue visible');
     // Historial: el registro del equipo y sus tickets.
-    await tester.scrollUntilVisible(find.text('Equipo registrado'), 200, scrollable: find.byType(Scrollable).last);
+    await dragTo(tester, find.text('Equipo registrado'));
     expect(find.text('Equipo registrado'), findsOneWidget);
     expect(find.text('Ticket TCK-0001 creado'), findsOneWidget);
     expect(find.text('Pantalla rota · Enviado'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('factura.pdf'), 200, scrollable: find.byType(Scrollable).last);
+    await dragTo(tester, find.text('factura.pdf'));
     expect(find.text('factura.pdf'), findsOneWidget);
     expect(adapter.requests.any((r) => r.path == '/maintenance/requests' && r.queryParameters['equipment_id'] == 7), isTrue);
+  });
+
+  group('mantenimientos en la ficha', () {
+    testWidgets('lista los más recientes con tipo, resultado, diagnóstico y costo, y dice cuántos hay', (tester) async {
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Pantalla negra'));
+      expect(find.text('Correctivo'), findsOneWidget);
+      expect(find.text('Preventivo'), findsOneWidget);
+      expect(find.text('Resolved'), findsWidgets);
+      expect(find.text('Limpieza interna'), findsOneWidget);
+      expect(find.text('Costo total: 55.50'), findsWidgets);
+      expect(find.text('Se muestran los 2 más recientes de 12.'), findsOneWidget);
+      expect(adapter.requests.any((r) => r.path == '/equipment/7/maintenance-records' && r.queryParameters['size'] == 10), isTrue);
+    });
+
+    testWidgets('también aparecen como hechos del historial', (tester) async {
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Mantenimiento correctivo'));
+      expect(find.text('Mantenimiento preventivo'), findsOneWidget);
+      expect(find.text('Equipo registrado'), findsOneWidget);
+    });
+
+    testWidgets('sin costos (sin permiso para verlos) no se muestran', (tester) async {
+      recordsHandler = (_) => pagedResponse([
+            {..._record(1, 'corrective', 'resolved', 'Pantalla negra'), 'labor_cost': null, 'parts_cost': null, 'total_cost': null},
+          ]);
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Pantalla negra'));
+      expect(find.textContaining('Costo total'), findsNothing);
+    });
+
+    testWidgets('sin el permiso de ver todos los tickets no se muestra la lista ni un error, y queda el último', (tester) async {
+      recordsHandler = (_) => errorResponse(403, code: 'forbidden');
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Equipo registrado'));
+      expect(find.text('Mantenimientos'), findsNothing);
+      expect(find.text('Sin permiso'), findsNothing, reason: 'no hay un error que mostrar');
+      expect(find.text('Último mantenimiento'), findsWidgets);
+    });
+
+    testWidgets('un equipo sin mantenimientos lo dice', (tester) async {
+      recordsHandler = (_) => pagedResponse([]);
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Este equipo aún no tiene mantenimientos registrados.'));
+    });
+
+    testWidgets('si la lista de mantenimientos falla muestra el error con reintento y el resto sigue', (tester) async {
+      recordsHandler = (_) => errorResponse(500);
+      await pumpScreen(tester);
+      await tester.tap(find.text('Dell Latitude 5420'));
+      await tester.pumpAndSettle();
+
+      await dragTo(tester, find.text('Reintentar'));
+      expect(find.text('Código de activo'), findsOneWidget, reason: 'la ficha sigue visible');
+    });
   });
 
   testWidgets('la etiqueta «Último mantenimiento» no se superpone con su valor', (tester) async {
@@ -569,7 +669,7 @@ void main() {
         await tapVisible(tester, find.text('Dell Latitude 5420'));
         expect(find.text('Detalle del equipo'), findsOneWidget);
         expect(tester.takeException(), isNull);
-        await tester.scrollUntilVisible(find.text('factura.pdf'), 200, scrollable: find.byType(Scrollable).last);
+        await dragTo(tester, find.text('factura.pdf'));
         expect(tester.takeException(), isNull);
       });
 

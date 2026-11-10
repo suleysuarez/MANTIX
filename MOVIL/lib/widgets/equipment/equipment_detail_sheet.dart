@@ -8,6 +8,7 @@ import '../../core/format/ticket_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/equipment/equipment_models.dart';
+import '../../models/equipment/maintenance_record_models.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
 import '../../repositories/requests/requests_repository.dart';
@@ -68,6 +69,7 @@ class EquipmentDetailBody extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         DetailSection(icon: Icons.build_outlined, title: 'Mantenimiento', children: [
           DetailField('Último mantenimiento', last == null ? 'Sin mantenimientos' : formatDate(last.toLocal())),
+          const _Records(),
         ]),
         const SizedBox(height: AppSpacing.md),
         DetailSection(icon: Icons.history_rounded, title: 'Historial', children: [_History(item: item, onOpenTicket: onOpenTicket)]),
@@ -80,6 +82,74 @@ class EquipmentDetailBody extends StatelessWidget {
 
 String _orEmpty(String? value, String fallback) => value == null || value.trim().isEmpty ? fallback : value;
 
+const _maintenanceColor = Color(0xFF065F46);
+
+/// Lista de los mantenimientos más recientes del equipo. Sin permiso (`tickets:ver_todos`) no
+/// se muestra nada: la sección solo enseña el último mantenimiento.
+class _Records extends StatelessWidget {
+  const _Records();
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<EquipmentDetailBloc, EquipmentDetailState>(
+        builder: (context, state) {
+          if (state.recordsForbidden) return const SizedBox.shrink();
+          final theme = Theme.of(context);
+          switch (state.recordsStatus) {
+            case DetailPart.loading:
+              return const _InlineSkeleton(rows: 2);
+            case DetailPart.failure:
+              return ErrorState(failure: state.recordsFailure!, onRetry: () => context.read<EquipmentDetailBloc>().add(const EquipmentDetailStarted()));
+            case DetailPart.success:
+              if (state.records.isEmpty) {
+                return Text('Este equipo aún no tiene mantenimientos registrados.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate));
+              }
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('Mantenimientos', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.slate, fontWeight: FontWeight.w700)),
+                const SizedBox(height: AppSpacing.sm),
+                for (final record in state.records) _RecordTile(record),
+                if (state.recordsTotal > state.records.length)
+                  Text('Se muestran los ${state.records.length} más recientes de ${state.recordsTotal}.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate)),
+              ]);
+          }
+        },
+      );
+}
+
+class _RecordTile extends StatelessWidget {
+  const _RecordTile(this.record);
+  final MaintenanceRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cost = record.totalCost;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(color: AppColors.canvas, borderRadius: AppRadius.mdAll, border: Border.all(color: AppColors.grey.withValues(alpha: .5))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xs, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .3), borderRadius: AppRadius.pillAll),
+            child: Text(record.workTypeLabel, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
+          ),
+          if (record.resultLabel.isNotEmpty) Text(record.resultLabel, style: theme.textTheme.labelMedium?.copyWith(color: _maintenanceColor, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 4),
+        Text(formatDateTime(record.startedAt), style: theme.textTheme.labelSmall?.copyWith(color: AppColors.slate)),
+        if (record.diagnosis.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(record.diagnosis, maxLines: 3, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w600)),
+        ],
+        if (record.actionsTaken.isNotEmpty) Text(record.actionsTaken, maxLines: 3, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)),
+        // Los costos solo llegan a quien puede verlos.
+        if (cost != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Costo total: $cost', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w700))),
+      ]),
+    );
+  }
+}
+
 class _History extends StatelessWidget {
   const _History({required this.item, required this.onOpenTicket});
   final Equipment item;
@@ -90,7 +160,19 @@ class _History extends StatelessWidget {
         builder: (context, state) {
           final entries = <TimelineEntry>[
             if (item.createdAt != null) TimelineEntry(title: 'Equipo registrado', at: item.createdAt!, icon: Icons.add_circle_outline_rounded, color: AppColors.navy),
-            if (item.lastMaintenanceAt != null) TimelineEntry(title: 'Último mantenimiento', at: item.lastMaintenanceAt!, icon: Icons.build_circle_outlined, color: const Color(0xFF065F46)),
+            // Con la lista de mantenimientos cargada, cada trabajo es un hecho del historial; si no
+            // se puede ver (sin permiso) o aún no llega, queda al menos el último.
+            if (state.recordsStatus == DetailPart.success)
+              for (final record in state.records)
+                TimelineEntry(
+                  title: 'Mantenimiento ${record.workTypeLabel.toLowerCase()}',
+                  subtitle: record.resultLabel.isEmpty ? null : record.resultLabel,
+                  at: record.startedAt,
+                  icon: Icons.build_circle_outlined,
+                  color: _maintenanceColor,
+                )
+            else if (item.lastMaintenanceAt != null)
+              TimelineEntry(title: 'Último mantenimiento', at: item.lastMaintenanceAt!, icon: Icons.build_circle_outlined, color: _maintenanceColor),
             for (final ticket in state.tickets)
               TimelineEntry(
                 title: 'Ticket ${ticket.ticketNumber} creado',
