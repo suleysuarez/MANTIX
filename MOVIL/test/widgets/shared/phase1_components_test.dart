@@ -74,6 +74,11 @@ void main() {
       expect(find.byTooltip('Página siguiente'), findsNothing);
       expect(find.textContaining('/'), findsNothing);
       expect(find.byType(DropdownButton<int>), findsNothing);
+
+      // La píldora sigue ahí, con la única página en el círculo mostaza.
+      expect(find.text('1'), findsOneWidget);
+      final selected = find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard && (w.decoration! as BoxDecoration).shape == BoxShape.circle);
+      expect(selected, findsOneWidget);
     });
 
     testWidgets('el selector de tamaño aparece si el total supera 5 y avisa del cambio', (tester) async {

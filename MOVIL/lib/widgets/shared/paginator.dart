@@ -34,7 +34,7 @@ List<int?> visiblePages({required int page, required int totalPages, required in
 /// página en medio (la actual, en un círculo mostaza), y debajo «1-5 de 23» y el selector de
 /// tamaño de página.
 ///
-/// * Con una sola página no hay píldora.
+/// * Con una sola página la píldora muestra solo «1», sin flechas.
 /// * En la primera página no hay «anterior»; en la última, no hay «siguiente».
 /// * El selector de tamaño solo aparece si el total supera la opción más pequeña
 ///   y la pantalla pasa [onPageSize].
@@ -84,8 +84,9 @@ class Paginator extends StatelessWidget {
     return Opacity(
       opacity: loading ? .5 : 1,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (totalPages > 1) _Pill(page: page, totalPages: totalPages, onPage: go),
-        if (totalPages > 1) const SizedBox(height: AppSpacing.sm),
+        // La píldora sale siempre; con una sola página muestra «1» y ninguna flecha.
+        _Pill(page: page, totalPages: totalPages < 1 ? 1 : totalPages, onPage: go),
+        const SizedBox(height: AppSpacing.sm),
         Wrap(
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
