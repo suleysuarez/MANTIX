@@ -36,17 +36,19 @@ class RequestsRepository {
   }
 
   /// Los tickets que el servidor deja ver a quien llama, acotados por sus permisos.
-  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search, DateTime? dateFrom, DateTime? dateTo, int? equipmentId, List<int> equipmentIds = const [], List<String> priorities = const [], int size = PageInfo.defaultPageSize}) => _guard(() async {
+  Future<PagedResult<TicketListItem>> listRequests({int page = 1, String? status, String? search, DateTime? dateFrom, DateTime? dateTo, int? equipmentId, List<int> equipmentIds = const [], List<String> priorities = const [], List<String> categories = const [], List<int> technicianIds = const [], String sort = '-created_at', int size = PageInfo.defaultPageSize}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/maintenance/requests', queryParameters: {
           'page': page,
           'size': size,
-          'sort': '-created_at',
+          'sort': sort,
           'status': ?status,
           // Un solo valor viaja como siempre; varios (prioridades separadas por coma, equipos con
           // el parámetro repetido) los entiende un servidor que admite listas.
           'equipment_id': ?(equipmentIds.length > 1 ? equipmentIds : (equipmentIds.length == 1 ? equipmentIds.first : equipmentId)),
           if (priorities.isNotEmpty) 'priority': priorities.join(','),
+          if (categories.isNotEmpty) 'category': categories.join(','),
+          if (technicianIds.isNotEmpty) 'technician_id': technicianIds,
           if (term != null && term.isNotEmpty) 'search': term,
           if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
           if (dateTo != null) 'date_to': dateTo.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)).toUtc().toIso8601String(),
@@ -65,6 +67,13 @@ class RequestsRepository {
           if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
           if (resolutionSummary != null && resolutionSummary.trim().isNotEmpty) 'resolution_summary': resolutionSummary.trim(),
         });
+        _changes.add(null);
+      });
+
+  /// Rechaza una solicitud de la cola con un [reason] de 5 a 500 caracteres
+  /// (`POST …/{id}/reject`, requiere `solicitudes:aprobar`; solo desde Enviado, En triaje o Asignado).
+  Future<void> reject(int id, {required String reason}) => _guard(() async {
+        await _dio.post<Object?>('/maintenance/requests/$id/reject', data: {'reason': reason.trim()});
         _changes.add(null);
       });
 
