@@ -66,7 +66,7 @@ class Paginator extends StatelessWidget {
   final bool loading;
 
   /// Ancho de cada número de página y lado de cada flecha (48: el mínimo táctil de Material).
-  static const _cell = 36.0;
+  static const _cell = 34.0;
   static const _arrow = 48.0;
 
   @override
@@ -127,14 +127,15 @@ class _Pill extends StatelessWidget {
         builder: (context, constraints) {
           // Cuántos números caben entre las dos flechas; en pantallas estrechas, menos.
           // (Menos el relleno y el borde de la píldora.)
-          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm - 2) / (Paginator._cell + 4)).floor();
+          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm - 2) / Paginator._cell).floor();
           final pages = visiblePages(page: page, totalPages: totalPages, slots: room.clamp(5, 7));
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
             decoration: BoxDecoration(
-              color: AppColors.white,
+              // Píldora en un mostaza muy suave; la página actual va en mostaza pleno.
+              color: Color.alphaBlend(AppColors.mustard.withValues(alpha: .16), AppColors.white),
               borderRadius: AppRadius.pillAll,
-              border: Border.all(color: AppColors.skyLight.withValues(alpha: .6)),
+              border: Border.all(color: AppColors.mustard.withValues(alpha: .35)),
               boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: .10), blurRadius: 12, offset: const Offset(0, 4))],
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -193,12 +194,12 @@ class _PageNumber extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: selected ? null : onTap,
           child: SizedBox(
-            width: Paginator._cell + 4,
+            width: Paginator._cell,
             height: Paginator._arrow,
             child: Center(
               child: Container(
-                width: 32,
-                height: 32,
+                width: 30,
+                height: 30,
                 alignment: Alignment.center,
                 // La página actual: círculo mostaza con un aro más claro alrededor.
                 decoration: BoxDecoration(
@@ -224,7 +225,7 @@ class _Ellipsis extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
         child: SizedBox(
-          width: Paginator._cell - 6,
+          width: Paginator._cell - 8,
           height: Paginator._arrow,
           child: Center(child: Text('…', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.slate, fontWeight: FontWeight.w700))),
         ),
