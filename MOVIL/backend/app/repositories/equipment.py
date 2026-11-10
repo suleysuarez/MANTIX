@@ -64,6 +64,8 @@ class EquipmentRepository(BaseRepository[Equipment]):
         location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[Equipment]:
         query = self._equipment_query()
@@ -81,6 +83,10 @@ class EquipmentRepository(BaseRepository[Equipment]):
                     )
                 )
             )
+        if date_from is not None:
+            query = query.where(Equipment.created_at >= date_from)
+        if date_to is not None:
+            query = query.where(Equipment.created_at <= date_to)
         if brand:
             query = query.where(Equipment.brand.ilike(escape_like(brand), escape="\\"))
         query = self.apply_search(

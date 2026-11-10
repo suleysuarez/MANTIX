@@ -63,6 +63,12 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "unprocessable": "El contenido no se puede procesar (por ejemplo, un archivo dañado).",
         },
     ),
+    **_group(
+        422,
+        {
+            "invalid_date_range": "La fecha «desde» no puede ser posterior a la fecha «hasta».",
+        },
+    ),
     **_generic(429, {"rate_limited": "Demasiadas peticiones; espera un momento."}),
     **_generic(500, {"internal_error": "Error interno del servidor."}),
     # --- No encontrado (404) -----------------------------------------------------------

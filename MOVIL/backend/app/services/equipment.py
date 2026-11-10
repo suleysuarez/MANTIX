@@ -1,7 +1,9 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.exc import IntegrityError
 
 from app.core.authz import AuthContext
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, UnprocessableError
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.equipment import Equipment
 from app.repositories.base import Page
@@ -25,6 +27,13 @@ from app.schemas.maintenance import MaintenanceRecordResponse
 from app.services.audit import AuditService
 
 
+def _utc(value: datetime | None) -> datetime | None:
+    """A date-time with no zone is read as UTC (the database compares aware values)."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 class EquipmentService:
     def __init__(self, repository: EquipmentRepository, audit: AuditService):
         self.repository = repository
@@ -38,14 +47,23 @@ class EquipmentService:
         location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[EquipmentResponse]:
+        date_from, date_to = _utc(date_from), _utc(date_to)
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise UnprocessableError(
+                "date_from must not be after date_to", code="invalid_date_range"
+            )
         page = await self.repository.list_equipment(
             status=status,
             equipment_type_id=equipment_type_id,
             location_id=location_id,
             brand=brand,
             search=search,
+            date_from=date_from,
+            date_to=date_to,
             params=params,
         )
         contexts = await self.repository.current_context([e.id for e in page.items])

@@ -185,3 +185,9 @@ Toda respuesta de error tiene el mismo cuerpo:
 | `user_email_taken` | Ya existe un usuario con ese correo. |
 | `user_employee_code_taken` | Ya existe un usuario con ese código de empleado. |
 | `warranty_dates_invalid` | El fin de garantía no puede ser anterior al inicio. |
+
+### 422 Datos no válidos
+
+| Código | Significado |
+| --- | --- |
+| `invalid_date_range` | La fecha «desde» no puede ser posterior a la fecha «hasta». |

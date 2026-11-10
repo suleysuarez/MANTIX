@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
@@ -52,6 +54,14 @@ async def list_equipment(
         max_length=100,
         description="Matches asset tag, serial number, brand or model",
     ),
+    date_from: datetime | None = Query(  # noqa: B008
+        default=None,
+        description="Registered at or after (a date or a date-time; no zone means UTC)",
+    ),
+    date_to: datetime | None = Query(  # noqa: B008
+        default=None,
+        description="Registered at or before (a date or a date-time; no zone means UTC)",
+    ),
     params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
     actor: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
@@ -62,6 +72,8 @@ async def list_equipment(
         location_id=location_id,
         brand=brand,
         search=search,
+        date_from=date_from,
+        date_to=date_to,
         params=params,
     )
     set_page_headers(response, page)
