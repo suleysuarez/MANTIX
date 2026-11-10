@@ -101,6 +101,53 @@ async def test_priority_fk_rejects_unknown_code(db_session):
         await db_session.flush()
 
 
+async def test_ticket_list_preloads_equipment_without_a_query_per_row(db_session):
+    from sqlalchemy import event
+
+    from app.core.scope import DataScope
+    from app.models.maintenance import MaintenanceRequest
+    from app.repositories.maintenance import MaintenanceRepository
+
+    user = User(clerk_user_id="u2", email="b@c.co", full_name="B", is_active=True)
+    db_session.add(user)
+    db_session.add(Priority(code="low", name="Low", level=1, is_active=True))
+    await db_session.flush()
+    for i in range(5):
+        eq = await _equipment(db_session, tag=f"TK-{i}", brand=f"Brand{i}")
+        db_session.add(
+            MaintenanceRequest(
+                ticket_number=f"TCK-LIST-{i}",
+                equipment_id=eq.id,
+                requested_by_user_id=user.id,
+                title="t",
+                description="d",
+                priority="low",
+                status="submitted",
+            )
+        )
+    await db_session.flush()
+    db_session.expire_all()
+
+    statements: list[str] = []
+    sync_engine = db_session.bind.sync_engine
+
+    def listener(*args):
+        statements.append(args[2])
+
+    event.listen(sync_engine, "before_cursor_execute", listener)
+    try:
+        page = await MaintenanceRepository(db_session).list_requests(
+            scope=DataScope.everything()
+        )
+        brands = sorted(item.equipment.brand for item in page.items)
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", listener)
+
+    assert brands == [f"Brand{i}" for i in range(5)]
+    # count + page + one batched equipment load, however many tickets are listed.
+    assert len(statements) == 3
+
+
 async def test_priority_repository_orders_by_level_and_filters_inactive(db_session):
     repo = PriorityRepository(db_session)
     db_session.add_all(

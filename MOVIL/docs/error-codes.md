@@ -153,6 +153,7 @@ Toda respuesta de error tiene el mismo cuerpo:
 | `category_in_use` | La categoría está en uso por solicitudes y no se elimina. |
 | `equipment_identifier_taken` | Ya existe un equipo con esa etiqueta o número de serie. |
 | `equipment_serial_taken` | Ya existe un equipo con ese número de serie. |
+| `equipment_type_name_taken` | Ya existe una categoría de equipo con ese nombre. |
 | `inventory_insufficient_stock` | No hay stock suficiente para el movimiento. |
 | `inventory_item_has_movements` | El ítem tiene movimientos y no se elimina; desactívalo. |
 | `inventory_item_inactive` | Un ítem inactivo no admite movimientos; reactívalo primero. |
@@ -185,3 +186,10 @@ Toda respuesta de error tiene el mismo cuerpo:
 | `user_email_taken` | Ya existe un usuario con ese correo. |
 | `user_employee_code_taken` | Ya existe un usuario con ese código de empleado. |
 | `warranty_dates_invalid` | El fin de garantía no puede ser anterior al inicio. |
+
+### 422 Datos no válidos
+
+| Código | Significado |
+| --- | --- |
+| `filter_too_many_values` | Un filtro admite como máximo 20 valores. |
+| `invalid_date_range` | La fecha «desde» no puede ser posterior a la fecha «hasta». |

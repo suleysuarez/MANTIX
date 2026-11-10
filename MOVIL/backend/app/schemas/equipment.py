@@ -1,8 +1,15 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 EquipmentStatus = Literal[
     "in_storage",
@@ -20,6 +27,30 @@ class EquipmentTypeResponse(BaseModel):
     id: int
     code: str
     name: str
+
+
+def _collapse_spaces(value: object) -> object:
+    """Trim the ends and turn any run of whitespace into a single space."""
+    return " ".join(value.split()) if isinstance(value, str) else value
+
+
+class EquipmentTypeCreate(BaseModel):
+    """A new equipment category. The `code` is derived from the name by the service."""
+
+    model_config = ConfigDict(json_schema_extra={"example": {"name": "Proyector"}})
+
+    name: Annotated[
+        str,
+        BeforeValidator(_collapse_spaces),
+        Field(min_length=2, max_length=100, description="Unique, case-insensitive"),
+    ]
+
+    @field_validator("name")
+    @classmethod
+    def _needs_a_letter_or_digit(cls, value: str) -> str:
+        if not any(char.isalnum() for char in value):
+            raise ValueError("the name needs at least one letter or digit")
+        return value
 
 
 class LocationBrief(BaseModel):

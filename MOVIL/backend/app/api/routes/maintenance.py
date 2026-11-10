@@ -7,6 +7,7 @@ from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_maintenance_service
 from app.core.authz import AuthContext
 from app.core.errors import error_responses
+from app.core.filters import MAX_FILTER_VALUES
 from app.core.pagination import PageParams
 from app.domain.ticket_state import TicketState
 from app.schemas.maintenance import (
@@ -81,14 +82,44 @@ async def list_maintenance_requests(
     status_filter: str | None = Query(
         default=None,
         alias="status",
-        description="One status or a comma-separated list, e.g. `submitted,triaged`",
+        description=(
+            "One status or a comma-separated list, e.g. `submitted,triaged` "
+            f"(at most {MAX_FILTER_VALUES})"
+        ),
     ),
-    priority: str | None = Query(default=None),
-    category: str | None = Query(default=None),
+    priority: str | None = Query(
+        default=None,
+        description=(
+            "One priority or a comma-separated list, e.g. `critical,high` "
+            f"(at most {MAX_FILTER_VALUES})"
+        ),
+    ),
+    category: str | None = Query(
+        default=None,
+        description=(
+            "One category or a comma-separated list, e.g. `hardware,network` "
+            f"(at most {MAX_FILTER_VALUES})"
+        ),
+    ),
+    technician_id: list[int] | None = Query(  # noqa: B008
+        default=None,
+        max_length=MAX_FILTER_VALUES,
+        description=(
+            "Tickets with one of these technicians currently assigned (repeat the "
+            f"parameter: `technician_id=1&technician_id=2`, at most {MAX_FILTER_VALUES})"
+        ),
+    ),
     unassigned: bool | None = Query(
         default=None, description="True: no technician yet; false: has one"
     ),
-    equipment_id: int | None = Query(default=None),
+    equipment_id: list[int] | None = Query(  # noqa: B008
+        default=None,
+        max_length=MAX_FILTER_VALUES,
+        description=(
+            "One item or several (repeat the parameter: "
+            f"`equipment_id=1&equipment_id=2`, at most {MAX_FILTER_VALUES})"
+        ),
+    ),
     search: str | None = Query(
         default=None,
         max_length=100,
@@ -105,7 +136,8 @@ async def list_maintenance_requests(
         priority=priority,
         category=category,
         unassigned=unassigned,
-        equipment_id=equipment_id,
+        technician_ids=technician_id,
+        equipment_ids=equipment_id,
         search=search,
         date_from=date_from,
         date_to=date_to,

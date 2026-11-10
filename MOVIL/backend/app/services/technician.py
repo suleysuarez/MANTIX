@@ -34,11 +34,15 @@ class TechnicianService:
         self,
         *,
         is_available: bool | None = None,
+        is_active: bool | None = None,
         search: str | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[TechnicianResponse]:
         page = await self.repository.list(
-            is_available=is_available, search=search, params=params
+            is_available=is_available,
+            is_active=is_active,
+            search=search,
+            params=params,
         )
         return page.map(TechnicianResponse.model_validate)
 

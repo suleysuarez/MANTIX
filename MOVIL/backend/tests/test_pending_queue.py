@@ -20,6 +20,7 @@ from app.models.category import RequestCategory
 from app.models.equipment import Equipment, EquipmentType
 from app.models.maintenance import MaintenanceRequest, TicketStatusHistory
 from app.models.priority import Priority
+from app.repositories.base import Page
 from app.repositories.dashboard import CountRow
 from app.repositories.maintenance import MaintenanceRepository
 from app.repositories.queue import DecisionStats, QueueRepository, WaitStats
@@ -273,8 +274,10 @@ class FakeQueueRepository:
     async def decision_stats(self, *, start, end):
         return self.windows.pop(0)
 
-    async def active_categories(self):
-        return [SimpleNamespace(code="network", name="Red")]
+    async def active_categories(self, search=None, params=None):
+        items = [SimpleNamespace(code="network", name="Red")]
+        size = params.size if params else 20
+        return Page(items=items, total=len(items), page=1, size=size)
 
 
 async def summary(repo=None, actor=ADMIN, period="30d"):

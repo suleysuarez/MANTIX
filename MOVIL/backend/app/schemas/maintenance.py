@@ -273,6 +273,10 @@ class MaintenanceRequestListItem(BaseModel):
     category: str | None = None
     status: str
     created_at: datetime
+    equipment: EquipmentSummary | None = Field(
+        default=None,
+        description="The ticket's equipment (tag, brand, model), so lists need no extra calls.",
+    )
     can_act: bool = Field(
         default=False,
         description=(

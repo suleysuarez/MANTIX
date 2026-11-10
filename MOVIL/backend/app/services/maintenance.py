@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
@@ -7,6 +8,7 @@ from app.core.exceptions import (
     NotFoundError,
     UnprocessableError,
 )
+from app.core.filters import split_filter_list
 from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.domain.ticket_state import TicketState
 from app.models.maintenance import MaintenanceRequest
@@ -102,7 +104,9 @@ class MaintenanceService:
         *,
         status: str | None,
         priority: str | None,
-        equipment_id: int | None,
+        equipment_id: int | None = None,
+        equipment_ids: Sequence[int] | None = None,
+        technician_ids: Sequence[int] | None = None,
         category: str | None = None,
         unassigned: bool | None = None,
         search: str | None = None,
@@ -115,14 +119,20 @@ class MaintenanceService:
             raise UnprocessableError("date_from must not be after date_to")
         if date_from is not None and date_from > datetime.now(UTC):
             raise UnprocessableError("date_from cannot be in the future")
+        # `status` and `priority` take one value or a comma-separated list, with a limit.
+        split_filter_list(status, "status")
+        priorities = split_filter_list(priority, "priority")
+        categories = split_filter_list(category, "category")
         scope = await self.repository.scope_for(actor)
         page = await self.repository.list_requests(
             scope=scope,
             status=status,
-            priority=priority,
-            category=category,
+            priorities=priorities,
+            categories=categories,
             unassigned=unassigned,
             equipment_id=equipment_id,
+            equipment_ids=equipment_ids,
+            technician_ids=technician_ids,
             search=search,
             date_from=date_from,
             date_to=date_to,

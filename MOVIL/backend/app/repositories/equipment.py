@@ -32,6 +32,12 @@ class EquipmentContext:
     # (started_at, work_type, result, technician name)
 
 
+MAINTENANCE_RECORD_SORT_FIELDS = {
+    "started_at": MaintenanceRecord.started_at,
+    "completed_at": MaintenanceRecord.completed_at,
+    "id": MaintenanceRecord.id,
+}
+
 EQUIPMENT_SORT_FIELDS = {
     "asset_tag": Equipment.asset_tag,
     "brand": Equipment.brand,
@@ -55,9 +61,12 @@ class EquipmentRepository(BaseRepository[Equipment]):
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        equipment_type_ids: Sequence[int] | None = None,
         location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[Equipment]:
         query = self._equipment_query()
@@ -66,6 +75,8 @@ class EquipmentRepository(BaseRepository[Equipment]):
             query = query.where(Equipment.status.in_(statuses))
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if equipment_type_ids:
+            query = query.where(Equipment.equipment_type_id.in_(equipment_type_ids))
         if location_id is not None:
             query = query.where(
                 Equipment.id.in_(
@@ -75,6 +86,10 @@ class EquipmentRepository(BaseRepository[Equipment]):
                     )
                 )
             )
+        if date_from is not None:
+            query = query.where(Equipment.created_at >= date_from)
+        if date_to is not None:
+            query = query.where(Equipment.created_at <= date_to)
         if brand:
             query = query.where(Equipment.brand.ilike(escape_like(brand), escape="\\"))
         query = self.apply_search(
@@ -92,6 +107,23 @@ class EquipmentRepository(BaseRepository[Equipment]):
             params.sort,
             EQUIPMENT_SORT_FIELDS,
             default=(Equipment.asset_tag, Equipment.id),
+        )
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
+
+    async def list_maintenance_records(
+        self, equipment_id: int, params: PageParams = DEFAULT_PAGE
+    ) -> Page[MaintenanceRecord]:
+        """Maintenance records logged against one item, most recent work first."""
+        query = select(MaintenanceRecord).where(
+            MaintenanceRecord.equipment_id == equipment_id
+        )
+        query = self.apply_ordering(
+            query,
+            params.sort,
+            MAINTENANCE_RECORD_SORT_FIELDS,
+            default=(MaintenanceRecord.started_at.desc(), MaintenanceRecord.id.desc()),
         )
         return await self.paginate(
             query, page=params.page, size=params.size, offset=params.offset
@@ -232,6 +264,30 @@ class EquipmentRepository(BaseRepository[Equipment]):
             select(User).where(User.id == user_id, User.is_active.is_(True))
         )
         return result.scalar_one_or_none()
+
+    async def find_type_by_name(self, name: str) -> EquipmentType | None:
+        """The category with this name ignoring case, active or not (the table's unique
+        constraint on `name` counts inactive ones too)."""
+        result = await self.session.execute(
+            select(EquipmentType).where(
+                func.lower(EquipmentType.name) == func.lower(name)
+            )
+        )
+        return result.scalars().first()
+
+    async def type_code_exists(self, code: str) -> bool:
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(EquipmentType)
+            .where(EquipmentType.code == code)
+        )
+        return bool(result.scalar_one())
+
+    async def create_type(self, *, code: str, name: str) -> EquipmentType:
+        equipment_type = EquipmentType(code=code, name=name, is_active=True)
+        self.session.add(equipment_type)
+        await self.session.flush()
+        return equipment_type
 
     async def get_type(self, equipment_type_id: int) -> EquipmentType | None:
         result = await self.session.execute(

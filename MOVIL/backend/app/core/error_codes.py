@@ -63,6 +63,13 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "unprocessable": "El contenido no se puede procesar (por ejemplo, un archivo dañado).",
         },
     ),
+    **_group(
+        422,
+        {
+            "invalid_date_range": "La fecha «desde» no puede ser posterior a la fecha «hasta».",
+            "filter_too_many_values": "Un filtro admite como máximo 20 valores.",
+        },
+    ),
     **_generic(429, {"rate_limited": "Demasiadas peticiones; espera un momento."}),
     **_generic(500, {"internal_error": "Error interno del servidor."}),
     # --- No encontrado (404) -----------------------------------------------------------
@@ -105,6 +112,7 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "schedule_equipment_unavailable": "No se programa mantenimiento para un equipo en ese estado.",
             "schedule_technician_inactive": "No se asigna un plan a un técnico inactivo.",
             "equipment_identifier_taken": "Ya existe un equipo con esa etiqueta o número de serie.",
+            "equipment_type_name_taken": "Ya existe una categoría de equipo con ese nombre.",
             "equipment_serial_taken": "Ya existe un equipo con ese número de serie.",
             "warranty_dates_invalid": "El fin de garantía no puede ser anterior al inicio.",
             "location_taken": "Ya existe una ubicación con ese código o nombre.",

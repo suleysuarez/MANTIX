@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
@@ -5,6 +7,7 @@ from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_equipment_service
 from app.api.redaction import hide_one_unless, hide_unless
 from app.core.authz import AuthContext
+from app.core.filters import MAX_FILTER_VALUES
 from app.core.pagination import PageParams
 from app.schemas.equipment import (
     CustodianCandidate,
@@ -13,11 +16,13 @@ from app.schemas.equipment import (
     EquipmentLocationAssignRequest,
     EquipmentResponse,
     EquipmentSummaryResponse,
+    EquipmentTypeCreate,
     EquipmentTypeResponse,
     EquipmentUpdate,
     LocationCreate,
     LocationResponse,
 )
+from app.schemas.maintenance import MaintenanceRecordResponse
 from app.services.equipment import EquipmentService
 
 router = APIRouter(prefix="/equipment", tags=["equipment"])
@@ -41,7 +46,14 @@ async def list_equipment(
         alias="status",
         description="One status or a comma-separated list (e.g. `assigned,in_storage`)",
     ),
-    equipment_type_id: int | None = Query(default=None),
+    equipment_type_id: list[int] | None = Query(  # noqa: B008
+        default=None,
+        max_length=MAX_FILTER_VALUES,
+        description=(
+            "One category or several (repeat the parameter: "
+            f"`equipment_type_id=1&equipment_type_id=2`, at most {MAX_FILTER_VALUES})"
+        ),
+    ),
     location_id: int | None = Query(
         default=None, description="Items currently placed in this location"
     ),
@@ -51,16 +63,26 @@ async def list_equipment(
         max_length=100,
         description="Matches asset tag, serial number, brand or model",
     ),
+    date_from: datetime | None = Query(  # noqa: B008
+        default=None,
+        description="Registered at or after (a date or a date-time; no zone means UTC)",
+    ),
+    date_to: datetime | None = Query(  # noqa: B008
+        default=None,
+        description="Registered at or before (a date or a date-time; no zone means UTC)",
+    ),
     params: PageParams = Depends(page_params(default_size=200)),  # noqa: B008
     actor: AuthContext = Depends(require_permission("equipos:ver")),  # noqa: B008
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentResponse]:
     page = await service.list_equipment(
         status=status_filter,
-        equipment_type_id=equipment_type_id,
+        equipment_type_ids=equipment_type_id,
         location_id=location_id,
         brand=brand,
         search=search,
+        date_from=date_from,
+        date_to=date_to,
         params=params,
     )
     set_page_headers(response, page)
@@ -101,6 +123,54 @@ async def list_equipment_types(
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentTypeResponse]:
     return await service.list_types()
+
+
+@router.get(
+    "/{equipment_id}/maintenance-records",
+    response_model=list[MaintenanceRecordResponse],
+    summary="Maintenance history of one item",
+    description=(
+        "Paginated maintenance records logged against the item, most recent work "
+        "first (sort fields: `started_at`, `completed_at`). Needs `tickets:ver_todos`: "
+        "the records carry diagnoses and costs, so only whoever sees every ticket may "
+        "read them. Costs are hidden unless the person also holds `equipos:editar`. "
+        "Pagination metadata is returned in the `X-Total-Count`, `X-Page`, "
+        "`X-Page-Size` and `X-Total-Pages` headers."
+    ),
+)
+async def list_equipment_maintenance_records(
+    equipment_id: int,
+    response: Response,
+    params: PageParams = Depends(page_params()),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("tickets:ver_todos")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> list[MaintenanceRecordResponse]:
+    page = await service.list_maintenance_records(equipment_id, params)
+    set_page_headers(response, page)
+    items = page.items
+    for field in ("labor_cost", "parts_cost", "total_cost"):
+        items = hide_unless(actor, "equipos:editar", items, field)
+    return items
+
+
+@router.post(
+    "/types",
+    response_model=EquipmentTypeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an equipment category",
+    description=(
+        "Adds a category to the catalog. The name is trimmed and its inner spaces "
+        "collapsed (2 to 100 characters); it must be unique ignoring case, otherwise "
+        "409 `equipment_type_name_taken` names the one that already exists. The `code` "
+        "is derived from the name. Needs `equipos:crear`."
+    ),
+)
+async def create_equipment_type(
+    payload: EquipmentTypeCreate,
+    actor: AuthContext = Depends(require_permission("equipos:crear")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> EquipmentTypeResponse:
+    return await service.create_type(payload, actor)
 
 
 @router.get("/{equipment_id}", response_model=EquipmentResponse)

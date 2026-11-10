@@ -305,6 +305,34 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - Equipos: no hay búsqueda exacta por `asset_tag`; el escaneo de QR de la Fase 8 la necesitará (filtro `asset_tag` o comparar en el cliente).
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
 
+## Cambios de API solo en MOVIL/backend (pendientes de unificar)
+
+Rama `feat/api-mobile-needs`, desde `develop` (los cambios 7 a 10 los pide la pantalla de Solicitudes Pendientes de la app). Todos son **aditivos y retrocompatibles**: campos y filtros nuevos y opcionales, ningún `detail` existente cambió, **sin migraciones, sin modelos nuevos y sin permisos nuevos** (se reutilizan `tickets:ver_todos`, `equipos:editar` y `equipos:crear`). Mantienen la paginación por cabeceras (`X-Total-Count`, `X-Page`, `X-Page-Size`, `X-Total-Pages`) y el cuerpo de error `{detail, code, errors, request_id}`. No se tocó `WEB/`.
+
+| # | Cambio | Dónde (archivo · función) | Commit |
+|---|---|---|---|
+| 1 | Cada ticket de la lista trae `equipment` (`id`, `asset_tag`, `brand`, `model`), cargado en lote (3 consultas por página, sin N+1) | `schemas/maintenance.py` · `MaintenanceRequestListItem.equipment`; `repositories/maintenance.py` · `MaintenanceRepository.list_requests` (`selectinload`) | `99e00a0` (+ `032fb1d`, `aa48746`, `71cb690`: ajustes de su prueba) |
+| 2 | `GET /equipment/{id}/maintenance-records`: historial de mantenimientos del equipo, paginado, más reciente primero. Exige `tickets:ver_todos`; los costos salen vacíos sin `equipos:editar`. 404 `equipment_not_found` | `api/routes/equipment.py` · `list_equipment_maintenance_records`; `services/equipment.py` · `EquipmentService.list_maintenance_records`; `repositories/equipment.py` · `EquipmentRepository.list_maintenance_records` | `51c9752` |
+| 3 | `GET /equipment?date_from=&date_to=` (sobre `created_at`, extremos incluidos; sin zona = UTC). `desde > hasta` → 422 `invalid_date_range`; formato inválido → 422 `validation_error` | `api/routes/equipment.py` · `list_equipment`; `services/equipment.py` · `list_equipment`, `_utc`; `repositories/equipment.py` · `list_equipment` | `2bc03a9` |
+| 4 | `GET /equipment?equipment_type_id=1&equipment_type_id=2`: varias categorías (máx. 20; más → 422 `validation_error`). Un valor sigue igual | `api/routes/equipment.py` · `list_equipment`; `services/equipment.py` y `repositories/equipment.py` · `list_equipment(equipment_type_ids=…)` | `65677bb` |
+| 5 | `GET /maintenance/requests`: `priority=critical,high` (lista por coma, como `status`) y `equipment_id` repetido; máx. 20 en cada filtro (por coma → 422 `filter_too_many_values`; repetido → 422 `validation_error`) | `api/routes/maintenance.py` · `list_maintenance_requests`; `services/maintenance.py` · `MaintenanceService.list_requests`; `repositories/maintenance.py` · `MaintenanceRepository.list_requests`; `core/filters.py` · `split_filter_list`, `MAX_FILTER_VALUES` | `97ea744` |
+| 6 | `POST /equipment/types`: crea una categoría. Exige `equipos:crear`. Nombre recortado y con espacios colapsados (2–100 caracteres, con al menos una letra o dígito); único sin distinguir mayúsculas → 409 `equipment_type_name_taken` con el nombre existente en `detail`; el `code` se deriva del nombre (`PROYECTOR_HD`, con sufijo `_2`, `_3`… si choca); 201 con `{id, code, name}`; auditoría `equipment_type.created` | `api/routes/equipment.py` · `create_equipment_type`; `services/equipment.py` · `EquipmentService.create_type`, `_free_type_code`, `_type_code_base`; `repositories/equipment.py` · `find_type_by_name`, `type_code_exists`, `create_type`; `schemas/equipment.py` · `EquipmentTypeCreate` | `9003eed` |
+| 7 | `GET /maintenance/requests?technician_id=1&technician_id=2`: tickets que tienen **ahora** a alguno de esos técnicos asignados (una asignación ya cerrada no cuenta); máx. 20 (más o no numérico → 422 `validation_error`). Se combina con los demás filtros | `api/routes/maintenance.py` · `list_maintenance_requests`; `services/maintenance.py` · `MaintenanceService.list_requests`; `repositories/maintenance.py` · `list_requests(technician_ids=…)` | `2d2a9a4` |
+| 8 | `GET /maintenance/requests?category=hardware,network`: `category` admite lista separada por coma como `status` y `priority` (máx. 20 → 422 `filter_too_many_values`); un valor sigue igual | `api/routes/maintenance.py`; `services/maintenance.py` · `list_requests`; `repositories/maintenance.py` · `list_requests(categories=…)`; `core/filters.py` · `split_filter_list` | `2d2a9a4` |
+| 9 | `GET /technicians?is_active=true`: solo técnicos cuya cuenta de usuario está activa (los que se pueden asignar); sin el parámetro, todos como antes | `api/routes/technician.py` · `list_technicians`; `services/technician.py` · `TechnicianService.list`; `repositories/technician.py` · `TechnicianRepository.list` | `2d2a9a4` |
+| 10 | `GET /maintenance/categories?search=&page=&size=`: búsqueda por nombre y páginas con las cabeceras de paginación; sin parámetros devuelve todo el catálogo activo como antes (tamaño por defecto 200) | `api/routes/queue.py` · `list_categories`; `services/queue.py` · `QueueService.categories`; `repositories/queue.py` · `QueueRepository.active_categories` | `2d2a9a4` |
+
+**Códigos de error nuevos** (en `core/error_codes.py` y `docs/error-codes.md`): `invalid_date_range` (422), `filter_too_many_values` (422) y `equipment_type_name_taken` (409). Documentos regenerados: `docs/api-reference.md` y `docs/error-codes.md` (ambos verificados por tests).
+
+**Al llevarlo a `WEB/backend`:**
+
+- Es un cherry-pick por commit; cada uno trae su prueba. Los tres comparten `core/filters.py` (cambios 4 y 5) y la entrada de `docs/error-codes.md`.
+- Hay que regenerar los dos documentos con `python -m scripts.api_docs` y `python -m scripts.error_codes_doc`.
+- La unicidad de categorías sin distinguir mayúsculas se valida en el servicio, no en la base: dos altas simultáneas con el mismo nombre en mayúsculas distintas podrían pasar las dos. Cerrarlo del todo exige un índice único sobre `lower(name)` (migración): decisión pendiente, no se hizo.
+- `/reports/equipment` sigue aceptando una sola categoría (lo usa la exportación de la app).
+
+**Pruebas:** contra una base PostgreSQL local desechable (`TEST_DATABASE_URL` con host `localhost` y nombre terminado en `_test`; nunca la de Neon). Los tests que usan `MIGRATED_DATABASE_URL` (base migrada con Alembic) no se corrieron. Fallan igual en `develop`, sin estos cambios: los 3 de `test_clerk_auth` y los 2 que revisan rutas públicas (`test_rbac::test_every_endpoint_requires_authentication` y `test_rbac_enforcement::test_every_route_declares_a_permission…`), por `/mobile-auth/*`.
+
 ## Sesión de Clerk en almacenamiento seguro (Fase 9) — OBSOLETO, resuelto
 
 > **OBSOLETO:** `NativeAuthProvider` guarda el token propio con `flutter_secure_storage` y `clerk_flutter` ya no está en el proyecto. El `Persistor` que se planteaba aquí no hace falta.
