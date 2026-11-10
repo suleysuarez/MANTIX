@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/theme/app_colors.dart';
+import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/pages/requests/my_requests_screen.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/widgets/shared/app_chip.dart';
 import 'package:mantix/widgets/shared/skeleton.dart';
 
@@ -141,5 +147,52 @@ void main() {
     expect(find.byTooltip('Notificaciones'), findsOneWidget);
     expect(find.byTooltip('Perfil'), findsOneWidget);
     expect(find.text('Mis solicitudes'), findsOneWidget);
+  });
+
+  group('solicitud recién creada', () {
+    testWidgets('sin filtro, página 1, la más nueva primero y resaltada unos segundos', (tester) async {
+      var created = false;
+      final adapter = FakeAdapter((options) {
+        if (options.method == 'POST') return jsonResponse(201, detailJson(id: 99));
+        final page = options.queryParameters['page'] as int? ?? 1;
+        return pagedResponse([if (page == 1 && created) ticketJson(id: 99, title: 'Solicitud nueva'), ticketJson(id: 1)], page: page, totalPages: 2, total: 22);
+      });
+      await pumpScreen(tester, const MyRequestsScreen(), adapter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Cerrado'));
+      await tester.pumpAndSettle();
+      expect(adapter.requests.last.queryParameters['status'], 'closed');
+
+      created = true;
+      final repository = RepositoryProvider.of<RequestsRepository>(tester.element(find.byType(MyRequestsScreen)));
+      unawaited(repository.create(const NewRequest(equipmentId: 12, title: 'Solicitud nueva', description: 'detalle', priority: 'medium')));
+      await tester.pumpAndSettle();
+
+      final list = adapter.requests.where((r) => r.method == 'GET' && r.path == '/maintenance/requests').last.queryParameters;
+      expect(list['page'], 1);
+      expect(list['sort'], '-created_at');
+      expect(list.containsKey('status'), isFalse, reason: 'se quita el filtro para que se vea');
+      expect(tester.getTopLeft(find.text('Solicitud nueva')).dy, lessThan(tester.getTopLeft(find.text('La laptop no enciende')).dy));
+      Finder highlighted() => find.byWidgetPredicate((w) => w is Card && w.color == AppColors.mustard.withValues(alpha: .22));
+      expect(highlighted(), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(highlighted(), findsNothing);
+    });
+  });
+
+  group('sin overflow en pantallas pequeñas con texto 1,3', () {
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('en ${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+        final adapter = FakeAdapter((_) => pagedResponse([ticketJson(title: 'Un título largo de una solicitud que ocupa varias líneas en pantallas estrechas')], total: 41, totalPages: 3));
+        await pumpScreen(tester, const MyRequestsScreen(), adapter, size: size, textScale: 1.3);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).last, const Offset(0, -2000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
