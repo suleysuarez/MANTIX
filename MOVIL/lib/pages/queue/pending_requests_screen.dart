@@ -327,15 +327,11 @@ class _BoardSection extends StatelessWidget {
     return BlocBuilder<RequestBoardBloc, RequestBoardState>(
       builder: (context, state) {
         final board = context.read<RequestBoardBloc>();
-        final priorities = context.watch<PrioritiesCubit>().state.priorities;
-        final names = context.watch<CategoryNamesCubit>().state.names;
-        final count = state.columns.length;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Con letra grande y pantalla estrecha el contador pasa a la línea de abajo.
-          Padding(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm), child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: AppSpacing.sm, runSpacing: 2, children: [
-            Text('Solicitudes por estado', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
-            if (count > 0) Text(count == 1 ? '1 columna visible' : '$count columnas visibles', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate)),
-          ])),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Text('Solicitudes por estado', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
+          ),
           const SizedBox(height: AppSpacing.md),
           switch (state.workflowPhase) {
             WorkflowPhase.loading => const _BoardSkeleton(),
@@ -357,8 +353,6 @@ class _BoardSection extends StatelessWidget {
                 columns: state.columns,
                 workflow: state.workflow,
                 now: DateTime.now(),
-                priorities: priorities,
-                categoryNames: names,
                 statusLabel: (status) => statusMeta(status).label,
                 onMore: (status) => board.add(RequestBoardMoreRequested(status)),
                 onRetry: (status) => board.add(RequestBoardColumnRetried(status)),

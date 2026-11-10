@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/pages/queue/pending_requests_screen.dart';
 import 'package:mantix/widgets/queue/queue_board.dart';
 import 'package:mantix/widgets/queue/queue_header.dart';
@@ -114,13 +115,13 @@ void main() {
 
       // Tablero.
       expect(find.text('Solicitudes por estado'), findsOneWidget);
-      expect(find.text('3 columnas visibles'), findsOneWidget);
+      expect(find.textContaining('columnas visibles'), findsNothing, reason: 'ya no se cuenta cuántas columnas hay');
       expect(find.text('Recibidas'), findsOneWidget);
       expect(find.text('Clasificadas'), findsOneWidget);
       expect(find.text('Asignadas'), findsOneWidget);
       expect(find.byType(QueueCard), findsNWidgets(3));
       expect(find.text('La laptop no enciende'), findsNWidgets(2));
-      expect(find.text('Equipo #12'), findsNWidgets(3));
+      expect(find.textContaining('Equipo #'), findsNothing, reason: 'la tarjeta ya no muestra el equipo');
       expect(find.text('Sin solicitudes'), findsOneWidget, reason: 'Asignadas está vacía');
       expect(find.text('Ver 10 más'), findsOneWidget, reason: '12 recibidas y 2 cargadas');
     });
@@ -138,14 +139,42 @@ void main() {
       expect(find.text('Decisiones recientes'), findsOneWidget);
     });
 
-    testWidgets('una tarjeta antigua muestra su espera en el tono de alerta y los nombres del servidor', (tester) async {
+    testWidgets('la tarjeta muestra solo el nombre del ticket y cuánto lleva esperando', (tester) async {
       await open(tester);
 
       final card = find.byType(QueueCard).first;
-      expect(find.descendant(of: card, matching: find.text('TCK-0001')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.text('Crítica')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.text('Red')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.textContaining(' d')), findsWidgets, reason: 'su espera, en días');
+      expect(find.descendant(of: card, matching: find.text('La laptop no enciende')), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.textContaining(' d')), findsOneWidget, reason: 'su espera, en días');
+      // Nada más: ni número, ni equipo, ni prioridad, ni categoría.
+      expect(find.descendant(of: card, matching: find.byType(Text)), findsNWidgets(2));
+      expect(find.descendant(of: card, matching: find.text('TCK-0001')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Crítica')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Red')), findsNothing);
+    });
+
+    testWidgets('cada columna lleva su nombre y cuántas hay en la misma línea, sin color propio', (tester) async {
+      await open(tester);
+
+      final title = tester.getRect(find.text('Recibidas'));
+      final count = tester.getRect(find.descendant(of: find.ancestor(of: find.text('Recibidas'), matching: find.byType(Row)).first, matching: find.text('12')));
+      expect((title.center.dy - count.center.dy).abs(), lessThan(4), reason: 'misma línea');
+      expect(count.left, greaterThanOrEqualTo(title.right - 1), reason: 'a la derecha del nombre');
+    });
+
+    testWidgets('las cifras no llevan mostaza', (tester) async {
+      await open(tester);
+
+      final kpi = find.byType(QueueKpiGrid);
+      final mustard = find.descendant(
+        of: kpi,
+        matching: find.byWidgetPredicate((w) {
+          if (w is! Container) return false;
+          final decoration = w.decoration;
+          return decoration is BoxDecoration && decoration.color != null && decoration.color!.toARGB32() == AppColors.mustard.withValues(alpha: decoration.color!.a).toARGB32();
+        }),
+      );
+      expect(mustard, findsNothing);
+      expect(find.descendant(of: kpi, matching: find.byWidgetPredicate((w) => w is Container && w.color == AppColors.mustard)), findsNothing);
     });
 
     testWidgets('«Ver más» pide la página siguiente de esa columna', (tester) async {

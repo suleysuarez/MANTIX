@@ -76,8 +76,6 @@ class _KpiCard extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Franja mostaza de la paleta arriba de cada cifra.
-          Container(height: 4, color: AppColors.mustard),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -88,8 +86,8 @@ class _KpiCard extends StatelessWidget {
                         Container(
                           width: 26,
                           height: 26,
-                          decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .35), borderRadius: AppRadius.smAll),
-                          child: Icon(icon, size: 15, color: AppColors.navy),
+                          decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.smAll),
+                          child: Icon(icon, size: 15, color: AppColors.steel),
                         ),
                         const SizedBox(width: 8),
                         Expanded(child: Text(label!, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: 0.4))),

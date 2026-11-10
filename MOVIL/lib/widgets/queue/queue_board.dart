@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../bloc/queue/request_board_bloc.dart';
 import '../../core/format/queue_format.dart';
-import '../../core/format/ticket_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
-import '../../models/catalogs/catalog_models.dart';
 import '../../models/queue/queue_workflow.dart';
 import '../../models/requests/request_models.dart';
 import '../shared/skeleton.dart';
@@ -26,8 +24,6 @@ class QueueBoard extends StatefulWidget {
     required this.columns,
     required this.workflow,
     required this.now,
-    required this.priorities,
-    required this.categoryNames,
     required this.statusLabel,
     required this.onMore,
     required this.onRetry,
@@ -40,8 +36,6 @@ class QueueBoard extends StatefulWidget {
   final List<BoardColumn> columns;
   final QueueWorkflow workflow;
   final DateTime now;
-  final List<PriorityOption> priorities;
-  final Map<String, String> categoryNames;
 
   /// Nombre general de un estado, por si el flujo trae uno que la app no rotula.
   final String Function(String status) statusLabel;
@@ -106,8 +100,6 @@ class _QueueBoardState extends State<QueueBoard> {
               column: widget.columns[i],
               workflow: widget.workflow,
               now: widget.now,
-              priorities: widget.priorities,
-              categoryNames: widget.categoryNames,
               title: columnText(widget.columns[i].status, fallback: widget.statusLabel(widget.columns[i].status)),
               statusLabel: widget.statusLabel,
               onMore: () => widget.onMore(widget.columns[i].status),
@@ -134,8 +126,6 @@ class QueueColumn extends StatelessWidget {
     super.key,
     required this.column,
     required this.now,
-    required this.priorities,
-    required this.categoryNames,
     required this.title,
     required this.onMore,
     required this.onRetry,
@@ -155,8 +145,6 @@ class QueueColumn extends StatelessWidget {
   final BoardColumn column;
   final QueueWorkflow workflow;
   final DateTime now;
-  final List<PriorityOption> priorities;
-  final Map<String, String> categoryNames;
   final ({String title, String hint}) title;
   final String Function(String status) statusLabel;
   final VoidCallback onMore;
@@ -181,7 +169,6 @@ class QueueColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final meta = statusMeta(column.status);
     final valid = _validTarget;
     return DragTarget<TicketListItem>(
       // Se acepta todo: soltar donde no se puede devuelve la tarjeta y se explica por qué.
@@ -198,10 +185,11 @@ class QueueColumn extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(4),
+            // Sin color propio por estado: solo se tiñe de mostaza al soltar una tarjeta encima.
             decoration: BoxDecoration(
-              color: hovering ? AppColors.mustard.withValues(alpha: .28) : meta.colors.background.withValues(alpha: .55),
+              color: hovering ? AppColors.mustard.withValues(alpha: .28) : AppColors.skyLight.withValues(alpha: .18),
               borderRadius: AppRadius.mdAll,
-              border: Border.all(color: hovering ? AppColors.mustard : (valid ? meta.colors.dot : meta.colors.dot.withValues(alpha: .35)), width: hovering ? 3 : (valid ? 2 : 1)),
+              border: Border.all(color: hovering ? AppColors.mustard : (valid ? AppColors.steel : AppColors.skyLight.withValues(alpha: .6)), width: hovering ? 3 : (valid ? 2 : 1)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Semantics(
@@ -210,20 +198,20 @@ class QueueColumn extends StatelessWidget {
                 excludeSemantics: true,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(3, 4, 3, 0),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: meta.colors.dot, shape: BoxShape.circle)),
-                      const SizedBox(width: 5),
-                      // El nombre se encoge en una columna estrecha en vez de cortarse.
-                      Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(title.title, maxLines: 1, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)))),
+                  // El nombre y cuántas hay van en la misma línea; en una columna estrecha se encogen juntos.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(title.title, maxLines: 1, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                        decoration: BoxDecoration(color: AppColors.white, borderRadius: AppRadius.pillAll, border: Border.all(color: AppColors.skyLight)),
+                        child: Text(column.phase == ColumnPhase.ready ? '${column.total}' : '–', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w900)),
+                      ),
                     ]),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
-                      decoration: BoxDecoration(color: AppColors.mustard, borderRadius: AppRadius.pillAll),
-                      child: Text(column.phase == ColumnPhase.ready ? '${column.total}' : '–', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
-                    ),
-                  ]),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -240,8 +228,6 @@ class QueueColumn extends StatelessWidget {
     final card = QueueCard(
       ticket: ticket,
       now: now,
-      priorities: priorities,
-      categoryNames: categoryNames,
       dimmed: moving,
       onTap: onOpen == null ? null : () => onOpen!(ticket),
       moveTargets: moving ? const [] : _targets(ticket),
@@ -259,7 +245,7 @@ class QueueColumn extends StatelessWidget {
         color: Colors.transparent,
         elevation: 8,
         borderRadius: AppRadius.mdAll,
-        child: SizedBox(width: 150, child: QueueCard(ticket: ticket, now: now, priorities: priorities, categoryNames: categoryNames)),
+        child: SizedBox(width: 150, child: QueueCard(ticket: ticket, now: now)),
       ),
       childWhenDragging: Opacity(opacity: .35, child: card),
       child: card,
