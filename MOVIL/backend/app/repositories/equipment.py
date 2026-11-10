@@ -61,6 +61,7 @@ class EquipmentRepository(BaseRepository[Equipment]):
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        equipment_type_ids: Sequence[int] | None = None,
         location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
@@ -74,6 +75,8 @@ class EquipmentRepository(BaseRepository[Equipment]):
             query = query.where(Equipment.status.in_(statuses))
         if equipment_type_id is not None:
             query = query.where(Equipment.equipment_type_id == equipment_type_id)
+        if equipment_type_ids:
+            query = query.where(Equipment.equipment_type_id.in_(equipment_type_ids))
         if location_id is not None:
             query = query.where(
                 Equipment.id.in_(

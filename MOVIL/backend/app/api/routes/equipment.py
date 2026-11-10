@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import require_permission
+from app.api.filters import MAX_FILTER_VALUES
 from app.api.pagination import page_params, set_page_headers
 from app.api.providers import get_equipment_service
 from app.api.redaction import hide_one_unless, hide_unless
@@ -44,7 +45,14 @@ async def list_equipment(
         alias="status",
         description="One status or a comma-separated list (e.g. `assigned,in_storage`)",
     ),
-    equipment_type_id: int | None = Query(default=None),
+    equipment_type_id: list[int] | None = Query(  # noqa: B008
+        default=None,
+        max_length=MAX_FILTER_VALUES,
+        description=(
+            "One category or several (repeat the parameter: "
+            f"`equipment_type_id=1&equipment_type_id=2`, at most {MAX_FILTER_VALUES})"
+        ),
+    ),
     location_id: int | None = Query(
         default=None, description="Items currently placed in this location"
     ),
@@ -68,7 +76,7 @@ async def list_equipment(
 ) -> list[EquipmentResponse]:
     page = await service.list_equipment(
         status=status_filter,
-        equipment_type_id=equipment_type_id,
+        equipment_type_ids=equipment_type_id,
         location_id=location_id,
         brand=brand,
         search=search,

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
@@ -44,6 +45,7 @@ class EquipmentService:
         *,
         status: str | None = None,
         equipment_type_id: int | None = None,
+        equipment_type_ids: Sequence[int] | None = None,
         location_id: int | None = None,
         brand: str | None = None,
         search: str | None = None,
@@ -59,6 +61,7 @@ class EquipmentService:
         page = await self.repository.list_equipment(
             status=status,
             equipment_type_id=equipment_type_id,
+            equipment_type_ids=equipment_type_ids,
             location_id=location_id,
             brand=brand,
             search=search,
