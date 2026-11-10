@@ -58,11 +58,15 @@ class RequestBoardBloc extends Bloc<RequestBoardEvent, RequestBoardState> {
   }
 
   Future<void> _onRefreshed(RequestBoardRefreshed event, Emitter<RequestBoardState> emit) async {
-    if (state.workflowPhase != WorkflowPhase.ready) {
-      add(const RequestBoardStarted());
-      return;
+    try {
+      if (state.workflowPhase != WorkflowPhase.ready) {
+        await _onStarted(const RequestBoardStarted(), emit);
+        return;
+      }
+      await _loadAll(emit, silent: true);
+    } finally {
+      event.done?.complete();
     }
-    await _loadAll(emit, silent: true);
   }
 
   Future<void> _onFiltersChanged(RequestBoardFiltersChanged event, Emitter<RequestBoardState> emit) async {

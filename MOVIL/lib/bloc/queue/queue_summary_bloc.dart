@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 
@@ -26,6 +28,8 @@ class QueueSummaryBloc extends Bloc<QueueSummaryEvent, QueueSummaryState> {
       emit(state.copyWith(status: SummaryStatus.ready, summary: summary));
     } catch (error) {
       emit(state.copyWith(status: SummaryStatus.failure, failure: toFailure(error)));
+    } finally {
+      event.done?.complete();
     }
   }
 }

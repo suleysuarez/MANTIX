@@ -14,7 +14,10 @@ class RequestBoardStarted extends RequestBoardEvent {
 
 /// Recarga las columnas sin vaciarlas (tirar para refrescar, tras mover una tarjeta).
 class RequestBoardRefreshed extends RequestBoardEvent {
-  const RequestBoardRefreshed();
+  const RequestBoardRefreshed({this.done});
+
+  /// Se completa cuando termina la recarga (tirar para refrescar espera a esto).
+  final Completer<void>? done;
 }
 
 /// Aplica la hoja de filtros (o la limpia); la búsqueda se conserva.

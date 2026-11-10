@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/queue/request_board_bloc.dart';
@@ -264,5 +266,27 @@ void main() {
       expect(bloc.state.column('triaged')!.items.single.status, 'triaged');
       expect(bloc.state.column('triaged')!.total, 1);
     });
+  });
+
+  test('la recarga avisa cuando termina aunque no haya cambiado nada (tirar para refrescar no se queda girando)', () async {
+    final bloc = await ready();
+    addTearDown(bloc.close);
+
+    final done = Completer<void>();
+    bloc.add(RequestBoardRefreshed(done: done));
+
+    await done.future.timeout(const Duration(seconds: 2));
+    expect(bloc.state.column('submitted')!.items, hasLength(10));
+  });
+
+  test('la recarga avisa también si falla', () async {
+    final bloc = await ready();
+    addTearDown(bloc.close);
+    failing = {'submitted', 'triaged', 'assigned'};
+
+    final done = Completer<void>();
+    bloc.add(RequestBoardRefreshed(done: done));
+
+    await done.future.timeout(const Duration(seconds: 2));
   });
 }

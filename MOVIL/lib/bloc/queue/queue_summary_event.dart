@@ -9,5 +9,8 @@ sealed class QueueSummaryEvent extends Equatable {
 
 /// Carga o recarga el resumen (al abrir, al tirar para refrescar, tras mover una tarjeta o al reintentar).
 class QueueSummaryRequested extends QueueSummaryEvent {
-  const QueueSummaryRequested();
+  const QueueSummaryRequested({this.done});
+
+  /// Se completa cuando termina la carga (tirar para refrescar espera a esto).
+  final Completer<void>? done;
 }

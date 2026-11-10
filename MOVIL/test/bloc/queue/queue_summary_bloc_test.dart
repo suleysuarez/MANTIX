@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/queue/queue_summary_bloc.dart';
@@ -71,5 +73,21 @@ void main() {
     bloc.add(const QueueSummaryRequested());
     final failed = await bloc.stream.firstWhere((state) => state.status == SummaryStatus.failure);
     expect(failed.failure, isA<ForbiddenFailure>());
+  });
+
+  test('avisa cuando termina la carga, con éxito o con error', () async {
+    final bloc = build();
+    addTearDown(bloc.close);
+
+    final ok = Completer<void>();
+    bloc.add(QueueSummaryRequested(done: ok));
+    await ok.future.timeout(const Duration(seconds: 2));
+    expect(bloc.state.status, SummaryStatus.ready);
+
+    handler = (_) => errorResponse(500);
+    final failed = Completer<void>();
+    bloc.add(QueueSummaryRequested(done: failed));
+    await failed.future.timeout(const Duration(seconds: 2));
+    expect(bloc.state.status, SummaryStatus.failure);
   });
 }
