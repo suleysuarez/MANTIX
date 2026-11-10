@@ -139,4 +139,11 @@ void main() {
       expect(queueRangeError(DateTime(2025, 11, 8), DateTime(2026, 11, 9), today), 'El rango no puede superar 366 días.');
     });
   });
+
+  test('moveLabel: las columnas con su nombre y cancelar como «Rechazar»', () {
+    expect(moveLabel('triaged', fallback: 'En triaje'), 'Clasificadas');
+    expect(moveLabel('assigned', fallback: 'Asignado'), 'Asignadas');
+    expect(moveLabel('cancelled', fallback: 'Cancelado'), 'Rechazar');
+    expect(moveLabel('in_progress', fallback: 'En proceso'), 'En proceso');
+  });
 }

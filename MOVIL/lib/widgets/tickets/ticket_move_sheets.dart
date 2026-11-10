@@ -17,11 +17,11 @@ import 'ticket_move_dialog.dart';
 
 /// Hoja para pasar un ticket a «En triaje»: pide la categoría y la prioridad antes de
 /// confirmar. Devuelve lo elegido o `null` si se cierra sin confirmar.
-Future<TicketMoveInput?> showClassifySheet(BuildContext context, {required TicketListItem ticket}) {
+Future<TicketMoveInput?> showClassifySheet(BuildContext context, {required TicketListItem ticket, String title = 'Pasar a «En triaje»'}) {
   final catalogs = context.read<CatalogsRepository>();
   return showMantixSheet<TicketMoveInput>(
     context,
-    title: 'Pasar a «En triaje»',
+    title: title,
     initialHeight: .8,
     builder: (sheetContext, controller) => BlocProvider(
       create: (_) => PrioritiesCubit(catalogs)..load(),
@@ -146,11 +146,11 @@ class _ClassifyBodyState extends State<_ClassifyBody> {
 
 /// Hoja para pasar un ticket a «Asignado»: se busca un técnico **activo** y se confirma.
 /// Devuelve la elección o `null` si se cierra sin confirmar.
-Future<TicketMoveInput?> showAssignSheet(BuildContext context, {required TicketListItem ticket}) {
+Future<TicketMoveInput?> showAssignSheet(BuildContext context, {required TicketListItem ticket, String? title}) {
   final catalogs = context.read<CatalogsRepository>();
   return showMantixSheet<TicketMoveInput>(
     context,
-    title: 'Pasar a «Asignado»',
+    title: title ?? 'Pasar a «Asignado»',
     initialHeight: .85,
     builder: (sheetContext, controller) => _AssignBody(ticket: ticket, controller: controller, catalogs: catalogs),
   );

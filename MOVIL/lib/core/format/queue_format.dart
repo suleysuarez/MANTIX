@@ -68,6 +68,10 @@ WaitTone waitTone(double hours) {
       _ => (title: fallback, hint: ''),
     };
 
+/// Cómo se llama el movimiento a [status] en el menú «Mover a…»: las columnas con su nombre y
+/// cancelar, que desde la bandeja es rechazar, como «Rechazar».
+String moveLabel(String status, {required String fallback}) => status == 'cancelled' ? 'Rechazar' : columnText(status, fallback: fallback).title;
+
 /// Etiqueta de categoría con la del catálogo; «Sin categoría» cuando no hay.
 String categoryLabel(String? code, Map<String, String> names) {
   if (code == null || code.isEmpty || code == 'uncategorized') return 'Sin categoría';
