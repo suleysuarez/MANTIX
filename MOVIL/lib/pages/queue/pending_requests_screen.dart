@@ -8,10 +8,12 @@ import '../../bloc/catalogs/category_names_cubit.dart';
 import '../../bloc/catalogs/priorities_cubit.dart';
 import '../../bloc/queue/queue_summary_bloc.dart';
 import '../../bloc/queue/request_board_bloc.dart';
+import '../../bloc/queue/triage_actions_bloc.dart';
 import '../../core/format/ticket_meta.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/queue/queue_filters.dart';
+import '../../models/requests/request_models.dart';
 import '../../repositories/catalogs/catalogs_repository.dart';
 import '../../repositories/queue/queue_repository.dart';
 import '../../repositories/requests/requests_repository.dart';
@@ -22,10 +24,14 @@ import '../../widgets/queue/queue_filter_sheet.dart';
 import '../../widgets/queue/queue_header.dart';
 import '../../widgets/queue/queue_kpi_strip.dart';
 import '../../widgets/queue/queue_pulse_card.dart';
+import '../../widgets/queue/queue_reject_sheet.dart';
 import '../../widgets/shared/empty_state.dart';
 import '../../widgets/shared/filter_widgets.dart';
 import '../../widgets/shared/multi_select_sheet.dart';
 import '../../widgets/shared/skeleton.dart';
+import '../../widgets/tickets/ticket_detail_sheet.dart';
+import '../../widgets/tickets/ticket_move_dialog.dart';
+import '../../widgets/tickets/ticket_move_sheets.dart';
 
 /// Bandeja de triaje: las solicitudes que esperan trabajo, con sus cifras, el pulso de las
 /// decisiones recientes y un tablero por estados. Requiere `solicitudes:ver_todos` (la ruta lo
@@ -45,6 +51,8 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
   late final QueueSummaryBloc _summary;
   late final PrioritiesCubit _priorities;
   late final CategoryNamesCubit _categories;
+  late final TriageActionsBloc _actions;
+  final _pageController = ScrollController();
   late final CatalogsRepository _catalogs;
 
   /// Nombre de cada técnico filtrado: el filtro solo guarda ids y los chips necesitan el nombre.
@@ -58,11 +66,14 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
     _summary = QueueSummaryBloc(repository: context.read<QueueRepository>())..add(const QueueSummaryRequested());
     _priorities = PrioritiesCubit(_catalogs)..load();
     _categories = CategoryNamesCubit(_catalogs)..load();
+    _actions = TriageActionsBloc(repository: context.read<RequestsRepository>());
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _pageController.dispose();
+    unawaited(_actions.close());
     unawaited(_board.close());
     unawaited(_summary.close());
     unawaited(_priorities.close());
@@ -77,6 +88,63 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
     _summary.add(QueueSummaryRequested(done: summaryDone));
     _board.add(RequestBoardRefreshed(done: boardDone));
     return Future.wait([summaryDone.future, boardDone.future]);
+  }
+
+  /// Mueve [ticket] a [target]. Si el movimiento no es válido (transición que el flujo no
+  /// permite o falta permiso) no se pide nada: `TriageActionsBloc` lo explica. Si es válido se
+  /// piden los datos que el destino exige; cancelar la hoja deja la tarjeta donde estaba.
+  Future<void> _requestMove(TicketListItem ticket, String target) async {
+    final workflow = _board.state.workflow;
+    if (!workflow.canMove(ticket, target)) {
+      _actions.add(TriageMoveRequested(ticket, target, workflow: workflow));
+      return;
+    }
+    final requires = workflow.requiresFor(target);
+    final TicketMoveInput? input;
+    if (requires.contains('reason')) {
+      final reason = await showRejectSheet(context, ticket: ticket);
+      input = reason == null ? null : TicketMoveInput(notes: reason);
+    } else if (requires.contains('category') || requires.contains('priority')) {
+      input = await showClassifySheet(context, ticket: ticket, title: 'Clasificar solicitud');
+    } else if (requires.contains('technician')) {
+      input = await showAssignSheet(context, ticket: ticket, title: 'Asignar técnico');
+    } else {
+      input = await askTicketMoveData(context, ticket: ticket, target: target, requires: requires);
+    }
+    if (input == null || !mounted) return;
+    _actions.add(TriageMoveRequested(
+      ticket,
+      target,
+      workflow: workflow,
+      category: input.category,
+      priority: input.priority,
+      technicianId: input.technicianId,
+      // El motivo del rechazo viaja como `reason`; las notas de clasificar y asignar, como `notes`.
+      reason: requires.contains('reason') ? input.notes : null,
+      notes: requires.contains('reason') ? null : input.notes,
+      resolutionSummary: input.resolutionSummary,
+    ));
+  }
+
+  /// Lo que pasa con cada movimiento: la tarjeta se coloca al empezar, vuelve si el servidor lo
+  /// rechaza y, si lo acepta, se recargan las columnas y las cifras.
+  void _onOutcome(BuildContext context, TriageActionsState state) {
+    final outcome = state.outcome!;
+    switch (outcome.kind) {
+      case TriageOutcomeKind.started:
+        _board.add(RequestBoardMovedOptimistically(outcome.ticket, outcome.target));
+        return;
+      case TriageOutcomeKind.succeeded:
+        _summary.add(const QueueSummaryRequested());
+        _board.add(const RequestBoardRefreshed());
+      case TriageOutcomeKind.failed:
+        _board.add(RequestBoardMoveReverted(outcome.ticket.id));
+      case TriageOutcomeKind.blocked:
+        break;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(outcome.message), backgroundColor: outcome.isError ? AppColors.error : AppColors.navy));
   }
 
   /// Quita filtros y búsqueda: lo que pide «Limpiar filtros» cuando nada coincide.
@@ -113,8 +181,12 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
         BlocProvider.value(value: _summary),
         BlocProvider.value(value: _priorities),
         BlocProvider.value(value: _categories),
+        BlocProvider.value(value: _actions),
       ],
-      child: Scaffold(
+      child: BlocListener<TriageActionsBloc, TriageActionsState>(
+        listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
+        listener: _onOutcome,
+        child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: PendingRequestsScreen.path),
@@ -122,6 +194,7 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
           onRefresh: _refresh,
           color: AppColors.steel,
           child: ListView(
+            controller: _pageController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
             children: [
@@ -148,9 +221,10 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              _BoardSection(onClearFilters: _clearAll),
+              _BoardSection(onClearFilters: _clearAll, onMove: _requestMove, pageController: _pageController),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -233,9 +307,11 @@ class _ActiveFilters extends StatelessWidget {
 /// «Solicitudes por estado»: el tablero con sus cuatro estados posibles (cargando, error,
 /// al día/sin coincidencias y con datos).
 class _BoardSection extends StatelessWidget {
-  const _BoardSection({required this.onClearFilters});
+  const _BoardSection({required this.onClearFilters, required this.onMove, required this.pageController});
 
   final VoidCallback onClearFilters;
+  final void Function(TicketListItem ticket, String target) onMove;
+  final ScrollController pageController;
 
   @override
   Widget build(BuildContext context) {
@@ -271,12 +347,17 @@ class _BoardSection extends StatelessWidget {
               ),
             WorkflowPhase.ready => QueueBoard(
                 columns: state.columns,
+                workflow: state.workflow,
                 now: DateTime.now(),
                 priorities: priorities,
                 categoryNames: names,
                 statusLabel: (status) => statusMeta(status).label,
                 onMore: (status) => board.add(RequestBoardMoreRequested(status)),
                 onRetry: (status) => board.add(RequestBoardColumnRetried(status)),
+                onOpen: (ticket) => showTicketDetail(context, ticket.id),
+                onMove: onMove,
+                movingIds: context.watch<TriageActionsBloc>().state.inFlight,
+                pageController: pageController,
               ),
           },
         ]);
