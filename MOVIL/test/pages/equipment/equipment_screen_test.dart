@@ -18,6 +18,7 @@ import 'package:mantix/widgets/equipment/equipment_list_views.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
+import '../../support/paginator_support.dart';
 import '../../support/device_fakes.dart';
 import '../../support/fakes.dart';
 import '../../support/header_support.dart';
@@ -362,11 +363,12 @@ void main() {
   });
 
   group('paginación', () {
-    testWidgets('muestra el rango, el total y los botones de página', (tester) async {
+    testWidgets('muestra la página actual y los botones de página, sin el texto del rango', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
-      expect(find.text('1-10 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 1);
+      expect(find.textContaining(' de 25'), findsNothing, reason: 'ya no se escribe el rango');
       expect(find.byType(DropdownButton<int>), findsOneWidget);
       expect(find.byTooltip('Página anterior'), findsNothing, reason: 'en la página 1 no hay «anterior»');
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
@@ -380,13 +382,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(lastQuery()['page'], 2);
-      expect(find.text('11-20 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 2);
       expect(find.text('EQ-11'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
       expect(lastQuery()['page'], 3);
-      expect(find.text('21-25 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 3);
     });
 
     testWidgets('en la primera página no hay «anterior» y en la última no hay «siguiente»', (tester) async {
@@ -399,7 +401,7 @@ void main() {
       expect(find.byTooltip('Página anterior'), findsOneWidget);
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
-      expect(find.text('21-25 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 3);
       expect(find.byTooltip('Página siguiente'), findsNothing, reason: 'en la última no hay «siguiente»');
     });
 
@@ -412,7 +414,7 @@ void main() {
 
       expect(lastQuery()['size'], 10);
       expect(lastQuery()['page'], 2);
-      expect(find.text('11-20 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 2);
 
       await tester.tap(find.byType(DropdownButton<int>));
       await tester.pumpAndSettle();

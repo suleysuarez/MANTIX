@@ -636,7 +636,7 @@ class _ListSection extends StatelessWidget {
               page: state.page,
               totalPages: state.totalPages,
               total: state.total,
-              shown: state.items.length,
+             
               pageSize: pageSize,
               loading: state.loadingPage,
               onPage: (page) => bloc.add(EquipmentPageSelected(page)),

@@ -6,14 +6,7 @@ import '../../core/theme/app_tokens.dart';
 /// Tamaños de página que ofrece el selector.
 const List<int> pageSizeOptions = [5, 10, 20, 50];
 
-/// Texto «1-5 de 23» para la página [page] de tamaño [pageSize] con [shown] elementos.
-String pageRangeLabel({required int page, required int pageSize, required int shown, required int total}) {
-  if (total == 0 || shown == 0) return '0 de $total';
-  final from = (page - 1) * pageSize + 1;
-  return '$from-${from + shown - 1} de $total';
-}
-
-/// Qué se dibuja en la píldora: números de página y `null` por cada «…». Con [slots] huecos
+/// Qué se dibuja en la fila de páginas: números de página y `null` por cada «…». Con [slots] huecos
 /// (mínimo 5): todas las páginas si caben; cerca del principio «1 2 3 4 5 … 99»; en el
 /// medio «1 … 4 5 6 … 99»; cerca del final «1 … 95 96 97 98 99». Primera y última siempre salen.
 List<int?> visiblePages({required int page, required int totalPages, required int slots}) {
@@ -30,11 +23,11 @@ List<int?> visiblePages({required int page, required int totalPages, required in
   return [1, null, for (var i = page - around; i <= page + around; i++) i, null, totalPages];
 }
 
-/// Paginador: una píldora de ancho completo con flechas en los extremos y los números de
-/// página en medio (la actual, en un círculo mostaza), y debajo «1-5 de 23» y el selector de
-/// tamaño de página.
+/// Paginador: una fila de ancho completo, centrada, con flechas en los extremos y los números de
+/// página en medio (la actual, en un círculo mostaza), sin cuadro de fondo; y debajo el selector
+/// de tamaño de página cuando hay para elegir.
 ///
-/// * Con una sola página la píldora muestra solo «1», sin flechas.
+/// * Con una sola página se muestra solo «1», sin flechas.
 /// * En la primera página no hay «anterior»; en la última, no hay «siguiente».
 /// * El selector de tamaño solo aparece si el total supera la opción más pequeña
 ///   y la pantalla pasa [onPageSize].
@@ -43,7 +36,6 @@ class Paginator extends StatelessWidget {
     super.key,
     required this.page,
     required this.pageSize,
-    required this.shown,
     required this.total,
     required this.totalPages,
     required this.onPage,
@@ -54,9 +46,6 @@ class Paginator extends StatelessWidget {
   /// Página actual, base 1.
   final int page;
   final int pageSize;
-
-  /// Elementos de la página actual.
-  final int shown;
   final int total;
   final int totalPages;
   final ValueChanged<int> onPage;
@@ -84,33 +73,27 @@ class Paginator extends StatelessWidget {
     return Opacity(
       opacity: loading ? .5 : 1,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // La píldora sale siempre; con una sola página muestra «1» y ninguna flecha.
+        // Los números salen siempre; con una sola página, solo «1» y ninguna flecha.
         _Pill(page: page, totalPages: totalPages < 1 ? 1 : totalPages, onPage: go),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          runSpacing: AppSpacing.xs,
-          spacing: AppSpacing.md,
-          children: [
-            Text(pageRangeLabel(page: page, pageSize: pageSize, shown: shown, total: total), style: label),
-            if (showSize)
-              Semantics(
-                label: 'Elementos por página',
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: sizes.contains(pageSize) ? pageSize : null,
-                    isDense: false,
-                    borderRadius: AppRadius.mdAll,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
-                    style: label,
-                    items: [for (final size in sizes) DropdownMenuItem(value: size, child: Text('$size por página'))],
-                    onChanged: loading ? null : (value) => value == null || value == pageSize ? null : onPageSize!(value),
-                  ),
+        if (showSize) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Center(
+            child: Semantics(
+              label: 'Elementos por página',
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: sizes.contains(pageSize) ? pageSize : null,
+                  isDense: false,
+                  borderRadius: AppRadius.mdAll,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
+                  style: label,
+                  items: [for (final size in sizes) DropdownMenuItem(value: size, child: Text('$size por página'))],
+                  onChanged: loading ? null : (value) => value == null || value == pageSize ? null : onPageSize!(value),
                 ),
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ]),
     );
   }
@@ -127,18 +110,12 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           // Cuántos números caben entre las dos flechas; en pantallas estrechas, menos.
-          // (Menos el relleno y el borde de la píldora.)
-          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm - 2) / Paginator._cell).floor();
+          // (Menos el relleno de los lados.)
+          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm) / Paginator._cell).floor();
           final pages = visiblePages(page: page, totalPages: totalPages, slots: room.clamp(5, 7));
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-            decoration: BoxDecoration(
-              // Píldora en un mostaza muy suave; la página actual va en mostaza pleno.
-              color: Color.alphaBlend(AppColors.mustard.withValues(alpha: .16), AppColors.white),
-              borderRadius: AppRadius.pillAll,
-              border: Border.all(color: AppColors.mustard.withValues(alpha: .35)),
-              boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: .10), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
+          // Sin cuadro de fondo: solo las flechas y los números, centrados en todo el ancho.
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               if (page > 1)
                 IconButton(
