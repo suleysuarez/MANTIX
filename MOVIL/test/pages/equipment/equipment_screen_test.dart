@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -6,10 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
+import 'package:mantix/core/theme/app_colors.dart';
+import 'package:mantix/models/equipment/equipment_models.dart';
 import 'package:mantix/pages/equipment/equipment_screen.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/services/device_services.dart';
 import 'package:mantix/widgets/equipment/equipment_list_views.dart';
+import 'package:mantix/widgets/shared/filter_widgets.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
 import '../../support/device_fakes.dart';
@@ -42,17 +48,26 @@ final _printer = equipmentItemJson(overrides: {
   'last_maintenance': null,
 });
 
+bool createdOnce = false;
+
 void main() {
   late MockAuthBloc authBloc;
   late FakeAdapter adapter;
   late ResponseBody Function(RequestOptions) listHandler;
   late ResponseBody Function(RequestOptions) summaryHandler;
+  late EquipmentRepository repository;
 
   setUp(() {
+    createdOnce = false;
     authBloc = MockAuthBloc();
     listHandler = (_) => pagedResponse([_laptop, _printer]);
     summaryHandler = (_) => jsonResponse(200, _summaryJson);
     adapter = FakeAdapter((options) => switch (options.path) {
+          '/equipment' when options.method == 'POST' => jsonResponse(201, equipmentItemJson(overrides: {'id': 99, 'asset_tag': 'EQ-NEW', 'brand': 'Nuevo', 'model': 'Recién creado'})),
+          '/maintenance/requests' => pagedResponse([ticketJson(id: 1, title: 'Pantalla rota')]),
+          final path when path.endsWith('/attachments') => jsonResponse(200, [
+              {'id': 5, 'file_name': 'factura.pdf', 'mime_type': 'application/pdf', 'file_size': 2048},
+            ]),
           '/equipment/summary' => summaryHandler(options),
           '/equipment/types' => jsonResponse(200, _typesJson),
           '/locations' => jsonResponse(200, []),
@@ -60,16 +75,18 @@ void main() {
         });
   });
 
-  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1, Set<String> permissions = const {'equipos:ver', 'equipos:crear'}, DeviceServices? device}) async {
-    tester.view.physicalSize = const Size(390, 3600);
+  Future<void> pumpScreen(WidgetTester tester, {double textScale = 1, Set<String> permissions = const {'equipos:ver', 'equipos:crear'}, DeviceServices? device, Size size = const Size(390, 3600)}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     whenListen(authBloc, const Stream<AuthState>.empty(), initialState: Authenticated(testProfile(permissions: permissions)));
     await tester.pumpWidget(
       RepositoryProvider<DeviceServices>.value(
         value: device ?? fakeDevice(),
+        child: RepositoryProvider<RequestsRepository>.value(
+        value: RequestsRepository(dioWith(adapter)),
         child: RepositoryProvider<EquipmentRepository>.value(
-        value: EquipmentRepository(dioWith(adapter)),
+        value: repository = EquipmentRepository(dioWith(adapter)),
         child: MultiBlocProvider(
           providers: [
             BlocProvider<AuthBloc>.value(value: authBloc),
@@ -83,6 +100,7 @@ void main() {
             ),
             home: const EquipmentScreen(),
           ),
+        ),
         ),
         ),
       ),
@@ -120,8 +138,7 @@ void main() {
     await pumpScreen(tester);
 
     expect(find.byType(EquipmentTable), findsOneWidget);
-    expect(find.text('EQUIPO Y MODELO'), findsOneWidget);
-    expect(find.text('ESTADO'), findsOneWidget);
+    expect(find.text('EQUIPO Y MODELO · ESTADO'), findsOneWidget);
     expect(find.text('Dell Latitude 5420'), findsOneWidget);
     expect(find.text('Equipo de demostración'), findsOneWidget);
     expect(find.text('DEMO-007'), findsOneWidget);
@@ -157,19 +174,13 @@ void main() {
     expect(lastQuery(), {'page': 1, 'size': 10, 'sort': '-created_at'});
   });
 
-  testWidgets('tocar una tarjeta filtra por sus estados y el desplegable lo refleja', (tester) async {
+  testWidgets('tocar una tarjeta filtra por sus estados y el botón de filtros cuenta los activos', (tester) async {
     await pumpScreen(tester);
 
     await tester.tap(find.text('Filtrar operativos'));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'assigned,in_storage');
-    await tester.tap(find.byTooltip('Filtros'));
-    await tester.pumpAndSettle();
-    // Aparece en el chip de filtro activo y en el desplegable de la hoja.
-    expect(find.text('Varios estados'), findsNWidgets(2));
-    // El panel de filtros es un modal, no una ruta con botón de navegación.
-    Navigator.of(tester.element(find.text('Varios estados').last)).pop();
-    await tester.pumpAndSettle();
+    expect(find.byTooltip('Filtros (2 activos)'), findsOneWidget);
 
     await tester.tap(find.text('Ver equipos en mantenimiento'));
     await tester.pumpAndSettle();
@@ -184,30 +195,79 @@ void main() {
     expect(lastQuery().keys, isNot(contains('status')));
   });
 
-  testWidgets('el desplegable de estado filtra por un estado', (tester) async {
-    await pumpScreen(tester);
-
+  Future<void> openFilters(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String?>));
+  }
+
+  testWidgets('la multiselección de estado filtra por varios estados sin cerrarse al marcar', (tester) async {
+    await pumpScreen(tester);
+
+    await openFilters(tester);
+    await tester.tap(find.byType(FilterTile).at(1));
     await tester.pumpAndSettle();
     await tester.tap(find.text('En mantenimiento').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Extraviado').last);
+    await tester.pumpAndSettle();
+    expect(find.text('2 activos'), findsOneWidget, reason: 'la hoja sigue abierta tras marcar');
+    await tester.tap(find.text('Aplicar').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
 
-    expect(lastQuery()['status'], 'in_repair');
+    expect(lastQuery()['status'], 'in_repair,lost');
+    expect(find.byTooltip('Filtros (2 activos)'), findsOneWidget);
   });
 
-  testWidgets('el desplegable de categoría filtra por categoría', (tester) async {
+  testWidgets('la multiselección de categoría repite el parámetro por cada categoría', (tester) async {
     await pumpScreen(tester);
 
-    await tester.tap(find.byTooltip('Filtros'));
+    await openFilters(tester);
+    await tester.tap(find.byType(FilterTile).at(0));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<int?>));
-    await tester.pumpAndSettle();
+    await tester.tap(find.text('Laptop').last);
     await tester.tap(find.text('Impresora').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
 
-    expect(lastQuery()['equipment_type_id'], 2);
+    expect(lastQuery()['equipment_type_id'], [1, 2]);
+  });
+
+  testWidgets('las fechas se envían como date_from y date_to y se quitan con su chip', (tester) async {
+    await pumpScreen(tester);
+
+    await openFilters(tester);
+    await tester.tap(find.text('Cualquier fecha'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Elegir').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
+
+    expect(lastQuery().keys, containsAll(['date_from', 'date_to']));
+    await tester.tap(find.byTooltip('Quitar filtro'));
+    await tester.pumpAndSettle();
+    expect(lastQuery().keys, isNot(contains('date_from')));
+  });
+
+  testWidgets('al filtrar, el listado muestra lo que devuelve el servidor para el filtro nuevo', (tester) async {
+    listHandler = (options) => options.queryParameters.containsKey('status') ? pagedResponse([_printer]) : pagedResponse([_laptop]);
+    await pumpScreen(tester);
+    expect(find.text('Dell Latitude 5420'), findsOneWidget);
+
+    await tester.tap(find.text('Ver equipos en mantenimiento'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('HP LaserJet Pro'), findsOneWidget);
+    expect(find.text('Dell Latitude 5420'), findsNothing);
   });
 
   testWidgets('filtrar vuelve a la página 1 y no vuelve a pedir los contadores', (tester) async {
@@ -224,24 +284,21 @@ void main() {
     expect(adapter.requests.where((r) => r.path == '/equipment/summary'), hasLength(1));
   });
 
-  testWidgets('«Limpiar filtros» quita la búsqueda, la categoría y el estado', (tester) async {
+  testWidgets('«Limpiar» en la hoja quita categorías, estados y fechas al aplicar', (tester) async {
     await pumpScreen(tester);
-    await tester.enterText(find.byType(TextField), 'dell');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Filtrar operativos'));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'assigned,in_storage');
-    expect(lastQuery()['search'], 'dell');
 
-    await tester.tap(find.byTooltip('Filtros'));
+    await tester.tap(find.byTooltip('Filtros (2 activos)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Limpiar'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar'));
+    await tester.pumpAndSettle();
 
     expect(lastQuery().keys, isNot(contains('status')));
-    expect(lastQuery().keys, isNot(contains('search')));
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(find.byTooltip('Filtros'), findsOneWidget);
   });
 
   testWidgets('la búsqueda espera a que dejes de escribir y conserva el texto y el foco', (tester) async {
@@ -322,17 +379,79 @@ void main() {
     });
   });
 
-  testWidgets('tocar un equipo abre su ficha', (tester) async {
+  testWidgets('tocar un equipo abre su ficha en una hoja con secciones, historial y adjuntos', (tester) async {
     await pumpScreen(tester);
 
     await tester.tap(find.text('Dell Latitude 5420'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Detalle del equipo'), findsOneWidget);
     expect(find.text('Código de activo'), findsOneWidget);
     expect(find.text('Responsable'), findsOneWidget);
     expect(find.text('Ana Pérez'), findsOneWidget);
-    expect(find.text('Último mantenimiento'), findsOneWidget);
-    expect(find.textContaining('20 oct 2026'), findsOneWidget);
+    expect(find.text('Último mantenimiento'), findsWidgets);
+    expect(find.textContaining('20 oct 2026'), findsWidgets);
+    expect(find.text('GESTIÓN DE EQUIPOS'), findsOneWidget, reason: 'la pantalla de fondo sigue visible');
+    // Historial: el registro del equipo y sus tickets.
+    await tester.scrollUntilVisible(find.text('Equipo registrado'), 200, scrollable: find.byType(Scrollable).last);
+    expect(find.text('Equipo registrado'), findsOneWidget);
+    expect(find.text('Ticket TCK-0001 creado'), findsOneWidget);
+    expect(find.text('Pantalla rota · Enviado'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('factura.pdf'), 200, scrollable: find.byType(Scrollable).last);
+    expect(find.text('factura.pdf'), findsOneWidget);
+    expect(adapter.requests.any((r) => r.path == '/maintenance/requests' && r.queryParameters['equipment_id'] == 7), isTrue);
+  });
+
+  testWidgets('la etiqueta «Último mantenimiento» no se superpone con su valor', (tester) async {
+    await pumpScreen(tester);
+    await tester.tap(find.text('Dell Latitude 5420'));
+    await tester.pumpAndSettle();
+
+    final label = tester.getRect(find.text('Último mantenimiento').first);
+    final value = tester.getRect(find.textContaining('20 oct 2026').first);
+    expect(label.overlaps(value), isFalse);
+    expect(value.top, greaterThanOrEqualTo(label.bottom - 1), reason: 'el valor va debajo de la etiqueta');
+  });
+
+  group('equipo recién creado', () {
+    testWidgets('vuelve a la página 1, sale primero y se resalta unos segundos', (tester) async {
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int;
+        final created = createdOnce;
+        return pagedResponse([if (page == 1 && created) equipmentItemJson(overrides: {'id': 99, 'asset_tag': 'EQ-NEW', 'brand': 'Nuevo', 'model': 'Recién creado'}), _laptop], page: page, total: 25, totalPages: 3);
+      };
+      await pumpScreen(tester);
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+      expect(lastQuery()['page'], 2);
+
+      createdOnce = true;
+      unawaited(repository.create(const NewEquipment(assetTag: 'EQ-NEW', typeId: 1, brand: 'Nuevo', model: 'Recién creado')));
+      await tester.pumpAndSettle();
+
+      expect(lastQuery()['page'], 1);
+      expect(lastQuery()['sort'], '-created_at');
+      final first = tester.getTopLeft(find.text('Nuevo Recién creado')).dy;
+      expect(first, lessThan(tester.getTopLeft(find.text('Dell Latitude 5420')).dy), reason: 'aparece primero');
+      Finder highlighted() => find.byWidgetPredicate((w) => w is AnimatedContainer && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard.withValues(alpha: .28));
+      expect(highlighted(), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(highlighted(), findsNothing);
+    });
+
+    testWidgets('limpia los filtros para que el equipo nuevo se vea', (tester) async {
+      await pumpScreen(tester);
+      await tester.tap(find.text('Filtrar operativos'));
+      await tester.pumpAndSettle();
+      expect(lastQuery()['status'], 'assigned,in_storage');
+
+      unawaited(repository.create(const NewEquipment(assetTag: 'EQ-NEW', typeId: 1, brand: 'Nuevo', model: 'Recién creado')));
+      await tester.pumpAndSettle();
+      expect(lastQuery().keys, isNot(contains('status')));
+      await tester.pump(const Duration(seconds: 5));
+    });
   });
 
   testWidgets('sin resultados muestra el vacío filtrado y permite volver a todo el catálogo', (tester) async {
@@ -421,5 +540,46 @@ void main() {
     await tester.tap(find.text('Cuadrícula'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+    await tester.scrollUntilVisible(finder, 120, scrollable: find.byType(Scrollable).first, maxScrolls: 60);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  group('sin overflow en pantallas pequeñas con texto 1,3', () {
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      final name = '${size.width.toInt()}x${size.height.toInt()}';
+
+      testWidgets('la pantalla, tabla y cuadrícula en $name', (tester) async {
+        listHandler = (options) => pagedByQuery(options);
+        await pumpScreen(tester, size: size, textScale: 1.3);
+        expect(tester.takeException(), isNull);
+        await tapVisible(tester, find.text('Cuadrícula'));
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('la ficha del equipo en $name', (tester) async {
+        await pumpScreen(tester, size: size, textScale: 1.3);
+        await tapVisible(tester, find.text('Dell Latitude 5420'));
+        expect(find.text('Detalle del equipo'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(find.text('factura.pdf'), 200, scrollable: find.byType(Scrollable).last);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('la hoja de filtros con filtros activos en $name', (tester) async {
+        await pumpScreen(tester, size: size, textScale: 1.3);
+        await tapVisible(tester, find.text('Filtrar operativos'));
+        await tapVisible(tester, find.byTooltip('Filtros (2 activos)'));
+        expect(find.text('Limpiar'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

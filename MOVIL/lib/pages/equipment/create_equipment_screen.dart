@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/equipment/attachments_bloc.dart';
 import '../../bloc/equipment/create_equipment_bloc.dart';
 import '../../bloc/equipment/equipment_catalog_bloc.dart';
+import '../../bloc/equipment/equipment_type_search_bloc.dart';
 import '../../core/errors/failure.dart';
 import '../../core/format/equipment_meta.dart';
 import '../../core/format/formatters.dart';
@@ -16,9 +16,8 @@ import '../../repositories/equipment/equipment_repository.dart';
 import '../../services/device_services.dart';
 import '../../widgets/equipment/attachments_section.dart';
 import '../../widgets/equipment/custodian_picker.dart';
-import '../../widgets/home/mantix_app_bar.dart';
-import '../../widgets/home/mantix_drawer.dart';
-import 'equipment_screen.dart';
+import '../../widgets/shared/mantix_sheet.dart';
+import '../../widgets/shared/search_picker_sheet.dart';
 
 const equipmentTagMax = 50;
 const equipmentNameMax = 100;
@@ -27,9 +26,20 @@ const equipmentDescriptionMax = 2000;
 /// Formulario «Registrar nuevo equipo» (permiso `equipos:crear`). La ubicación y el responsable
 /// solo se ofrecen a quien tiene `equipos:editar` y `equipos:asignar`, respectivamente.
 class CreateEquipmentScreen extends StatelessWidget {
-  const CreateEquipmentScreen({super.key});
+  const CreateEquipmentScreen({super.key, this.controller});
 
+  /// Ruta con la que las pruebas alojan el formulario como página; en la app se abre con [show].
   static const path = '/modulos/equipos/nuevo';
+
+  /// Controlador de desplazamiento de la hoja, para que arrastrar y desplazar convivan.
+  final ScrollController? controller;
+
+  /// Abre el formulario en una hoja inferior arrastrable; la pantalla de fondo no se pierde.
+  static Future<void> show(BuildContext context) => showMantixSheet<void>(
+        context,
+        title: 'Registrar nuevo equipo',
+        builder: (sheetContext, controller) => CreateEquipmentScreen(controller: controller),
+      );
 
   @override
   Widget build(BuildContext context) => MultiBlocProvider(
@@ -45,12 +55,14 @@ class CreateEquipmentScreen extends StatelessWidget {
             return bloc;
           }),
         ],
-        child: const _CreateEquipmentForm(),
+        child: _CreateEquipmentForm(controller: controller),
       );
 }
 
 class _CreateEquipmentForm extends StatefulWidget {
-  const _CreateEquipmentForm();
+  const _CreateEquipmentForm({this.controller});
+
+  final ScrollController? controller;
 
   @override
   State<_CreateEquipmentForm> createState() => _CreateEquipmentFormState();
@@ -135,7 +147,7 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
       final created = state.created;
       final attachments = context.read<AttachmentsBloc>();
       if (created == null || attachments.state.drafts.isEmpty) {
-        context.pop();
+        Navigator.of(context).pop();
         messenger.showSnackBar(SnackBar(content: Text(['Equipo registrado.', ...state.warnings].join(' '))));
         return;
       }
@@ -161,7 +173,7 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
 
   void _onUploadFinished(BuildContext context, AttachmentsState state) {
     if (_created == null || !state.allDone) return;
-    context.pop();
+    Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Equipo registrado y ${state.drafts.length} ${state.drafts.length == 1 ? 'adjunto subido' : 'adjuntos subidos'}.')));
   }
 
@@ -192,25 +204,25 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
         BlocListener<AttachmentsBloc, AttachmentsState>(listenWhen: (previous, current) => previous.notice != current.notice, listener: _onAttachments),
         BlocListener<AttachmentsBloc, AttachmentsState>(listenWhen: (previous, current) => previous.uploading && !current.uploading, listener: _onUploadFinished),
       ],
+      // Scaffold propio: sin barra, solo para que los avisos (SnackBar) se vean dentro de la hoja.
       child: Scaffold(
         backgroundColor: AppColors.canvas,
-        appBar: profile == null ? AppBar(title: const Text('Registrar nuevo equipo')) : MantixAppBar(profile: profile),
-        drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: EquipmentScreen.path),
         bottomNavigationBar: stage == _Stage.filling
-            ? _ActionBar(submitting: submitting, onCancel: () => context.pop(), onSubmit: _submit)
+            ? _ActionBar(submitting: submitting, onCancel: () => Navigator.of(context).pop(), onSubmit: _submit)
             : _ResultsBar(
                 uploading: stage == _Stage.uploading,
                 canRetry: hasFailed,
                 onRetry: () => context.read<AttachmentsBloc>().add(const AttachmentsRetryRequested()),
-                onClose: () => context.pop(),
+                onClose: () => Navigator.of(context).pop(),
               ),
         body: stage != _Stage.filling
-            ? ListView(padding: const EdgeInsets.all(16), children: const [
+            ? ListView(controller: widget.controller, padding: const EdgeInsets.all(16), children: const [
                 Card(child: Padding(padding: EdgeInsets.all(16), child: AttachmentResults())),
               ])
             : Form(
           key: _formKey,
           child: ListView(
+            controller: widget.controller,
             padding: const EdgeInsets.all(16),
             children: [
               Container(
@@ -222,8 +234,6 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
                   boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 14, offset: Offset(0, 5))],
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _PanelHeader(onClose: () => context.pop()),
-                  const SizedBox(height: 18),
                   const _SectionTitle(number: 1, title: 'Información general', trailing: true),
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
@@ -456,31 +466,6 @@ class _CreateEquipmentFormState extends State<_CreateEquipmentForm> {
   }
 }
 
-class _PanelHeader extends StatelessWidget {
-  const _PanelHeader({required this.onClose});
-
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(14)),
-          child: Icon(Icons.add_rounded, color: EquipmentColors.info.foreground, size: 26),
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Registrar nuevo equipo', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 17, fontWeight: FontWeight.w800)),
-            SizedBox(height: 2),
-            Text('Completa la ficha técnica, ubicación y estado del dispositivo.', style: TextStyle(color: AppColors.slate, fontSize: 11.5, height: 1.3)),
-          ]),
-        ),
-        IconButton(tooltip: 'Cerrar', onPressed: onClose, icon: const Icon(Icons.close_rounded, color: AppColors.slate)),
-      ]);
-}
-
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.number, required this.title, this.trailing = false});
 
@@ -502,12 +487,19 @@ class _SectionTitle extends StatelessWidget {
             child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5))),
+          Expanded(flex: 3, child: Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5))),
           if (trailing)
-            const Text.rich(TextSpan(children: [
-              TextSpan(text: '* ', style: TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w800)),
-              TextSpan(text: 'Campos requeridos'),
-            ]), style: TextStyle(color: AppColors.slate, fontSize: 10.5)),
+            const Flexible(
+              flex: 2,
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '* ', style: TextStyle(color: AppColors.mustard, fontWeight: FontWeight.w800)),
+                  TextSpan(text: 'Campos requeridos'),
+                ]),
+                textAlign: TextAlign.end,
+                style: TextStyle(color: AppColors.slate, fontSize: 10.5),
+              ),
+            ),
         ]),
       );
 }
@@ -546,15 +538,49 @@ class _TypeField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loading = catalog.status == CatalogStatus.loading;
-    return DropdownButtonFormField<int>(
-      key: ValueKey('type-${catalog.types.length}-$value'),
-      initialValue: value,
-      isExpanded: true,
-      hint: Text(loading ? 'Cargando…' : 'Seleccionar categoría', overflow: TextOverflow.ellipsis),
-      decoration: InputDecoration(errorText: missing ? 'Elige la categoría del equipo.' : serverError, errorMaxLines: 2),
-      items: [for (final type in catalog.types) DropdownMenuItem(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis))],
-      onChanged: loading || !enabled ? null : onChanged,
-    );
+    final selected = catalog.types.where((type) => type.id == value).firstOrNull;
+    final error = missing ? 'Elige la categoría del equipo.' : serverError;
+    // «Crear nueva» no se ofrece: el servidor aún no tiene un endpoint para crear categorías
+    // (ver «Pendientes de backend» en docs/flutter-plan.md).
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Semantics(
+        button: true,
+        label: 'Categoría: ${selected?.name ?? 'sin elegir'}',
+        excludeSemantics: true,
+        child: InkWell(
+          key: const Key('field-type'),
+          borderRadius: BorderRadius.circular(12),
+          onTap: loading || !enabled
+              ? null
+              : () async {
+                  final picked = await showSearchPicker<EquipmentType>(
+                    context,
+                    title: 'Categoría',
+                    hint: 'Buscar categoría',
+                    emptyTitle: 'No hay categorías con ese nombre',
+                    createBloc: (search) => EquipmentTypeSearchBloc(types: catalog.types, search: search),
+                    itemBuilder: (context, type, select) => ListTile(
+                      minVerticalPadding: 12,
+                      leading: Icon(equipmentCategoryIcon(type.code), color: AppColors.steel),
+                      title: Text(type.name),
+                      trailing: type.id == value ? const Icon(Icons.check_rounded, color: AppColors.steel) : null,
+                      onTap: select,
+                    ),
+                  );
+                  if (picked != null) onChanged(picked.id);
+                },
+          child: InputDecorator(
+            decoration: InputDecoration(errorText: error, errorMaxLines: 2, suffixIcon: const Icon(Icons.search_rounded)),
+            child: Text(
+              loading ? 'Cargando…' : selected?.name ?? 'Seleccionar categoría',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: selected == null ? AppColors.slate : AppColors.navy),
+            ),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 
@@ -660,7 +686,7 @@ class _ResultsBar extends StatelessWidget {
                     onPressed: uploading ? null : onRetry,
                     style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0B1F3A), foregroundColor: Colors.white),
                     icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('REINTENTAR FALLIDOS'),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('REINTENTAR FALLIDOS', maxLines: 1)),
                   ),
                 ),
               ],
@@ -701,7 +727,7 @@ class _ActionBar extends StatelessWidget {
                     onPressed: submitting ? null : onSubmit,
                     style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0B1F3A), foregroundColor: Colors.white),
                     icon: submitting ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('GUARDAR EQUIPO'),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('GUARDAR EQUIPO', maxLines: 1)),
                   ),
                 ),
               ]),

@@ -122,11 +122,11 @@ void main() {
     });
   });
   group('listEquipment con página, tamaño y categoría', () {
-    test('envía el tamaño de página y la categoría', () async {
+    test('envía el tamaño de página y las categorías repetidas', () async {
       final adapter = FakeAdapter((_) => pagedResponse([]));
-      await EquipmentRepository(dioWith(adapter)).listEquipment(page: 3, size: 50, typeId: 2);
+      await EquipmentRepository(dioWith(adapter)).listEquipment(page: 3, size: 50, typeIds: [2, 5]);
 
-      expect(adapter.requests.single.queryParameters, {'page': 3, 'size': 50, 'sort': '-created_at', 'equipment_type_id': 2});
+      expect(adapter.requests.single.queryParameters, {'page': 3, 'size': 50, 'sort': '-created_at', 'equipment_type_id': [2, 5]});
     });
   });
 

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/equipment/equipment_catalog_bloc.dart';
@@ -13,8 +12,10 @@ import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../repositories/equipment/equipment_repository.dart';
+import '../../widgets/equipment/equipment_detail_sheet.dart';
 import '../../widgets/equipment/equipment_list_views.dart';
 import '../../widgets/shared/filter_widgets.dart';
+import '../../widgets/shared/multi_select_sheet.dart';
 import '../../widgets/shared/paginator.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
@@ -23,9 +24,6 @@ import '../../widgets/shared/error_state.dart';
 import '../../widgets/shared/skeleton.dart';
 import '../../widgets/shared/status_message.dart';
 import 'create_equipment_screen.dart';
-
-/// Marca del desplegable de estado cuando el filtro viene de una tarjeta con varios estados.
-const _multipleStatuses = '__multiple__';
 
 /// Gestión de equipos: contadores por estado, filtros, búsqueda y listado en tabla o cuadrícula
 /// con paginación.
@@ -41,7 +39,10 @@ class EquipmentScreen extends StatefulWidget {
 class _EquipmentScreenState extends State<EquipmentScreen> {
   /// Filtros elegidos: estado efímero de la pantalla. Cambiarlos crea un `EquipmentListBloc` nuevo.
   String? _statuses;
-  int? _typeId;
+  List<int> _typeIds = const [];
+  int? _highlightId;
+  Timer? _highlightTimer;
+  StreamSubscription<Equipment>? _createdSub;
   DateTimeRange? _dates;
   String _search = '';
   EquipmentView _view = EquipmentView.table;
@@ -63,13 +64,32 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _summaryBloc = EquipmentSummaryBloc(repository: _repository)..add(const EquipmentSummaryStarted());
     _catalogBloc = EquipmentCatalogBloc(repository: _repository)..add(const EquipmentCatalogStarted());
     _listBloc = _newListBloc();
+    _createdSub = _repository.created.listen(_onCreated);
+  }
+
+  /// Un equipo recién registrado: se limpian filtros y búsqueda, la lista vuelve a la página 1
+  /// (orden por creación descendente, así que sale primero) y se resalta unos segundos.
+  void _onCreated(Equipment created) {
+    _debounce?.cancel();
+    _searchController.clear();
+    _highlightTimer?.cancel();
+    _applyFilters(() {
+      _search = '';
+      _typeIds = const [];
+      _statuses = null;
+      _dates = null;
+      _highlightId = created.id;
+    });
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _highlightId = null);
+    });
   }
 
   EquipmentListBloc _newListBloc() => EquipmentListBloc(
         repository: _repository,
         statuses: _statuses,
         search: _search,
-        typeId: _typeId,
+        typeIds: _typeIds,
         dateFrom: _dates?.start,
         dateTo: _dates?.end,
         pageSize: _pageSize,
@@ -78,6 +98,8 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _highlightTimer?.cancel();
+    unawaited(_createdSub?.cancel());
     _searchController.dispose();
     _searchFocus.dispose();
     unawaited(_summaryBloc.close());
@@ -117,7 +139,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     _searchController.clear();
     _applyFilters(() {
       _search = '';
-      _typeId = null;
+      _typeIds = const [];
       _statuses = null;
       _dates = null;
     });
@@ -137,11 +159,10 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     return null;
   }
 
-  String? get _statusDropdownValue {
-    final csv = _statuses;
-    if (csv == null) return null;
-    return knownEquipmentStatuses.contains(csv) ? csv : _multipleStatuses;
-  }
+  Set<String> get _statusSet => _statuses == null ? <String>{} : _statuses!.split(',').toSet();
+
+  /// Filtros activos: categorías y estados elegidos, y uno más si hay fechas.
+  int get _activeFilterCount => _typeIds.length + _statusSet.length + (_dates == null ? 0 : 1);
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +171,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
     if (profile == null) {
       return const StatusMessage(icon: Icons.devices_other_rounded, title: 'Equipos', message: 'No encontramos los datos de tu sesión.');
     }
-    final filtered = _statuses != null || _typeId != null || _dates != null || _search.isNotEmpty;
+    final filtered = _statuses != null || _typeIds.isNotEmpty || _dates != null || _search.isNotEmpty;
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _summaryBloc),
@@ -185,16 +206,16 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 onClear: _clearSearch,
               )),
                 const SizedBox(width: 8),
-                Material(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(13), child: IconButton(tooltip: 'Filtros', onPressed: _showFilters, icon: Icon(Icons.filter_alt_rounded, color: EquipmentColors.info.foreground))),
+                FilterButton(count: _activeFilterCount, onPressed: _showFilters),
               ]),
-              if (_typeId != null || _statuses != null || _dates != null) ...[
+              if (_activeFilterCount > 0) ...[
                 const SizedBox(height: 8),
                 _ActiveFilters(
                   types: _catalogBloc.state.types,
-                  typeId: _typeId,
+                  typeIds: _typeIds,
                   statuses: _statuses,
                   dates: _dates,
-                  onClearType: () => _applyFilters(() => _typeId = null),
+                  onClearType: (id) => _applyFilters(() => _typeIds = [for (final t in _typeIds) if (t != id) t]),
                   onClearStatus: () => _applyFilters(() => _statuses = null),
                   onClearDates: () => _applyFilters(() => _dates = null),
                 ),
@@ -202,11 +223,15 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
               const SizedBox(height: 10),
               _ViewToggle(view: _view, onChanged: (view) => setState(() => _view = view)),
               const SizedBox(height: 14),
+              // Una clave por Bloc: al cambiar filtros o crear un equipo hay un Bloc nuevo y el listado
+              // debe volver a suscribirse a él (si no, seguiría mostrando el anterior).
               _ListSection(
+                key: ObjectKey(_listBloc),
                 view: _view,
                 pageSize: _pageSize,
                 onPageSize: (size) => _applyFilters(() => _pageSize = size),
                 filtered: filtered,
+                highlightId: _highlightId,
                 onResetFilters: _resetFilters,
               ),
             ],
@@ -217,25 +242,64 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   }
 
   Future<void> _showFilters() async {
-    await showModalBottomSheet<void>(
+    var typeIds = {..._typeIds};
+    var statuses = _statusSet;
+    var dates = _dates;
+    final types = _catalogBloc.state.types;
+    final applied = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (sheetContext) => BlocProvider<EquipmentCatalogBloc>.value(
-        value: _catalogBloc,
-        child: _FilterForm(
-          types: _catalogBloc.state.types,
-          typeId: _typeId,
-          statusValue: _statusDropdownValue,
-          dates: _dates,
-          onType: (id) { _applyFilters(() => _typeId = id); Navigator.pop(sheetContext); },
-          onStatus: (status) { _applyFilters(() => _statuses = status); Navigator.pop(sheetContext); },
-          onDates: (range) { _applyFilters(() => _dates = range); Navigator.pop(sheetContext); },
-          onReset: () { _resetFilters(); Navigator.pop(sheetContext); },
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheet) => FilterSheet(
+          onReset: () => setSheet(() {
+            typeIds = {};
+            statuses = {};
+            dates = null;
+          }),
+          onApply: () => Navigator.pop(sheetContext, true),
+          children: [
+            FilterTile(
+              label: 'Categoría',
+              icon: Icons.category_outlined,
+              summary: typeIds.isEmpty ? null : [for (final t in types) if (typeIds.contains(t.id)) t.name].join(', '),
+              onTap: () async {
+                final picked = await showMultiSelectSheet<int>(
+                  context,
+                  title: 'Categoría',
+                  options: [for (final t in types) FilterOption(t.id, t.name)],
+                  selected: typeIds,
+                );
+                if (picked != null) setSheet(() => typeIds = picked);
+              },
+            ),
+            FilterTile(
+              label: 'Estado',
+              icon: Icons.flag_outlined,
+              summary: statuses.isEmpty ? null : [for (final s in knownEquipmentStatuses) if (statuses.contains(s)) equipmentStatusMeta(s).label].join(', '),
+              onTap: () async {
+                final picked = await showMultiSelectSheet<String>(
+                  context,
+                  title: 'Estado',
+                  options: [for (final s in knownEquipmentStatuses) FilterOption(s, equipmentStatusMeta(s).label)],
+                  selected: statuses,
+                );
+                if (picked != null) setSheet(() => statuses = picked);
+              },
+            ),
+            DateRangeFilterField(label: 'Fecha de registro', value: dates, onChanged: (range) => setSheet(() => dates = range)),
+          ],
         ),
       ),
     );
+    if (applied != true || !mounted) return;
+    _applyFilters(() {
+      _typeIds = typeIds.toList()..sort();
+      _statuses = statuses.isEmpty ? null : [for (final s in knownEquipmentStatuses) if (statuses.contains(s)) s].join(',');
+      _dates = dates;
+    });
   }
 }
 
@@ -260,10 +324,11 @@ class _Header extends StatelessWidget {
         ),
         const Spacer(),
         if (canCreate)
-          FilledButton.tonalIcon(
-            onPressed: () => context.push(CreateEquipmentScreen.path),
+          Flexible(
+            child: FilledButton.tonalIcon(
+            onPressed: () => CreateEquipmentScreen.show(context),
             icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text('Nuevo equipo'),
+            label: const Text('Nuevo equipo', maxLines: 1, overflow: TextOverflow.ellipsis),
             style: FilledButton.styleFrom(
               backgroundColor: EquipmentColors.info.background,
               foregroundColor: EquipmentColors.info.foreground,
@@ -271,6 +336,7 @@ class _Header extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
             ),
           ),
       ]),
@@ -485,73 +551,25 @@ class _SearchField extends StatelessWidget {
   );
 }
 
-/// Contenido de la hoja de filtros: categoría, estado y fecha de registro, uno bajo otro.
-class _FilterForm extends StatelessWidget {
-  const _FilterForm({required this.types, required this.typeId, required this.statusValue, required this.dates, required this.onType, required this.onStatus, required this.onDates, required this.onReset});
-
-  final List<EquipmentType> types;
-  final int? typeId;
-  final String? statusValue;
-  final DateTimeRange? dates;
-  final ValueChanged<int?> onType;
-  final ValueChanged<String?> onStatus;
-  final ValueChanged<DateTimeRange?> onDates;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) => FilterSheet(
-        onReset: onReset,
-        children: [
-          FilterDropdown<int?>(
-            label: 'Categoría',
-            icon: Icons.category_outlined,
-            value: types.any((type) => type.id == typeId) ? typeId : null,
-            items: [
-              const DropdownMenuItem<int?>(value: null, child: Text('Todas las categorías', overflow: TextOverflow.ellipsis)),
-              for (final type in types) DropdownMenuItem<int?>(value: type.id, child: Text(type.name, overflow: TextOverflow.ellipsis)),
-            ],
-            onChanged: onType,
-          ),
-          FilterDropdown<String?>(
-            label: 'Estado',
-            icon: Icons.flag_outlined,
-            value: statusValue,
-            items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados', overflow: TextOverflow.ellipsis)),
-              for (final status in knownEquipmentStatuses) DropdownMenuItem<String?>(value: status, child: Text(equipmentStatusMeta(status).label, overflow: TextOverflow.ellipsis)),
-              if (statusValue == _multipleStatuses) const DropdownMenuItem<String?>(value: _multipleStatuses, child: Text('Varios estados', overflow: TextOverflow.ellipsis)),
-            ],
-            onChanged: (value) {
-              if (value != _multipleStatuses) onStatus(value);
-            },
-          ),
-          DateRangeFilterField(label: 'Fecha de registro', value: dates, onChanged: onDates),
-        ],
-      );
-}
-
 /// Filtros aplicados, cada uno con su equis para quitarlo sin abrir la hoja.
 class _ActiveFilters extends StatelessWidget {
-  const _ActiveFilters({required this.types, required this.typeId, required this.statuses, required this.dates, required this.onClearType, required this.onClearStatus, required this.onClearDates});
+  const _ActiveFilters({required this.types, required this.typeIds, required this.statuses, required this.dates, required this.onClearType, required this.onClearStatus, required this.onClearDates});
 
   final List<EquipmentType> types;
-  final int? typeId;
+  final List<int> typeIds;
   final String? statuses;
   final DateTimeRange? dates;
-  final VoidCallback onClearType;
+  final ValueChanged<int> onClearType;
   final VoidCallback onClearStatus;
   final VoidCallback onClearDates;
 
   @override
   Widget build(BuildContext context) {
-    final typeName = types.where((type) => type.id == typeId).map((type) => type.name).firstOrNull ?? 'Categoría';
-    final statusLabel = statuses == null
-        ? null
-        : knownEquipmentStatuses.contains(statuses) ? equipmentStatusMeta(statuses!).label : 'Varios estados';
+    final statusLabel = statuses == null ? null : [for (final s in statuses!.split(',')) knownEquipmentStatuses.contains(s) ? equipmentStatusMeta(s).label : s].join(', ');
     return Align(
       alignment: Alignment.centerLeft,
       child: Wrap(spacing: 8, runSpacing: 4, children: [
-        if (typeId != null) ActiveFilterChip(label: typeName, onRemove: onClearType),
+        for (final id in typeIds) ActiveFilterChip(label: types.where((t) => t.id == id).map((t) => t.name).firstOrNull ?? 'Categoría', onRemove: () => onClearType(id)),
         if (statusLabel != null) ActiveFilterChip(label: statusLabel, onRemove: onClearStatus),
         if (dates != null) ActiveFilterChip(label: '${formatDate(dates!.start)} – ${formatDate(dates!.end)}', onRemove: onClearDates),
       ]),
@@ -612,13 +630,14 @@ class _ViewOption extends StatelessWidget {
 
 /// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
 class _ListSection extends StatelessWidget {
-  const _ListSection({required this.view, required this.pageSize, required this.onPageSize, required this.filtered, required this.onResetFilters});
+  const _ListSection({super.key, required this.view, required this.pageSize, required this.onPageSize, required this.filtered, required this.onResetFilters, this.highlightId});
 
   final EquipmentView view;
   final int pageSize;
   final ValueChanged<int> onPageSize;
   final bool filtered;
   final VoidCallback onResetFilters;
+  final int? highlightId;
 
   @override
   Widget build(BuildContext context) => BlocBuilder<EquipmentListBloc, EquipmentListState>(
@@ -643,7 +662,7 @@ class _ListSection extends StatelessWidget {
           void open(Equipment item) => showEquipmentDetails(context, item);
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (state.loadingPage) const Padding(padding: EdgeInsets.only(bottom: 6), child: LinearProgressIndicator(minHeight: 2)),
-            if (view == EquipmentView.table) EquipmentTable(items: state.items, onOpen: open) else EquipmentGrid(items: state.items, onOpen: open),
+            if (view == EquipmentView.table) EquipmentTable(items: state.items, onOpen: open, highlightId: highlightId) else EquipmentGrid(items: state.items, onOpen: open, highlightId: highlightId),
             const SizedBox(height: 16),
             Paginator(
               page: state.page,

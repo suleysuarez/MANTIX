@@ -6,6 +6,7 @@ import '../../core/errors/failure_mapper.dart';
 import '../../models/equipment/attachment_models.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/page_info.dart';
+import '../../models/requests/request_models.dart' show Attachment;
 
 /// Catálogo de equipos: listado paginado y contadores por estado. Cualquier error
 /// de red o de servidor sale como un `Failure` ya traducido.
@@ -14,6 +15,10 @@ class EquipmentRepository {
 
   final Dio _dio;
   final _changes = StreamController<void>.broadcast();
+  final _created = StreamController<Equipment>.broadcast();
+
+  /// Emite el equipo recién registrado: la lista vuelve a la página 1 y lo resalta.
+  Stream<Equipment> get created => _created.stream;
 
   /// Emite cuando el catálogo cambia (por ejemplo, se registra un equipo): los listados se recargan solos.
   Stream<void> get changes => _changes.stream;
@@ -28,14 +33,15 @@ class EquipmentRepository {
 
   /// [statuses] es el valor del filtro `status` (lista separada por comas, ver
   /// [EquipmentGroup.filter]); [search] busca por etiqueta, serie, marca o modelo.
-  Future<PagedResult<Equipment>> listEquipment({int page = 1, int size = PageInfo.defaultPageSize, String? statuses, String? search, int? typeId, DateTime? dateFrom, DateTime? dateTo}) => _guard(() async {
+  Future<PagedResult<Equipment>> listEquipment({int page = 1, int size = PageInfo.defaultPageSize, String? statuses, String? search, List<int> typeIds = const [], DateTime? dateFrom, DateTime? dateTo}) => _guard(() async {
         final term = search?.trim();
         final response = await _dio.get<Object?>('/equipment', queryParameters: {
           'page': page,
           'size': size,
           'sort': '-created_at',
           if (statuses != null && statuses.isNotEmpty) 'status': statuses,
-          'equipment_type_id': ?typeId,
+          // Varias categorías: el parámetro se repite (`equipment_type_id=1&equipment_type_id=2`).
+          if (typeIds.isNotEmpty) 'equipment_type_id': typeIds,
           if (term != null && term.isNotEmpty) 'search': term,
           if (dateFrom != null) 'date_from': dateFrom.toUtc().toIso8601String(),
           if (dateTo != null) 'date_to': dateTo.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)).toUtc().toIso8601String(),
@@ -64,6 +70,7 @@ class EquipmentRepository {
         final response = await _dio.post<Map<String, Object?>>('/equipment', data: equipment.toJson());
         final created = Equipment.fromJson(response.data!);
         _changes.add(null);
+        _created.add(created);
         return created;
       });
 
@@ -116,6 +123,13 @@ class EquipmentRepository {
             if (total > 0) onProgress?.call(sent / total);
           },
         );
+      });
+
+  /// Adjuntos ya subidos del equipo (`GET /equipment/{id}/attachments`).
+  Future<List<Attachment>> listAttachments(int equipmentId) => _guard(() async {
+        final response = await _dio.get<Object?>('/equipment/$equipmentId/attachments');
+        final data = response.data;
+        return [if (data is List) for (final item in data) Attachment.fromJson((item as Map).cast<String, Object?>())];
       });
 
   /// Descarga el inventario (`GET /reports/equipment`, requiere `reportes:exportar`) en

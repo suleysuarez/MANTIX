@@ -36,19 +36,19 @@ void main() {
           size: any(named: 'size'),
           statuses: any(named: 'statuses'),
           search: any(named: 'search'),
-          typeId: any(named: 'typeId'),
+          typeIds: any(named: 'typeIds'),
         ),
       ).thenAnswer((_) async => result ?? const PagedResult(items: [_equipment], info: _page1));
 
   group('EquipmentListBloc', () {
     test('pide la primera página con los filtros y el tamaño con los que se creó', () async {
       stubList();
-      final bloc = EquipmentListBloc(repository: repository, statuses: 'in_repair', search: 'dell', typeId: 2, pageSize: 20)..add(const EquipmentListStarted());
+      final bloc = EquipmentListBloc(repository: repository, statuses: 'in_repair', search: 'dell', typeIds: [2], pageSize: 20)..add(const EquipmentListStarted());
       addTearDown(bloc.close);
 
       await bloc.stream.firstWhere((s) => s.status == EquipmentListStatus.success);
 
-      verify(() => repository.listEquipment(page: 1, size: 20, statuses: 'in_repair', search: 'dell', typeId: 2)).called(1);
+      verify(() => repository.listEquipment(page: 1, size: 20, statuses: 'in_repair', search: 'dell', typeIds: [2])).called(1);
       expect(bloc.state.items, [_equipment]);
       expect(bloc.state.total, 25);
       expect(bloc.state.totalPages, 3);
@@ -61,7 +61,7 @@ void main() {
 
       await bloc.stream.firstWhere((s) => s.status == EquipmentListStatus.success);
 
-      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeId: null)).called(1);
+      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeIds: const [])).called(1);
     });
 
     test('cambiar de página pide esa página y conserva los datos mientras llega', () async {
@@ -70,7 +70,7 @@ void main() {
       addTearDown(bloc.close);
       await bloc.stream.firstWhere((s) => s.status == EquipmentListStatus.success);
       final second = Completer<PagedResult<Equipment>>();
-      when(() => repository.listEquipment(page: 2, size: 10, statuses: null, search: '', typeId: null)).thenAnswer((_) => second.future);
+      when(() => repository.listEquipment(page: 2, size: 10, statuses: null, search: '', typeIds: const [])).thenAnswer((_) => second.future);
 
       bloc.add(const EquipmentPageSelected(2));
       final waiting = await bloc.stream.firstWhere((s) => s.loadingPage);
@@ -84,7 +84,7 @@ void main() {
     });
 
     test('si falla la página el estado es de error y reintentar vuelve a pedirla', () async {
-      when(() => repository.listEquipment(page: any(named: 'page'), size: any(named: 'size'), statuses: any(named: 'statuses'), search: any(named: 'search'), typeId: any(named: 'typeId')))
+      when(() => repository.listEquipment(page: any(named: 'page'), size: any(named: 'size'), statuses: any(named: 'statuses'), search: any(named: 'search'), typeIds: any(named: 'typeIds')))
           .thenThrow(const NetworkFailure());
       final bloc = EquipmentListBloc(repository: repository)..add(const EquipmentListStarted());
       addTearDown(bloc.close);
@@ -106,7 +106,7 @@ void main() {
 
       await bloc.refresh();
 
-      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeId: null)).called(2);
+      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeIds: const [])).called(2);
     });
 
     test('se recarga solo cuando el catálogo cambia', () async {
@@ -121,7 +121,7 @@ void main() {
       changes.add(null);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeId: null)).called(2);
+      verify(() => repository.listEquipment(page: 1, size: 10, statuses: null, search: '', typeIds: const [])).called(2);
     });
   });
 

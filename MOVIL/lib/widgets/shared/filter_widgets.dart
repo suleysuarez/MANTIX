@@ -60,7 +60,7 @@ class _FieldLabel extends StatelessWidget {
         child: Row(children: [
           Icon(icon, size: 16, color: AppColors.slate),
           const SizedBox(width: 6),
-          Text(label, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: AppColors.steel)),
+          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: AppColors.steel))),
         ]),
       );
 }
@@ -173,4 +173,47 @@ class ActiveFilterChip extends StatelessWidget {
         side: BorderSide.none,
         labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: AppColors.steel),
       );
+}
+
+/// Fila de la hoja de filtros que abre otra selección (por ejemplo, la multiselección de
+/// categorías). Muestra lo elegido, o «Todas» si no hay nada.
+class FilterTile extends StatelessWidget {
+  const FilterTile({super.key, required this.label, required this.icon, required this.summary, required this.onTap});
+
+  final String label;
+  final IconData icon;
+
+  /// Resumen de lo elegido; `null` si no hay filtro.
+  final String? summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _FieldLabel(icon, label),
+        Material(
+          color: AppColors.canvas,
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll, side: BorderSide(color: summary == null ? AppColors.grey : AppColors.steel)),
+          child: InkWell(
+            borderRadius: AppRadius.mdAll,
+            onTap: onTap,
+            child: SizedBox(
+              height: 50,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(
+                      summary ?? 'Todas',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: summary == null ? AppColors.slate : AppColors.navy),
+                    ),
+                  ),
+                  const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ]);
 }

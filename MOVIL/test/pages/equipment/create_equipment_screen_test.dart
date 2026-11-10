@@ -59,14 +59,24 @@ void main() {
     repository = EquipmentRepository(dioWith(adapter));
   });
 
-  Future<void> pumpForm(WidgetTester tester, {double textScale = 1, Set<String> permissions = _all, DeviceServices? device}) async {
-    tester.view.physicalSize = const Size(390, 3600);
+  Future<void> pumpForm(WidgetTester tester, {double textScale = 1, Set<String> permissions = _all, DeviceServices? device, bool openRoute = true, Size size = const Size(390, 3600)}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     router = GoRouter(
       initialLocation: '/inicio',
       routes: [
-        GoRoute(path: '/inicio', builder: (_, _) => const Scaffold(body: Text('pantalla de equipos'))),
+        GoRoute(
+          path: '/inicio',
+          builder: (_, _) => Scaffold(
+            body: Builder(
+              builder: (context) => Column(children: [
+                const Text('pantalla de equipos'),
+                TextButton(onPressed: () => CreateEquipmentScreen.show(context), child: const Text('abrir hoja')),
+              ]),
+            ),
+          ),
+        ),
         GoRoute(path: CreateEquipmentScreen.path, builder: (_, _) => const CreateEquipmentScreen()),
       ],
     );
@@ -94,6 +104,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    if (!openRoute) return;
     router.push(CreateEquipmentScreen.path);
     await tester.pumpAndSettle();
   }
@@ -114,7 +125,7 @@ void main() {
     await tester.enterText(key('asset-tag'), '  EQ-029 ');
     await tester.enterText(key('brand'), 'Dell');
     await tester.enterText(key('model'), 'Latitude 5540');
-    await pick(tester, find.byType(DropdownButtonFormField<int>), 'Laptop');
+    await pick(tester, find.byKey(const Key('field-type')), 'Laptop');
   }
 
   Future<void> submit(WidgetTester tester) async {
@@ -126,8 +137,6 @@ void main() {
   testWidgets('muestra el panel con sus secciones y campos', (tester) async {
     await pumpForm(tester);
 
-    expect(find.text('Registrar nuevo equipo'), findsOneWidget);
-    expect(find.text('Completa la ficha técnica, ubicación y estado del dispositivo.'), findsOneWidget);
     for (final section in ['INFORMACIÓN GENERAL', 'ASIGNACIÓN Y UBICACIÓN', 'ESTADO Y GARANTÍA']) {
       expect(find.text(section), findsOneWidget, reason: section);
     }
@@ -150,7 +159,7 @@ void main() {
 
     expect(adapter.requests.where((r) => r.path == '/equipment/types'), hasLength(1));
     expect(adapter.requests.where((r) => r.path == '/locations'), hasLength(1));
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byKey(const Key('field-type')));
     await tester.pumpAndSettle();
     expect(find.text('Laptop'), findsOneWidget);
     expect(find.text('Impresora'), findsOneWidget);
@@ -287,7 +296,7 @@ void main() {
 
     expect(find.text('La etiqueta ya está en uso en la sede.'), findsOneWidget);
     expect(find.text('Marca no admitida.'), findsOneWidget);
-    expect(find.text('Registrar nuevo equipo'), findsOneWidget, reason: 'se queda en el formulario');
+    expect(find.text('GUARDAR EQUIPO'), findsOneWidget, reason: 'se queda en el formulario');
 
     await tester.enterText(key('brand'), 'HP');
     await tester.pump();
@@ -334,7 +343,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No pudimos cargar las categorías'), findsNothing);
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byKey(const Key('field-type')));
     await tester.pumpAndSettle();
     expect(find.text('Laptop'), findsOneWidget);
     expect(adapter.requests.where((r) => r.path == '/equipment/types'), hasLength(2));
@@ -357,19 +366,76 @@ void main() {
     expect(find.text('Elegir fecha'), findsNWidgets(3));
   });
 
-  testWidgets('«Cancelar» y la X vuelven a la pantalla anterior sin enviar nada', (tester) async {
+  testWidgets('«Cancelar» vuelve a la pantalla anterior sin enviar nada', (tester) async {
     await pumpForm(tester);
 
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(find.text('pantalla de equipos'), findsOneWidget);
-
-    router.push(CreateEquipmentScreen.path);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Cerrar'));
-    await tester.pumpAndSettle();
-    expect(find.text('pantalla de equipos'), findsOneWidget);
     expect(posts(), isEmpty);
+  });
+
+  group('como hoja inferior', () {
+    testWidgets('se abre sobre la pantalla con su título y se cierra con «Cancelar» o la X', (tester) async {
+      await pumpForm(tester, openRoute: false);
+      await tester.tap(find.text('abrir hoja'));
+      await tester.pumpAndSettle();
+      expect(find.text('Registrar nuevo equipo'), findsOneWidget);
+      expect(find.text('pantalla de equipos'), findsOneWidget, reason: 'la pantalla de fondo no se pierde');
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Registrar nuevo equipo'), findsNothing);
+
+      await tester.tap(find.text('abrir hoja'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Registrar nuevo equipo'), findsNothing);
+      expect(find.text('pantalla de equipos'), findsOneWidget);
+      expect(posts(), isEmpty);
+    });
+
+    testWidgets('al guardar se cierra y la pantalla de fondo sigue', (tester) async {
+      await pumpForm(tester, openRoute: false);
+      await tester.tap(find.text('abrir hoja'));
+      await tester.pumpAndSettle();
+      await fillRequired(tester);
+      await submit(tester);
+
+      expect(posts().first.path, '/equipment');
+      expect(find.text('Registrar nuevo equipo'), findsNothing);
+      expect(find.text('pantalla de equipos'), findsOneWidget);
+    });
+  });
+
+  group('selector de categoría', () {
+    testWidgets('busca por nombre y elige', (tester) async {
+      await pumpForm(tester);
+      await tester.tap(find.byKey(const Key('field-type')));
+      await tester.pumpAndSettle();
+      expect(find.text('Laptop'), findsOneWidget);
+      expect(find.text('Impresora'), findsOneWidget);
+      expect(find.text('Crear nueva categoría'), findsNothing, reason: 'el servidor aún no tiene ese endpoint');
+
+      await tester.enterText(find.byType(TextField).last, 'impr');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Laptop'), findsNothing);
+      await tester.tap(find.text('Impresora'));
+      await tester.pumpAndSettle();
+      expect(find.text('Impresora'), findsOneWidget);
+    });
+
+    testWidgets('sin coincidencias lo dice', (tester) async {
+      await pumpForm(tester);
+      await tester.tap(find.byKey(const Key('field-type')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'zzz');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('No hay categorías con ese nombre'), findsOneWidget);
+    });
   });
 
   testWidgets('con la fuente del sistema más grande no se desborda', (tester) async {
@@ -377,5 +443,20 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('GUARDAR EQUIPO'), findsOneWidget);
+  });
+
+  group('la hoja del formulario sin overflow con texto 1,3', () {
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('en ${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+        await pumpForm(tester, openRoute: false, size: size, textScale: 1.3);
+        await tester.tap(find.text('abrir hoja'));
+        await tester.pumpAndSettle();
+        expect(find.text('Registrar nuevo equipo'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.descendant(of: find.byType(DraggableScrollableSheet), matching: find.byType(ListView)).first, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

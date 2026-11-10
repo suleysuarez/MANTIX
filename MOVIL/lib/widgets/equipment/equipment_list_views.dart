@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format/equipment_meta.dart';
-import '../../core/format/formatters.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../shared/app_chip.dart';
@@ -61,9 +60,12 @@ class _Location extends StatelessWidget {
 
 /// Vista de tabla: una fila por equipo con su estado, como en la web.
 class EquipmentTable extends StatelessWidget {
-  const EquipmentTable({super.key, required this.items, required this.onOpen});
+  const EquipmentTable({super.key, required this.items, required this.onOpen, this.highlightId});
 
   final List<Equipment> items;
+
+  /// Equipo recién registrado: su fila se resalta con el acento mostaza.
+  final int? highlightId;
   final ValueChanged<Equipment> onOpen;
 
   @override
@@ -79,24 +81,21 @@ class EquipmentTable extends StatelessWidget {
           Container(
             color: const Color(0xFFF4F8FC),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: const Row(children: [
-              Expanded(child: Text('EQUIPO Y MODELO', style: TextStyle(color: AppColors.slate, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6))),
-              Text('ESTADO', style: TextStyle(color: AppColors.slate, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-              SizedBox(width: 22),
-            ]),
+            child: const Text('EQUIPO Y MODELO · ESTADO', style: TextStyle(color: AppColors.slate, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
           ),
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const Divider(height: 1, color: Color(0xFFEEF3F8)),
-            _TableRow(item: items[i], onTap: () => onOpen(items[i])),
+            _TableRow(item: items[i], highlighted: items[i].id == highlightId, onTap: () => onOpen(items[i])),
           ],
         ]),
       );
 }
 
 class _TableRow extends StatelessWidget {
-  const _TableRow({required this.item, required this.onTap});
+  const _TableRow({required this.item, required this.onTap, this.highlighted = false});
 
   final Equipment item;
+  final bool highlighted;
   final VoidCallback onTap;
 
   @override
@@ -104,7 +103,12 @@ class _TableRow extends StatelessWidget {
     final status = equipmentStatusMeta(item.status);
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColors.mustard.withValues(alpha: .28) : Colors.transparent,
+          border: Border(left: BorderSide(color: highlighted ? AppColors.mustard : Colors.transparent, width: 4)),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _IconBox(item: item),
@@ -115,18 +119,17 @@ class _TableRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(_subtitle(item), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 11.5)),
               const SizedBox(height: 6),
-              Row(children: [
+              // Estado y etiqueta se acomodan en varias líneas si no caben: con letra grande en una
+              // pantalla estrecha una fila fija se desbordaría.
+              Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                AppChip(label: status.label, colors: status.colors, semanticPrefix: 'Estado'),
                 _TagChip(item.assetTag),
-                const SizedBox(width: 8),
-                Expanded(child: _Location(item)),
               ]),
+              const SizedBox(height: 6),
+              _Location(item),
             ]),
           ),
           const SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 118),
-            child: AppChip(label: status.label, colors: status.colors, semanticPrefix: 'Estado'),
-          ),
           const Padding(padding: EdgeInsets.only(top: 8), child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.slate)),
         ]),
       ),
@@ -136,9 +139,10 @@ class _TableRow extends StatelessWidget {
 
 /// Vista de cuadrícula: dos equipos por fila.
 class EquipmentGrid extends StatelessWidget {
-  const EquipmentGrid({super.key, required this.items, required this.onOpen});
+  const EquipmentGrid({super.key, required this.items, required this.onOpen, this.highlightId});
 
   final List<Equipment> items;
+  final int? highlightId;
   final ValueChanged<Equipment> onOpen;
 
   @override
@@ -153,21 +157,22 @@ class EquipmentGrid extends StatelessWidget {
           mainAxisSpacing: 10,
           mainAxisExtent: 172 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6),
         ),
-        itemBuilder: (context, index) => _GridTile(item: items[index], onTap: () => onOpen(items[index])),
+        itemBuilder: (context, index) => _GridTile(item: items[index], highlighted: items[index].id == highlightId, onTap: () => onOpen(items[index])),
       );
 }
 
 class _GridTile extends StatelessWidget {
-  const _GridTile({required this.item, required this.onTap});
+  const _GridTile({required this.item, required this.onTap, this.highlighted = false});
 
   final Equipment item;
+  final bool highlighted;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final status = equipmentStatusMeta(item.status);
     return Material(
-      color: Colors.white,
+      color: highlighted ? const Color(0xFFFBF1DC) : Colors.white,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         borderRadius: BorderRadius.circular(17),
@@ -176,7 +181,7 @@ class _GridTile extends StatelessWidget {
           padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: const Color(0xFFE5EEF6)),
+            border: Border.all(color: highlighted ? AppColors.mustard : const Color(0xFFE5EEF6), width: highlighted ? 2 : 1),
             boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -195,64 +200,6 @@ class _GridTile extends StatelessWidget {
             _Location(item),
           ]),
         ),
-      ),
-    );
-  }
-}
-
-/// Ficha del equipo en una hoja inferior (solo lectura).
-Future<void> showEquipmentDetails(BuildContext context, Equipment item) => showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (_) => _EquipmentDetails(item: item),
-    );
-
-class _EquipmentDetails extends StatelessWidget {
-  const _EquipmentDetails({required this.item});
-
-  final Equipment item;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = equipmentStatusMeta(item.status);
-    final last = item.lastMaintenanceAt;
-    final rows = <(String, String)>[
-      ('Código de activo', item.assetTag),
-      ('Categoría', item.typeName),
-      ('Número de serie', item.serialNumber == null || item.serialNumber!.isEmpty ? 'Sin registrar' : item.serialNumber!),
-      ('Ubicación', item.locationName ?? 'Sin ubicación'),
-      ('Responsable', item.custodianName ?? 'Sin responsable'),
-      ('Último mantenimiento', last == null ? 'Sin mantenimientos' : formatDate(last.toLocal())),
-    ];
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _IconBox(item: item, size: 46),
-            const SizedBox(width: 12),
-            Expanded(child: Text('${item.brand} ${item.model}', style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 18, fontWeight: FontWeight.w800, height: 1.2))),
-          ]),
-          const SizedBox(height: 10),
-          AppChip(label: status.label, colors: status.colors, semanticPrefix: 'Estado'),
-          if (item.description != null && item.description!.trim().isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(item.description!, style: const TextStyle(color: Color(0xFF475569), fontSize: 13, height: 1.4)),
-          ],
-          const SizedBox(height: 14),
-          for (final (label, value) in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(width: 130, child: Text(label, style: const TextStyle(color: AppColors.slate, fontSize: 12))),
-                Expanded(child: Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 13, fontWeight: FontWeight.w600))),
-              ]),
-            ),
-        ]),
       ),
     );
   }

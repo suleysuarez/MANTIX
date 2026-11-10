@@ -304,6 +304,8 @@ Todo en `MOVIL/backend`; `WEB/backend` no se tocó.
 - Equipos: `GET /equipment` entrega a un Solicitante todo el catálogo, con custodio y ubicación. Si se quiere limitar, hace falta un alcance por usuario o un permiso nuevo en `WEB/backend` (afecta también a la web).
 - Equipos: no hay búsqueda exacta por `asset_tag`; el escaneo de QR de la Fase 8 la necesitará (filtro `asset_tag` o comparar en el cliente).
 - Equipos: `GET /equipment` no acepta `date_from` ni `date_to`. La app ya los envía desde el filtro «Fecha de registro» (mismo formato que tickets), pero el servidor los ignora hasta que `WEB/backend` filtre por `created_at`.
+- Equipos (app lista, backend pendiente; en `feat/api-mobile-needs`): `equipment_type_id` repetido para varias categorías (hoy `GET /equipment` toma solo uno), `POST /equipment/types` para «Crear nueva» categoría (la app solo ofrece búsqueda), historial de mantenimientos por equipo (la ficha muestra registro, último mantenimiento y tickets) y `equipment` dentro de cada ticket de la lista (nombre del equipo en filas y tarjetas).
+- Tickets: confirmar que `priority` y `equipment_id` admiten varios valores (hoy solo `status` admite lista).
 (Se completa durante el desarrollo: archivo, motivo y fase que lo necesita.)
 
 ## Sesión de Clerk en almacenamiento seguro (Fase 9) — OBSOLETO, resuelto

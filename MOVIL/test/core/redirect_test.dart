@@ -78,12 +78,4 @@ void main() {
     // Los demás módulos siguen sin exigir un permiso propio en el router.
     expect(redirect(withoutPermission, '/modulos/tickets'), isNull);
   });
-  test('registrar un equipo exige el permiso equipos:crear', () {
-    final canCreate = signedIn(profile(permissions: const {'equipos:ver', 'equipos:crear', 'tickets:ver_asignados'}));
-    final onlyView = signedIn(profile(permissions: const {'equipos:ver', 'tickets:ver_asignados'}));
-    expect(redirect(canCreate, '/modulos/equipos/nuevo'), isNull);
-    expect(redirect(onlyView, '/modulos/equipos/nuevo'), HomeDestination.assignedInbox.path);
-    // Ver el catálogo no exige el permiso de crear.
-    expect(redirect(onlyView, '/modulos/equipos'), isNull);
-  });
 }

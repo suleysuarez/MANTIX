@@ -124,7 +124,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('field-asset-tag')), 'EQ-029');
     await tester.enterText(find.byKey(const Key('field-brand')), 'Dell');
     await tester.enterText(find.byKey(const Key('field-model')), 'Latitude');
-    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.tap(find.byKey(const Key('field-type')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Laptop').last);
     await tester.pumpAndSettle();
