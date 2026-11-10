@@ -153,6 +153,7 @@ Toda respuesta de error tiene el mismo cuerpo:
 | `category_in_use` | La categoría está en uso por solicitudes y no se elimina. |
 | `equipment_identifier_taken` | Ya existe un equipo con esa etiqueta o número de serie. |
 | `equipment_serial_taken` | Ya existe un equipo con ese número de serie. |
+| `equipment_type_name_taken` | Ya existe una categoría de equipo con ese nombre. |
 | `inventory_insufficient_stock` | No hay stock suficiente para el movimiento. |
 | `inventory_item_has_movements` | El ítem tiene movimientos y no se elimina; desactívalo. |
 | `inventory_item_inactive` | Un ítem inactivo no admite movimientos; reactívalo primero. |

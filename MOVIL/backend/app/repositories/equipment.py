@@ -265,6 +265,30 @@ class EquipmentRepository(BaseRepository[Equipment]):
         )
         return result.scalar_one_or_none()
 
+    async def find_type_by_name(self, name: str) -> EquipmentType | None:
+        """The category with this name ignoring case, active or not (the table's unique
+        constraint on `name` counts inactive ones too)."""
+        result = await self.session.execute(
+            select(EquipmentType).where(
+                func.lower(EquipmentType.name) == func.lower(name)
+            )
+        )
+        return result.scalars().first()
+
+    async def type_code_exists(self, code: str) -> bool:
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(EquipmentType)
+            .where(EquipmentType.code == code)
+        )
+        return bool(result.scalar_one())
+
+    async def create_type(self, *, code: str, name: str) -> EquipmentType:
+        equipment_type = EquipmentType(code=code, name=name, is_active=True)
+        self.session.add(equipment_type)
+        await self.session.flush()
+        return equipment_type
+
     async def get_type(self, equipment_type_id: int) -> EquipmentType | None:
         result = await self.session.execute(
             select(EquipmentType).where(

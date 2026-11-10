@@ -112,6 +112,7 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "schedule_equipment_unavailable": "No se programa mantenimiento para un equipo en ese estado.",
             "schedule_technician_inactive": "No se asigna un plan a un técnico inactivo.",
             "equipment_identifier_taken": "Ya existe un equipo con esa etiqueta o número de serie.",
+            "equipment_type_name_taken": "Ya existe una categoría de equipo con ese nombre.",
             "equipment_serial_taken": "Ya existe un equipo con ese número de serie.",
             "warranty_dates_invalid": "El fin de garantía no puede ser anterior al inicio.",
             "location_taken": "Ya existe una ubicación con ese código o nombre.",

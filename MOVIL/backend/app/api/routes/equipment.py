@@ -16,6 +16,7 @@ from app.schemas.equipment import (
     EquipmentLocationAssignRequest,
     EquipmentResponse,
     EquipmentSummaryResponse,
+    EquipmentTypeCreate,
     EquipmentTypeResponse,
     EquipmentUpdate,
     LocationCreate,
@@ -150,6 +151,26 @@ async def list_equipment_maintenance_records(
     for field in ("labor_cost", "parts_cost", "total_cost"):
         items = hide_unless(actor, "equipos:editar", items, field)
     return items
+
+
+@router.post(
+    "/types",
+    response_model=EquipmentTypeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an equipment category",
+    description=(
+        "Adds a category to the catalog. The name is trimmed and its inner spaces "
+        "collapsed (2 to 100 characters); it must be unique ignoring case, otherwise "
+        "409 `equipment_type_name_taken` names the one that already exists. The `code` "
+        "is derived from the name. Needs `equipos:crear`."
+    ),
+)
+async def create_equipment_type(
+    payload: EquipmentTypeCreate,
+    actor: AuthContext = Depends(require_permission("equipos:crear")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> EquipmentTypeResponse:
+    return await service.create_type(payload, actor)
 
 
 @router.get("/{equipment_id}", response_model=EquipmentResponse)

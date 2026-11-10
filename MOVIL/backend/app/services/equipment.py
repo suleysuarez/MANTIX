@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -17,6 +19,7 @@ from app.schemas.equipment import (
     EquipmentLocationAssignRequest,
     EquipmentResponse,
     EquipmentSummaryResponse,
+    EquipmentTypeCreate,
     EquipmentTypeResponse,
     EquipmentUpdate,
     LastMaintenance,
@@ -33,6 +36,14 @@ def _utc(value: datetime | None) -> datetime | None:
     if value is not None and value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value
+
+
+def _type_code_base(name: str) -> str:
+    """`"Cámara de seguridad"` -> `"CAMARA_DE_SEGURIDAD"`: upper-case, ASCII, `_` between
+    words, short enough to leave room for a numeric suffix."""
+    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^A-Z0-9]+", "_", ascii_name.upper()).strip("_")
+    return slug[:44].strip("_") or "TYPE"
 
 
 class EquipmentService:
@@ -95,6 +106,48 @@ class EquipmentService:
             EquipmentTypeResponse.model_validate(item)
             for item in await self.repository.list_types()
         ]
+
+    async def create_type(
+        self, payload: EquipmentTypeCreate, actor: AuthContext
+    ) -> EquipmentTypeResponse:
+        existing = await self.repository.find_type_by_name(payload.name)
+        if existing is not None:
+            raise ConflictError(
+                f"an equipment type named '{existing.name}' already exists",
+                code="equipment_type_name_taken",
+            )
+        code = await self._free_type_code(payload.name)
+        try:
+            equipment_type = await self.repository.create_type(
+                code=code, name=payload.name
+            )
+            self.audit.record(
+                user_id=actor.id,
+                action="equipment_type.created",
+                entity_type="equipment_type",
+                entity_id=equipment_type.id,
+                new_values={"code": equipment_type.code, "name": equipment_type.name},
+            )
+            await self.repository.commit()
+        except IntegrityError as exc:
+            # Two people creating the same name at once: the constraint caught the loser.
+            await self.repository.rollback()
+            raise ConflictError(
+                "an equipment type with that name already exists",
+                code="equipment_type_name_taken",
+            ) from exc
+        return EquipmentTypeResponse.model_validate(equipment_type)
+
+    async def _free_type_code(self, name: str) -> str:
+        base = _type_code_base(name)
+        for attempt in range(1, 100):
+            candidate = base if attempt == 1 else f"{base}_{attempt}"
+            if not await self.repository.type_code_exists(candidate):
+                return candidate
+        raise ConflictError(
+            "could not derive a free code for this name",
+            code="equipment_type_name_taken",
+        )
 
     async def get(self, equipment_id: int) -> EquipmentResponse:
         return await self._present(equipment_id)
