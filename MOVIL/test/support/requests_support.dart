@@ -10,6 +10,8 @@ import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
+import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
+import 'package:mantix/repositories/queue/queue_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'fakes.dart';
@@ -20,6 +22,8 @@ Map<String, Object?> ticketJson({
   String status = 'submitted',
   String title = 'La laptop no enciende',
   String priority = 'high',
+  bool canAct = false,
+  Map<String, Object?>? equipment,
 }) =>
     {
       'id': id,
@@ -30,7 +34,8 @@ Map<String, Object?> ticketJson({
       'category': null,
       'status': status,
       'created_at': '2026-11-02T15:30:00Z',
-      'can_act': false,
+      'can_act': canAct,
+      'equipment': ?equipment,
     };
 
 Map<String, Object?> detailJson({int id = 1, String status = 'assigned'}) => {
@@ -112,11 +117,13 @@ Future<GoRouter> pumpScreen(
   Widget screen,
   FakeAdapter adapter, {
   Set<String> permissions = const {'solicitudes:ver', 'solicitudes:crear'},
+  Size size = const Size(1400, 1800),
+  double textScale = 1,
 }) async {
   // Pantalla alta y ancha: las listas perezosas construyen todo lo que se prueba.
   tester.view
     ..devicePixelRatio = 1
-    ..physicalSize = const Size(1400, 1800);
+    ..physicalSize = size;
   addTearDown(tester.view.reset);
   final router = GoRouter(
     initialLocation: '/test',
@@ -132,15 +139,23 @@ Future<GoRouter> pumpScreen(
   );
   addTearDown(router.dispose);
   await tester.pumpWidget(
-    RepositoryProvider(
-      create: (_) => RequestsRepository(dioWith(adapter)),
+    MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider(create: (_) => RequestsRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => CatalogsRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => QueueRepository(dioWith(adapter))),
+      ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: permissionsCubit(permissions)),
           BlocProvider<AuthBloc>.value(value: authenticatedBloc(testProfile(permissions: permissions))),
           BlocProvider<NotificationsBloc>.value(value: notificationsBloc()),
         ],
-        child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+          builder: (context, app) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)), child: app!),
+        ),
       ),
     ),
   );

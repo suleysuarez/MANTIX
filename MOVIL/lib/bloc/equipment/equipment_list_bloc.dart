@@ -17,7 +17,7 @@ part 'equipment_list_state.dart';
 /// [search] el texto buscado. Cambiar un filtro o el tamaño de página crea un Bloc nuevo (la
 /// pantalla le pone una `key`), igual que «Mis solicitudes»; moverse entre páginas es un evento.
 class EquipmentListBloc extends Bloc<EquipmentListEvent, EquipmentListState> {
-  EquipmentListBloc({required this._repository, this.statuses, this.search = '', this.typeId, this.pageSize = 10})
+  EquipmentListBloc({required this._repository, this.statuses, this.search = '', this.typeIds = const [], this.dateFrom, this.dateTo, this.pageSize = 10})
       : super(const EquipmentListState()) {
     on<EquipmentListStarted>((_, emit) => _load(1, emit));
     on<EquipmentPageSelected>((event, emit) => _load(event.page, emit));
@@ -34,7 +34,9 @@ class EquipmentListBloc extends Bloc<EquipmentListEvent, EquipmentListState> {
   final EquipmentRepository _repository;
   final String? statuses;
   final String search;
-  final int? typeId;
+  final List<int> typeIds;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
   final int pageSize;
   late final StreamSubscription<void> _changes;
 
@@ -51,7 +53,7 @@ class EquipmentListBloc extends Bloc<EquipmentListEvent, EquipmentListState> {
         ? EquipmentListState(page: page)
         : state.copyWith(page: page, loadingPage: true));
     try {
-      final result = await _repository.listEquipment(page: page, size: pageSize, statuses: statuses, search: search, typeId: typeId);
+      final result = await _repository.listEquipment(page: page, size: pageSize, statuses: statuses, search: search, typeIds: typeIds, dateFrom: dateFrom, dateTo: dateTo);
       emit(EquipmentListState(status: EquipmentListStatus.success, items: result.items, info: result.info, page: page));
     } catch (error) {
       emit(EquipmentListState(status: EquipmentListStatus.failure, page: page, failure: toFailure(error)));

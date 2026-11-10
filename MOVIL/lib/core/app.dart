@@ -9,8 +9,10 @@ import '../bloc/notifications/notifications_bloc.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 import '../repositories/auth/mobile_auth_repository.dart';
+import '../repositories/catalogs/catalogs_repository.dart';
 import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
+import '../repositories/queue/queue_repository.dart';
 import '../repositories/notifications/notifications_repository.dart';
 import '../repositories/requests/requests_repository.dart';
 import '../services/device_services.dart';
@@ -20,19 +22,23 @@ class MantixApp extends StatefulWidget {
     super.key,
     required this.authBloc,
     required this.requestsRepository,
+    required this.catalogsRepository,
     required this.mobileAuthRepository,
     required this.dashboardRepository,
     required this.equipmentRepository,
     required this.notificationsRepository,
+    required this.queueRepository,
     this.deviceServices,
   });
 
   final AuthBloc authBloc;
   final RequestsRepository requestsRepository;
+  final CatalogsRepository catalogsRepository;
   final MobileAuthRepository mobileAuthRepository;
   final DashboardRepository dashboardRepository;
   final EquipmentRepository equipmentRepository;
   final NotificationsRepository notificationsRepository;
+  final QueueRepository queueRepository;
 
   /// Cámara, selectores, compartir y archivos temporales; las pruebas pasan simulacros.
   final DeviceServices? deviceServices;
@@ -58,10 +64,12 @@ class _MantixAppState extends State<MantixApp> {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider.value(value: widget.requestsRepository),
+        RepositoryProvider.value(value: widget.catalogsRepository),
         RepositoryProvider.value(value: widget.mobileAuthRepository),
         RepositoryProvider.value(value: widget.dashboardRepository),
         RepositoryProvider.value(value: widget.equipmentRepository),
         RepositoryProvider.value(value: widget.notificationsRepository),
+        RepositoryProvider.value(value: widget.queueRepository),
         RepositoryProvider.value(value: _device),
       ],
       child: MultiBlocProvider(

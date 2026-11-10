@@ -4,6 +4,7 @@ import 'package:mantix/core/routing/home_resolver.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/routing/app_router.dart';
+import 'package:mantix/pages/queue/pending_requests_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
@@ -62,14 +63,6 @@ void main() {
     expect(redirect(signedIn(profile(permissions: const {'tickets:ver'})), AppRoutes.splash), HomeDestination.profile.path);
   });
 
-  test('crear una solicitud exige el permiso solicitudes:crear', () {
-    final withPermission = signedIn(profile(permissions: const {'solicitudes:ver', 'solicitudes:crear'}));
-    final withoutPermission = signedIn(profile(permissions: const {'solicitudes:ver'}));
-    expect(redirect(withPermission, '/solicitudes/nueva'), isNull);
-    expect(redirect(withoutPermission, '/solicitudes/nueva'), HomeDestination.myRequests.path);
-    // El detalle de una solicitud no exige ese permiso.
-    expect(redirect(withoutPermission, '/solicitudes/5'), isNull);
-  });
   test('la gestión de equipos exige el permiso equipos:ver', () {
     final withPermission = signedIn(profile(permissions: const {'equipos:ver', 'tickets:ver_asignados'}));
     final withoutPermission = signedIn(profile(permissions: const {'tickets:ver_asignados'}));
@@ -78,12 +71,14 @@ void main() {
     // Los demás módulos siguen sin exigir un permiso propio en el router.
     expect(redirect(withoutPermission, '/modulos/tickets'), isNull);
   });
-  test('registrar un equipo exige el permiso equipos:crear', () {
-    final canCreate = signedIn(profile(permissions: const {'equipos:ver', 'equipos:crear', 'tickets:ver_asignados'}));
-    final onlyView = signedIn(profile(permissions: const {'equipos:ver', 'tickets:ver_asignados'}));
-    expect(redirect(canCreate, '/modulos/equipos/nuevo'), isNull);
-    expect(redirect(onlyView, '/modulos/equipos/nuevo'), HomeDestination.assignedInbox.path);
-    // Ver el catálogo no exige el permiso de crear.
-    expect(redirect(onlyView, '/modulos/equipos'), isNull);
+
+  test('la bandeja de solicitudes pendientes exige solicitudes:ver_todos y, sin él, vuelve al inicio', () {
+    const path = PendingRequestsScreen.path;
+    final withPermission = signedIn(profile(permissions: const {'solicitudes:ver_todos', 'tickets:ver_asignados'}));
+    expect(redirect(withPermission, path), isNull);
+
+    // Poder ver las propias solicitudes no basta.
+    final only = signedIn(profile(permissions: const {'solicitudes:ver', 'tickets:ver_asignados'}));
+    expect(redirect(only, path), HomeDestination.assignedInbox.path);
   });
 }

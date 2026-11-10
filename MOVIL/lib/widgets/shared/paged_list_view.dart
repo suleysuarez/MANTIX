@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../bloc/paged/paged_bloc.dart';
 import '../../core/theme/app_tokens.dart';
 import 'async_view.dart';
+import 'paginator.dart';
 
 /// Listado paginado con los cuatro estados (cargando, error, vacío, datos),
 /// scroll infinito, pull-to-refresh y reintento al fallar una página.
@@ -15,6 +16,8 @@ class PagedListView<T> extends StatefulWidget {
     required this.onLoadMore,
     required this.empty,
     this.header,
+    this.onPage,
+    this.onPageSize,
   });
 
   final PagedListState<T> value;
@@ -28,6 +31,12 @@ class PagedListView<T> extends StatefulWidget {
   /// Contenido que se desplaza con la lista, encima del primer elemento. También se
   /// muestra mientras carga, si falla o si no hay elementos.
   final Widget? header;
+
+  /// Si se da, el listado usa paginación numerada (botones de página) en vez de scroll infinito.
+  final ValueChanged<int>? onPage;
+
+  /// Si se da junto con [onPage], el paginador ofrece cambiar el tamaño de página.
+  final ValueChanged<int>? onPageSize;
 
   @override
   State<PagedListView<T>> createState() => _PagedListViewState<T>();
@@ -48,8 +57,17 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(PagedListView<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Al cambiar de página numerada se vuelve al principio de la lista.
+    if (widget.onPage != null && oldWidget.value.info?.page != widget.value.info?.page && _controller.hasClients) {
+      _controller.jumpTo(0);
+    }
+  }
+
   void _maybeLoadMore() {
-    if (!_controller.hasClients) return;
+    if (!_controller.hasClients || widget.onPage != null) return;
     final position = _controller.position;
     if (position.pixels >= position.maxScrollExtent - 240) widget.onLoadMore();
   }
@@ -79,7 +97,7 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
               index -= 1;
             }
             if (index < state.items.length) return widget.itemBuilder(context, state.items[index]);
-            return _Footer(state: state, onLoadMore: widget.onLoadMore);
+            return _Footer(state: state, onLoadMore: widget.onLoadMore, onPage: widget.onPage, onPageSize: widget.onPageSize);
           },
         ),
       ),
@@ -102,13 +120,25 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.state, required this.onLoadMore});
+  const _Footer({required this.state, required this.onLoadMore, this.onPage, this.onPageSize});
 
   final PagedListState<dynamic> state;
   final VoidCallback onLoadMore;
+  final ValueChanged<int>? onPage;
+  final ValueChanged<int>? onPageSize;
 
   @override
   Widget build(BuildContext context) {
+    final info = state.info;
+    if (onPage != null) {
+      final failure = state.loadMoreFailure;
+      return Column(children: [
+        if (failure != null) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(failure.message, textAlign: TextAlign.center)),
+        if (info != null)
+          Paginator(page: info.page, pageSize: info.pageSize, shown: state.items.length, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage!, onPageSize: onPageSize),
+        const SizedBox(height: AppSpacing.xl),
+      ]);
+    }
     if (state.loadingMore) {
       return const Padding(
         padding: EdgeInsets.all(AppSpacing.lg),

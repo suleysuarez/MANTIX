@@ -22,3 +22,11 @@ class PagedRefreshed extends PagedEvent {
 class PagedLoadMoreRequested extends PagedEvent {
   const PagedLoadMoreRequested();
 }
+
+/// Va a una página concreta (paginación numerada): sustituye los elementos por los de esa página.
+class PagedPageSelected extends PagedEvent {
+  const PagedPageSelected(this.page);
+
+  /// Base 1.
+  final int page;
+}

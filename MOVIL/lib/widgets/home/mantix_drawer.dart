@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../pages/queue/pending_requests_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
@@ -39,6 +40,7 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
     _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
     _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver', 'solicitudes:ver_todos']),
+    _NavItem('Solicitudes pendientes', Icons.move_to_inbox_outlined, PendingRequestsScreen.path, 'solicitudes:ver_todos'),
     _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
     _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),

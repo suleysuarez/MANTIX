@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../core/routing/home_resolver.dart';
 import '../../core/format/ticket_meta.dart';
 import '../../core/format/formatters.dart';
 import '../../bloc/paged/paged_bloc.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
@@ -17,9 +20,9 @@ import '../../widgets/shared/paged_list_view.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../bloc/requests/my_requests_bloc.dart';
+import 'create_request_screen.dart';
 
 abstract final class RequestRoutes {
-  static const create = '/solicitudes/nueva';
   static String detail(int id) => '/solicitudes/$id';
 }
 
@@ -34,6 +37,41 @@ class MyRequestsScreen extends StatefulWidget {
 class _MyRequestsScreenState extends State<MyRequestsScreen> {
   /// Filtro elegido: estado efímero de la pantalla. Cambiarlo crea un `MyRequestsBloc` nuevo.
   String? _status;
+  int _pageSize = 20;
+
+  /// Sube cuando hay que empezar de cero aunque el filtro no cambie (una solicitud nueva).
+  int _generation = 0;
+  int? _highlightId;
+  Timer? _highlightTimer;
+  StreamSubscription<int>? _createdSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _createdSub = context.read<RequestsRepository>().created.listen(_onCreated);
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    unawaited(_createdSub?.cancel());
+    super.dispose();
+  }
+
+  /// Una solicitud recién creada: sin filtro, página 1 (la más nueva va primero) y resaltada
+  /// unos segundos.
+  void _onCreated(int id) {
+    if (!mounted) return;
+    _highlightTimer?.cancel();
+    setState(() {
+      _status = null;
+      _generation++;
+      _highlightId = id;
+    });
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _highlightId = null);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +83,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
       drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: HomeDestination.myRequests.path),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
-              onPressed: () => context.push(RequestRoutes.create),
+              onPressed: () => CreateRequestScreen.show(context),
               icon: const Icon(Icons.add),
               label: const Text('Nueva solicitud'),
             )
@@ -60,21 +98,23 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
           _StatusFilter(selected: _status, onSelected: (value) => setState(() => _status = value)),
           Expanded(
             child: BlocProvider(
-              key: ValueKey(_status),
+              key: ValueKey('$_status|$_pageSize|$_generation'),
               create: (context) =>
-                  MyRequestsBloc(repository: context.read<RequestsRepository>(), status: _status)..add(const PagedStarted()),
+                  MyRequestsBloc(repository: context.read<RequestsRepository>(), status: _status, pageSize: _pageSize)..add(const PagedStarted()),
               child: BlocBuilder<MyRequestsBloc, PagedListState<TicketListItem>>(
                 builder: (context, state) => PagedListView<TicketListItem>(
                   value: state,
                   onRefresh: context.read<MyRequestsBloc>().refresh,
                   onLoadMore: () => context.read<MyRequestsBloc>().add(const PagedLoadMoreRequested()),
-                  itemBuilder: (context, item) => _RequestCard(item: item),
+                  onPage: (page) => context.read<MyRequestsBloc>().add(PagedPageSelected(page)),
+                  onPageSize: (size) => setState(() => _pageSize = size),
+                  itemBuilder: (context, item) => _RequestCard(item: item, highlighted: item.id == _highlightId),
                   empty: EmptyState(
                     icon: Icons.assignment_outlined,
                     title: _status == null ? 'Aún no tienes solicitudes' : 'No hay solicitudes con este estado',
                     message: _status == null && canCreate ? 'Cuando reportes un problema con un equipo, aparecerá aquí.' : null,
                     actionLabel: _status == null && canCreate ? 'Nueva solicitud' : null,
-                    onAction: _status == null && canCreate ? () => context.push(RequestRoutes.create) : null,
+                    onAction: _status == null && canCreate ? () => CreateRequestScreen.show(context) : null,
                   ),
                 ),
               ),
@@ -116,15 +156,20 @@ class _StatusFilter extends StatelessWidget {
 }
 
 class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.item});
+  const _RequestCard({required this.item, this.highlighted = false});
 
   final TicketListItem item;
+
+  /// Solicitud recién creada: se resalta con el acento mostaza.
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
+      color: highlighted ? AppColors.mustard.withValues(alpha: .22) : null,
+      shape: highlighted ? RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: const BorderSide(color: AppColors.mustard, width: 2)) : null,
       child: InkWell(
         borderRadius: AppRadius.lgAll,
         onTap: () => context.push(RequestRoutes.detail(item.id)),

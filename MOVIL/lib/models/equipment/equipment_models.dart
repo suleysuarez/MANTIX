@@ -33,6 +33,7 @@ class Equipment extends Equatable {
     this.locationName,
     this.custodianName,
     this.lastMaintenanceAt,
+    this.createdAt,
   });
 
   factory Equipment.fromJson(Map<String, Object?> json) {
@@ -51,6 +52,7 @@ class Equipment extends Equatable {
       locationName: _map(json['current_location'])?['name'] as String?,
       custodianName: _map(json['current_custodian'])?['full_name'] as String?,
       lastMaintenanceAt: DateTime.tryParse((lastMaintenance?['performed_at'] as String?) ?? ''),
+      createdAt: DateTime.tryParse((json['created_at'] as String?) ?? ''),
     );
   }
 
@@ -67,8 +69,11 @@ class Equipment extends Equatable {
   final String? custodianName;
   final DateTime? lastMaintenanceAt;
 
+  /// Cuándo se registró: el primer evento de su historial.
+  final DateTime? createdAt;
+
   @override
-  List<Object?> get props => [id, assetTag, serialNumber, description, brand, model, status, typeCode, typeName, locationName, custodianName, lastMaintenanceAt];
+  List<Object?> get props => [id, assetTag, serialNumber, description, brand, model, status, typeCode, typeName, locationName, custodianName, lastMaintenanceAt, createdAt];
 }
 
 /// Contadores del catálogo por estado (`GET /equipment/summary`).

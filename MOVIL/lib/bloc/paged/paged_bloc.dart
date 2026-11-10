@@ -16,11 +16,15 @@ typedef PageFetcher<T> = Future<PagedResult<T>> Function(int page);
 /// Base de un listado paginado. Los eventos y el estado son comunes; cada listado
 /// concreto (por ejemplo «mis solicitudes») solo aporta cómo pedir una página.
 abstract class PagedBloc<T> extends Bloc<PagedEvent, PagedListState<T>> {
-  PagedBloc() : super(PagedListState<T>()) {
+  PagedBloc({this.pageSize = PageInfo.defaultPageSize}) : super(PagedListState<T>()) {
     on<PagedStarted>(_onRefresh);
     on<PagedRefreshed>(_onRefresh);
     on<PagedLoadMoreRequested>(_onLoadMore);
+    on<PagedPageSelected>(_onPageSelected);
   }
+
+  /// Elementos por página que pide [fetch]. Cambiarlo es crear un Bloc nuevo (vuelve a la página 1).
+  final int pageSize;
 
   Future<PagedResult<T>> fetch(int page);
 
@@ -84,6 +88,20 @@ abstract class PagedBloc<T> extends Bloc<PagedEvent, PagedListState<T>> {
         info: current.info,
         loadMoreFailure: toFailure(error),
       ));
+    }
+  }
+
+  /// Cambia de página conservando lo mostrado mientras llega la nueva; `loadingMore` indica que
+  /// hay una página en camino. Si falla, la página actual se queda y el error sale en `loadMoreFailure`.
+  Future<void> _onPageSelected(PagedPageSelected event, Emitter<PagedListState<T>> emit) async {
+    final current = state;
+    if (current.status != PagedStatus.success || current.loadingMore || event.page < 1 || event.page == current.info?.page) return;
+    emit(PagedListState(status: PagedStatus.success, items: current.items, info: current.info, loadingMore: true));
+    try {
+      final result = await fetch(event.page);
+      emit(PagedListState(status: PagedStatus.success, items: result.items, info: result.info ?? current.info));
+    } catch (error) {
+      emit(PagedListState(status: PagedStatus.success, items: current.items, info: current.info, loadMoreFailure: toFailure(error)));
     }
   }
 }

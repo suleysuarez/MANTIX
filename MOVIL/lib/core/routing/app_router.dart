@@ -13,9 +13,8 @@ import '../../pages/home/home_placeholder_screen.dart';
 import '../../pages/home/dashboard_screen.dart';
 import '../../pages/home/module_placeholder_screen.dart';
 import '../../pages/profile/profile_screen.dart';
-import '../../pages/equipment/create_equipment_screen.dart';
 import '../../pages/equipment/equipment_screen.dart';
-import '../../pages/requests/create_request_screen.dart';
+import '../../pages/queue/pending_requests_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
 import '../../pages/requests/request_detail_screen.dart';
 import '../../pages/tickets/tickets_screen.dart';
@@ -72,10 +71,8 @@ String _activeTarget(UserProfile profile, String location) {
 }
 
 const _routePermissions = {
-  RequestRoutes.create: 'solicitudes:crear',
-  TicketRoutes.create: 'solicitudes:crear',
   EquipmentScreen.path: 'equipos:ver',
-  CreateEquipmentScreen.path: 'equipos:crear',
+  PendingRequestsScreen.path: 'solicitudes:ver_todos',
 };
 
 /// Hace que `go_router` reevalúe `redirect` cada vez que el [Stream] emite.
@@ -110,14 +107,12 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: HomeDestination.globalDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.globalDashboard)),
       GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
       GoRoute(path: EquipmentScreen.path, builder: (_, _) => const EquipmentScreen()),
-      GoRoute(path: CreateEquipmentScreen.path, builder: (_, _) => const CreateEquipmentScreen()),
       GoRoute(path: TicketRoutes.list, builder: (_, _) => const TicketsScreen()),
-      GoRoute(path: TicketRoutes.create, builder: (_, _) => const CreateRequestScreen(title: 'Crear nuevo ticket', submitLabel: 'Guardar y registrar ticket')),
+      GoRoute(path: PendingRequestsScreen.path, builder: (_, _) => const PendingRequestsScreen()),
       GoRoute(path: '/modulos/:module', builder: (_, state) => ModulePlaceholderScreen(module: state.pathParameters['module'] ?? '')),
       // Solo en debug: no existe en las compilaciones de producción.
       if (kDebugMode) GoRoute(path: ComponentsGalleryScreen.path, builder: (_, _) => const ComponentsGalleryScreen()),
       GoRoute(path: HomeDestination.myRequests.path, builder: (_, _) => const MyRequestsScreen()),
-      GoRoute(path: RequestRoutes.create, builder: (_, _) => const CreateRequestScreen()),
       GoRoute(
         path: '/solicitudes/:id',
         builder: (_, state) => RequestDetailScreen(requestId: int.parse(state.pathParameters['id']!)),

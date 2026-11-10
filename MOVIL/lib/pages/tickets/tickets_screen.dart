@@ -1,28 +1,41 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/paged/paged_bloc.dart';
+import '../../bloc/requests/equipment_search_bloc.dart';
+import '../../bloc/tickets/ticket_board_bloc.dart';
+import '../../bloc/tickets/tickets_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/ticket_meta.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
+import '../../models/page_info.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
-import '../../widgets/shared/app_chip.dart';
 import '../../widgets/shared/empty_state.dart';
-import '../../bloc/paged/paged_bloc.dart';
-import '../../bloc/tickets/tickets_bloc.dart';
-import '../requests/my_requests_screen.dart';
+import '../../widgets/shared/filter_widgets.dart';
+import '../../widgets/shared/multi_select_sheet.dart';
+import '../../widgets/shared/paginator.dart';
+import '../../widgets/shared/search_picker_sheet.dart';
+import '../../widgets/tickets/ticket_cards.dart';
+import '../../widgets/tickets/ticket_detail_sheet.dart';
+import '../../widgets/tickets/ticket_kanban.dart';
+import '../../widgets/tickets/ticket_move_dialog.dart';
+import '../../widgets/tickets/ticket_summary.dart';
+import '../requests/create_request_screen.dart';
 
 abstract final class TicketRoutes {
   static const list = '/modulos/tickets';
-  static const create = '/tickets/nuevo';
 }
 
-/// Gestión móvil de tickets. En pantallas pequeñas, Kanban muestra una columna
-/// seleccionable en vez de comprimir todas las columnas en un tablero horizontal.
+/// Gestión móvil de tickets: encabezado como el de Equipos, resumen, atención prioritaria,
+/// filtros con multiselección, y listado en tabla o tablero por estados. El detalle y el
+/// formulario de creación se abren en hojas inferiores.
 class TicketsScreen extends StatefulWidget {
   const TicketsScreen({super.key});
 
@@ -32,33 +45,178 @@ class TicketsScreen extends StatefulWidget {
 
 class _TicketsScreenState extends State<TicketsScreen> {
   final _searchController = TextEditingController();
-  String? _status;
+  final _scrollController = ScrollController();
+  Set<String> _statuses = {};
+  Set<String> _priorities = {};
+  Map<int, String> _equipments = {};
+  DateTimeRange? _dates;
   String _search = '';
-  DateTime? _dateFrom;
-  DateTime? _dateTo;
   bool _kanban = false;
+  int _pageSize = 20;
 
-  static const _filters = <(String, String?)>[
-    ('Todos', null),
-    ('Enviados', 'submitted,triaged'),
-    ('En proceso', 'assigned,in_progress,waiting'),
-    ('Resueltos', 'resolved,closed'),
-    ('Cancelados', 'cancelled'),
-  ];
+  /// Sube cada vez que hay que empezar de cero aunque los filtros no hayan cambiado (un
+  /// ticket nuevo): la clave del Bloc cambia y el listado vuelve a la página 1.
+  int _generation = 0;
+  int? _highlightId;
+  Timer? _highlightTimer;
+  StreamSubscription<int>? _createdSub;
+  late final RequestsRepository _repository;
+  late final TicketBoardBloc _board;
 
-  static const _lanes = <String>[
-    'submitted', 'triaged', 'assigned', 'in_progress', 'waiting', 'resolved', 'closed',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _repository = context.read<RequestsRepository>();
+    _board = TicketBoardBloc(repository: _repository)..add(const TicketBoardStarted());
+    _createdSub = _repository.created.listen(_onCreated);
+  }
 
   @override
   void dispose() {
+    _highlightTimer?.cancel();
+    unawaited(_createdSub?.cancel());
+    unawaited(_board.close());
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Un ticket recién creado: se limpian filtros y búsqueda, el listado vuelve a la página 1
+  /// (orden por creación descendente, así que sale primero) y se resalta unos segundos.
+  void _onCreated(int id) {
+    if (!mounted) return;
+    _highlightTimer?.cancel();
+    _searchController.clear();
+    setState(() {
+      _statuses = {};
+      _priorities = {};
+      _equipments = {};
+      _dates = null;
+      _search = '';
+      _generation++;
+      _highlightId = id;
+    });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _highlightId = null);
+    });
   }
 
   void _applySearch() {
     final value = _searchController.text.trim();
     if (value != _search) setState(() => _search = value);
+  }
+
+  int get _activeFilterCount => _statuses.length + _priorities.length + _equipments.length + (_dates == null ? 0 : 1);
+
+  /// Estados elegidos separados por coma y en el orden del flujo; `null` si no hay filtro.
+  String? get _statusCsv => _statuses.isEmpty ? null : [for (final s in knownStatuses) if (_statuses.contains(s)) s].join(',');
+
+  Future<void> _showFilters() async {
+    var statuses = {..._statuses};
+    var priorities = {..._priorities};
+    var equipments = {..._equipments};
+    var dates = _dates;
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheet) => StatefulBuilder(
+        builder: (context, setSheet) => FilterSheet(
+          onReset: () => setSheet(() {
+            statuses = {};
+            priorities = {};
+            equipments = {};
+            dates = null;
+          }),
+          onApply: () => Navigator.pop(sheet, true),
+          children: [
+            FilterTile(
+              label: 'Estado',
+              icon: Icons.flag_outlined,
+              summary: statuses.isEmpty ? null : [for (final s in knownStatuses) if (statuses.contains(s)) statusMeta(s).label].join(', '),
+              onTap: () async {
+                final picked = await showMultiSelectSheet<String>(
+                  context,
+                  title: 'Estado',
+                  options: [for (final s in knownStatuses) FilterOption(s, statusMeta(s).label)],
+                  selected: statuses,
+                );
+                if (picked != null) setSheet(() => statuses = picked);
+              },
+            ),
+            FilterTile(
+              label: 'Prioridad',
+              icon: Icons.priority_high_rounded,
+              summary: priorities.isEmpty ? null : [for (final p in knownPriorities) if (priorities.contains(p)) priorityMeta(p).label].join(', '),
+              onTap: () async {
+                final picked = await showMultiSelectSheet<String>(
+                  context,
+                  title: 'Prioridad',
+                  options: [for (final p in knownPriorities) FilterOption(p, priorityMeta(p).label)],
+                  selected: priorities,
+                );
+                if (picked != null) setSheet(() => priorities = picked);
+              },
+            ),
+            _EquipmentFilterField(
+              selected: equipments,
+              onAdd: () async {
+                final picked = await showSearchPicker<EquipmentOption>(
+                  context,
+                  title: 'Filtrar por equipo',
+                  hint: 'Etiqueta, serie, marca o modelo',
+                  emptyTitle: 'No encontramos equipos',
+                  createBloc: (search) => EquipmentSearchBloc(repository: _repository, search: search),
+                  itemBuilder: (context, item, select) => ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+                    tileColor: AppColors.canvas,
+                    minVerticalPadding: AppSpacing.md,
+                    leading: const Icon(Icons.desktop_windows_outlined, color: AppColors.steel),
+                    title: Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    trailing: equipments.containsKey(item.id) ? const Icon(Icons.check_rounded, color: AppColors.steel) : null,
+                    onTap: select,
+                  ),
+                );
+                if (picked != null) setSheet(() => equipments = {...equipments, picked.id: picked.label});
+              },
+              onRemove: (id) => setSheet(() => equipments = {...equipments}..remove(id)),
+            ),
+            DateRangeFilterField(value: dates, onChanged: (range) => setSheet(() => dates = range)),
+          ],
+        ),
+      ),
+    );
+    if (applied != true || !mounted) return;
+    setState(() {
+      _statuses = statuses;
+      _priorities = priorities;
+      _equipments = equipments;
+      _dates = dates;
+    });
+  }
+
+  /// Pide lo que el estado de destino exige y, si todo está claro, manda el cambio.
+  Future<void> _requestMove(BuildContext context, TicketListItem item, String target) async {
+    final board = context.read<TicketBoardBloc>();
+    final input = await askTicketMoveData(
+      context,
+      ticket: item,
+      target: target,
+      requires: board.state.requiresFor(target),
+    );
+    if (input == null || !context.mounted) return;
+    board.add(TicketMoveRequested(
+      item,
+      target,
+      notes: input.notes,
+      resolutionSummary: input.resolutionSummary,
+      category: input.category,
+      priority: input.priority,
+      technicianId: input.technicianId,
+    ));
   }
 
   @override
@@ -69,123 +227,117 @@ class _TicketsScreenState extends State<TicketsScreen> {
       return const Scaffold(body: Center(child: Text('No encontramos los datos de tu sesión.')));
     }
 
-    return BlocProvider(
-      key: ValueKey('$_status|$_search|$_dateFrom|$_dateTo'),
-      create: (context) => TicketsBloc(
-        repository: context.read<RequestsRepository>(),
-        status: _status,
-        search: _search,
-        dateFrom: _dateFrom,
-        dateTo: _dateTo,
-      )..add(const PagedStarted()),
-      child: Builder(
-        builder: (context) => Scaffold(
-          appBar: MantixAppBar(profile: profile),
-          drawer: MantixDrawer(profile: profile, selectedPath: TicketRoutes.list),
-          floatingActionButton: profile.can('solicitudes:crear')
-              ? FloatingActionButton.extended(
-                  onPressed: () => context.push(TicketRoutes.create),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Nuevo ticket'),
-                )
-              : null,
-          body: BlocBuilder<TicketsBloc, PagedListState<TicketListItem>>(
-            builder: (context, state) => RefreshIndicator(
-              onRefresh: context.read<TicketsBloc>().refresh,
-              color: const Color(0xFF3E5C76),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Gestión de tickets', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text('Consulta y supervisa las incidencias técnicas.', style: Theme.of(context).textTheme.bodySmall),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: const Color(0xFFE5F2FC), borderRadius: BorderRadius.circular(13)),
-                        child: const Icon(Icons.confirmation_number_outlined, color: Color(0xFF3E5C76)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (state.status == PagedStatus.success) _TicketSummary(items: state.items, total: state.info?.total),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(child: TextField(controller: _searchController, textInputAction: TextInputAction.search, onSubmitted: (_) => _applySearch(), decoration: InputDecoration(hintText: 'Buscar tickets…', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded))))),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(tooltip: 'Filtros', onPressed: () async {
-                      var status = _status; var from = _dateFrom; var to = _dateTo;
-                      final result = await showModalBottomSheet<(String?, DateTime?, DateTime?)>(context: context, showDragHandle: true, builder: (sheet) => StatefulBuilder(builder: (context, setSheet) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        DropdownButtonFormField<String?>(initialValue: status, decoration: const InputDecoration(labelText: 'Estado'), items: [const DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')), for (final f in _filters.skip(1)) DropdownMenuItem<String?>(value: f.$2, child: Text(f.$1))], onChanged: (v) => setSheet(() => status = v)),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(onPressed: () async { final r = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: from != null && to != null ? DateTimeRange(start: from!, end: to!) : null); if (r != null) setSheet(() { from = r.start; to = r.end; }); }, icon: const Icon(Icons.date_range), label: const Text('Filtrar por fecha')),
-                        Row(children: [TextButton(onPressed: () => setSheet(() { status = null; from = null; to = null; }), child: const Text('Limpiar')), const Spacer(), FilledButton(onPressed: () => Navigator.pop(sheet, (status, from, to)), child: const Text('Aplicar'))]),
-                      ]))));
-                      if (result != null && mounted) setState(() { _status = result.$1; _dateFrom = result.$2; _dateTo = result.$3; });
-                    }, icon: const Icon(Icons.filter_alt_rounded)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          state.status == PagedStatus.success
-                              ? '${state.info?.total ?? state.items.length} tickets'
-                              : 'Tickets recientes',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      SegmentedButton<bool>(
-                        showSelectedIcon: false,
-                        segments: const [
-                          ButtonSegment(value: false, icon: Icon(Icons.view_agenda_outlined), label: Text('Lista')),
-                          ButtonSegment(value: true, icon: Icon(Icons.view_kanban_outlined), label: Text('Kanban')),
+    return BlocProvider.value(
+      value: _board,
+      child: BlocListener<TicketBoardBloc, TicketBoardState>(
+        listenWhen: (previous, current) => current.notice != null && previous.notice != current.notice,
+        listener: (context, state) {
+          final notice = state.notice!;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(notice.message),
+              backgroundColor: notice.isError ? AppColors.error : AppColors.navy,
+            ));
+        },
+        child: BlocProvider(
+          key: ValueKey('$_statusCsv|${_priorities.join(',')}|${_equipments.keys.join(',')}|$_search|$_dates|$_pageSize|$_generation'),
+          create: (context) => TicketsBloc(
+            repository: _repository,
+            status: _statusCsv,
+            search: _search,
+            dateFrom: _dates?.start,
+            dateTo: _dates?.end,
+            priorities: [for (final p in knownPriorities) if (_priorities.contains(p)) p],
+            equipmentIds: _equipments.keys.toList(),
+            pageSize: _pageSize,
+          )..add(const PagedStarted()),
+          child: Builder(
+            builder: (context) => Scaffold(
+              backgroundColor: AppColors.canvas,
+              appBar: MantixAppBar(profile: profile),
+              drawer: MantixDrawer(profile: profile, selectedPath: TicketRoutes.list),
+              body: BlocBuilder<TicketsBloc, PagedListState<TicketListItem>>(
+                builder: (context, state) {
+                  final loaded = state.status == PagedStatus.success;
+                  return RefreshIndicator(
+                    onRefresh: context.read<TicketsBloc>().refresh,
+                    color: AppColors.steel,
+                    child: ListView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                      children: [
+                        _Header(canCreate: profile.can('solicitudes:crear'), onCreate: () => CreateRequestScreen.show(context, title: 'Crear nuevo ticket', submitLabel: 'Guardar y registrar ticket')),
+                        const SizedBox(height: AppSpacing.md),
+                        if (loaded) ...[
+                          TicketStats(items: state.items, total: state.info?.total),
+                          const SizedBox(height: AppSpacing.sm),
                         ],
-                        selected: {_kanban},
-                        onSelectionChanged: (value) => setState(() => _kanban = value.first),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  switch (state.status) {
-                    PagedStatus.loading => const _TicketLoading(),
-                    PagedStatus.failure => EmptyState(
-                        icon: Icons.cloud_off_outlined,
-                        title: 'No pudimos cargar los tickets',
-                        message: state.failure?.message,
-                        actionLabel: 'Reintentar',
-                        onAction: () => context.read<TicketsBloc>().add(const PagedStarted()),
-                      ),
-                    PagedStatus.success => _TicketResults(
-                        items: state.items,
-                        kanban: _kanban,
-                        lanes: _lanes,
-                        onMove: (item, status) async {
-                          try {
-                            await context.read<RequestsRepository>().transitionStatus(item.id, status);
-                          } catch (error) {
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo cambiar el estado: $error')));
-                          }
+                        Row(children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (_) => _applySearch(),
+                              decoration: InputDecoration(
+                                hintText: 'Buscar por número, título o descripción…',
+                                prefixIcon: const Icon(Icons.search_rounded),
+                                suffixIcon: IconButton(tooltip: 'Buscar', onPressed: _applySearch, icon: const Icon(Icons.arrow_forward_rounded)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          FilterButton(count: _activeFilterCount, onPressed: _showFilters),
+                        ]),
+                        if (_activeFilterCount > 0) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Wrap(spacing: 8, runSpacing: 4, children: [
+                            for (final s in knownStatuses)
+                              if (_statuses.contains(s)) ActiveFilterChip(label: statusMeta(s).label, onRemove: () => setState(() => _statuses = {..._statuses}..remove(s))),
+                            for (final p in knownPriorities)
+                              if (_priorities.contains(p)) ActiveFilterChip(label: priorityMeta(p).label, onRemove: () => setState(() => _priorities = {..._priorities}..remove(p))),
+                            for (final entry in _equipments.entries) ActiveFilterChip(label: entry.value, onRemove: () => setState(() => _equipments = {..._equipments}..remove(entry.key))),
+                            if (_dates != null) ActiveFilterChip(label: '${formatDate(_dates!.start)} – ${formatDate(_dates!.end)}', onRemove: () => setState(() => _dates = null)),
+                          ]),
+                        ],
+                        if (loaded) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          TicketAttention(items: state.items, onOpen: (item) => showTicketDetail(context, item.id)),
+                        ],
+                        const SizedBox(height: AppSpacing.md),
+                        _ViewToggle(kanban: _kanban, onChanged: (value) => setState(() => _kanban = value)),
+                        const SizedBox(height: AppSpacing.md),
+                        switch (state.status) {
+                          PagedStatus.loading => const _TicketLoading(),
+                          PagedStatus.failure => EmptyState(
+                              icon: Icons.cloud_off_outlined,
+                              title: 'No pudimos cargar los tickets',
+                              message: state.failure?.message,
+                              actionLabel: 'Reintentar',
+                              onAction: () => context.read<TicketsBloc>().add(const PagedStarted()),
+                            ),
+                          PagedStatus.success => _TicketResults(
+                              items: state.items,
+                              kanban: _kanban,
+                              scrollController: _scrollController,
+                              highlightId: _highlightId,
+                              onMove: (item, target) => _requestMove(context, item, target),
+                              info: state.info,
+                              loadingPage: state.loadingMore,
+                              pageFailure: state.loadMoreFailure?.message,
+                              onOpen: (item) => showTicketDetail(context, item.id),
+                              onPageSize: (size) => setState(() => _pageSize = size),
+                              onPage: (page) {
+                                context.read<TicketsBloc>().add(PagedPageSelected(page));
+                                if (_scrollController.hasClients) _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+                              },
+                            ),
                         },
-                        hasMore: state.hasMore,
-                        loadingMore: state.loadingMore,
-                        loadMoreFailure: state.loadMoreFailure?.message,
-                        onOpen: (item) => context.push(RequestRoutes.detail(item.id)),
-                        onLoadMore: () => context.read<TicketsBloc>().add(const PagedLoadMoreRequested()),
-                      ),
-                  },
-                ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -195,64 +347,120 @@ class _TicketsScreenState extends State<TicketsScreen> {
   }
 }
 
-class _TicketSummary extends StatelessWidget {
-  const _TicketSummary({required this.items, required this.total});
-  final List<TicketListItem> items;
-  final int? total;
+/// Encabezado como el de Equipos: icono, botón de crear, título grande y subtítulo corto.
+class _Header extends StatelessWidget {
+  const _Header({required this.canCreate, required this.onCreate});
+  final bool canCreate;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: BorderRadius.circular(14)),
+            child: const Icon(Icons.confirmation_number_outlined, color: AppColors.steel, size: 24),
+          ),
+          const Spacer(),
+          if (canCreate)
+            Flexible(
+              child: FilledButton.tonalIcon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Nuevo ticket', maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.mustard,
+                  foregroundColor: AppColors.navy,
+                  minimumSize: const Size(0, 46),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+        ]),
+        const SizedBox(height: 12),
+        const Text('GESTIÓN DE TICKETS', style: TextStyle(color: AppColors.navy, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
+        const SizedBox(height: 4),
+        const Text('Incidencias y órdenes de trabajo.', style: TextStyle(color: AppColors.slate, fontSize: 12.5)),
+      ]);
+}
+
+/// Filtro por equipo: los equipos elegidos como chips y un botón para añadir otro con búsqueda.
+class _EquipmentFilterField extends StatelessWidget {
+  const _EquipmentFilterField({required this.selected, required this.onAdd, required this.onRemove});
+  final Map<int, String> selected;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(children: [
+            const Icon(Icons.devices_other_rounded, size: 16, color: AppColors.slate),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Equipo', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: AppColors.steel))),
+          ]),
+        ),
+        if (selected.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Wrap(spacing: 8, runSpacing: 4, children: [for (final entry in selected.entries) ActiveFilterChip(label: entry.value, onRemove: () => onRemove(entry.key))]),
+          ),
+        OutlinedButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add_rounded),
+          label: Text(selected.isEmpty ? 'Elegir equipo' : 'Añadir otro equipo'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), alignment: Alignment.centerLeft),
+        ),
+      ]);
+}
+
+/// Dos botones anchos: Tabla y Kanban.
+class _ViewToggle extends StatelessWidget {
+  const _ViewToggle({required this.kanban, required this.onChanged});
+  final bool kanban;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Expanded(child: _ToggleButton(icon: Icons.table_rows_rounded, label: 'Tabla', selected: !kanban, onTap: () => onChanged(false))),
+        const SizedBox(width: 10),
+        Expanded(child: _ToggleButton(icon: Icons.view_kanban_outlined, label: 'Kanban', selected: kanban, onTap: () => onChanged(true))),
+      ]);
+}
+
+class _ToggleButton extends StatelessWidget {
+  const _ToggleButton({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final sent = items.where((item) => item.status == 'submitted' || item.status == 'triaged').length;
-    final working = items.where((item) => ['assigned', 'in_progress', 'waiting'].contains(item.status)).length;
-    final resolved = items.where((item) => item.status == 'resolved' || item.status == 'closed').length;
-    final cards = [
-      ('Total', total?.toString() ?? items.length.toString(), Icons.confirmation_number_outlined, const Color(0xFFE5F2FC)),
-      ('Enviados', '$sent', Icons.mark_email_unread_outlined, const Color(0xFFE7F0FF)),
-      ('En proceso', '$working', Icons.engineering_outlined, const Color(0xFFFFF4DE)),
-      ('Resueltos', '$resolved', Icons.check_circle_outline, const Color(0xFFE2F6ED)),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 2.35,
-          children: [
-            for (final card in cards)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFFE1EAF2))),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(color: card.$4, borderRadius: BorderRadius.circular(11)),
-                      child: Icon(card.$3, size: 19, color: const Color(0xFF3E5C76)),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(card.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall),
-                          Text(card.$2, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, height: 1.1)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+    final color = selected ? AppColors.steel : AppColors.slate;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? AppColors.skyLight.withValues(alpha: .45) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: selected ? AppColors.steel : AppColors.grey.withValues(alpha: .6))),
+        child: InkWell(
+          borderRadius: AppRadius.lgAll,
+          onTap: onTap,
+          child: SizedBox(
+            height: 48,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 8),
+              Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color, fontWeight: FontWeight.w800)),
+            ]),
+          ),
         ),
-        const SizedBox(height: 5),
-        Text('Indicadores de los tickets cargados', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: const Color(0xFF778DA9))),
-      ],
+      ),
     );
   }
 }
@@ -261,173 +469,56 @@ class _TicketResults extends StatelessWidget {
   const _TicketResults({
     required this.items,
     required this.kanban,
-    required this.lanes,
+    required this.scrollController,
+    required this.highlightId,
     required this.onMove,
-    required this.hasMore,
-    required this.loadingMore,
-    required this.loadMoreFailure,
+    required this.info,
+    required this.loadingPage,
+    required this.pageFailure,
     required this.onOpen,
-    required this.onLoadMore,
+    required this.onPage,
+    required this.onPageSize,
   });
 
   final List<TicketListItem> items;
   final bool kanban;
-  final List<String> lanes;
-  final Future<void> Function(TicketListItem, String) onMove;
-  final bool hasMore;
-  final bool loadingMore;
-  final String? loadMoreFailure;
+  final ScrollController scrollController;
+  final int? highlightId;
+  final void Function(TicketListItem, String) onMove;
+  final PageInfo? info;
+  final bool loadingPage;
+  final String? pageFailure;
   final ValueChanged<TicketListItem> onOpen;
-  final VoidCallback onLoadMore;
+  final ValueChanged<int> onPage;
+  final ValueChanged<int> onPageSize;
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return EmptyState(
+      return const EmptyState(
         icon: Icons.inbox_outlined,
         title: 'No hay tickets para mostrar',
-        message: 'Prueba con otro estado o modifica la búsqueda.',
+        message: 'Prueba con otro filtro o modifica la búsqueda.',
       );
     }
     return Column(
       children: [
         if (kanban)
-          _TicketKanbanBoard(items: items, lanes: lanes, onOpen: onOpen, onMove: onMove)
+          BlocBuilder<TicketBoardBloc, TicketBoardState>(
+            builder: (context, board) => TicketKanban(items: items, board: board, onOpen: onOpen, onMove: onMove, scrollController: scrollController, highlightId: highlightId),
+          )
         else
           for (final item in items) ...[
-            _TicketCard(item: item, onTap: () => onOpen(item), compact: false),
-            const SizedBox(height: 9),
+            TicketListCard(item: item, highlighted: item.id == highlightId, onTap: () => onOpen(item)),
+            const SizedBox(height: 10),
           ],
-        if (loadMoreFailure != null)
-          Text(loadMoreFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        if (hasMore)
-          OutlinedButton.icon(
-            onPressed: loadingMore ? null : onLoadMore,
-            icon: loadingMore
-                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.expand_more),
-            label: Text(loadingMore ? 'Cargando…' : 'Cargar más tickets'),
-          ),
+        if (pageFailure != null)
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        if (info != null) ...[
+          const SizedBox(height: 8),
+          Paginator(page: info!.page, pageSize: info!.pageSize, shown: items.length, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
+        ],
       ],
-    );
-  }
-}
-
-class _TicketKanbanBoard extends StatelessWidget {
-  const _TicketKanbanBoard({required this.items, required this.lanes, required this.onOpen, required this.onMove});
-  final List<TicketListItem> items;
-  final List<String> lanes;
-  final ValueChanged<TicketListItem> onOpen;
-  final Future<void> Function(TicketListItem, String) onMove;
-
-  static const transitions = <String, Set<String>>{
-    'submitted': {},
-    'triaged': {},
-    'assigned': {'in_progress'},
-    'in_progress': {'waiting'},
-    'waiting': {'in_progress'},
-    'resolved': {'closed', 'in_progress'},
-    'closed': {},
-    'cancelled': {},
-  };
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 540,
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      children: [
-        for (final lane in lanes)
-          Container(
-            width: 238,
-            margin: const EdgeInsets.only(right: 10),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFF2F7FB), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(statusMeta(lane).label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
-                CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Text('${items.where((i) => i.status == lane).length}', style: Theme.of(context).textTheme.labelSmall)),
-              ]),
-              const SizedBox(height: 10),
-              Expanded(child: DragTarget<TicketListItem>(
-                onWillAcceptWithDetails: (details) => details.data.status != lane && (transitions[details.data.status]?.contains(lane) ?? false) && details.data.canAct,
-                onAcceptWithDetails: (details) => onMove(details.data, lane),
-                builder: (context, candidates, rejected) => Container(
-                  decoration: BoxDecoration(color: candidates.isEmpty ? Colors.transparent : const Color(0xFFDCEEFF), borderRadius: BorderRadius.circular(12)),
-                  child: ListView(children: [
-                    for (final item in items.where((i) => i.status == lane))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: item.canAct
-                          ? Draggable<TicketListItem>(
-                              data: item,
-                              feedback: Material(elevation: 5, borderRadius: BorderRadius.circular(12), child: SizedBox(width: 210, child: _TicketCard(item: item, onTap: () {}, compact: true))),
-                              childWhenDragging: Opacity(opacity: .35, child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true)),
-                              child: _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
-                            )
-                          : _TicketCard(item: item, onTap: () => onOpen(item), compact: true),
-                      ),
-                  ]),
-                ),
-              )),
-            ]),
-          ),
-      ],
-    ),
-  );
-}
-
-class _TicketCard extends StatelessWidget {
-  const _TicketCard({required this.item, required this.onTap, required this.compact});
-  final TicketListItem item;
-  final VoidCallback onTap;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: AppRadius.lgAll,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(item.ticketNumber, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800, color: const Color(0xFF3E5C76))),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: Color(0xFF778DA9)),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 7,
-                runSpacing: 6,
-                children: [StatusChip(item.status), PriorityChip(item.priority)],
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_outlined, size: 14, color: Color(0xFF778DA9)),
-                    const SizedBox(width: 5),
-                    Text(formatDate(item.createdAt), style: Theme.of(context).textTheme.bodySmall),
-                    if (item.category != null) ...[
-                      const SizedBox(width: 10),
-                      Flexible(child: Text(item.category!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall)),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -437,11 +528,11 @@ class _TicketLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      for (var i = 0; i < 4; i++)
-        const Card(
-          child: SizedBox(height: 92, child: Center(child: LinearProgressIndicator())),
-        ),
-    ],
-  );
+        children: [
+          for (var i = 0; i < 4; i++)
+            const Card(
+              child: SizedBox(height: 92, child: Center(child: LinearProgressIndicator())),
+            ),
+        ],
+      );
 }
