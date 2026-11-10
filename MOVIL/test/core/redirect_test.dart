@@ -4,6 +4,7 @@ import 'package:mantix/core/routing/home_resolver.dart';
 import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/routing/app_router.dart';
+import 'package:mantix/pages/queue/pending_requests_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
@@ -69,5 +70,15 @@ void main() {
     expect(redirect(withoutPermission, '/modulos/equipos'), HomeDestination.assignedInbox.path);
     // Los demás módulos siguen sin exigir un permiso propio en el router.
     expect(redirect(withoutPermission, '/modulos/tickets'), isNull);
+  });
+
+  test('la bandeja de solicitudes pendientes exige solicitudes:ver_todos y, sin él, vuelve al inicio', () {
+    const path = PendingRequestsScreen.path;
+    final withPermission = signedIn(profile(permissions: const {'solicitudes:ver_todos', 'tickets:ver_asignados'}));
+    expect(redirect(withPermission, path), isNull);
+
+    // Poder ver las propias solicitudes no basta.
+    final only = signedIn(profile(permissions: const {'solicitudes:ver', 'tickets:ver_asignados'}));
+    expect(redirect(only, path), HomeDestination.assignedInbox.path);
   });
 }
