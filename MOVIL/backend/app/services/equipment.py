@@ -21,6 +21,7 @@ from app.schemas.equipment import (
     LocationCreate,
     LocationResponse,
 )
+from app.schemas.maintenance import MaintenanceRecordResponse
 from app.services.audit import AuditService
 
 
@@ -49,6 +50,14 @@ class EquipmentService:
         )
         contexts = await self.repository.current_context([e.id for e in page.items])
         return page.map(lambda item: self._response(item, contexts.get(item.id)))
+
+    async def list_maintenance_records(
+        self, equipment_id: int, params: PageParams = DEFAULT_PAGE
+    ) -> Page[MaintenanceRecordResponse]:
+        if await self.repository.get(equipment_id) is None:
+            raise NotFoundError("equipment not found", code="equipment_not_found")
+        page = await self.repository.list_maintenance_records(equipment_id, params)
+        return page.map(MaintenanceRecordResponse.model_validate)
 
     async def summary(self) -> EquipmentSummaryResponse:
         counts = await self.repository.status_counts()

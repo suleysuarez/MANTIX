@@ -75,6 +75,7 @@
 | PATCH | `/equipment/{equipment_id}` | Update equipment | `equipos:editar` |
 | POST | `/equipment/{equipment_id}/custody` | Assign equipment custody | `equipos:asignar` |
 | POST | `/equipment/{equipment_id}/location` | Assign equipment location | `equipos:editar` |
+| GET | `/equipment/{equipment_id}/maintenance-records` | Maintenance history of one item | `tickets:ver_todos` |
 | GET | `/locations` | List locations | `equipos:ver` |
 | POST | `/locations` | Create location | `equipos:crear` |
 
@@ -224,7 +225,7 @@
 | POST | `/admin/users/{user_id}/roles` | Assign roles | `usuarios:asignar` |
 | PUT | `/admin/users/{user_id}/roles` | Set the roles of a user | `usuarios:asignar` |
 
-Total: **124** endpoints.
+Total: **125** endpoints.
 
 Listings accept `page`, `size`, `sort` (`field` / `-field`) and `search` and report the page in the `X-Total-Count`, `X-Page`, `X-Page-Size` and `X-Total-Pages` headers. Errors always use `{detail, code, errors, request_id}`.
 

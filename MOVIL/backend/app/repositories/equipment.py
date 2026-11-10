@@ -32,6 +32,12 @@ class EquipmentContext:
     # (started_at, work_type, result, technician name)
 
 
+MAINTENANCE_RECORD_SORT_FIELDS = {
+    "started_at": MaintenanceRecord.started_at,
+    "completed_at": MaintenanceRecord.completed_at,
+    "id": MaintenanceRecord.id,
+}
+
 EQUIPMENT_SORT_FIELDS = {
     "asset_tag": Equipment.asset_tag,
     "brand": Equipment.brand,
@@ -92,6 +98,23 @@ class EquipmentRepository(BaseRepository[Equipment]):
             params.sort,
             EQUIPMENT_SORT_FIELDS,
             default=(Equipment.asset_tag, Equipment.id),
+        )
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
+        )
+
+    async def list_maintenance_records(
+        self, equipment_id: int, params: PageParams = DEFAULT_PAGE
+    ) -> Page[MaintenanceRecord]:
+        """Maintenance records logged against one item, most recent work first."""
+        query = select(MaintenanceRecord).where(
+            MaintenanceRecord.equipment_id == equipment_id
+        )
+        query = self.apply_ordering(
+            query,
+            params.sort,
+            MAINTENANCE_RECORD_SORT_FIELDS,
+            default=(MaintenanceRecord.started_at.desc(), MaintenanceRecord.id.desc()),
         )
         return await self.paginate(
             query, page=params.page, size=params.size, offset=params.offset

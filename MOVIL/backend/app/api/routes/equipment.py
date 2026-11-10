@@ -18,6 +18,7 @@ from app.schemas.equipment import (
     LocationCreate,
     LocationResponse,
 )
+from app.schemas.maintenance import MaintenanceRecordResponse
 from app.services.equipment import EquipmentService
 
 router = APIRouter(prefix="/equipment", tags=["equipment"])
@@ -101,6 +102,34 @@ async def list_equipment_types(
     service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
 ) -> list[EquipmentTypeResponse]:
     return await service.list_types()
+
+
+@router.get(
+    "/{equipment_id}/maintenance-records",
+    response_model=list[MaintenanceRecordResponse],
+    summary="Maintenance history of one item",
+    description=(
+        "Paginated maintenance records logged against the item, most recent work "
+        "first (sort fields: `started_at`, `completed_at`). Needs `tickets:ver_todos`: "
+        "the records carry diagnoses and costs, so only whoever sees every ticket may "
+        "read them. Costs are hidden unless the person also holds `equipos:editar`. "
+        "Pagination metadata is returned in the `X-Total-Count`, `X-Page`, "
+        "`X-Page-Size` and `X-Total-Pages` headers."
+    ),
+)
+async def list_equipment_maintenance_records(
+    equipment_id: int,
+    response: Response,
+    params: PageParams = Depends(page_params()),  # noqa: B008
+    actor: AuthContext = Depends(require_permission("tickets:ver_todos")),  # noqa: B008
+    service: EquipmentService = Depends(get_equipment_service),  # noqa: B008
+) -> list[MaintenanceRecordResponse]:
+    page = await service.list_maintenance_records(equipment_id, params)
+    set_page_headers(response, page)
+    items = page.items
+    for field in ("labor_cost", "parts_cost", "total_cost"):
+        items = hide_unless(actor, "equipos:editar", items, field)
+    return items
 
 
 @router.get("/{equipment_id}", response_model=EquipmentResponse)
