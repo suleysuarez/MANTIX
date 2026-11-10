@@ -13,6 +13,10 @@ abstract final class AppColors {
   static const Color white = Color(0xFFFFFFFF);
   static const Color error = Color(0xFFBA1A1A);
 
+  /// Degradado del encabezado de la bandeja de triaje; coincide con el fondo de su ilustración.
+  static const Color bannerDeep = Color(0xFF0B355C);
+  static const Color bannerLight = Color(0xFF12416B);
+
   /// Fondo de las pantallas.
   static const Color canvas = Color(0xFFF4F8FC);
 
