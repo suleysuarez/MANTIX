@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 
 import '../../core/format/queue_format.dart';
 import '../../core/theme/app_colors.dart';
@@ -12,11 +13,17 @@ ChipColors waitColors(WaitTone tone) => switch (tone) {
       WaitTone.stale => StatusColors.critical,
     };
 
-/// Variación contra el periodo anterior: buena, mala o neutra.
+/// Mostaza suave de la paleta: texto navy sobre mostaza clara (contraste AA).
+ChipColors get mustardChip => ChipColors(background: Color.alphaBlend(AppColors.mustard.withValues(alpha: .38), AppColors.white), foreground: AppColors.navy, dot: AppColors.mustard);
+
+/// Azul claro de la paleta para lo neutro.
+ChipColors get skyChip => ChipColors(background: Color.alphaBlend(AppColors.skyLight.withValues(alpha: .55), AppColors.white), foreground: AppColors.navy, dot: AppColors.steel);
+
+/// Variación contra el periodo anterior: buena, mala (mostaza) o neutra (azul claro).
 ChipColors changeColors(ChangeTone tone) => switch (tone) {
       ChangeTone.good => StatusColors.resolved,
-      ChangeTone.bad => StatusColors.inProgress,
-      ChangeTone.neutral => StatusColors.closed,
+      ChangeTone.bad => mustardChip,
+      ChangeTone.neutral => skyChip,
     };
 
 /// Prioridad por su posición (0 la más urgente) entre las prioridades del servidor.

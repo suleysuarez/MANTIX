@@ -146,4 +146,14 @@ void main() {
     expect(moveLabel('cancelled', fallback: 'Cancelado'), 'Rechazar');
     expect(moveLabel('in_progress', fallback: 'En proceso'), 'En proceso');
   });
+
+  test('periodLabel: el periodo que devuelve el servidor, o nada si no se reconoce', () {
+    expect(periodLabel('30d'), '30 días');
+    expect(periodLabel('7d'), '7 días');
+    expect(periodLabel('1d'), '1 día');
+    expect(periodLabel('12m'), '12 meses');
+    expect(periodLabel('1m'), '1 mes');
+    expect(periodLabel(null), isNull);
+    expect(periodLabel('todo'), isNull);
+  });
 }

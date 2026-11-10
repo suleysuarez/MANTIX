@@ -29,6 +29,7 @@ void main() {
   test('QueueSummary lee todo lo que muestran las tarjetas y el pulso', () {
     final summary = QueueSummary.fromJson(summaryJson);
 
+    expect(summary.period, '30d');
     expect((summary.pendingTotal, summary.unassigned), (14, 9));
     expect((summary.oldestWaitHours, summary.medianWaitHours), (245.0, 24.1));
     expect([for (final c in summary.byPriority) (c.key, c.count)], [('critical', 2), ('low', 12)]);

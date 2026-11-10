@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 
-/// Encabezado azul de la bandeja de triaje: etiqueta, título, explicación e ilustración.
+/// Encabezado azul de la bandeja de triaje, a todo el ancho de la pantalla: título, explicación
+/// e ilustración.
 class QueueHeader extends StatelessWidget {
   const QueueHeader({super.key});
 
@@ -12,7 +13,7 @@ class QueueHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ClipRRect(
-        borderRadius: AppRadius.lgAll,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
         child: DecoratedBox(
           decoration: const BoxDecoration(
             gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.bannerDeep, AppColors.bannerLight]),
@@ -22,14 +23,8 @@ class QueueHeader extends StatelessWidget {
             // se funde con el degradado.
             const Positioned(right: 0, bottom: 0, width: _illustrationWidth, height: 96, child: _Illustration()),
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.lg),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .18), borderRadius: AppRadius.pillAll),
-                  child: const Text('BANDEJA DE TRIAJE', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.skyLight, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
-                ),
-                const SizedBox(height: AppSpacing.md),
                 const Text.rich(
                   TextSpan(children: [
                     TextSpan(text: 'SOLICITUDES\n', style: TextStyle(color: AppColors.white)),

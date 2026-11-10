@@ -12,11 +12,12 @@ import '../shared/skeleton.dart';
 import '../tickets/drag_auto_scroller.dart';
 import 'queue_card.dart';
 
-/// Tablero horizontal de la bandeja: una columna por cada estado de la cola. La pantalla se
-/// desplaza en vertical y el tablero en horizontal; cada columna carga y falla por separado.
+/// Tablero de la bandeja: una columna por cada estado de la cola, todas del mismo tamaño y
+/// repartidas en todo el ancho de la pantalla, sin desplazamiento horizontal. La pantalla se
+/// desplaza en vertical; cada columna carga y falla por separado.
 ///
-/// Una tarjeta se mueve con pulsación larga y arrastre (la pantalla y el tablero se desplazan
-/// solos cerca del borde y solo se resaltan las columnas a las que se puede soltar) o con el
+/// Una tarjeta se mueve con pulsación larga y arrastre (la pantalla se desplaza sola cerca del
+/// borde de arriba o de abajo y solo se resaltan las columnas a las que se puede soltar) o con el
 /// menú «Mover a…». Soltar en una columna no válida no mueve nada: [onMove] recibe el intento y
 /// quien lo atiende explica por qué.
 class QueueBoard extends StatefulWidget {
@@ -59,8 +60,6 @@ class QueueBoard extends StatefulWidget {
 }
 
 class _QueueBoardState extends State<QueueBoard> {
-  final _horizontal = ScrollController();
-  late final DragAutoScroller _sideScroller = DragAutoScroller(controller: _horizontal, edge: 56, step: 12);
   DragAutoScroller? _pageScroller;
   TicketListItem? _dragging;
 
@@ -83,14 +82,11 @@ class _QueueBoardState extends State<QueueBoard> {
 
   @override
   void dispose() {
-    _sideScroller.stop();
     _pageScroller?.stop();
-    _horizontal.dispose();
     super.dispose();
   }
 
   void _endDrag() {
-    _sideScroller.stop();
     _pageScroller?.stop();
     if (_dragging != null && mounted) setState(() => _dragging = null);
   }
@@ -98,46 +94,37 @@ class _QueueBoardState extends State<QueueBoard> {
   void _onDragUpdate(DragUpdateDetails details) {
     final media = MediaQuery.of(context);
     _pageScroller?.update(details.globalPosition.dy, media.padding.top + kToolbarHeight, media.size.height - media.padding.bottom);
-    _sideScroller.update(details.globalPosition.dx, 0, media.size.width);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final width = (MediaQuery.sizeOf(context).width * 0.82).clamp(240.0, 320.0);
-    return SingleChildScrollView(
-      controller: _horizontal,
-      scrollDirection: Axis.horizontal,
-      // Se alinea con el margen de la pantalla pero el desplazamiento llega al borde.
-      clipBehavior: Clip.none,
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        for (final column in widget.columns)
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.md),
-            child: SizedBox(
-              width: width,
-              child: QueueColumn(
-                column: column,
-                workflow: widget.workflow,
-                now: widget.now,
-                priorities: widget.priorities,
-                categoryNames: widget.categoryNames,
-                title: columnText(column.status, fallback: widget.statusLabel(column.status)),
-                statusLabel: widget.statusLabel,
-                onMore: () => widget.onMore(column.status),
-                onRetry: () => widget.onRetry(column.status),
-                onOpen: widget.onOpen,
-                onMove: widget.onMove,
-                movingIds: widget.movingIds,
-                dragging: _dragging,
-                onDragStarted: (ticket) => setState(() => _dragging = ticket),
-                onDragUpdate: _onDragUpdate,
-                onDragEnd: _endDrag,
-              ),
+  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (var i = 0; i < widget.columns.length; i++) ...[
+          if (i > 0) const SizedBox(width: _gap),
+          // Todas las columnas miden lo mismo, tenga cada una pocas o muchas tarjetas.
+          Expanded(
+            child: QueueColumn(
+              column: widget.columns[i],
+              workflow: widget.workflow,
+              now: widget.now,
+              priorities: widget.priorities,
+              categoryNames: widget.categoryNames,
+              title: columnText(widget.columns[i].status, fallback: widget.statusLabel(widget.columns[i].status)),
+              statusLabel: widget.statusLabel,
+              onMore: () => widget.onMore(widget.columns[i].status),
+              onRetry: () => widget.onRetry(widget.columns[i].status),
+              onOpen: widget.onOpen,
+              onMove: widget.onMove,
+              movingIds: widget.movingIds,
+              dragging: _dragging,
+              onDragStarted: (ticket) => setState(() => _dragging = ticket),
+              onDragUpdate: _onDragUpdate,
+              onDragEnd: _endDrag,
             ),
           ),
-      ]),
-    );
-  }
+        ],
+      ]);
+
+  static const _gap = 6.0;
 }
 
 /// Una columna: nombre, punto de color, contador y sus tarjetas con «Ver más». Es también el
@@ -210,33 +197,36 @@ class QueueColumn extends StatelessWidget {
           opacity: dragging != null && !valid && dragging!.status != column.status ? .55 : 1,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: AppColors.skyLight.withValues(alpha: hovering ? .5 : .22),
-              borderRadius: AppRadius.lgAll,
-              border: Border.all(color: hovering ? AppColors.mustard : (valid ? meta.colors.dot : Colors.transparent), width: hovering ? 3 : 2),
+              color: hovering ? AppColors.mustard.withValues(alpha: .28) : meta.colors.background.withValues(alpha: .55),
+              borderRadius: AppRadius.mdAll,
+              border: Border.all(color: hovering ? AppColors.mustard : (valid ? meta.colors.dot : meta.colors.dot.withValues(alpha: .35)), width: hovering ? 3 : (valid ? 2 : 1)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Row(children: [
-                Container(width: 10, height: 10, decoration: BoxDecoration(color: meta.colors.dot, shape: BoxShape.circle)),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(child: Text(title.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
-                const SizedBox(width: AppSpacing.sm),
-                Semantics(
-                  label: '${column.total} solicitudes',
-                  excludeSemantics: true,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(color: AppColors.white, borderRadius: AppRadius.pillAll),
-                    child: Text(column.phase == ColumnPhase.ready ? '${column.total}' : '–', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
-                  ),
+              Semantics(
+                container: true,
+                label: '${title.title}${title.hint.isEmpty ? '' : ', ${title.hint}'}, ${column.total} solicitudes',
+                excludeSemantics: true,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(3, 4, 3, 0),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: meta.colors.dot, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      // El nombre se encoge en una columna estrecha en vez de cortarse.
+                      Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(title.title, maxLines: 1, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)))),
+                    ]),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 1),
+                      decoration: BoxDecoration(color: AppColors.mustard, borderRadius: AppRadius.pillAll),
+                      child: Text(column.phase == ColumnPhase.ready ? '${column.total}' : '–', style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
+                    ),
+                  ]),
                 ),
-              ]),
-              if (title.hint.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Padding(padding: const EdgeInsets.only(left: 18), child: Text(title.hint, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel))),
-              ],
-              const SizedBox(height: AppSpacing.md),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               ..._body(context),
             ]),
           ),
@@ -269,7 +259,7 @@ class QueueColumn extends StatelessWidget {
         color: Colors.transparent,
         elevation: 8,
         borderRadius: AppRadius.mdAll,
-        child: SizedBox(width: 250, child: QueueCard(ticket: ticket, now: now, priorities: priorities, categoryNames: categoryNames)),
+        child: SizedBox(width: 150, child: QueueCard(ticket: ticket, now: now, priorities: priorities, categoryNames: categoryNames)),
       ),
       childWhenDragging: Opacity(opacity: .35, child: card),
       child: card,
@@ -280,34 +270,31 @@ class QueueColumn extends StatelessWidget {
     final theme = Theme.of(context);
     switch (column.phase) {
       case ColumnPhase.loading:
-        return [for (var i = 0; i < 2; i++) const Padding(padding: EdgeInsets.only(bottom: AppSpacing.sm), child: Skeleton(height: 110, radius: AppRadius.md))];
+        return [for (var i = 0; i < 2; i++) const Padding(padding: EdgeInsets.only(bottom: 6), child: Skeleton(height: 120, radius: AppRadius.md))];
       case ColumnPhase.failure:
         return [
-          Text(column.failure?.message ?? 'No pudimos cargar esta columna.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.error)),
+          Text(column.failure?.message ?? 'No pudimos cargar esta columna.', style: theme.textTheme.labelSmall?.copyWith(color: AppColors.error)),
           const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Reintentar')),
+          OutlinedButton(onPressed: onRetry, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)), child: const Text('Reintentar', maxLines: 1)),
         ];
       case ColumnPhase.ready:
         return [
           if (column.items.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-              child: Text(_validTarget ? 'Suelta aquí' : 'Sin solicitudes en esta columna.', textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)),
+              child: Text(_validTarget ? 'Suelta aquí' : 'Sin solicitudes', textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)),
             ),
-          for (final ticket in column.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: _card(ticket)),
+          for (final ticket in column.items) Padding(padding: const EdgeInsets.only(bottom: 6), child: _card(ticket)),
           if (column.failure != null && column.items.isNotEmpty)
-            Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(column.failure!.message, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.error))),
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(column.failure!.message, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.error))),
           if (column.loadingMore)
             const Padding(padding: EdgeInsets.all(AppSpacing.sm), child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))))
           else if (column.hasMore)
             TextButton(
               onPressed: onMore,
-              // El texto se encoge en columnas estrechas y con letra grande en vez de desbordar.
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.expand_more_rounded),
-                const SizedBox(width: 6),
-                Flexible(child: Text(column.failure != null ? 'Reintentar' : 'Ver más (${column.remaining} restantes)', maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ]),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6), foregroundColor: AppColors.steel),
+              // Corto y a dos líneas si hace falta: la columna mide un tercio de la pantalla.
+              child: Text(column.failure != null ? 'Reintentar' : 'Ver ${column.remaining} más', textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
         ];
     }

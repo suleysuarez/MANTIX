@@ -72,6 +72,16 @@ WaitTone waitTone(double hours) {
 /// cancelar, que desde la bandeja es rechazar, como «Rechazar».
 String moveLabel(String status, {required String fallback}) => status == 'cancelled' ? 'Rechazar' : columnText(status, fallback: fallback).title;
 
+/// «30 días» para el periodo `30d` que devuelve el servidor (`7d`, `30d`, `12m`); `null` si no
+/// lo reconoce o no llegó, para no escribir un periodo que no es.
+String? periodLabel(String? period) {
+  final match = RegExp(r'^(\d+)([dm])$').firstMatch(period ?? '');
+  if (match == null) return null;
+  final amount = int.parse(match.group(1)!);
+  final unit = match.group(2) == 'd' ? (amount == 1 ? 'día' : 'días') : (amount == 1 ? 'mes' : 'meses');
+  return '$amount $unit';
+}
+
 /// Etiqueta de categoría con la del catálogo; «Sin categoría» cuando no hay.
 String categoryLabel(String? code, Map<String, String> names) {
   if (code == null || code.isEmpty || code == 'uncategorized') return 'Sin categoría';
