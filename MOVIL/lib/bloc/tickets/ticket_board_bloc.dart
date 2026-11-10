@@ -42,7 +42,13 @@ class TicketBoardBloc extends Bloc<TicketBoardEvent, TicketBoardState> {
     }
     emit(state.copyWith(movingIds: {...state.movingIds, ticket.id}));
     try {
-      await _repository.transitionStatus(ticket.id, event.target, notes: event.notes, resolutionSummary: event.resolutionSummary);
+      if (event.target == 'triaged' && event.category != null && event.priority != null) {
+        await _repository.classify(ticket.id, category: event.category!, priority: event.priority!, notes: event.notes);
+      } else if (event.target == 'assigned' && event.technicianId != null) {
+        await _repository.assignTechnician(ticket.id, technicianId: event.technicianId!, notes: event.notes);
+      } else {
+        await _repository.transitionStatus(ticket.id, event.target, notes: event.notes, resolutionSummary: event.resolutionSummary);
+      }
       emit(state.copyWith(
         movingIds: {...state.movingIds}..remove(ticket.id),
         notice: BoardNotice(id: ++_notices, message: '${ticket.ticketNumber} pasó a «${statusMeta(event.target).label}».', isError: false),

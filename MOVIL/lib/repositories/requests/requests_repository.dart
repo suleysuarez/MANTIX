@@ -68,6 +68,27 @@ class RequestsRepository {
         _changes.add(null);
       });
 
+  /// Clasifica una solicitud (categoría y prioridad) y la pasa a «En triaje»
+  /// (`POST /maintenance/requests/{id}/classify`, requiere `solicitudes:editar`).
+  Future<void> classify(int id, {required String category, required String priority, String? notes}) => _guard(() async {
+        await _dio.post<Object?>('/maintenance/requests/$id/classify', data: {
+          'category': category,
+          'priority': priority,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        });
+        _changes.add(null);
+      });
+
+  /// Asigna un técnico y pasa el ticket a «Asignado» (`POST …/{id}/assignment`, requiere
+  /// `tickets:asignar`). Un técnico inactivo llega como `technician_inactive`.
+  Future<void> assignTechnician(int id, {required int technicianId, String? notes}) => _guard(() async {
+        await _dio.post<Object?>('/maintenance/requests/$id/assignment', data: {
+          'technician_id': technicianId,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        });
+        _changes.add(null);
+      });
+
   /// Estados del flujo, en orden, con sus transiciones válidas y los datos que exigen.
   Future<List<WorkflowStatus>> workflow() => _guard(() async {
         final response = await _dio.get<Object?>('/maintenance/requests/workflow');

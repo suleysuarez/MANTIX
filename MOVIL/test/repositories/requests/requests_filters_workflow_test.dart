@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
@@ -83,5 +84,38 @@ void main() {
 
     expect(created, [42]);
     expect(changes, 1);
+  });
+
+  test('classify manda categoría, prioridad y la nota recortada, y avisa del cambio', () async {
+    final adapter = FakeAdapter((_) => jsonResponse(200, detailJson(status: 'triaged')));
+    final repository = RequestsRepository(dioWith(adapter));
+    var changes = 0;
+    final sub = repository.changes.listen((_) => changes++);
+    addTearDown(sub.cancel);
+
+    await repository.classify(5, category: 'software', priority: 'high', notes: '  Visita ');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(adapter.requests.single.path, '/maintenance/requests/5/classify');
+    expect(adapter.requests.single.data, {'category': 'software', 'priority': 'high', 'notes': 'Visita'});
+    expect(changes, 1);
+
+    await repository.classify(5, category: 'hardware', priority: 'low', notes: '  ');
+    expect(adapter.requests.last.data, {'category': 'hardware', 'priority': 'low'});
+  });
+
+  test('assignTechnician manda el técnico y, si hay, la nota; un técnico inactivo llega como ConflictFailure', () async {
+    final adapter = FakeAdapter((_) => jsonResponse(200, detailJson(status: 'assigned')));
+    final repository = RequestsRepository(dioWith(adapter));
+
+    await repository.assignTechnician(5, technicianId: 7);
+    expect(adapter.requests.single.path, '/maintenance/requests/5/assignment');
+    expect(adapter.requests.single.data, {'technician_id': 7});
+
+    await repository.assignTechnician(5, technicianId: 7, notes: 'Visita en sitio');
+    expect(adapter.requests.last.data, {'technician_id': 7, 'notes': 'Visita en sitio'});
+
+    final inactive = RequestsRepository(dioWith(FakeAdapter((_) => errorResponse(409, code: 'technician_inactive'))));
+    await expectLater(inactive.assignTechnician(5, technicianId: 7), throwsA(isA<ConflictFailure>().having((f) => f.code, 'code', 'technician_inactive')));
   });
 }

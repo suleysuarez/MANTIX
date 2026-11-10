@@ -206,10 +206,17 @@ class _TicketsScreenState extends State<TicketsScreen> {
       ticket: item,
       target: target,
       requires: board.state.requiresFor(target),
-      onOpenDetail: () => showTicketDetail(context, item.id),
     );
     if (input == null || !context.mounted) return;
-    board.add(TicketMoveRequested(item, target, notes: input.notes, resolutionSummary: input.resolutionSummary));
+    board.add(TicketMoveRequested(
+      item,
+      target,
+      notes: input.notes,
+      resolutionSummary: input.resolutionSummary,
+      category: input.category,
+      priority: input.priority,
+      technicianId: input.technicianId,
+    ));
   }
 
   @override

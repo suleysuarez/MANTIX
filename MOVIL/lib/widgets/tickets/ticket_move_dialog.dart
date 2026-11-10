@@ -2,49 +2,54 @@ import 'package:flutter/material.dart';
 
 import '../../core/format/ticket_meta.dart';
 import '../../models/requests/request_models.dart';
+import 'ticket_move_sheets.dart';
 
-/// Datos que el usuario escribió para mover un ticket.
+/// Datos que el usuario dio para mover un ticket. Según el estado de destino: texto
+/// ([notes], [resolutionSummary]), clasificación ([category] y [priority]) o un técnico.
 class TicketMoveInput {
-  const TicketMoveInput({this.notes, this.resolutionSummary});
+  const TicketMoveInput({this.notes, this.resolutionSummary, this.category, this.priority, this.technicianId, this.technicianName});
 
   final String? notes;
   final String? resolutionSummary;
+  final String? category;
+  final String? priority;
+  final int? technicianId;
+  final String? technicianName;
 }
 
-/// Datos que el tablero sabe pedir. El resto (categoría, prioridad, técnico) necesita sus
-/// propios catálogos y se hace desde el detalle del ticket.
-const _askable = {'resolution_summary', 'reason'};
+/// Datos que el tablero sabe pedir en un diálogo corto.
+const _askableText = {'resolution_summary', 'reason'};
 
-/// Pide lo que el estado de destino exige antes de mover [ticket] a [target]. Devuelve lo
-/// escrito (vacío si no hace falta nada) o `null` si se cancela o el cambio no se puede hacer
-/// desde el tablero; en ese caso [onOpenDetail] abre el ticket para hacerlo allí.
+/// Pide lo que el estado de destino exige antes de mover [ticket] a [target]:
+///
+/// * categoría y prioridad (`category`, `priority`): hoja de clasificación;
+/// * técnico (`technician`): hoja para elegir un técnico activo;
+/// * resolución o motivo: diálogo corto de texto;
+/// * nada: no pregunta.
+///
+/// Devuelve lo dado (vacío si no hace falta nada) o `null` si se cancela.
 Future<TicketMoveInput?> askTicketMoveData(
   BuildContext context, {
   required TicketListItem ticket,
   required String target,
   required List<String> requires,
-  required VoidCallback onOpenDetail,
 }) async {
+  if (requires.contains('category') || requires.contains('priority')) return showClassifySheet(context, ticket: ticket);
+  if (requires.contains('technician')) return showAssignSheet(context, ticket: ticket);
+  if (requires.isEmpty) return const TicketMoveInput();
+
   final label = statusMeta(target).label;
-  final unsupported = requires.where((item) => !_askable.contains(item)).toList();
-  if (unsupported.isNotEmpty) {
-    final names = {'category': 'la categoría', 'priority': 'la prioridad', 'technician': 'el técnico'};
-    final needs = [for (final item in unsupported) names[item] ?? item].join(' y ');
-    final open = await showDialog<bool>(
+  if (requires.any((item) => !_askableText.contains(item))) {
+    await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Pasar a «$label»'),
-        content: Text('Para este cambio hay que indicar $needs. Ábrelo para completarlo desde el detalle del ticket.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Entendido')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Abrir ticket')),
-        ],
+        content: const Text('Este cambio necesita datos que la app todavía no sabe pedir. Hazlo desde la web.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Entendido'))],
       ),
     );
-    if (open == true) onOpenDetail();
     return null;
   }
-  if (requires.isEmpty) return const TicketMoveInput();
 
   final isResolution = requires.contains('resolution_summary');
   return showDialog<TicketMoveInput>(

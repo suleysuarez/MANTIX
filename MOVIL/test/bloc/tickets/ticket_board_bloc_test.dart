@@ -113,4 +113,63 @@ void main() {
     expect(second.message, first.message);
     expect(second.id, isNot(first.id));
   });
+
+  group('clasificar y asignar', () {
+    test('«En triaje» con categoría y prioridad usa classify y no el cambio de estado', () async {
+      final bloc = await ready();
+      addTearDown(bloc.close);
+
+      bloc.add(TicketMoveRequested(ticket(status: 'submitted'), 'triaged', category: 'software', priority: 'high', notes: 'Requiere visita'));
+      await bloc.stream.firstWhere((state) => state.notice != null && state.movingIds.isEmpty);
+
+      final post = adapter.requests.singleWhere((r) => r.method == 'POST');
+      expect(post.path, '/maintenance/requests/1/classify');
+      expect(post.data, {'category': 'software', 'priority': 'high', 'notes': 'Requiere visita'});
+      expect(bloc.state.notice!.isError, isFalse);
+      expect(bloc.state.notice!.message, contains('«En triaje»'));
+    });
+
+    test('«Asignado» con técnico usa assignment', () async {
+      final workflow = [
+        {'status': 'submitted', 'order': 1, 'allowed_targets': ['assigned'], 'requires': [], 'can_enter': true},
+        {'status': 'assigned', 'order': 2, 'allowed_targets': [], 'requires': ['technician'], 'can_enter': true},
+      ];
+      adapter = FakeAdapter((options) => options.path == '/maintenance/requests/workflow' ? jsonResponse(200, workflow) : statusHandler(options));
+      final bloc = await ready();
+      addTearDown(bloc.close);
+
+      bloc.add(TicketMoveRequested(ticket(status: 'submitted'), 'assigned', technicianId: 5));
+      await bloc.stream.firstWhere((state) => state.notice != null && state.movingIds.isEmpty);
+
+      final post = adapter.requests.singleWhere((r) => r.method == 'POST');
+      expect(post.path, '/maintenance/requests/1/assignment');
+      expect(post.data, {'technician_id': 5});
+      expect(bloc.state.notice!.message, contains('«Asignado»'));
+    });
+
+    test('un técnico inactivo en el servidor se avisa con su mensaje y el ticket queda libre', () async {
+      final workflow = [
+        {'status': 'submitted', 'order': 1, 'allowed_targets': ['assigned'], 'requires': [], 'can_enter': true},
+        {'status': 'assigned', 'order': 2, 'allowed_targets': [], 'requires': ['technician'], 'can_enter': true},
+      ];
+      adapter = FakeAdapter((options) => options.path == '/maintenance/requests/workflow' ? jsonResponse(200, workflow) : errorResponse(409, code: 'technician_inactive'));
+      final bloc = await ready();
+      addTearDown(bloc.close);
+
+      bloc.add(TicketMoveRequested(ticket(status: 'submitted'), 'assigned', technicianId: 5));
+      await bloc.stream.firstWhere((state) => state.notice?.isError == true && state.movingIds.isEmpty);
+
+      expect(bloc.state.notice!.message, contains('Ese técnico está inactivo'));
+    });
+
+    test('sin los datos que pide el destino cae al cambio de estado normal', () async {
+      final bloc = await ready();
+      addTearDown(bloc.close);
+
+      bloc.add(TicketMoveRequested(ticket(status: 'submitted'), 'cancelled', notes: 'Duplicado'));
+      await bloc.stream.firstWhere((state) => state.notice != null && state.movingIds.isEmpty);
+
+      expect(adapter.requests.singleWhere((r) => r.method == 'POST').path, '/maintenance/requests/1/status');
+    });
+  });
 }

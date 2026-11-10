@@ -9,6 +9,7 @@ import '../bloc/notifications/notifications_bloc.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 import '../repositories/auth/mobile_auth_repository.dart';
+import '../repositories/catalogs/catalogs_repository.dart';
 import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
 import '../repositories/notifications/notifications_repository.dart';
@@ -20,6 +21,7 @@ class MantixApp extends StatefulWidget {
     super.key,
     required this.authBloc,
     required this.requestsRepository,
+    required this.catalogsRepository,
     required this.mobileAuthRepository,
     required this.dashboardRepository,
     required this.equipmentRepository,
@@ -29,6 +31,7 @@ class MantixApp extends StatefulWidget {
 
   final AuthBloc authBloc;
   final RequestsRepository requestsRepository;
+  final CatalogsRepository catalogsRepository;
   final MobileAuthRepository mobileAuthRepository;
   final DashboardRepository dashboardRepository;
   final EquipmentRepository equipmentRepository;
@@ -58,6 +61,7 @@ class _MantixAppState extends State<MantixApp> {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider.value(value: widget.requestsRepository),
+        RepositoryProvider.value(value: widget.catalogsRepository),
         RepositoryProvider.value(value: widget.mobileAuthRepository),
         RepositoryProvider.value(value: widget.dashboardRepository),
         RepositoryProvider.value(value: widget.equipmentRepository),

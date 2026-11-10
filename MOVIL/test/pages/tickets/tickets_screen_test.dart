@@ -26,17 +26,60 @@ const _workflow = [
   {'status': 'cancelled', 'order': 8, 'allowed_targets': [], 'requires': ['reason'], 'can_enter': true},
 ];
 
+const _categories = [
+  {'code': 'hardware', 'name': 'Hardware'},
+  {'code': 'software', 'name': 'Software'},
+  {'code': 'network', 'name': 'Red'},
+];
+
+const _priorities = [
+  {'id': 1, 'code': 'low', 'name': 'Baja', 'level': 1},
+  {'id': 2, 'code': 'medium', 'name': 'Media', 'level': 2},
+  {'id': 3, 'code': 'high', 'name': 'Alta', 'level': 3},
+  {'id': 4, 'code': 'critical', 'name': 'Crítica', 'level': 4},
+];
+
+Map<String, Object?> _technician(int id, String name, {bool active = true, bool available = true, String? specialization}) => {
+      'id': id,
+      'user_id': id + 100,
+      'full_name': name,
+      'email': '${name.split(' ').first.toLowerCase()}@x.co',
+      'employee_code': null,
+      'specialization': specialization,
+      'is_available': available,
+      'is_active': active,
+      'hourly_rate': null,
+      'created_at': '2026-10-01T10:00:00Z',
+    };
+
 void main() {
   late FakeAdapter adapter;
   late ResponseBody Function(RequestOptions) listHandler;
   late ResponseBody Function(RequestOptions) statusHandler;
+  late ResponseBody Function(RequestOptions) classifyHandler;
+  late ResponseBody Function(RequestOptions) assignHandler;
+  late ResponseBody Function(RequestOptions) techniciansHandler;
+  late ResponseBody Function(RequestOptions) prioritiesHandler;
   late RequestsRepository repository;
 
   setUp(() {
     listHandler = (_) => pagedResponse([ticketJson()]);
     statusHandler = (_) => jsonResponse(200, detailJson(status: 'waiting'));
+    classifyHandler = (_) => jsonResponse(200, detailJson(status: 'triaged'));
+    assignHandler = (_) => jsonResponse(200, detailJson(status: 'assigned'));
+    prioritiesHandler = (_) => jsonResponse(200, _priorities);
+    techniciansHandler = (_) => pagedResponse([
+          _technician(5, 'Luis Técnico', specialization: 'Redes'),
+          _technician(6, 'Ana Inactiva', active: false),
+          _technician(7, 'Marta Pérez', available: false),
+        ], total: 3);
     adapter = FakeAdapter((options) {
       if (options.path == '/maintenance/requests/workflow') return jsonResponse(200, _workflow);
+      if (options.path == '/maintenance/categories') return jsonResponse(200, _categories);
+      if (options.path == '/priorities') return prioritiesHandler(options);
+      if (options.path == '/technicians') return techniciansHandler(options);
+      if (options.method == 'POST' && options.path.endsWith('/classify')) return classifyHandler(options);
+      if (options.method == 'POST' && options.path.endsWith('/assignment')) return assignHandler(options);
       if (options.method == 'POST' && options.path.endsWith('/status')) return statusHandler(options);
       if (options.method == 'POST' && options.path == '/maintenance/requests') return jsonResponse(201, detailJson(id: 99));
       if (options.path == '/equipment') return pagedResponse([equipmentJson()]);
@@ -350,21 +393,197 @@ void main() {
       expect(post.data, {'status': 'resolved', 'resolution_summary': 'Se cambió el SSD'});
     });
 
-    testWidgets('un estado que exige técnico o prioridad lo explica y ofrece abrir el ticket', (tester) async {
-      listHandler = (_) => pagedResponse([ticketJson(id: 2, status: 'submitted', title: 'Sin clasificar', priority: 'low', canAct: true)]);
-      await openBoard(tester);
-
+    Future<void> openMenuFor(WidgetTester tester, String target) async {
       await tester.tap(find.byTooltip('Mover a…').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('Asignado')));
+      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text(target)));
       await tester.pumpAndSettle();
+    }
 
-      expect(find.textContaining('hay que indicar el técnico'), findsOneWidget);
-      expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
-      await tester.tap(find.text('Abrir ticket'));
-      await tester.pumpAndSettle();
-      expect(find.text('Detalle del ticket'), findsOneWidget);
+    group('pasar a «En triaje»', () {
+      setUp(() => listHandler = (_) => pagedResponse([ticketJson(id: 2, status: 'submitted', title: 'Sin clasificar', priority: 'low', canAct: true)]));
+
+      FilledButton confirm(WidgetTester tester) => tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Confirmar triaje'));
+
+      testWidgets('pide la categoría y la prioridad: no se puede confirmar sin categoría', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'En triaje');
+
+        expect(find.text('Pasar a «En triaje»'), findsOneWidget);
+        expect(find.text('Elegir categoría'), findsOneWidget);
+        expect(find.widgetWithText(ChoiceChip, 'Baja'), findsOneWidget);
+        expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Baja')).selected, isTrue, reason: 'la prioridad del ticket queda elegida');
+        expect(confirm(tester).onPressed, isNull);
+        expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
+      });
+
+      testWidgets('con categoría y prioridad confirma y manda classify con los datos', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'En triaje');
+        await tester.tap(find.byKey(const Key('field-category')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Software'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ChoiceChip, 'Alta'));
+        await tester.pumpAndSettle();
+        expect(confirm(tester).onPressed, isNotNull);
+        await tester.enterText(find.byType(TextField).last, '  Requiere visita ');
+        await tester.tap(find.text('Confirmar triaje'));
+        await tester.pumpAndSettle();
+
+        final post = adapter.requests.singleWhere((r) => r.method == 'POST');
+        expect(post.path, '/maintenance/requests/2/classify');
+        expect(post.data, {'category': 'software', 'priority': 'high', 'notes': 'Requiere visita'});
+        expect(find.textContaining('pasó a «En triaje»'), findsOneWidget);
+      });
+
+      testWidgets('las categorías se piden una vez y se buscan sin volver al servidor', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'En triaje');
+        await tester.tap(find.byKey(const Key('field-category')));
+        await tester.pumpAndSettle();
+        expect(find.text('Hardware'), findsOneWidget);
+        expect(find.text('Red'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).last, 'soft');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pumpAndSettle();
+        expect(find.text('Hardware'), findsNothing);
+        expect(find.text('Software'), findsOneWidget);
+        expect(adapter.requests.where((r) => r.path == '/maintenance/categories'), hasLength(1));
+      });
+
+      testWidgets('si el servidor rechaza el triaje la tarjeta se queda y se avisa', (tester) async {
+        classifyHandler = (_) => errorResponse(409, code: 'ticket_classify_wrong_status');
+        await openBoard(tester);
+        await openMenuFor(tester, 'En triaje');
+        await tester.tap(find.byKey(const Key('field-category')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Hardware'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Confirmar triaje'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Solo se clasifican las solicitudes que esperan triaje'), findsOneWidget);
+        expect(find.text('Sin clasificar'), findsOneWidget);
+      });
+
+      testWidgets('si las prioridades no cargan se puede reintentar', (tester) async {
+        prioritiesHandler = (_) => errorResponse(500);
+        await openBoard(tester);
+        await openMenuFor(tester, 'En triaje');
+
+        expect(find.text('Reintentar'), findsOneWidget);
+        prioritiesHandler = (_) => jsonResponse(200, _priorities);
+        await tester.tap(find.text('Reintentar'));
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ChoiceChip, 'Crítica'), findsOneWidget);
+      });
     });
+
+    group('pasar a «Asignado»', () {
+      setUp(() => listHandler = (_) => pagedResponse([ticketJson(id: 2, status: 'submitted', title: 'Sin técnico', priority: 'low', canAct: true)]));
+
+      FilledButton assignButton(WidgetTester tester) => tester.widget<FilledButton>(find.byType(FilledButton).last);
+
+      testWidgets('ofrece solo técnicos activos y no se confirma sin elegir uno', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+
+        expect(find.text('Pasar a «Asignado»'), findsOneWidget);
+        expect(find.text('Luis Técnico'), findsOneWidget);
+        expect(find.text('Marta Pérez'), findsOneWidget);
+        expect(find.text('No disponible'), findsOneWidget);
+        expect(find.text('Ana Inactiva'), findsNothing, reason: 'una cuenta inactiva no se ofrece');
+        expect(assignButton(tester).onPressed, isNull);
+        expect(find.text('Asignar técnico'), findsOneWidget);
+      });
+
+      testWidgets('elegir un técnico y confirmar manda la asignación', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+        await tester.tap(find.text('Luis Técnico'));
+        await tester.pumpAndSettle();
+        expect(find.text('Asignar a Luis Técnico'), findsOneWidget);
+        await tester.tap(find.text('Asignar a Luis Técnico'));
+        await tester.pumpAndSettle();
+
+        final post = adapter.requests.singleWhere((r) => r.method == 'POST');
+        expect(post.path, '/maintenance/requests/2/assignment');
+        expect(post.data, {'technician_id': 5});
+        expect(find.textContaining('pasó a «Asignado»'), findsOneWidget);
+      });
+
+      testWidgets('busca en el servidor con el texto y pide los técnicos por páginas', (tester) async {
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+        final first = adapter.requests.where((r) => r.path == '/technicians').first.queryParameters;
+        expect(first, containsPair('page', 1));
+        expect(first, containsPair('size', 20));
+
+        await tester.enterText(find.byType(TextField).last, 'luis');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pumpAndSettle();
+        expect(adapter.requests.where((r) => r.path == '/technicians').last.queryParameters, containsPair('search', 'luis'));
+      });
+
+      testWidgets('«Ver más resultados» pide la página siguiente', (tester) async {
+        techniciansHandler = (options) {
+          final page = options.queryParameters['page'] as int;
+          return pagedResponse([_technician(page * 10, 'Técnico $page')], page: page, totalPages: 2, total: 2);
+        };
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+        expect(find.text('Técnico 1'), findsOneWidget);
+
+        await tester.tap(find.text('Ver más resultados'));
+        await tester.pumpAndSettle();
+        expect(find.text('Técnico 2'), findsOneWidget);
+      });
+
+      testWidgets('si el técnico resulta inactivo en el servidor se avisa y el ticket no cambia', (tester) async {
+        assignHandler = (_) => errorResponse(409, code: 'technician_inactive');
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+        await tester.tap(find.text('Luis Técnico'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Asignar a Luis Técnico'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Ese técnico está inactivo y no puede recibir tickets'), findsOneWidget);
+        expect(find.text('Sin técnico'), findsOneWidget);
+      });
+
+      testWidgets('sin permiso para ver técnicos lo dice', (tester) async {
+        techniciansHandler = (_) => errorResponse(403, code: 'forbidden');
+        await openBoard(tester);
+        await openMenuFor(tester, 'Asignado');
+
+        expect(find.text('Sin permiso'), findsOneWidget);
+        expect(assignButton(tester).onPressed, isNull);
+      });
+    });
+
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      final name = '${size.width.toInt()}x${size.height.toInt()}';
+      for (final target in const ['En triaje', 'Asignado']) {
+        testWidgets('la hoja de «$target» sin overflow en $name con texto 1,3', (tester) async {
+          listHandler = (_) => pagedResponse([ticketJson(id: 2, status: 'submitted', title: 'Un ticket con un título bastante largo para comprobar el ajuste de línea', priority: 'low', canAct: true)]);
+          await openBoard(tester, size: size, textScale: 1.3);
+          await openMenuFor(tester, target);
+          expect(tester.takeException(), isNull);
+          if (target == 'En triaje') {
+            await tester.tap(find.byKey(const Key('field-category')));
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+          } else {
+            await tester.tap(find.text('Luis Técnico'));
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+          }
+        });
+      }
+    }
 
     testWidgets('si el servidor rechaza el cambio, la tarjeta se queda y se avisa con un mensaje claro', (tester) async {
       statusHandler = (_) => errorResponse(409, code: 'ticket_invalid_transition');

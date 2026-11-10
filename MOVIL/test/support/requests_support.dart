@@ -10,6 +10,7 @@ import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
+import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'fakes.dart';
@@ -137,8 +138,11 @@ Future<GoRouter> pumpScreen(
   );
   addTearDown(router.dispose);
   await tester.pumpWidget(
-    RepositoryProvider(
-      create: (_) => RequestsRepository(dioWith(adapter)),
+    MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider(create: (_) => RequestsRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => CatalogsRepository(dioWith(adapter))),
+      ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: permissionsCubit(permissions)),
