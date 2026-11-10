@@ -114,12 +114,47 @@ void main() {
       });
     }
 
-    test('visiblePages: todas si caben y, si no, una ventana que sigue a la actual', () {
-      expect(visiblePages(page: 1, totalPages: 3, maxVisible: 7), [1, 2, 3]);
-      expect(visiblePages(page: 1, totalPages: 20, maxVisible: 7), [1, 2, 3, 4, 5, 6, 7]);
-      expect(visiblePages(page: 10, totalPages: 20, maxVisible: 7), [7, 8, 9, 10, 11, 12, 13]);
-      expect(visiblePages(page: 20, totalPages: 20, maxVisible: 7), [14, 15, 16, 17, 18, 19, 20]);
-      expect(visiblePages(page: 2, totalPages: 20, maxVisible: 4), [1, 2, 3, 4]);
+    test('visiblePages: todas si caben y, si no, «…» y siempre la primera y la última', () {
+      expect(visiblePages(page: 1, totalPages: 3, slots: 7), [1, 2, 3]);
+      expect(visiblePages(page: 1, totalPages: 7, slots: 7), [1, 2, 3, 4, 5, 6, 7]);
+      // Como en el diseño: «1 2 3 4 5 … 99».
+      expect(visiblePages(page: 5, totalPages: 99, slots: 7), [1, 2, 3, 4, 5, null, 99]);
+      expect(visiblePages(page: 1, totalPages: 99, slots: 7), [1, 2, 3, 4, 5, null, 99]);
+      expect(visiblePages(page: 10, totalPages: 99, slots: 7), [1, null, 9, 10, 11, null, 99]);
+      expect(visiblePages(page: 95, totalPages: 99, slots: 7), [1, null, 95, 96, 97, 98, 99]);
+      expect(visiblePages(page: 99, totalPages: 99, slots: 7), [1, null, 95, 96, 97, 98, 99]);
+      // Con poco sitio, siempre al menos cinco huecos.
+      expect(visiblePages(page: 2, totalPages: 20, slots: 4), [1, 2, 3, null, 20]);
+      expect(visiblePages(page: 9, totalPages: 20, slots: 5), [1, null, 9, null, 20]);
+    });
+
+    test('visiblePages nunca repite una página ni se pasa del total', () {
+      for (final slots in [5, 6, 7]) {
+        for (var total = 1; total <= 30; total++) {
+          for (var page = 1; page <= total; page++) {
+            final pages = visiblePages(page: page, totalPages: total, slots: slots).whereType<int>().toList();
+            expect(pages.toSet().length, pages.length, reason: 'sin repetidas ($page de $total, $slots huecos)');
+            expect(pages, contains(page), reason: 'la actual siempre se ve');
+            expect(pages.first, 1);
+            expect(pages.last, total);
+            expect(pages, everyElement(inInclusiveRange(1, total)));
+            expect(visiblePages(page: page, totalPages: total, slots: slots).length, lessThanOrEqualTo(slots < 5 ? 5 : slots));
+          }
+        }
+      }
+    });
+
+    testWidgets('con muchas páginas muestra «1 2 3 4 5 … 99» y la última se puede tocar', (tester) async {
+      final pages = <int>[];
+      await pumpSized(tester, paginator(page: 5, totalPages: 99, total: 990, onPage: pages.add), size: const Size(420, 640));
+
+      for (final n in [1, 2, 3, 4, 5, 99]) {
+        expect(find.text('$n'), findsOneWidget, reason: 'página $n');
+      }
+      expect(find.text('…'), findsOneWidget);
+      expect(find.text('6'), findsNothing);
+      await tester.tap(find.text('99'));
+      expect(pages, [99]);
     });
 
     testWidgets('la píldora ocupa todo el ancho y la página actual va en un círculo mostaza', (tester) async {

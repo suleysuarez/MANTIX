@@ -13,11 +13,21 @@ String pageRangeLabel({required int page, required int pageSize, required int sh
   return '$from-${from + shown - 1} de $total';
 }
 
-/// Números de página que caben: una ventana de [maxVisible] consecutivas que sigue a la actual.
-List<int> visiblePages({required int page, required int totalPages, required int maxVisible}) {
-  if (totalPages <= maxVisible) return [for (var i = 1; i <= totalPages; i++) i];
-  final start = (page - maxVisible ~/ 2).clamp(1, totalPages - maxVisible + 1);
-  return [for (var i = start; i < start + maxVisible; i++) i];
+/// Qué se dibuja en la píldora: números de página y `null` por cada «…». Con [slots] huecos
+/// (mínimo 5): todas las páginas si caben; cerca del principio «1 2 3 4 5 … 99»; en el
+/// medio «1 … 4 5 6 … 99»; cerca del final «1 … 95 96 97 98 99». Primera y última siempre salen.
+List<int?> visiblePages({required int page, required int totalPages, required int slots}) {
+  final room = slots < 5 ? 5 : slots;
+  if (totalPages <= room) return [for (var i = 1; i <= totalPages; i++) i];
+  // Páginas seguidas que se muestran junto a un extremo: dejan sitio al «…» y a la otra punta.
+  final edge = room - 2;
+  if (page <= edge) return [for (var i = 1; i <= edge; i++) i, null, totalPages];
+  if (page > totalPages - edge) return [1, null, for (var i = totalPages - edge + 1; i <= totalPages; i++) i];
+  // En el medio: la actual con una vecina a cada lado, y si sobra sitio, más vecinas.
+  // El tramo del medio es impar (la actual y las mismas vecinas a cada lado).
+  final middle = room - 4;
+  final around = ((middle.isEven ? middle - 1 : middle) - 1) ~/ 2;
+  return [1, null, for (var i = page - around; i <= page + around; i++) i, null, totalPages];
 }
 
 /// Paginador: una píldora de ancho completo con flechas en los extremos y los números de
@@ -56,7 +66,7 @@ class Paginator extends StatelessWidget {
   final bool loading;
 
   /// Ancho de cada número de página y lado de cada flecha (48: el mínimo táctil de Material).
-  static const _cell = 40.0;
+  static const _cell = 36.0;
   static const _arrow = 48.0;
 
   @override
@@ -117,8 +127,8 @@ class _Pill extends StatelessWidget {
         builder: (context, constraints) {
           // Cuántos números caben entre las dos flechas; en pantallas estrechas, menos.
           // (Menos el relleno y el borde de la píldora.)
-          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm - 2) / Paginator._cell).floor();
-          final pages = visiblePages(page: page, totalPages: totalPages, maxVisible: room.clamp(3, 7));
+          final room = ((constraints.maxWidth - 2 * Paginator._arrow - 2 * AppSpacing.sm - 2) / (Paginator._cell + 4)).floor();
+          final pages = visiblePages(page: page, totalPages: totalPages, slots: room.clamp(5, 7));
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
             decoration: BoxDecoration(
@@ -139,7 +149,16 @@ class _Pill extends StatelessWidget {
                 )
               else
                 const SizedBox(width: Paginator._arrow, height: Paginator._arrow),
-              Row(mainAxisSize: MainAxisSize.min, children: [for (final number in pages) _PageNumber(number: number, selected: number == page, onTap: () => onPage(number))]),
+              // Si por el tamaño de letra no caben, los números se encogen en vez de desbordar.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    for (final number in pages)
+                      if (number == null) const _Ellipsis() else _PageNumber(number: number, selected: number == page, onTap: () => onPage(number)),
+                  ]),
+                ),
+              ),
               if (page < totalPages)
                 IconButton(
                   tooltip: 'Página siguiente',
@@ -174,14 +193,19 @@ class _PageNumber extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: selected ? null : onTap,
           child: SizedBox(
-            width: Paginator._cell,
+            width: Paginator._cell + 4,
             height: Paginator._arrow,
             child: Center(
               child: Container(
-                width: 34,
-                height: 34,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: selected ? AppColors.mustard : Colors.transparent, shape: BoxShape.circle),
+                // La página actual: círculo mostaza con un aro más claro alrededor.
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.mustard : Colors.transparent,
+                  shape: BoxShape.circle,
+                  boxShadow: selected ? [BoxShadow(color: AppColors.mustard.withValues(alpha: .35), spreadRadius: 3)] : null,
+                ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text('$number', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: selected ? AppColors.navy : AppColors.steel, fontWeight: selected ? FontWeight.w900 : FontWeight.w600)),
@@ -189,6 +213,20 @@ class _PageNumber extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      );
+}
+
+/// Los puntos suspensivos entre dos tramos de páginas: no se pueden tocar.
+class _Ellipsis extends StatelessWidget {
+  const _Ellipsis();
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: SizedBox(
+          width: Paginator._cell - 6,
+          height: Paginator._arrow,
+          child: Center(child: Text('…', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.slate, fontWeight: FontWeight.w700))),
         ),
       );
 }
