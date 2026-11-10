@@ -265,7 +265,27 @@ Cerrada en código y pruebas en la rama `feat/mobile-ui-sheets-pagination`. Todo
 - Revisarla a ojo en el teléfono contra el backend de la rama `feat/api-mobile-needs`.
 - **Orden de integración de las ramas** (propuesto): 1) PR de `feat/api-mobile-needs` a `develop` (solo toca `MOVIL/backend`, `MOVIL/docs` y añade una sección propia a este archivo); 2) rebasar `feat/mobile-ui-sheets-pagination` sobre `develop`; 3) PR de la app. Las dos ramas editan este archivo en bloques distintos y un `git merge-tree` entre ellas no da conflictos; para que siga así, **la rama del backend es dueña de «Cambios de API solo en MOVIL/backend» y la de la app de lo demás**.
 - Edición del equipo, reasignar custodio y ubicación desde la ficha.
-- La pantalla de Solicitudes Pendientes, que usará el triaje y la asignación de aquí.
+- La pantalla de Solicitudes Pendientes ya está hecha (sección siguiente).
+
+## Solicitudes pendientes (bandeja de triaje)
+
+Hecha en código y pruebas en la rama `feat/mobile-pending-requests` (sale de `feat/mobile-ui-sheets-pagination`). Ruta `/solicitudes-pendientes`, con su elemento en el menú; exige `solicitudes:ver_todos` (la ruta lo comprueba; la autorización real es del backend). «Solicitudes» del menú sigue llevando a «Mis solicitudes».
+
+- **Qué muestra:** encabezado con `assets/images/solicitudes.png`; búsqueda y botón de filtros; cifras (EN COLA, SIN TÉCNICO, MÁS ANTIGUA, ESPERA MEDIANA); «Pulso de la cola» (primera respuesta, aprobación y rechazo de los últimos 30 días, y barras por prioridad y por categoría); y el tablero «Solicitudes por estado», con una columna horizontal por cada estado `in_queue` del flujo (hoy Recibidas, Clasificadas y Asignadas). Los rótulos de columna, «Espera mediana» y el formato de horas, porcentajes y variaciones («24,1 h», «▲ 12,5%») son los de la web (`core/format/queue_format.dart`, con las pruebas de sus specs). Los nombres de prioridad y categoría salen de `GET /priorities` y `GET /maintenance/categories`; ninguno va escrito en la app.
+- **De dónde sale cada dato:** `GET /maintenance/queue/summary?period=30d` (`solicitudes:ver_todos`) da las cifras y el pulso; `GET /maintenance/requests/workflow` da las columnas, las transiciones, los datos que exige cada destino y si se puede entrar en él; `GET /maintenance/requests?status=<uno>&size=10&sort=-created_at` da las tarjetas de cada columna (total en `X-Total-Count`).
+- **Carga:** 10 tarjetas por columna y «Ver más (N restantes)» (excepción pedida a la regla de `size=20`); nunca se pide el catálogo completo. Cada bloque carga y falla por separado: si el resumen cae, las cifras y el pulso dicen «no disponible» con reintento y el tablero sigue; si una columna cae, solo ella muestra el error con reintento. Tirar hacia abajo recarga resumen y columnas.
+- **Filtros** (hoja con «Aplicar» y «Limpiar»): categoría, prioridad y técnico con multiselección, y «Recibidas entre» (la inicial no puede ser futura, la final no anterior y como máximo 366 días). Cada filtro activo sale como chip que se quita. Categorías múltiples viajan como `category=a,b` y técnicos como `technician_id` repetido; **ambos necesitan el backend de `feat/api-mobile-needs`** (cambios 7 y 8), igual que el nombre del equipo en la tarjeta: sin él la tarjeta muestra «Equipo #id».
+- **Mover una tarjeta:** pulsación larga y arrastre (la pantalla y el tablero se desplazan solos cerca del borde; solo se resaltan las columnas válidas) o menú «Mover a…» (con «Rechazar» para cancelar). Soltar donde no se puede devuelve la tarjeta y lo explica en español (falta de permiso o transición no permitida) sin pedir nada. Destinos que exigen datos: Clasificadas pide categoría y prioridad (`POST …/classify`, `solicitudes:editar`), Asignadas un técnico activo (`POST …/assignment`, `tickets:asignar`) y Rechazar un motivo de 5 a 500 caracteres (`POST …/reject`, `solicitudes:aprobar`); cerrar la hoja deja la tarjeta donde estaba. A diferencia del tablero de Tickets, aquí el cambio es **optimista**: la tarjeta cambia de columna al confirmar y vuelve a su sitio si el servidor lo rechaza (técnico inactivo, sin permiso, sin red), con el mensaje por `code`. Al aceptarse se recargan columnas y cifras. Tocar una tarjeta abre su detalle.
+- **Arquitectura:** `QueueSummaryBloc`, `RequestBoardBloc` y `TriageActionsBloc` (`bloc/queue/`); `QueueRepository`; `CategoryNamesCubit`; modelos en `models/queue/`; widgets en `widgets/queue/`. `TriageActionsBloc` no toca el tablero: emite un resultado (`started`, `succeeded`, `failed`, `blocked`) y la pantalla se lo pasa a los otros dos.
+- **Colores:** todos de `AppColors` y `StatusColors` (solo se añadieron `bannerDeep` y `bannerLight`, que coinciden con el fondo de la imagen del encabezado).
+
+**Verificación:** 715 pruebas, `flutter analyze` sin avisos, sin overflow a 320×568 y 360×640 con texto a 1,3, y `flutter build apk --debug`. La revisión a ojo en el teléfono (arrastre con el dedo, desplazamiento automático, aspecto del encabezado) la hace la persona dueña del proyecto.
+
+**Pendientes de esta pantalla:**
+
+- Integrar `feat/api-mobile-needs` (hoy sin integrar) para que filtren técnico y varias categorías y salga el nombre del equipo; el orden de los PR es el de la sección anterior.
+- Con ese backend integrado, `TechnicianSearchBloc` puede pedir `is_active=true` en vez de descartar los inactivos, y `CategorySearchBloc` puede pedir `search` y páginas al servidor en vez de filtrar en la app (cambios 9 y 10).
+- Sin selector de periodo (7 días, 30 días, 12 meses) ni orden por prioridad ni filtro «solo sin técnico», que la web sí tiene; se añaden si se piden.
 
 
 ## Notificaciones y encabezado de los módulos
