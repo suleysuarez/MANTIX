@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/paged/paged_bloc.dart';
 import 'package:mantix/core/errors/failure.dart';
+import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/models/page_info.dart';
 import 'package:mantix/widgets/shared/date_range_dialog.dart';
@@ -112,6 +113,55 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    test('visiblePages: todas si caben y, si no, una ventana que sigue a la actual', () {
+      expect(visiblePages(page: 1, totalPages: 3, maxVisible: 7), [1, 2, 3]);
+      expect(visiblePages(page: 1, totalPages: 20, maxVisible: 7), [1, 2, 3, 4, 5, 6, 7]);
+      expect(visiblePages(page: 10, totalPages: 20, maxVisible: 7), [7, 8, 9, 10, 11, 12, 13]);
+      expect(visiblePages(page: 20, totalPages: 20, maxVisible: 7), [14, 15, 16, 17, 18, 19, 20]);
+      expect(visiblePages(page: 2, totalPages: 20, maxVisible: 4), [1, 2, 3, 4]);
+    });
+
+    testWidgets('la píldora ocupa todo el ancho y la página actual va en un círculo mostaza', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpSized(tester, Padding(padding: const EdgeInsets.all(16), child: paginator(page: 2, totalPages: 7)));
+
+      final pill = tester.getRect(find.byType(Paginator).first);
+      expect(pill.width, 360 - 32, reason: 'ancho completo');
+      expect(find.bySemanticsLabel('Página 2'), findsOneWidget, reason: 'cada número se anuncia como botón');
+      final selected = find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard && (w.decoration! as BoxDecoration).shape == BoxShape.circle);
+      expect(selected, findsOneWidget);
+      expect(find.descendant(of: selected, matching: find.text('2')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('tocar un número va a esa página; la página actual no hace nada', (tester) async {
+      final pages = <int>[];
+      await pumpSized(tester, paginator(page: 2, totalPages: 5, onPage: pages.add));
+
+      await tester.tap(find.text('4'));
+      await tester.tap(find.text('2'));
+      expect(pages, [4]);
+    });
+
+    testWidgets('en una pantalla estrecha caben menos números y la actual sigue visible', (tester) async {
+      await pumpSized(tester, paginator(page: 9, totalPages: 20), size: const Size(320, 568), textScale: 1.3);
+
+      expect(find.text('9'), findsOneWidget);
+      final numbers = [for (var n = 1; n <= 20; n++) if (find.text('$n').evaluate().isNotEmpty) n];
+      expect(numbers.length, inInclusiveRange(3, 5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('en la primera página la flecha de la izquierda no existe y en la última la de la derecha tampoco', (tester) async {
+      await pumpSized(tester, paginator(page: 1, totalPages: 3));
+      expect(find.byTooltip('Página anterior'), findsNothing);
+      expect(find.byTooltip('Página siguiente'), findsOneWidget);
+
+      await pumpSized(tester, paginator(page: 3, totalPages: 3));
+      expect(find.byTooltip('Página anterior'), findsOneWidget);
+      expect(find.byTooltip('Página siguiente'), findsNothing);
+    });
   });
 
   group('Filtro multiselección', () {
