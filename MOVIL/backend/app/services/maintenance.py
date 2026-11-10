@@ -106,6 +106,7 @@ class MaintenanceService:
         priority: str | None,
         equipment_id: int | None = None,
         equipment_ids: Sequence[int] | None = None,
+        technician_ids: Sequence[int] | None = None,
         category: str | None = None,
         unassigned: bool | None = None,
         search: str | None = None,
@@ -121,15 +122,17 @@ class MaintenanceService:
         # `status` and `priority` take one value or a comma-separated list, with a limit.
         split_filter_list(status, "status")
         priorities = split_filter_list(priority, "priority")
+        categories = split_filter_list(category, "category")
         scope = await self.repository.scope_for(actor)
         page = await self.repository.list_requests(
             scope=scope,
             status=status,
             priorities=priorities,
-            category=category,
+            categories=categories,
             unassigned=unassigned,
             equipment_id=equipment_id,
             equipment_ids=equipment_ids,
+            technician_ids=technician_ids,
             search=search,
             date_from=date_from,
             date_to=date_to,

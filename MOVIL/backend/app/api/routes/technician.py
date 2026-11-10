@@ -25,6 +25,10 @@ router = APIRouter(prefix="/technicians", tags=["technicians"])
 async def list_technicians(
     response: Response,
     is_available: bool | None = Query(default=None),
+    is_active: bool | None = Query(
+        default=None,
+        description="True: only technicians whose user account is active (the ones that can be assigned)",
+    ),
     search: str | None = Query(
         default=None,
         max_length=100,
@@ -34,7 +38,9 @@ async def list_technicians(
     actor: AuthContext = Depends(require_permission("tecnicos:ver")),  # noqa: B008
     service: TechnicianService = Depends(get_technician_service),  # noqa: B008
 ) -> list[TechnicianResponse]:
-    page = await service.list(is_available=is_available, search=search, params=params)
+    page = await service.list(
+        is_available=is_available, is_active=is_active, search=search, params=params
+    )
     set_page_headers(response, page)
     # The hourly rate is only for whoever manages technicians.
     return hide_unless(actor, "tecnicos:editar", page.items, "hourly_rate")

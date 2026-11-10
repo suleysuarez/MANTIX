@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 
 from app.core.authz import AuthContext
+from app.core.pagination import DEFAULT_PAGE, PageParams
+from app.repositories.base import Page
 from app.repositories.queue import DecisionStats, QueueRepository
 from app.schemas.dashboard import CountItem, KpiValue, Period
 from app.schemas.queue import (
@@ -38,11 +40,11 @@ class QueueService:
             "Solo quien gestiona solicitudes puede ver la cola.",
         )
 
-    async def categories(self) -> list[RequestCategoryResponse]:
-        return [
-            RequestCategoryResponse(code=c.code, name=c.name)
-            for c in await self.repository.active_categories()
-        ]
+    async def categories(
+        self, search: str | None = None, params: PageParams = DEFAULT_PAGE
+    ) -> Page[RequestCategoryResponse]:
+        page = await self.repository.active_categories(search, params)
+        return page.map(lambda c: RequestCategoryResponse(code=c.code, name=c.name))
 
     async def summary(
         self, actor: AuthContext, *, period: Period, now: datetime | None = None

@@ -6,10 +6,11 @@ from typing import Any
 
 from sqlalchemy import DateTime, func, literal, select
 
+from app.core.pagination import DEFAULT_PAGE, PageParams
 from app.models.category import RequestCategory
 from app.models.maintenance import MaintenanceRequest, TicketStatusHistory
 from app.models.priority import Priority
-from app.repositories.base import BaseRepository
+from app.repositories.base import BaseRepository, Page
 from app.repositories.dashboard import CountRow
 
 #: A request is pending until work starts on it.
@@ -141,10 +142,13 @@ class QueueRepository(BaseRepository[MaintenanceRequest]):
             median_triage_hours=_hours(row[3]),
         )
 
-    async def active_categories(self) -> list[RequestCategory]:
-        result = await self.session.execute(
-            select(RequestCategory)
-            .where(RequestCategory.is_active.is_(True))
-            .order_by(RequestCategory.name)
+    async def active_categories(
+        self, search: str | None = None, params: PageParams = DEFAULT_PAGE
+    ) -> Page[RequestCategory]:
+        """Active categories by name, optionally narrowed by a name search, one page at a time."""
+        query = select(RequestCategory).where(RequestCategory.is_active.is_(True))
+        query = self.apply_search(query, search, [RequestCategory.name])
+        query = query.order_by(RequestCategory.name, RequestCategory.id)
+        return await self.paginate(
+            query, page=params.page, size=params.size, offset=params.offset
         )
-        return list(result.scalars().all())

@@ -15,6 +15,7 @@ class TechnicianRepository(BaseRepository[Technician]):
         self,
         *,
         is_available: bool | None = None,
+        is_active: bool | None = None,
         search: str | None = None,
         params: PageParams = DEFAULT_PAGE,
     ) -> Page[Technician]:
@@ -25,6 +26,8 @@ class TechnicianRepository(BaseRepository[Technician]):
         )
         if is_available is not None:
             query = query.where(Technician.is_available.is_(is_available))
+        if is_active is not None:
+            query = query.where(User.is_active.is_(is_active))
         query = self.apply_search(
             query, search, [User.full_name, User.email, Technician.specialization]
         )

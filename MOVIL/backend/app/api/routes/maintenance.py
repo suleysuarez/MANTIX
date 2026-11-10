@@ -94,7 +94,21 @@ async def list_maintenance_requests(
             f"(at most {MAX_FILTER_VALUES})"
         ),
     ),
-    category: str | None = Query(default=None),
+    category: str | None = Query(
+        default=None,
+        description=(
+            "One category or a comma-separated list, e.g. `hardware,network` "
+            f"(at most {MAX_FILTER_VALUES})"
+        ),
+    ),
+    technician_id: list[int] | None = Query(  # noqa: B008
+        default=None,
+        max_length=MAX_FILTER_VALUES,
+        description=(
+            "Tickets with one of these technicians currently assigned (repeat the "
+            f"parameter: `technician_id=1&technician_id=2`, at most {MAX_FILTER_VALUES})"
+        ),
+    ),
     unassigned: bool | None = Query(
         default=None, description="True: no technician yet; false: has one"
     ),
@@ -122,6 +136,7 @@ async def list_maintenance_requests(
         priority=priority,
         category=category,
         unassigned=unassigned,
+        technician_ids=technician_id,
         equipment_ids=equipment_id,
         search=search,
         date_from=date_from,

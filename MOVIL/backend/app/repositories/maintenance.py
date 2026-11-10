@@ -177,9 +177,11 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
         priority: str | None = None,
         priorities: Sequence[str] | None = None,
         category: str | None = None,
+        categories: Sequence[str] | None = None,
         unassigned: bool | None = None,
         equipment_id: int | None = None,
         equipment_ids: Sequence[int] | None = None,
+        technician_ids: Sequence[int] | None = None,
         requested_by_user_id: int | None = None,
         technician_id: int | None = None,
         search: str | None = None,
@@ -204,6 +206,8 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
             query = query.where(MaintenanceRequest.priority.in_(priorities))
         if category is not None:
             query = query.where(MaintenanceRequest.category == category)
+        if categories:
+            query = query.where(MaintenanceRequest.category.in_(categories))
         if unassigned is not None:
             has_technician = MaintenanceRequest.ticket_assignments.any(
                 TicketAssignment.unassigned_at.is_(None)
@@ -222,6 +226,15 @@ class MaintenanceRepository(BaseRepository[MaintenanceRequest]):
                 MaintenanceRequest.ticket_assignments.any(
                     and_(
                         TicketAssignment.technician_id == technician_id,
+                        TicketAssignment.unassigned_at.is_(None),
+                    )
+                )
+            )
+        if technician_ids:
+            query = query.where(
+                MaintenanceRequest.ticket_assignments.any(
+                    and_(
+                        TicketAssignment.technician_id.in_(technician_ids),
                         TicketAssignment.unassigned_at.is_(None),
                     )
                 )
