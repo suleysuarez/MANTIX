@@ -104,7 +104,7 @@ async def test_priority_fk_rejects_unknown_code(db_session):
 async def test_ticket_list_preloads_equipment_without_a_query_per_row(db_session):
     from sqlalchemy import event
 
-    from app.core.authz import DataScope, ScopeKind
+    from app.core.scope import DataScope
     from app.models.maintenance import MaintenanceRequest
     from app.repositories.maintenance import MaintenanceRepository
 
@@ -137,7 +137,7 @@ async def test_ticket_list_preloads_equipment_without_a_query_per_row(db_session
     event.listen(sync_engine, "before_cursor_execute", listener)
     try:
         page = await MaintenanceRepository(db_session).list_requests(
-            scope=DataScope(kind=ScopeKind.ALL)
+            scope=DataScope.everything()
         )
         brands = sorted(item.equipment.brand for item in page.items)
     finally:
