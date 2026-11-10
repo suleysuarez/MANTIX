@@ -17,9 +17,9 @@ import '../../widgets/shared/paged_list_view.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../bloc/requests/my_requests_bloc.dart';
+import 'create_request_screen.dart';
 
 abstract final class RequestRoutes {
-  static const create = '/solicitudes/nueva';
   static String detail(int id) => '/solicitudes/$id';
 }
 
@@ -46,7 +46,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
       drawer: profile == null ? null : MantixDrawer(profile: profile, selectedPath: HomeDestination.myRequests.path),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
-              onPressed: () => context.push(RequestRoutes.create),
+              onPressed: () => CreateRequestScreen.show(context),
               icon: const Icon(Icons.add),
               label: const Text('Nueva solicitud'),
             )
@@ -77,7 +77,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     title: _status == null ? 'Aún no tienes solicitudes' : 'No hay solicitudes con este estado',
                     message: _status == null && canCreate ? 'Cuando reportes un problema con un equipo, aparecerá aquí.' : null,
                     actionLabel: _status == null && canCreate ? 'Nueva solicitud' : null,
-                    onAction: _status == null && canCreate ? () => context.push(RequestRoutes.create) : null,
+                    onAction: _status == null && canCreate ? () => CreateRequestScreen.show(context) : null,
                   ),
                 ),
               ),

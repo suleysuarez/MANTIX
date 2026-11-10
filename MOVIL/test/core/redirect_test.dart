@@ -62,14 +62,6 @@ void main() {
     expect(redirect(signedIn(profile(permissions: const {'tickets:ver'})), AppRoutes.splash), HomeDestination.profile.path);
   });
 
-  test('crear una solicitud exige el permiso solicitudes:crear', () {
-    final withPermission = signedIn(profile(permissions: const {'solicitudes:ver', 'solicitudes:crear'}));
-    final withoutPermission = signedIn(profile(permissions: const {'solicitudes:ver'}));
-    expect(redirect(withPermission, '/solicitudes/nueva'), isNull);
-    expect(redirect(withoutPermission, '/solicitudes/nueva'), HomeDestination.myRequests.path);
-    // El detalle de una solicitud no exige ese permiso.
-    expect(redirect(withoutPermission, '/solicitudes/5'), isNull);
-  });
   test('la gestión de equipos exige el permiso equipos:ver', () {
     final withPermission = signedIn(profile(permissions: const {'equipos:ver', 'tickets:ver_asignados'}));
     final withoutPermission = signedIn(profile(permissions: const {'tickets:ver_asignados'}));

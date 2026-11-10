@@ -1,133 +1,517 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/theme/app_colors.dart';
+import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/pages/tickets/tickets_screen.dart';
+import 'package:mantix/repositories/requests/requests_repository.dart';
+import 'package:mantix/widgets/shared/filter_widgets.dart';
 import 'package:mantix/widgets/tickets/ticket_cards.dart';
 
 import '../../support/fakes.dart';
 import '../../support/requests_support.dart';
 
-void main() {
-  testWidgets('muestra el resumen y los tickets que devuelve la API', (tester) async {
-    final adapter = FakeAdapter((_) => pagedResponse([
-          ticketJson(),
-          ticketJson(id: 2, status: 'in_progress', title: 'Ventilador con ruido', priority: 'critical'),
-          ticketJson(id: 3, status: 'resolved', title: 'Error de pantalla', priority: 'low'),
-        ], total: 3));
-    await pumpScreen(tester, const TicketsScreen(), adapter);
-    await tester.pumpAndSettle();
+/// Flujo de estados como lo envía el servidor.
+const _workflow = [
+  {'status': 'submitted', 'order': 1, 'allowed_targets': ['triaged', 'assigned', 'cancelled'], 'requires': [], 'can_enter': true},
+  {'status': 'triaged', 'order': 2, 'allowed_targets': ['assigned', 'cancelled'], 'requires': ['category', 'priority'], 'can_enter': true},
+  {'status': 'assigned', 'order': 3, 'allowed_targets': ['in_progress', 'cancelled'], 'requires': ['technician'], 'can_enter': true},
+  {'status': 'in_progress', 'order': 4, 'allowed_targets': ['waiting', 'resolved', 'cancelled'], 'requires': [], 'can_enter': true},
+  {'status': 'waiting', 'order': 5, 'allowed_targets': ['in_progress', 'cancelled'], 'requires': [], 'can_enter': true},
+  {'status': 'resolved', 'order': 6, 'allowed_targets': ['closed', 'in_progress'], 'requires': ['resolution_summary'], 'can_enter': true},
+  {'status': 'closed', 'order': 7, 'allowed_targets': [], 'requires': [], 'can_enter': false},
+  {'status': 'cancelled', 'order': 8, 'allowed_targets': [], 'requires': ['reason'], 'can_enter': true},
+];
 
-    expect(find.text('GESTIÓN DE TICKETS'), findsOneWidget);
-    expect(find.text('3 tickets'), findsOneWidget);
-    // El ticket de prioridad alta también aparece en «Requieren atención prioritaria».
-    expect(find.text('Requieren atención prioritaria'), findsOneWidget);
-    expect(find.text('La laptop no enciende'), findsWidgets);
-    expect(find.text('Ventilador con ruido'), findsWidgets);
-    expect(find.text('Enviado'), findsWidgets);
-    expect(find.widgetWithText(PriorityPill, 'Crítica'), findsWidgets);
+void main() {
+  late FakeAdapter adapter;
+  late ResponseBody Function(RequestOptions) listHandler;
+  late ResponseBody Function(RequestOptions) statusHandler;
+  late RequestsRepository repository;
+
+  setUp(() {
+    listHandler = (_) => pagedResponse([ticketJson()]);
+    statusHandler = (_) => jsonResponse(200, detailJson(status: 'waiting'));
+    adapter = FakeAdapter((options) {
+      if (options.path == '/maintenance/requests/workflow') return jsonResponse(200, _workflow);
+      if (options.method == 'POST' && options.path.endsWith('/status')) return statusHandler(options);
+      if (options.method == 'POST' && options.path == '/maintenance/requests') return jsonResponse(201, detailJson(id: 99));
+      if (options.path == '/equipment') return pagedResponse([equipmentJson()]);
+      if (options.path.endsWith('/attachments')) return jsonResponse(200, []);
+      if (RegExp(r'^/maintenance/requests/\d+$').hasMatch(options.path)) return jsonResponse(200, detailJson());
+      return listHandler(options);
+    });
   });
 
-  testWidgets('filtra por grupo de estado desde el servidor', (tester) async {
-    final adapter = FakeAdapter((options) => pagedResponse([ticketJson()]));
-    await pumpScreen(tester, const TicketsScreen(), adapter);
+  Future<void> pump(WidgetTester tester, {Set<String> permissions = const {'solicitudes:ver', 'solicitudes:crear', 'tickets:ver'}, Size size = const Size(1400, 1800), double textScale = 1}) async {
+    await pumpScreen(tester, const TicketsScreen(), adapter, permissions: permissions, size: size, textScale: textScale);
     await tester.pumpAndSettle();
+    repository = RepositoryProvider.of<RequestsRepository>(tester.element(find.byType(TicketsScreen)));
+  }
 
+  List<RequestOptions> listRequests() => adapter.requests.where((r) => r.method == 'GET' && r.path == '/maintenance/requests').toList();
+  Map<String, dynamic> lastQuery() => listRequests().last.queryParameters;
+
+  Future<void> openFilters(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Filtros'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButton<String?>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Enviados').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Aplicar'));
-    await tester.pumpAndSettle();
+  }
 
-    expect(adapter.requests.last.path, '/maintenance/requests');
-    expect(adapter.requests.last.queryParameters['status'], 'submitted,triaged');
-  });
-
-  testWidgets('envía la búsqueda al servidor al confirmar el campo', (tester) async {
-    final adapter = FakeAdapter((_) => pagedResponse([ticketJson()]));
-    await pumpScreen(tester, const TicketsScreen(), adapter);
+  Future<void> apply(WidgetTester tester) async {
+    await tester.tap(find.text('Aplicar').last);
     await tester.pumpAndSettle();
+  }
 
-    await tester.enterText(find.byType(TextField), 'ventilador');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+  group('encabezado y resumen', () {
+    testWidgets('usa el encabezado de Equipos, sin banner ni textos de más', (tester) async {
+      listHandler = (_) => pagedResponse([
+            ticketJson(),
+            ticketJson(id: 2, status: 'in_progress', title: 'Ventilador con ruido', priority: 'critical'),
+            ticketJson(id: 3, status: 'resolved', title: 'Error de pantalla', priority: 'low'),
+          ], total: 3);
+      await pump(tester);
 
-    expect(adapter.requests.last.queryParameters['search'], 'ventilador');
-  });
-
-  testWidgets('Kanban móvil permite cambiar la columna sin comprimir el tablero', (tester) async {
-    final adapter = FakeAdapter((_) => pagedResponse([
-          ticketJson(),
-          ticketJson(id: 2, status: 'resolved', title: 'Equipo reparado'),
-        ]));
-    await pumpScreen(tester, const TicketsScreen(), adapter);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Kanban'));
-    await tester.pumpAndSettle();
-    expect(find.text('1/4'), findsOneWidget);
-    expect(find.text('Enviado'), findsWidgets);
-    expect(find.text('La laptop no enciende'), findsWidgets);
-
-    // Las columnas se deslizan de dos en dos: «Resuelto» está en la tercera página.
-    await tester.tap(find.byTooltip('Columnas siguientes'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Columnas siguientes'));
-    await tester.pumpAndSettle();
-    expect(find.text('3/4'), findsOneWidget);
-    expect(find.text('Resuelto'), findsWidgets);
-    expect(find.text('Equipo reparado'), findsOneWidget);
-  });
-
-  testWidgets('la paginación numerada pide la página elegida', (tester) async {
-    final adapter = FakeAdapter((options) {
-      final page = options.queryParameters['page'] as int? ?? 1;
-      return pagedResponse([ticketJson(id: page, title: 'Ticket de la página $page')], page: page, totalPages: 3, total: 41);
+      expect(find.text('GESTIÓN DE TICKETS'), findsOneWidget);
+      expect(find.text('Incidencias y órdenes de trabajo.'), findsOneWidget);
+      expect(find.text('Tickets recientes'), findsNothing);
+      expect(find.textContaining('Registra, asigna'), findsNothing, reason: 'el banner azul ya no existe');
+      expect(find.text('La laptop no enciende'), findsWidgets);
+      expect(find.text('Ventilador con ruido'), findsWidgets);
+      expect(find.widgetWithText(PriorityPill, 'Crítica'), findsWidgets);
+      expect(find.byType(FloatingActionButton), findsNothing);
     });
-    await pumpScreen(tester, const TicketsScreen(), adapter);
-    await tester.pumpAndSettle();
 
-    expect(find.text('1-1 de 41'), findsOneWidget);
-    await tester.scrollUntilVisible(find.byTooltip('Página siguiente'), 300, scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.byTooltip('Página siguiente'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Página siguiente'));
-    await tester.pumpAndSettle();
+    testWidgets('el botón «Nuevo ticket» solo está con permiso y abre el formulario en una hoja', (tester) async {
+      await pump(tester);
+      expect(find.text('Nuevo ticket'), findsOneWidget);
+      await tester.tap(find.text('Nuevo ticket'));
+      await tester.pumpAndSettle();
+      expect(find.text('Crear nuevo ticket'), findsOneWidget);
+      expect(find.text('GESTIÓN DE TICKETS'), findsOneWidget, reason: 'la pantalla de fondo sigue ahí');
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
 
-    expect(adapter.requests.last.queryParameters['page'], 3);
-    expect(find.text('Ticket de la página 3'), findsWidgets);
-    expect(find.text('Cargar más tickets'), findsNothing);
-  });
-
-  testWidgets('cambiar el tamaño de página pide size=10 desde la página 1', (tester) async {
-    final adapter = FakeAdapter((options) {
-      final page = options.queryParameters['page'] as int? ?? 1;
-      return pagedResponse([ticketJson(id: page)], page: page, totalPages: 3, total: 41);
+      await pump(tester, permissions: const {'tickets:ver'});
+      expect(find.text('Nuevo ticket'), findsNothing);
     });
-    await pumpScreen(tester, const TicketsScreen(), adapter);
-    await tester.pumpAndSettle();
-    expect(adapter.requests.last.queryParameters['size'], 20);
 
-    await tester.scrollUntilVisible(find.byType(DropdownButton<int>), 300, scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.byType(DropdownButton<int>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('10 por página').last);
-    await tester.pumpAndSettle();
-
-    expect(adapter.requests.last.queryParameters['size'], 10);
-    expect(adapter.requests.last.queryParameters['page'], 1);
+    testWidgets('las tarjetas muestran el equipo cuando el servidor lo envía', (tester) async {
+      listHandler = (_) => pagedResponse([
+            ticketJson(equipment: {'id': 12, 'asset_tag': 'EQ-0012', 'brand': 'Dell', 'model': 'Latitude'}),
+          ]);
+      await pump(tester);
+      expect(find.text('EQ-0012 · Dell Latitude'), findsOneWidget);
+    });
   });
 
-  testWidgets('muestra el botón de creación solo con permiso', (tester) async {
-    final adapter = FakeAdapter((_) => pagedResponse([]));
-    await pumpScreen(tester, const TicketsScreen(), adapter);
-    await tester.pumpAndSettle();
-    expect(find.text('Nuevo ticket'), findsOneWidget);
+  group('filtros', () {
+    testWidgets('estado con varias opciones se envía como lista separada por comas', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.byType(FilterTile).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('En proceso').last);
+      await tester.tap(find.text('Enviado').last);
+      await tester.pumpAndSettle();
+      expect(find.text('2 activos'), findsOneWidget, reason: 'la hoja no se cierra al marcar');
+      await apply(tester);
+      await apply(tester);
 
-    final restricted = FakeAdapter((_) => pagedResponse([]));
-    await pumpScreen(tester, const TicketsScreen(), restricted, permissions: const {'tickets:ver'});
-    await tester.pumpAndSettle();
-    expect(find.text('Nuevo ticket'), findsNothing);
+      expect(lastQuery()['status'], 'submitted,in_progress');
+      expect(find.byTooltip('Filtros (2 activos)'), findsOneWidget);
+    });
+
+    testWidgets('una prioridad viaja sola y varias separadas por coma', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.byType(FilterTile).at(1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Alta').last);
+      await tester.pumpAndSettle();
+      await apply(tester);
+      await apply(tester);
+      expect(lastQuery()['priority'], 'high');
+
+      await tester.tap(find.byTooltip('Filtros (1 activos)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FilterTile).at(1));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Crítica').last);
+      await tester.pumpAndSettle();
+      await apply(tester);
+      await apply(tester);
+      expect(lastQuery()['priority'], 'critical,high');
+    });
+
+    testWidgets('el equipo se elige con búsqueda y se envía como equipment_id', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.text('Elegir equipo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('EQ-0012 · Dell Latitude'));
+      await tester.pumpAndSettle();
+      expect(find.text('Añadir otro equipo'), findsOneWidget);
+      await apply(tester);
+
+      expect(lastQuery()['equipment_id'], 12);
+      expect(find.text('EQ-0012 · Dell Latitude'), findsOneWidget, reason: 'queda como chip de filtro activo');
+    });
+
+    testWidgets('«Limpiar» quita todo al aplicar y los chips se quitan solos', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.byType(FilterTile).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enviado').last);
+      await tester.pumpAndSettle();
+      await apply(tester);
+      await apply(tester);
+      expect(lastQuery()['status'], 'submitted');
+
+      await tester.tap(find.byTooltip('Quitar filtro'));
+      await tester.pumpAndSettle();
+      expect(lastQuery().keys, isNot(contains('status')));
+    });
+
+    testWidgets('las fechas usan el calendario compacto y se envían como date_from y date_to', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.text('Cualquier fecha'));
+      await tester.pumpAndSettle();
+      expect(find.text('Rango de fechas'), findsWidgets);
+      await tester.tap(find.text('Elegir').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Aceptar'));
+      await tester.pumpAndSettle();
+      await apply(tester);
+      await apply(tester);
+      expect(lastQuery().keys, containsAll(['date_from', 'date_to']));
+    });
+
+    testWidgets('envía la búsqueda al servidor al confirmar el campo', (tester) async {
+      await pump(tester);
+      await tester.enterText(find.byType(TextField), 'ventilador');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(lastQuery()['search'], 'ventilador');
+    });
+  });
+
+  group('paginación', () {
+    testWidgets('pide la página elegida y vuelve arriba', (tester) async {
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int? ?? 1;
+        return pagedResponse([ticketJson(id: page, title: 'Ticket de la página $page')], page: page, totalPages: 3, total: 41);
+      };
+      await pump(tester);
+      expect(find.text('1-1 de 41'), findsOneWidget);
+      await tester.scrollUntilVisible(find.byTooltip('Página siguiente'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+
+      expect(lastQuery()['page'], 3);
+      expect(find.text('Ticket de la página 3'), findsWidgets);
+    });
+
+    testWidgets('cambiar el tamaño de página pide size=10 desde la página 1', (tester) async {
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int? ?? 1;
+        return pagedResponse([ticketJson(id: page)], page: page, totalPages: 3, total: 41);
+      };
+      await pump(tester);
+      expect(lastQuery()['size'], 20);
+      await tester.scrollUntilVisible(find.byType(DropdownButton<int>), 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10 por página').last);
+      await tester.pumpAndSettle();
+
+      expect(lastQuery()['size'], 10);
+      expect(lastQuery()['page'], 1);
+    });
+  });
+
+  group('detalle en hoja inferior', () {
+    testWidgets('tocar la fila abre el detalle con datos, historial con creación y adjuntos', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('La laptop no enciende').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detalle del ticket'), findsOneWidget);
+      expect(find.text('GESTIÓN DE TICKETS'), findsOneWidget, reason: 'el encabezado de la pantalla sigue visible detrás');
+      expect(find.text('Datos del ticket'), findsOneWidget);
+      expect(find.text('Técnico asignado'), findsOneWidget);
+      expect(find.text('Luis Técnico'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Ticket creado'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Ticket creado'), findsOneWidget);
+      expect(find.text('Enviado → Asignado'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Adjuntos'), 200, scrollable: find.byType(Scrollable).last);
+      expect(find.text('Adjuntos'), findsOneWidget);
+      expect(adapter.requests.any((r) => r.path == '/maintenance/requests/1'), isTrue);
+    });
+
+    testWidgets('tocar la tarjeta de atención prioritaria también abre la hoja', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('Ver'));
+      await tester.pumpAndSettle();
+      expect(find.text('Detalle del ticket'), findsOneWidget);
+    });
+  });
+
+  group('tablero', () {
+    setUp(() {
+      listHandler = (_) => pagedResponse([
+            ticketJson(id: 1, status: 'in_progress', title: 'Equipo en curso', priority: 'low', canAct: true),
+            ticketJson(id: 2, status: 'submitted', title: 'Equipo nuevo', priority: 'low', canAct: false),
+            ticketJson(id: 3, status: 'resolved', title: 'Equipo reparado', priority: 'low', canAct: true),
+          ]);
+    });
+
+    Future<void> openBoard(WidgetTester tester, {Size size = const Size(1400, 1800), double textScale = 1}) async {
+      await pump(tester, size: size, textScale: textScale);
+      await tester.scrollUntilVisible(find.text('Kanban'), 100, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kanban'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('muestra un estado debajo de otro con su contador y sin desplazamiento horizontal', (tester) async {
+      await openBoard(tester);
+
+      for (final label in ['Enviado', 'En triaje', 'Asignado', 'En proceso', 'En espera', 'Resuelto', 'Cerrado', 'Cancelado']) {
+        expect(find.text(label), findsWidgets, reason: label);
+      }
+      expect(find.text('Equipo en curso'), findsOneWidget);
+      expect(find.text('Equipo nuevo'), findsOneWidget);
+      final horizontal = tester.widgetList<Scrollable>(find.byType(Scrollable)).where((s) => s.axisDirection == AxisDirection.right || s.axisDirection == AxisDirection.left);
+      // El único desplazamiento horizontal posible es el de los campos de texto y el carrusel
+      // de atención prioritaria; el tablero no añade ninguno.
+      expect(horizontal.length, lessThanOrEqualTo(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cada sección se puede cerrar y abrir', (tester) async {
+      await openBoard(tester);
+      expect(find.text('Equipo en curso'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel(RegExp('En proceso, 1 ticket, abierto')));
+      await tester.pumpAndSettle();
+      expect(find.text('Equipo en curso'), findsNothing);
+
+      await tester.tap(find.bySemanticsLabel(RegExp('En proceso, 1 ticket, cerrado')));
+      await tester.pumpAndSettle();
+      expect(find.text('Equipo en curso'), findsOneWidget);
+    });
+
+    testWidgets('«Mover a…» solo ofrece los destinos válidos y manda el cambio', (tester) async {
+      await openBoard(tester);
+      await tester.tap(find.byTooltip('Mover a…').first);
+      await tester.pumpAndSettle();
+      // Desde «En proceso»: En espera, Resuelto y Cancelado (Cerrado no es alcanzable).
+      expect(find.text('En espera'), findsWidgets);
+      expect(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('Cerrado')), findsNothing);
+      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('En espera')));
+      await tester.pumpAndSettle();
+
+      final post = adapter.requests.singleWhere((r) => r.method == 'POST' && r.path == '/maintenance/requests/1/status');
+      expect(post.data, {'status': 'waiting'});
+      expect(find.textContaining('pasó a «En espera»'), findsOneWidget);
+    });
+
+    testWidgets('un ticket sobre el que no se puede actuar no tiene menú ni se arrastra', (tester) async {
+      await openBoard(tester);
+      // «Equipo nuevo» (id 2) no es del usuario: solo hay menú en las otras dos tarjetas.
+      expect(find.byTooltip('Mover a…'), findsNWidgets(2));
+      expect(find.byType(LongPressDraggable<TicketListItem>), findsNWidgets(2));
+    });
+
+    testWidgets('un estado que exige la resolución la pide en un diálogo corto', (tester) async {
+      await openBoard(tester);
+      await tester.tap(find.byTooltip('Mover a…').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('Resuelto')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Resumen de la solución'), findsOneWidget);
+      await tester.tap(find.text('Mover'));
+      await tester.pumpAndSettle();
+      expect(find.text('Resumen de la solución es obligatorio.'), findsOneWidget);
+      expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
+
+      await tester.enterText(find.byType(TextField).last, '  Se cambió el SSD ');
+      await tester.tap(find.text('Mover'));
+      await tester.pumpAndSettle();
+      final post = adapter.requests.singleWhere((r) => r.method == 'POST' && r.path.endsWith('/status'));
+      expect(post.data, {'status': 'resolved', 'resolution_summary': 'Se cambió el SSD'});
+    });
+
+    testWidgets('un estado que exige técnico o prioridad lo explica y ofrece abrir el ticket', (tester) async {
+      listHandler = (_) => pagedResponse([ticketJson(id: 2, status: 'submitted', title: 'Sin clasificar', priority: 'low', canAct: true)]);
+      await openBoard(tester);
+
+      await tester.tap(find.byTooltip('Mover a…').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('Asignado')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('hay que indicar el técnico'), findsOneWidget);
+      expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
+      await tester.tap(find.text('Abrir ticket'));
+      await tester.pumpAndSettle();
+      expect(find.text('Detalle del ticket'), findsOneWidget);
+    });
+
+    testWidgets('si el servidor rechaza el cambio, la tarjeta se queda y se avisa con un mensaje claro', (tester) async {
+      statusHandler = (_) => errorResponse(409, code: 'ticket_invalid_transition');
+      await openBoard(tester);
+      await tester.tap(find.byTooltip('Mover a…').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text('En espera')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('No se pudo mover TCK-0001'), findsOneWidget);
+      expect(find.text('Equipo en curso'), findsOneWidget);
+    });
+
+    testWidgets('arrastrar con pulsación larga y soltar en un estado válido lo mueve', (tester) async {
+      await openBoard(tester);
+      final card = find.text('Equipo en curso');
+      final target = find.bySemanticsLabel(RegExp('En espera, 0 tickets'));
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      await tester.pump(const Duration(milliseconds: 700));
+      await gesture.moveTo(tester.getCenter(target));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveBy(const Offset(0, 4));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final post = adapter.requests.where((r) => r.method == 'POST' && r.path == '/maintenance/requests/1/status');
+      expect(post, hasLength(1));
+      expect(post.single.data, {'status': 'waiting'});
+    });
+
+    testWidgets('soltar en un estado que no es válido no manda nada', (tester) async {
+      await openBoard(tester);
+      final card = find.text('Equipo en curso');
+      final target = find.bySemanticsLabel(RegExp('Enviado, 1 ticket'));
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      await tester.pump(const Duration(milliseconds: 700));
+      await gesture.moveTo(tester.getCenter(target));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
+    });
+
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('sin overflow en ${size.width.toInt()}x${size.height.toInt()} con texto 1,3', (tester) async {
+        await openBoard(tester, size: size, textScale: 1.3);
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('ticket recién creado', () {
+    testWidgets('el listado vuelve a la página 1, lo muestra primero y lo resalta unos segundos', (tester) async {
+      var created = false;
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int? ?? 1;
+        return pagedResponse([if (page == 1 && created) ticketJson(id: 99, title: 'Ticket nuevo'), ticketJson(id: 1)], page: page, totalPages: 3, total: 41);
+      };
+      await pump(tester);
+      await tester.scrollUntilVisible(find.byTooltip('Página siguiente'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+      expect(lastQuery()['page'], 2);
+
+      created = true;
+      unawaited(repository.create(const NewRequest(equipmentId: 12, title: 'Ticket nuevo', description: 'detalle', priority: 'medium')));
+      await tester.pumpAndSettle();
+
+      expect(lastQuery()['page'], 1);
+      expect(lastQuery()['sort'], '-created_at');
+      Finder inList(String text) => find.descendant(of: find.byType(TicketListCard), matching: find.text(text));
+      expect(tester.getTopLeft(inList('Ticket nuevo')).dy, lessThan(tester.getTopLeft(inList('La laptop no enciende')).dy), reason: 'aparece primero');
+      Finder highlighted() => find.byWidgetPredicate((w) => w is AnimatedContainer && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard.withValues(alpha: .22));
+      expect(highlighted(), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(highlighted(), findsNothing);
+    });
+
+    testWidgets('limpia los filtros para que el ticket nuevo se vea', (tester) async {
+      await pump(tester);
+      await openFilters(tester);
+      await tester.tap(find.byType(FilterTile).at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cerrado').last);
+      await tester.pumpAndSettle();
+      await apply(tester);
+      await apply(tester);
+      expect(lastQuery()['status'], 'closed');
+
+      unawaited(repository.create(const NewRequest(equipmentId: 12, title: 'Nuevo', description: 'detalle', priority: 'medium')));
+      await tester.pumpAndSettle();
+      expect(lastQuery().keys, isNot(contains('status')));
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
+
+  group('sin overflow en pantallas pequeñas con texto 1,3', () {
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      final name = '${size.width.toInt()}x${size.height.toInt()}';
+
+      testWidgets('la tabla, la hoja de filtros y el detalle en $name', (tester) async {
+        listHandler = (_) => pagedResponse([
+              ticketJson(equipment: {'id': 12, 'asset_tag': 'EQ-0012', 'brand': 'Dell', 'model': 'Latitude con un nombre bastante largo'}),
+              ticketJson(id: 2, title: 'Un título muy largo que debe cortarse en dos líneas y terminar con puntos suspensivos', priority: 'critical'),
+            ], total: 41, totalPages: 3);
+        await pump(tester, size: size, textScale: 1.3);
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, 3000));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Filtros'));
+        await tester.pumpAndSettle();
+        expect(find.text('Limpiar'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Limpiar'));
+        await tester.pumpAndSettle();
+        await apply(tester);
+
+        // La lista construye las tarjetas de forma perezosa: se baja hasta que haya una.
+        for (var i = 0; i < 10 && find.byType(TicketListCard).evaluate().isEmpty; i++) {
+          await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+          await tester.pumpAndSettle();
+        }
+        final row = find.byType(TicketListCard).first;
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        expect(find.text('Detalle del ticket'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

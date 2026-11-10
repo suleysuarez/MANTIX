@@ -32,7 +32,8 @@ void main() {
     expect(find.text('Aún no tienes solicitudes'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Nueva solicitud'));
     await tester.pumpAndSettle();
-    expect(find.text('pantalla nueva'), findsOneWidget);
+    expect(find.textContaining('Equipo tecnológico', findRichText: true), findsWidgets, reason: 'el formulario se abre en una hoja');
+    expect(find.text('Aún no tienes solicitudes'), findsOneWidget, reason: 'la pantalla de fondo sigue');
   });
 
   testWidgets('sin permiso de crear no hay botón ni acción de crear', (tester) async {

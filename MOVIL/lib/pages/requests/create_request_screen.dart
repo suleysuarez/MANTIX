@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/format/ticket_meta.dart';
 import '../../core/errors/failure.dart';
@@ -11,33 +10,45 @@ import '../../widgets/shared/app_text_field.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../bloc/requests/create_request_bloc.dart';
-import 'equipment_picker_screen.dart';
-import 'my_requests_screen.dart';
+import '../../bloc/requests/equipment_search_bloc.dart';
+import '../../widgets/shared/mantix_sheet.dart';
+import '../../widgets/shared/search_picker_sheet.dart';
 
 const requestTitleMax = 200;
 const requestDescriptionMax = 2000;
 
 /// Formulario para reportar un problema con un equipo.
 class CreateRequestScreen extends StatelessWidget {
-  const CreateRequestScreen({super.key, this.title = 'Nueva solicitud', this.submitLabel = 'Enviar solicitud'});
+  const CreateRequestScreen({super.key, this.title = 'Nueva solicitud', this.submitLabel = 'Enviar solicitud', this.controller});
 
   final String title;
   final String submitLabel;
+
+  /// Controlador de desplazamiento de la hoja, para que arrastrar y desplazar convivan.
+  final ScrollController? controller;
+
+  /// Abre el formulario en una hoja inferior arrastrable; la pantalla de fondo no se pierde.
+  static Future<void> show(BuildContext context, {String title = 'Nueva solicitud', String submitLabel = 'Enviar solicitud'}) => showMantixSheet<void>(
+        context,
+        title: title,
+        builder: (sheetContext, controller) => CreateRequestScreen(title: title, submitLabel: submitLabel, controller: controller),
+      );
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreateRequestBloc(repository: context.read<RequestsRepository>()),
-      child: _CreateRequestForm(title: title, submitLabel: submitLabel),
+      child: _CreateRequestForm(title: title, submitLabel: submitLabel, controller: controller),
     );
   }
 }
 
 class _CreateRequestForm extends StatefulWidget {
-  const _CreateRequestForm({required this.title, required this.submitLabel});
+  const _CreateRequestForm({required this.title, required this.submitLabel, this.controller});
 
   final String title;
   final String submitLabel;
+  final ScrollController? controller;
 
   @override
   State<_CreateRequestForm> createState() => _CreateRequestFormState();
@@ -67,8 +78,31 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
   }
 
   Future<void> _pickEquipment() async {
-    final picked = await Navigator.of(context).push<EquipmentOption>(
-      MaterialPageRoute(builder: (_) => const EquipmentPickerScreen()),
+    final repository = context.read<RequestsRepository>();
+    final picked = await showSearchPicker<EquipmentOption>(
+      context,
+      title: 'Elegir equipo',
+      hint: 'Etiqueta, serie, marca o modelo',
+      emptyTitle: 'No encontramos equipos',
+      createBloc: (search) => EquipmentSearchBloc(repository: repository, search: search),
+      itemBuilder: (context, item, select) => Material(
+        color: AppColors.canvas,
+        borderRadius: AppRadius.mdAll,
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
+          minVerticalPadding: AppSpacing.md,
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.smAll),
+            child: const Icon(Icons.desktop_windows_outlined, color: AppColors.steel),
+          ),
+          title: Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle: item.typeName.isEmpty ? null : Text(item.typeName),
+          trailing: item.id == _equipment?.id ? const Icon(Icons.check_rounded, color: AppColors.steel) : null,
+          onTap: select,
+        ),
+      ),
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -94,7 +128,10 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
 
   void _onResult(BuildContext context, CreateRequestState state) {
     if (state.status == CreateStatus.success) {
-      context.pushReplacement(RequestRoutes.detail(state.createdId!));
+      // Se cierra la hoja; los listados abiertos se recargan solos y resaltan lo nuevo.
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(const SnackBar(content: Text('Solicitud creada.')));
     } else if (state.status == CreateStatus.failure) {
       final failure = state.failure!;
       if (failure is ValidationFailure) {
@@ -114,10 +151,10 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
       listener: _onResult,
       child: Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: Text(widget.title)),
       body: Form(
         key: _formKey,
         child: ListView(
+          controller: widget.controller,
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
             _Section(
@@ -236,15 +273,11 @@ class _CreateRequestFormState extends State<_CreateRequestForm> {
               ],
             ),
             const SizedBox(height: AppSpacing.xl),
-            FilledButton(
+            FilledButton.icon(
               onPressed: submitting ? null : _submit,
-              child: submitting
-                  ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Enviando'))
-                  : Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.send_rounded, size: 18),
-                      const SizedBox(width: 8),
-                      Text(widget.submitLabel),
-                    ]),
+              icon: submitting ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Enviando')) : const Icon(Icons.send_rounded, size: 18),
+              // Con letra grande en una pantalla estrecha el texto se achica en vez de desbordar.
+              label: submitting ? const SizedBox.shrink() : FittedBox(fit: BoxFit.scaleDown, child: Text(widget.submitLabel, maxLines: 1)),
             ),
           ],
         ),
@@ -324,7 +357,7 @@ class _Section extends StatelessWidget {
               child: Icon(icon, size: 18, color: AppColors.steel),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
+            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800))),
           ]),
           const SizedBox(height: AppSpacing.md),
           ...children,

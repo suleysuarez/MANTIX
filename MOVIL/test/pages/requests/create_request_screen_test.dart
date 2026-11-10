@@ -13,6 +13,18 @@ FakeAdapter server({ResponseBody Function(RequestOptions)? onCreate}) => FakeAda
       return pagedResponse([]);
     });
 
+/// Abre el formulario en su hoja inferior desde una pantalla con un botón.
+Future<void> openSheet(WidgetTester tester, FakeAdapter adapter) async {
+  await pumpScreen(
+    tester,
+    Builder(builder: (context) => Scaffold(body: Center(child: TextButton(onPressed: () => CreateRequestScreen.show(context), child: const Text('abrir'))))),
+    adapter,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('abrir'));
+  await tester.pumpAndSettle();
+}
+
 Future<void> chooseEquipment(WidgetTester tester) async {
   await tester.tap(find.text('Elegir equipo'));
   await tester.pumpAndSettle();
@@ -54,9 +66,10 @@ void main() {
     expect(adapter.requests.where((r) => r.method == 'POST'), isEmpty);
   });
 
-  testWidgets('envía los datos recortados y abre el detalle del ticket creado', (tester) async {
+  testWidgets('envía los datos recortados, cierra la hoja y avisa', (tester) async {
     final adapter = server(onCreate: (_) => jsonResponse(201, detailJson(id: 7, status: 'submitted')));
-    await pumpScreen(tester, const CreateRequestScreen(), adapter);
+    await openSheet(tester, adapter);
+    expect(find.text('Nueva solicitud'), findsOneWidget);
     await chooseEquipment(tester);
     await fillForm(tester, title: '  No enciende  ', description: ' Pantalla negra ');
     await submit(tester);
@@ -68,12 +81,14 @@ void main() {
       'description': 'Pantalla negra',
       'priority': 'medium',
     });
-    expect(find.text('detalle 7'), findsOneWidget);
+    expect(find.text('Nueva solicitud'), findsNothing, reason: 'la hoja se cierra');
+    expect(find.text('Solicitud creada.'), findsOneWidget);
+    expect(find.text('abrir'), findsOneWidget, reason: 'la pantalla de fondo sigue');
   });
 
   testWidgets('la prioridad elegida viaja en el cuerpo', (tester) async {
     final adapter = server(onCreate: (_) => jsonResponse(201, detailJson(id: 8, status: 'submitted')));
-    await pumpScreen(tester, const CreateRequestScreen(), adapter);
+    await openSheet(tester, adapter);
     await chooseEquipment(tester);
     await fillForm(tester);
     await tester.tap(find.text('Media'));
@@ -124,5 +139,70 @@ void main() {
     await submit(tester);
 
     expect(find.text('Ese equipo ya no existe.'), findsOneWidget);
+  });
+
+  group('selector de equipo en su hoja', () {
+    testWidgets('lista por páginas con «Ver más resultados» y sin paginador numerado', (tester) async {
+      final adapter = FakeAdapter((options) {
+        if (options.path == '/equipment') {
+          final page = options.queryParameters['page'] as int;
+          return pagedResponse([equipmentJson(id: page, tag: 'EQ-000$page')], page: page, totalPages: 2, total: 2);
+        }
+        return pagedResponse([]);
+      });
+      await openSheet(tester, adapter);
+      await tester.tap(find.text('Elegir equipo'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('EQ-0001 · Dell Latitude'), findsOneWidget);
+      expect(find.byTooltip('Página siguiente'), findsNothing, reason: 'el formulario no lleva paginación numerada');
+      await tester.tap(find.text('Ver más resultados'));
+      await tester.pumpAndSettle();
+      expect(find.text('EQ-0002 · Dell Latitude'), findsOneWidget);
+      expect(find.text('Ver más resultados'), findsNothing);
+    });
+
+    testWidgets('buscar vuelve a pedir con el texto y elegir cierra solo el selector', (tester) async {
+      final adapter = server(onCreate: (_) => fail('no debe enviar'));
+      await openSheet(tester, adapter);
+      await tester.tap(find.text('Elegir equipo'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'dell');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(adapter.requests.where((r) => r.path == '/equipment').last.queryParameters['search'], 'dell');
+
+      await tester.tap(find.text('EQ-0012 · Dell Latitude'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Equipo tecnológico', findRichText: true), findsWidgets, reason: 'el formulario sigue abierto');
+      expect(find.text('EQ-0012 · Dell Latitude'), findsOneWidget);
+    });
+  });
+
+  group('la hoja del formulario sin overflow con texto 1,3', () {
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('en ${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+        final adapter = server(onCreate: (_) => fail('no debe enviar'));
+        await pumpScreen(
+          tester,
+          Builder(builder: (context) => Scaffold(body: Center(child: TextButton(onPressed: () => CreateRequestScreen.show(context), child: const Text('abrir'))))),
+          adapter,
+          size: size,
+          textScale: 1.3,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('abrir'));
+        await tester.pumpAndSettle();
+        expect(find.text('Nueva solicitud'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+
+        await tester.drag(find.descendant(of: find.byType(DraggableScrollableSheet), matching: find.byType(ListView)).first, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Enviar solicitud'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
