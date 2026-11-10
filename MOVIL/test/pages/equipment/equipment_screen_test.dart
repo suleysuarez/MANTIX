@@ -168,7 +168,7 @@ void main() {
     await pumpScreen(tester);
 
     expect(find.byType(EquipmentTable), findsOneWidget);
-    expect(find.text('EQUIPO Y MODELO · ESTADO'), findsOneWidget);
+    expect(find.text('EQUIPO Y MODELO · ESTADO'), findsNothing, reason: 'la tabla ya no lleva ese encabezado');
     expect(find.text('Dell Latitude 5420'), findsOneWidget);
     expect(find.text('Equipo de demostración'), findsOneWidget);
     expect(find.text('DEMO-007'), findsOneWidget);
