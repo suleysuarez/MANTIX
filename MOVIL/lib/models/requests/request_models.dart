@@ -19,6 +19,7 @@ class TicketListItem extends Equatable {
     required this.createdAt,
     this.category,
     this.equipment,
+    this.equipmentId,
     this.canAct = false,
   });
 
@@ -32,6 +33,7 @@ class TicketListItem extends Equatable {
         createdAt: _date(json['created_at']),
         // El servidor puede enviar el equipo dentro de cada ticket; si no, solo trae `equipment_id`.
         equipment: json['equipment'] is Map ? EquipmentRef.fromJson((json['equipment']! as Map).cast<String, Object?>()) : null,
+        equipmentId: json['equipment_id'] as int?,
         canAct: json['can_act'] as bool? ?? false,
       );
 
@@ -43,10 +45,26 @@ class TicketListItem extends Equatable {
   final String? category;
   final DateTime createdAt;
   final EquipmentRef? equipment;
+
+  /// Id del equipo cuando el servidor no envía el equipo completo (solo `equipment_id`).
+  final int? equipmentId;
   final bool canAct;
 
+  TicketListItem withStatus(String newStatus) => TicketListItem(
+        id: id,
+        ticketNumber: ticketNumber,
+        title: title,
+        priority: priority,
+        status: newStatus,
+        category: category,
+        createdAt: createdAt,
+        equipment: equipment,
+        equipmentId: equipmentId,
+        canAct: canAct,
+      );
+
   @override
-  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt, equipment, canAct];
+  List<Object?> get props => [id, ticketNumber, title, priority, status, category, createdAt, equipment, equipmentId, canAct];
 }
 
 class EquipmentRef extends Equatable {
@@ -73,7 +91,7 @@ class EquipmentRef extends Equatable {
 /// Un estado del flujo de tickets (`GET /maintenance/requests/workflow`): a qué estados puede
 /// pasar, qué datos exige para entrar y si quien llama puede entrar en él.
 class WorkflowStatus extends Equatable {
-  const WorkflowStatus({required this.status, required this.order, required this.allowedTargets, required this.requires, required this.canEnter});
+  const WorkflowStatus({required this.status, required this.order, required this.allowedTargets, required this.requires, required this.canEnter, this.inQueue = false, this.permission});
 
   factory WorkflowStatus.fromJson(Map<String, Object?> json) => WorkflowStatus(
         status: json['status']! as String,
@@ -81,6 +99,8 @@ class WorkflowStatus extends Equatable {
         allowedTargets: [for (final item in (json['allowed_targets'] as List? ?? const [])) item as String],
         requires: [for (final item in (json['requires'] as List? ?? const [])) item as String],
         canEnter: json['can_enter'] as bool? ?? false,
+        inQueue: json['in_queue'] as bool? ?? false,
+        permission: json['permission'] as String?,
       );
 
   final String status;
@@ -92,8 +112,14 @@ class WorkflowStatus extends Equatable {
   final List<String> requires;
   final bool canEnter;
 
+  /// Estados que esperan trabajo: son las columnas de la bandeja de triaje.
+  final bool inQueue;
+
+  /// Permiso que exige entrar en este estado (para explicar por qué no se puede).
+  final String? permission;
+
   @override
-  List<Object?> get props => [status, order, allowedTargets, requires, canEnter];
+  List<Object?> get props => [status, order, allowedTargets, requires, canEnter, inQueue, permission];
 }
 
 class StatusHistoryEntry extends Equatable {
