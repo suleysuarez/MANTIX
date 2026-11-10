@@ -134,11 +134,13 @@ abstract final class AuthTokens {
 }
 
 
-/// Tonos del catálogo de equipos (los mismos cuatro que la web) más uno informativo.
+/// Tonos del catálogo de equipos. Siguen la paleta de Mantix para que la pantalla no pierda su
+/// identidad: lo normal va en azul claro y acero, lo que requiere atención en mostaza y solo lo
+/// que está fuera de servicio usa el color de alerta. Texto contra fondo con contraste AA.
 abstract final class EquipmentColors {
-  static const ChipColors ok = ChipColors(background: Color(0xFFECFDF5), foreground: Color(0xFF047857), dot: Color(0xFF10B981));
-  static const ChipColors warn = ChipColors(background: Color(0xFFFFFBEB), foreground: Color(0xFFB45309), dot: AppColors.mustard);
-  static const ChipColors bad = ChipColors(background: Color(0xFFFFF1F2), foreground: Color(0xFFBE123C), dot: Color(0xFFF43F5E));
-  static const ChipColors neutral = ChipColors(background: Color(0xFFF1F5F9), foreground: Color(0xFF475569), dot: Color(0xFF94A3B8));
-  static const ChipColors info = ChipColors(background: Color(0xFFF0F9FF), foreground: Color(0xFF0369A1), dot: Color(0xFF0EA5E9));
+  static const ChipColors ok = ChipColors(background: Color(0xFFE3F0FB), foreground: AppColors.navy, dot: AppColors.steel);
+  static const ChipColors warn = ChipColors(background: Color(0xFFF8EBCF), foreground: AppColors.navy, dot: AppColors.mustard);
+  static const ChipColors bad = ChipColors(background: Color(0xFFFBE9E9), foreground: AppColors.error, dot: AppColors.error);
+  static const ChipColors neutral = ChipColors(background: Color(0xFFEDF1F5), foreground: AppColors.steel, dot: AppColors.slate);
+  static const ChipColors info = ChipColors(background: Color(0xFFE3F0FB), foreground: AppColors.steel, dot: AppColors.steel);
 }

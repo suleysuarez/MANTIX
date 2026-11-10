@@ -25,13 +25,12 @@ class _IconBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El color del icono es el del estado del equipo: se reconoce de un vistazo.
-    final colors = equipmentStatusMeta(item.status).colors;
+    // Icono de la categoría en los colores de la marca; el estado lo dice el chip.
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(size * 0.3)),
-      child: Icon(equipmentCategoryIcon(item.typeCode), color: colors.foreground, size: size * 0.52),
+      decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: BorderRadius.circular(size * 0.3)),
+      child: Icon(equipmentCategoryIcon(item.typeCode), color: AppColors.steel, size: size * 0.52),
     );
   }
 }
@@ -56,7 +55,7 @@ class _Location extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.place_outlined, size: 13, color: AppColors.mustard),
+        const Icon(Icons.place_outlined, size: 13, color: AppColors.slate),
         const SizedBox(width: 3),
         Flexible(child: Text(item.locationName ?? 'Sin ubicación', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.steel, fontSize: 10.5))),
       ]);
@@ -105,8 +104,8 @@ class _TableRow extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
-          color: highlighted ? AppColors.mustard.withValues(alpha: .28) : status.colors.background.withValues(alpha: .28),
-          border: Border(left: BorderSide(color: highlighted ? AppColors.mustard : status.colors.dot, width: 4)),
+          color: highlighted ? AppColors.mustard.withValues(alpha: .28) : Colors.transparent,
+          border: Border(left: BorderSide(color: highlighted ? AppColors.mustard : Colors.transparent, width: 4)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -171,7 +170,7 @@ class _GridTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = equipmentStatusMeta(item.status);
     return Material(
-      color: highlighted ? AppColors.mustard.withValues(alpha: .22) : Color.alphaBlend(status.colors.background.withValues(alpha: .32), AppColors.white),
+      color: highlighted ? AppColors.mustard.withValues(alpha: .22) : AppColors.white,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         borderRadius: BorderRadius.circular(17),
@@ -180,7 +179,7 @@ class _GridTile extends StatelessWidget {
           padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: highlighted ? AppColors.mustard : status.colors.dot.withValues(alpha: .45), width: highlighted ? 2 : 1.5),
+            border: Border.all(color: highlighted ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .8), width: highlighted ? 2 : 1),
             boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

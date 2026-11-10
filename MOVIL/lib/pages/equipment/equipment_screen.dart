@@ -319,8 +319,8 @@ class _Header extends StatelessWidget {
         Container(
           width: 46,
           height: 46,
-          decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(14)),
-          child: Icon(Icons.devices_other_rounded, color: EquipmentColors.info.foreground, size: 24),
+          decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: BorderRadius.circular(14)),
+          child: const Icon(Icons.devices_other_rounded, color: AppColors.steel, size: 24),
         ),
         const Spacer(),
         if (canCreate)
@@ -330,8 +330,8 @@ class _Header extends StatelessWidget {
             icon: const Icon(Icons.add_rounded, size: 20),
             label: const Text('Nuevo equipo', maxLines: 1, overflow: TextOverflow.ellipsis),
             style: FilledButton.styleFrom(
-              backgroundColor: EquipmentColors.info.background,
-              foregroundColor: EquipmentColors.info.foreground,
+              backgroundColor: AppColors.mustard,
+              foregroundColor: AppColors.navy,
               minimumSize: const Size(0, 46),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -341,7 +341,7 @@ class _Header extends StatelessWidget {
           ),
       ]),
       const SizedBox(height: 12),
-      const Text('GESTIÓN DE EQUIPOS', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
+      const Text('GESTIÓN DE EQUIPOS', style: TextStyle(color: AppColors.navy, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
       const SizedBox(height: 6),
       const Text(
         'Administra los equipos tecnológicos, consulta sus especificaciones y realiza seguimiento a su ciclo de vida y mantenimiento.',
@@ -380,7 +380,7 @@ class _SummaryCards extends StatelessWidget {
         ),
         _SummaryCard(
           icon: Icons.check_circle_outline_rounded,
-          colors: EquipmentColors.ok,
+          colors: EquipmentColors.info,
           badge: summary == null ? 'Tasa' : _rate(summary.operationalRate),
           value: value(EquipmentGroup.operational),
           caption: 'Operativos y en disponibilidad',
@@ -391,7 +391,7 @@ class _SummaryCards extends StatelessWidget {
         ),
         _SummaryCard(
           icon: Icons.build_outlined,
-          colors: EquipmentColors.warn,
+          colors: EquipmentColors.info,
           badge: 'En curso',
           value: value(EquipmentGroup.maintenance),
           caption: 'Bajo revisión o soporte técnico',
@@ -402,7 +402,7 @@ class _SummaryCards extends StatelessWidget {
         ),
         _SummaryCard(
           icon: Icons.warning_amber_rounded,
-          colors: EquipmentColors.bad,
+          colors: EquipmentColors.info,
           badge: 'Crítico',
           value: value(EquipmentGroup.offline),
           caption: 'Dados de baja, retirados o extraviados',
@@ -474,7 +474,7 @@ class _SummaryCard extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: selected ? colors.dot : const Color(0xFFE5EEF6), width: selected ? 1.6 : 1),
+            border: Border.all(color: selected ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .7), width: selected ? 2 : 1),
             boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))],
           ),
           child: Column(
@@ -497,7 +497,7 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 4),
-              Text(value, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 21, fontWeight: FontWeight.w900, height: 1.05)),
+              Text(value, style: const TextStyle(color: AppColors.navy, fontSize: 21, fontWeight: FontWeight.w900, height: 1.05)),
               const SizedBox(height: 2),
               Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10, height: 1.2)),
               const Spacer(),
@@ -587,7 +587,7 @@ class _ViewToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: const Color(0xFFEAF2FA), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .35), borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           Expanded(child: _ViewOption(label: 'Tabla', icon: Icons.table_rows_rounded, selected: view == EquipmentView.table, onTap: () => onChanged(EquipmentView.table))),
           Expanded(child: _ViewOption(label: 'Cuadrícula', icon: Icons.grid_view_rounded, selected: view == EquipmentView.grid, onTap: () => onChanged(EquipmentView.grid))),
@@ -619,9 +619,9 @@ class _ViewOption extends StatelessWidget {
               boxShadow: selected ? const [BoxShadow(color: Color(0x140B1F3A), blurRadius: 6, offset: Offset(0, 2))] : null,
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, size: 18, color: selected ? EquipmentColors.info.foreground : AppColors.slate),
+              Icon(icon, size: 18, color: selected ? AppColors.navy : AppColors.slate),
               const SizedBox(width: 6),
-              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? const Color(0xFF0B1F3A) : AppColors.slate, fontSize: 13, fontWeight: FontWeight.w700))),
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? AppColors.navy : AppColors.slate, fontSize: 13, fontWeight: FontWeight.w700))),
             ]),
           ),
         ),
