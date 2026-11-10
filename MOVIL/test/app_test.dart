@@ -12,6 +12,7 @@ import 'package:mantix/repositories/home/dashboard_repository.dart';
 import 'package:mantix/repositories/notifications/notifications_repository.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
+import 'package:mantix/repositories/users/users_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'support/fakes.dart';
@@ -47,6 +48,7 @@ Widget appWith({String? token = 'token-0', required Object body, void Function(F
     requestsRepository: RequestsRepository(dio),
     catalogsRepository: CatalogsRepository(dio),
     queueRepository: QueueRepository(dio),
+    usersRepository: UsersRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
     dashboardRepository: DashboardRepository(dio),
     equipmentRepository: EquipmentRepository(dio),

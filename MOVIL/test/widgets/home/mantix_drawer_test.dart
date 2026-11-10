@@ -41,4 +41,19 @@ void main() {
     expect(find.text('Mis solicitudes'), findsNothing);
     expect(find.text('Solicitudes pendientes'), findsNothing);
   });
+
+  testWidgets('Usuarios, pendientes y roles son un solo elemento «Usuarios y roles», con el permiso de ver usuarios', (tester) async {
+    await openMenu(tester, {'usuarios:ver', 'usuarios:asignar'});
+
+    expect(find.text('Usuarios y roles'), findsOneWidget);
+    expect(find.text('Usuarios'), findsNothing);
+    expect(find.text('Roles y permisos'), findsNothing);
+    expect(find.text('Usuarios pendientes'), findsNothing);
+  });
+
+  testWidgets('sin permiso de ver usuarios no sale «Usuarios y roles»', (tester) async {
+    await openMenu(tester, {'tickets:ver'});
+
+    expect(find.text('Usuarios y roles'), findsNothing);
+  });
 }

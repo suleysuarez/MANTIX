@@ -12,6 +12,7 @@ import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
+import 'package:mantix/repositories/users/users_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
 import 'fakes.dart';
@@ -144,6 +145,7 @@ Future<GoRouter> pumpScreen(
         RepositoryProvider(create: (_) => RequestsRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => CatalogsRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => QueueRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => UsersRepository(dioWith(adapter))),
       ],
       child: MultiBlocProvider(
         providers: [

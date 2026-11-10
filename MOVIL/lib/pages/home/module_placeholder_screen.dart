@@ -19,9 +19,6 @@ class ModulePlaceholderScreen extends StatelessWidget {
     'tecnicos': 'Técnicos',
     'mantenimiento': 'Mantenimiento',
     'inventario': 'Inventario',
-    'usuarios': 'Usuarios',
-    'roles': 'Roles y permisos',
-    'usuarios-pendientes': 'Usuarios pendientes',
     'configuracion': 'Configuración',
   };
 

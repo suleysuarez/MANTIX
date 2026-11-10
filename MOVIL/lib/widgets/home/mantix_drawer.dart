@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../pages/queue/pending_requests_screen.dart';
+import '../../pages/users/users_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
@@ -49,9 +50,8 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
     _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
-    _NavItem('Usuarios', Icons.manage_accounts_outlined, '/modulos/usuarios', 'usuarios:ver'),
-    _NavItem('Roles y permisos', Icons.admin_panel_settings_outlined, '/modulos/roles', 'usuarios:asignar'),
-    _NavItem('Usuarios pendientes', Icons.how_to_reg_outlined, '/modulos/usuarios-pendientes', 'usuarios:asignar'),
+    // Usuarios, pendientes y roles viven en una sola pantalla con tres pestañas.
+    _NavItem('Usuarios y roles', Icons.manage_accounts_outlined, UsersScreen.path, 'usuarios:ver'),
     _NavItem('Configuración', Icons.settings_outlined, '/modulos/configuracion', 'configuracion:ver'),
   ];
 

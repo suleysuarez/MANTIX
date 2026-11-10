@@ -5,6 +5,7 @@ import 'package:mantix/models/auth/user_profile.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/core/routing/app_router.dart';
 import 'package:mantix/pages/queue/pending_requests_screen.dart';
+import 'package:mantix/pages/users/users_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
@@ -80,5 +81,11 @@ void main() {
     // Poder ver las propias solicitudes no basta.
     final only = signedIn(profile(permissions: const {'solicitudes:ver', 'tickets:ver_asignados'}));
     expect(redirect(only, path), HomeDestination.assignedInbox.path);
+  });
+
+  test('Usuarios y roles exige usuarios:ver y, sin él, vuelve al inicio', () {
+    const path = UsersScreen.path;
+    expect(redirect(signedIn(profile(permissions: const {'usuarios:ver', 'tickets:ver_asignados'})), path), isNull);
+    expect(redirect(signedIn(profile(permissions: const {'usuarios:asignar', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path, reason: 'asignar sin poder ver tampoco basta');
   });
 }

@@ -9,6 +9,7 @@ import 'services/api_client.dart';
 import 'repositories/auth/mobile_auth_repository.dart';
 import 'repositories/equipment/equipment_repository.dart';
 import 'repositories/home/dashboard_repository.dart';
+import 'repositories/users/users_repository.dart';
 import 'repositories/queue/queue_repository.dart';
 import 'repositories/notifications/notifications_repository.dart';
 import 'repositories/catalogs/catalogs_repository.dart';
@@ -36,5 +37,6 @@ Future<void> main() async {
     equipmentRepository: EquipmentRepository(dio),
     notificationsRepository: NotificationsRepository(dio),
     queueRepository: QueueRepository(dio),
+    usersRepository: UsersRepository(dio),
   ));
 }
