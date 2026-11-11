@@ -15,6 +15,7 @@ import '../repositories/home/dashboard_repository.dart';
 import '../repositories/queue/queue_repository.dart';
 import '../repositories/notifications/notifications_repository.dart';
 import '../repositories/requests/requests_repository.dart';
+import '../repositories/technicians/technicians_repository.dart';
 import '../repositories/users/users_repository.dart';
 import '../services/device_services.dart';
 
@@ -30,6 +31,7 @@ class MantixApp extends StatefulWidget {
     required this.notificationsRepository,
     required this.queueRepository,
     required this.usersRepository,
+    required this.techniciansRepository,
     this.deviceServices,
   });
 
@@ -42,6 +44,7 @@ class MantixApp extends StatefulWidget {
   final NotificationsRepository notificationsRepository;
   final QueueRepository queueRepository;
   final UsersRepository usersRepository;
+  final TechniciansRepository techniciansRepository;
 
   /// Cámara, selectores, compartir y archivos temporales; las pruebas pasan simulacros.
   final DeviceServices? deviceServices;
@@ -74,6 +77,7 @@ class _MantixAppState extends State<MantixApp> {
         RepositoryProvider.value(value: widget.notificationsRepository),
         RepositoryProvider.value(value: widget.queueRepository),
         RepositoryProvider.value(value: widget.usersRepository),
+        RepositoryProvider.value(value: widget.techniciansRepository),
         RepositoryProvider.value(value: _device),
       ],
       child: MultiBlocProvider(

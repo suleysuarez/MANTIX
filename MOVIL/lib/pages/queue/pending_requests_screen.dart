@@ -15,6 +15,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/queue/queue_filters.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/catalogs/catalogs_repository.dart';
+import '../../repositories/technicians/technicians_repository.dart';
 import '../../repositories/queue/queue_repository.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
@@ -161,7 +162,7 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
       technicians: _technicians,
       categories: _categories.state.categories,
       priorities: _priorities.state.priorities,
-      catalogs: _catalogs,
+      techniciansRepository: context.read<TechniciansRepository>(),
     );
     if (result == null || !mounted) return;
     setState(() => _technicians = result.technicians);

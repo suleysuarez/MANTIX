@@ -12,6 +12,7 @@ import 'package:mantix/repositories/home/dashboard_repository.dart';
 import 'package:mantix/repositories/notifications/notifications_repository.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
+import 'package:mantix/repositories/technicians/technicians_repository.dart';
 import 'package:mantix/repositories/users/users_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 
@@ -49,6 +50,7 @@ Widget appWith({String? token = 'token-0', required Object body, void Function(F
     catalogsRepository: CatalogsRepository(dio),
     queueRepository: QueueRepository(dio),
     usersRepository: UsersRepository(dio),
+    techniciansRepository: TechniciansRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
     dashboardRepository: DashboardRepository(dio),
     equipmentRepository: EquipmentRepository(dio),

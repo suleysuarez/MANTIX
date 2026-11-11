@@ -7,7 +7,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/catalogs/catalog_models.dart';
 import '../../models/queue/queue_filters.dart';
-import '../../repositories/catalogs/catalogs_repository.dart';
+import '../../models/technicians/technician_models.dart';
+import '../../repositories/technicians/technicians_repository.dart';
 import '../shared/filter_widgets.dart';
 import '../shared/multi_select_sheet.dart';
 import '../shared/search_picker_sheet.dart';
@@ -24,7 +25,7 @@ Future<QueueFilterResult?> showQueueFilterSheet(
   required Map<int, String> technicians,
   required List<RequestCategory> categories,
   required List<PriorityOption> priorities,
-  required CatalogsRepository catalogs,
+  required TechniciansRepository techniciansRepository,
   DateTime? today,
 }) =>
     showModalBottomSheet<QueueFilterResult>(
@@ -33,17 +34,17 @@ Future<QueueFilterResult?> showQueueFilterSheet(
       useSafeArea: true,
       showDragHandle: true,
       backgroundColor: AppColors.white,
-      builder: (_) => _QueueFilterSheet(initial: initial, technicians: technicians, categories: categories, priorities: priorities, catalogs: catalogs, today: today ?? DateTime.now()),
+      builder: (_) => _QueueFilterSheet(initial: initial, technicians: technicians, categories: categories, priorities: priorities, techniciansRepository: techniciansRepository, today: today ?? DateTime.now()),
     );
 
 class _QueueFilterSheet extends StatefulWidget {
-  const _QueueFilterSheet({required this.initial, required this.technicians, required this.categories, required this.priorities, required this.catalogs, required this.today});
+  const _QueueFilterSheet({required this.initial, required this.technicians, required this.categories, required this.priorities, required this.techniciansRepository, required this.today});
 
   final QueueFilters initial;
   final Map<int, String> technicians;
   final List<RequestCategory> categories;
   final List<PriorityOption> priorities;
-  final CatalogsRepository catalogs;
+  final TechniciansRepository techniciansRepository;
   final DateTime today;
 
   @override
@@ -77,12 +78,12 @@ class _QueueFilterSheetState extends State<_QueueFilterSheet> {
       );
 
   Future<void> _addTechnician() async {
-    final picked = await showSearchPicker<TechnicianOption>(
+    final picked = await showSearchPicker<Technician>(
       context,
       title: 'Filtrar por técnico',
       hint: 'Nombre, correo o especialidad',
       emptyTitle: 'No encontramos técnicos',
-      createBloc: (search) => TechnicianSearchBloc(repository: widget.catalogs, search: search),
+      createBloc: (search) => TechnicianSearchBloc(repository: widget.techniciansRepository, search: search),
       itemBuilder: (context, item, select) => ListTile(
         shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
         tileColor: AppColors.canvas,

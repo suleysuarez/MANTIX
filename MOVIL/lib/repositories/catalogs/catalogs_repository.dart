@@ -2,9 +2,9 @@ import 'package:dio/dio.dart';
 
 import '../../core/errors/failure_mapper.dart';
 import '../../models/catalogs/catalog_models.dart';
-import '../../models/page_info.dart';
 
-/// Catálogos que usa el tablero de tickets: categorías, prioridades y técnicos. Cualquier
+/// Catálogos que usa el tablero de tickets: categorías y prioridades (los técnicos
+/// están en `TechniciansRepository`). Cualquier
 /// error de red o de servidor sale como un `Failure` ya traducido.
 class CatalogsRepository {
   CatalogsRepository(this._dio);
@@ -48,21 +48,5 @@ class CatalogsRepository {
   Future<List<PriorityOption>> priorities() => _guard(() async {
         final response = await _dio.get<Object?>('/priorities');
         return _list(response.data, PriorityOption.fromJson);
-      });
-
-  /// Técnicos por páginas (requiere `tecnicos:ver`). [search] busca por nombre, correo o
-  /// especialidad. El servidor no filtra por cuenta activa: quien llama descarta los inactivos.
-  Future<PagedResult<TechnicianOption>> technicians({String? search, int page = 1, int size = PageInfo.defaultPageSize}) => _guard(() async {
-        final term = search?.trim();
-        final response = await _dio.get<Object?>('/technicians', queryParameters: {
-          'page': page,
-          'size': size,
-          'sort': 'name',
-          if (term != null && term.isNotEmpty) 'search': term,
-        });
-        return PagedResult(
-          items: _list(response.data, TechnicianOption.fromJson),
-          info: PageInfo.fromHeaders(response.headers),
-        );
       });
 }

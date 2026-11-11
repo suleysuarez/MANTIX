@@ -15,6 +15,7 @@ const Map<String, String> messagesByErrorCode = {
   'invalid_transition': 'Ese cambio de estado no está permitido desde el estado actual del ticket.',
   'technician_inactive': 'Ese técnico está inactivo y no puede recibir tickets.',
   'technician_not_found': 'Ese técnico ya no existe.',
+  'technician_profile_exists': 'Ese usuario ya tiene un perfil de técnico.',
   'no_active_assignment': 'Este ticket no tiene un técnico asignado.',
   // Equipos
   'equipment_not_found': 'Ese equipo ya no existe.',
