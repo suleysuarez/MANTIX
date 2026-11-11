@@ -169,7 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _SectionCard(
                   title: isGlobal ? 'Rendimiento del equipo técnico' : 'Mi rendimiento',
                   subtitle: _periodLabel(),
-                  trailing: isGlobal && profile.can('tecnicos:ver') ? const _SectionLink(label: 'Ver técnicos', path: '/modulos/tecnicos') : null,
+                  trailing: isGlobal && profile.can('tecnicos:ver') ? const _SectionLink(label: 'Ver técnicos', path: '/tecnicos') : null,
                   child: _TechnicianPerformance(items: _technicians),
                 ),
                 const SizedBox(height: 14),
