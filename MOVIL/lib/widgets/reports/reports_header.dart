@@ -18,7 +18,7 @@ class ReportsHeader extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 const FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text('Reportes', style: TextStyle(color: AppColors.navy, fontSize: 28, fontWeight: FontWeight.w900, height: 1.1))),
                 const SizedBox(height: 4),
-                Text('Elige un reporte, filtra y expórtalo en PDF o Excel.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.steel, height: 1.3)),
+                Text('Consulta y descarga la información que necesitas.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.steel, height: 1.3)),
               ]),
             ),
           ]),
