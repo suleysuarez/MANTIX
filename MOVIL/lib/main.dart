@@ -11,6 +11,7 @@ import 'repositories/equipment/equipment_repository.dart';
 import 'repositories/home/dashboard_repository.dart';
 import 'repositories/users/users_repository.dart';
 import 'repositories/maintenance/maintenance_repository.dart';
+import 'repositories/reports/reports_repository.dart';
 import 'repositories/technicians/technicians_repository.dart';
 import 'repositories/queue/queue_repository.dart';
 import 'repositories/notifications/notifications_repository.dart';
@@ -42,5 +43,6 @@ Future<void> main() async {
     usersRepository: UsersRepository(dio),
     techniciansRepository: TechniciansRepository(dio),
     maintenanceRepository: MaintenanceRepository(dio),
+    reportsRepository: ReportsRepository(dio),
   ));
 }
