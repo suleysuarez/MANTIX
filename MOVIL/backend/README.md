@@ -2,6 +2,24 @@
 
 API FastAPI que consume la app Flutter. Autenticación nativa con correo y contraseña; los códigos de verificación y de recuperación llegan por correo.
 
+## Correo por API HTTPS (Brevo)
+
+Úsalo cuando el servidor **bloquea los puertos SMTP** (el plan gratuito de Render lo hace, según su documentación): Gmail por SMTP falla con `OSError` y `smtp_code=None`. La API viaja por HTTPS (puerto 443), que no está bloqueado.
+
+1. Crea una cuenta en Brevo (plan gratuito).
+2. En *Senders, Domains & Dedicated IPs → Senders* agrega y **verifica** el correo remitente (Brevo envía un enlace de confirmación). No hace falta un dominio propio.
+3. En *SMTP & API → API Keys* crea una **clave de API** y cópiala una sola vez.
+4. Define estas variables en el servicio (nunca en el repositorio):
+
+| Variable | Qué poner |
+|---|---|
+| `BREVO_API_KEY` | La clave de API de Brevo |
+| `EMAIL_FROM` | El remitente verificado en Brevo (admite `Nombre <cuenta@dominio>`). Si falta, se usa `SMTP_FROM` |
+
+- Con `BREVO_API_KEY` presente **no se usa SMTP**; sin ella todo sigue como en la sección de SMTP de abajo.
+- El arranque avisa en el registro si falta el remitente. Un envío fallido no cambia la respuesta de la API y se registra con el estado HTTP (`http_status`), sin la clave, sin el código y con el correo enmascarado.
+- La cuenta gratuita de Brevo tiene cuota diaria; el limitador de envíos de abajo también aplica.
+
 ## Correo por SMTP (Gmail)
 
 Solo para **desarrollo o demostración**. Una cuenta personal tiene cuota diaria y puede ser bloqueada si se abusa. Para producción hace falta un proveedor con dominio verificado.

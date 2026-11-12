@@ -29,7 +29,7 @@ from app.services.code_email_limiter import CodeEmailLimiter, code_email_limiter
 from app.services.email_sender import (
     EmailConfigurationError,
     EmailSender,
-    SmtpEmailSender,
+    build_email_sender,
     mask_email,
     render_auth_code_email,
 )
@@ -58,7 +58,7 @@ class MobileAuthService:
         self.session = session
         self.settings = settings
         self.audit = audit or AuditService(AuditRepository(session))
-        self.sender: EmailSender = sender or SmtpEmailSender(settings)
+        self.sender: EmailSender = sender or build_email_sender(settings)
         self.limiter = limiter or code_email_limiter
 
     async def _record_login(self, user: User) -> None:
@@ -179,11 +179,12 @@ class MobileAuthService:
         except Exception as exc:  # noqa: BLE001 - delivery must never change the API answer
             # Never log str(exc): provider replies can echo addresses. No code, no password.
             logger.error(
-                "auth code email not sent (account=%s purpose=%s error=%s smtp_code=%s)",
+                "auth code email not sent (account=%s purpose=%s error=%s smtp_code=%s http_status=%s)",
                 mask_email(email),
                 purpose,
                 type(exc).__name__,
                 getattr(exc, "smtp_code", None),
+                getattr(exc, "http_status", None),
             )
 
     async def _consume_code(self, user: User, purpose: str, code: str) -> None:
