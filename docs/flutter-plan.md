@@ -313,6 +313,39 @@ Hecha en código y pruebas en la rama `feat/mobile-users-roles` (sale de `feat/m
 
 **Ramas:** `feat/mobile-users-roles` sale de `feat/mobile-ui-polish`, que tampoco se ha subido ni tiene PR (ajustes de la bandeja, el paginador, Equipos y el banner del dashboard). Orden de integración propuesto: 1) `feat/mobile-ui-polish`; 2) `feat/mobile-users-roles` (que ya incluye lo anterior). Nada se ha subido ni fusionado.
 
+## Técnicos
+
+Hecha en código y pruebas en la rama `feat/mobile-technicians` (sale de `feat/mobile-users-roles`). Ruta `/tecnicos` (`/modulos/tecnicos` redirige a ella), con su elemento en el menú y el enlace «Ver técnicos» del dashboard; exige `tecnicos:ver` (la ruta lo comprueba; la autorización real es del backend).
+
+- **Qué muestra:** encabezado con el banner `assets/images/tecnicos.png` («PERSONAL TÉCNICO Y ESPECIALISTAS», sin la etiqueta «BANDEJA DE TRIAJE» de la maqueta); cinco cifras (total, disponibles, con tickets activos, no disponibles y resueltos; las cuatro primeras filtran la lista al tocarlas); búsqueda por nombre, especialidad, código o correo (sin tildes); filtros en hoja con multiselección y «Aplicar»/«Limpiar» (especialidad, disponibilidad, estado de la cuenta y carga) con un chip por cada uno; orden (por defecto **menor carga primero**, también disponibilidad, más resueltos y nombre); lista en **tarjetas** o **tabla** y `Paginator` con tamaño elegible (20 por defecto, sin «1 de 1»). La ficha de cada técnico es una hoja inferior: datos, carga, indicadores del periodo y tickets abiertos. El rendimiento se presenta como apoyo para repartir trabajo, no como ranking: sin colores de «bueno» o «malo» ni comparación entre personas.
+- **De dónde sale cada dato:** `GET /technicians` (`tecnicos:ver`; todos, por páginas de 500), `GET /dashboard/workload?days=30` (`dashboard:ver`; abiertos y resueltos), `GET /dashboard/technicians?period=30d` (`dashboard:ver`; mediana del MTTR, SLA, n y reabiertos, con «pocos datos» y «N sin SLA excluidos» decididos por el servidor) y `GET /maintenance/requests?technician_id=…&status=…` (`tickets:ver`; tickets abiertos de la ficha). `hourly_rate` solo llega a quien tiene `tecnicos:editar`; a los demás ni se les enseña el campo.
+- **Filtrado en la app:** el servidor no ordena ni filtra por carga ni por especialidad, así que la pantalla trae el catálogo completo y filtra, ordena y pagina ella, igual que la web. Por eso no se pagina en el servidor.
+- **Cada bloque carga y falla por separado:** si falla la carga, la lista sigue y las cifras de tickets dicen «no disponible» con reintento; en la ficha, indicadores y tickets se reintentan cada uno por su lado. Sin `tickets:ver` la ficha ni pide los tickets.
+- **Acciones** (cada botón sale solo con su permiso efectivo de `/auth/me`, nunca por el nombre del rol):
+  - **Registrar técnico** (`POST /technicians`, `tecnicos:crear`): botón mostaza en el encabezado, formulario en hoja inferior (usuario con búsqueda, especialización, tarifa). Se oculta si falta `equipos:asignar`, porque el selector de usuario usa `GET /equipment/custodian-candidates`. Al guardar, la lista vuelve a la página 1 sin filtros, el técnico sale de primero y se resalta unos segundos.
+  - **Editar perfil** (`PATCH /technicians/{id}`, `tecnicos:editar`): especialización y tarifa; solo viaja lo que cambió y vaciar un campo lo borra.
+  - **Marcar como disponible o no disponible** (`PATCH /technicians/{id}`, `tecnicos:editar`): pasar a no disponible pide confirmación y avisa de los tickets abiertos, que siguen asignados.
+  - **Desactivar o activar la cuenta** (`POST /admin/users/{id}/deactivate` o `/activate`, `usuarios:cambiar_estado`): el perfil de técnico **no tiene un estado propio**; su `is_active` es el de la cuenta de usuario. Por eso desactivarlo desactiva la cuenta entera: la persona no puede entrar a Mantix con ningún rol y no se le pueden asignar tickets. La confirmación lo explica y avisa de los tickets abiertos; activar de nuevo no la pide. Nunca sobre la propia cuenta. El resto de la app (`TechnicianSearchBloc`) ya descarta a los técnicos inactivos al asignar.
+- **Validaciones antes de pedir nada:** usuario elegido, especialización de hasta 100 caracteres, tarifa vacía u ≥ 0 con coma o punto y como máximo dos decimales (hasta 99 999 999,99), y que haya algo que cambiar. La tarifa se muestra como «$35,00».
+- **Errores por `code`:** `technician_profile_exists` (409), `user_not_found`, `technician_not_found`, `last_admin_protected`, `cannot_deactivate_self` y los 403 genéricos; el motivo sale dentro de la hoja y lo escrito no se pierde.
+- **Repositorio compartido:** `TechniciansRepository` (`lib/repositories/technicians/`) es el único que llama a `/technicians`; lo usan la pantalla y el selector «Asignar técnico» del tablero y de la bandeja (`TechnicianSearchBloc`, que ahora pide `is_active=true`). `CatalogsRepository` ya no tiene técnicos. Blocs en `bloc/technicians/`: `TechniciansListBloc`, `TechnicianDetailBloc` y `TechnicianActionsBloc`; reglas de formato portadas de la web en `core/format/technicians_format.dart`.
+- **Colores:** todos de `AppColors` y `StatusColors`; el formulario usa la cabecera navy con borde mostaza y tarjetas por campo con iconos azul claro y mostaza.
+
+**Verificación:** 1023 pruebas (bloc, repositorio, formato y widget; incluyen las de 320×568 y 360×640 con texto a 1,3 sin overflow), `flutter analyze` sin avisos. **No se ha visto en un teléfono ni se ha corrido `flutter build apk --debug` en esta rama:** la revisión a ojo la hace la persona dueña del proyecto. Comprobar a mano: el aspecto del banner y de las cifras, el formulario con el teclado abierto, el resaltado del técnico nuevo, la tabla en pantallas estrechas y la confirmación de desactivar la cuenta.
+
+**Diferencias con la maqueta:** la etiqueta «BANDEJA DE TRIAJE», «RESULTADOS» (es «RESUELTOS»), los chips «En proceso» y «Cerrado» (son de ticket) y las columnas «DISP.» y «CARGA» (son abiertos y resueltos) eran errores del diseño y no se copiaron. La especialidad va bajo el nombre en la tabla para que quepa sin desplazamiento horizontal.
+
+**Pendientes de backend de esta pantalla** (no se tocó `MOVIL/backend` ni `WEB/backend`):
+
+- `GET /technicians` no trae la carga, ni ordena o filtra por ella ni por especialidad, y no busca por `employee_code`; por eso se trae todo y se filtra en la app. Un endpoint de resumen de técnicos y esos filtros permitirían paginar en el servidor.
+- No existe `GET /technicians/{id}` ni un estado propio del perfil de técnico: «desactivar» es desactivar la cuenta de usuario (`usuarios:cambiar_estado`).
+- Buscar al usuario para registrar un técnico exige `equipos:asignar` (`/equipment/custodian-candidates`); un buscador de usuarios propio, que excluya a quien ya tiene perfil, evitaría ese permiso ajeno y el 409.
+- `WEB/backend` no tiene el filtro `is_active` de `GET /technicians` (solo `MOVIL/backend`).
+- La web muestra «Registrar técnico» con `tecnicos:editar`, pero el backend exige `tecnicos:crear`; la app sigue al backend.
+- No existe una pantalla de exportar técnicos en la app (la web usa `tecnicos:exportar`).
+
+**Ramas:** `feat/mobile-technicians` sale de `feat/mobile-users-roles`, que a su vez sale de `feat/mobile-ui-polish` (ver «Usuarios y roles»). Nada se ha subido ni fusionado.
+
 ## Notificaciones y encabezado de los módulos
 
 Todos los módulos con menú (dashboard, equipos, solicitudes, bandeja, reportes y los módulos aún sin construir) comparten `MantixAppBar` y `MantixDrawer`: la «M» a la izquierda, la campana de notificaciones, el avatar (abre el perfil) y el menú por permisos.
