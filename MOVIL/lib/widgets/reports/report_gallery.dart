@@ -5,8 +5,9 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/reports/report_models.dart';
 import 'reports_header.dart';
 
-/// La galería: una fila de reportes que se desplaza de lado (el elegido va en mostaza con texto
-/// navy) y, debajo, qué contiene el elegido.
+/// La lista de reportes: una fila por reporte, con su icono, su nombre y qué contiene. El elegido va
+/// con borde mostaza y una marca; tocar otro lo elige. Con pocos reportes (hoy 4) caben todos sin
+/// desplazarse de lado.
 class ReportGallery extends StatelessWidget {
   const ReportGallery({super.key, required this.reports, required this.selectedKey, required this.onSelect});
 
@@ -15,52 +16,61 @@ class ReportGallery extends StatelessWidget {
   final ValueChanged<String> onSelect;
 
   @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final report in reports)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _ReportRow(report: report, selected: report.key == selectedKey, onTap: () => onSelect(report.key)),
+          ),
+      ]);
+}
+
+class _ReportRow extends StatelessWidget {
+  const _ReportRow({required this.report, required this.selected, required this.onTap});
+
+  final ReportDefinition report;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
   Widget build(BuildContext context) {
-    ReportDefinition? selected;
-    for (final report in reports) {
-      if (report.key == selectedKey) selected = report;
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SizedBox(
-        height: 56,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          itemCount: reports.length,
-          separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-          itemBuilder: (context, index) {
-            final report = reports[index];
-            final on = report.key == selectedKey;
-            return Semantics(
-              button: true,
-              selected: on,
-              label: report.title,
-              excludeSemantics: true,
-              child: Material(
-                color: on ? AppColors.mustard : AppColors.white,
-                shape: StadiumBorder(side: BorderSide(color: on ? AppColors.mustard : AppColors.grey)),
-                child: InkWell(
-                  customBorder: const StadiumBorder(),
-                  onTap: () => onSelect(report.key),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(reportIcon(report.key), size: 20, color: on ? AppColors.navy : AppColors.steel),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(report.title, maxLines: 1, style: TextStyle(color: on ? AppColors.navy : AppColors.steel, fontWeight: on ? FontWeight.w800 : FontWeight.w600)),
-                    ]),
-                  ),
-                ),
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: report.description.isEmpty ? report.title : '${report.title}. ${report.description}',
+      excludeSemantics: true,
+      child: Material(
+        color: selected ? AppColors.mustard.withValues(alpha: .14) : AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: selected ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .8), width: selected ? 2 : 1)),
+        child: InkWell(
+          borderRadius: AppRadius.lgAll,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(color: selected ? AppColors.mustard.withValues(alpha: .35) : AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.mdAll),
+                child: Icon(reportIcon(report.key), color: AppColors.navy, size: 25),
               ),
-            );
-          },
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(report.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800, height: 1.2)),
+                  if (report.description.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(report.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel, height: 1.3)),
+                  ],
+                ]),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.navy : AppColors.slate),
+            ]),
+          ),
         ),
       ),
-      if (selected != null && selected.description.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
-          child: Text(selected.description, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.steel, height: 1.3)),
-        ),
-    ]);
+    );
   }
 }

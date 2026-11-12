@@ -7,6 +7,7 @@ import 'package:equatable/equatable.dart';
 import '../../models/reports/report_models.dart';
 import 'formatters.dart';
 import 'maintenance_calendar.dart' show dayKey, startOfDay;
+import 'users_format.dart' show lastAccessText;
 
 /// Los reportes que ofrece la app, en este orden: los que sirven en el día a día de quien
 /// supervisa. Los demás del catálogo (existencias y movimientos de inventario) no se muestran
@@ -185,3 +186,7 @@ String _grouped(int value) {
 
 /// El nombre del archivo, como el del servidor: `mantix_tickets_2026-11-11.xlsx`.
 String reportFileName(String report, ReportFormat format, DateTime now) => 'mantix_${report}_${dayKey(now)}.${format.extension}';
+
+/// Cuándo fue la última exportación: «Ahora mismo», «Hace 5 min», «Hace 3 h», «Hace 2 días» o la
+/// fecha si pasó un mes. Sin ninguna, «Sin exportar».
+String lastExportText(DateTime? at, DateTime now) => at == null ? 'Sin exportar' : lastAccessText(at, now);

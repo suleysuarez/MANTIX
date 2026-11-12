@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/reports/reports_screen.dart';
 import 'package:mantix/services/device_services.dart';
 import 'package:mantix/services/temp_file_service.dart';
+import 'package:mantix/widgets/reports/report_export_panel.dart';
 import 'package:mantix/widgets/reports/report_gallery.dart';
 
 import '../../support/device_fakes.dart';
@@ -16,6 +17,9 @@ import '../../support/requests_support.dart';
 
 const _view = {'reportes:ver'};
 const _export = {'reportes:ver', 'reportes:exportar'};
+
+/// Dos horas después de la exportación de los datos de prueba: «Hace 2 h», sin depender de la zona horaria.
+final _now = DateTime.parse('2026-11-10T17:30:00Z');
 
 /// Archivos temporales reales en una carpeta del sistema, para que la descarga escriba de verdad.
 class _DiskTempFiles implements TempFileService {
@@ -71,7 +75,7 @@ void main() {
   Future<void> open(WidgetTester tester, {Set<String> permissions = _view, Size size = const Size(1000, 4000), double textScale = 1}) async {
     await pumpScreen(
       tester,
-      RepositoryProvider<DeviceServices>.value(value: DeviceServices(share: share, tempFiles: temp), child: const ReportsScreen()),
+      RepositoryProvider<DeviceServices>.value(value: DeviceServices(share: share, tempFiles: temp), child: ReportsScreen(clock: () => _now)),
       adapter,
       permissions: permissions,
       size: size,
@@ -80,14 +84,27 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// La galería se desplaza de lado y construye solo lo visible: se lleva el chip a la vista.
+  /// Elige un reporte de la lista (caben todos, no hace falta desplazarse).
   Future<void> tapReport(WidgetTester tester, String title) async {
-    final scrollable = find.descendant(of: find.byType(ReportGallery), matching: find.byType(Scrollable)).first;
-    final chip = find.descendant(of: find.byType(ReportGallery), matching: find.text(title));
-    await tester.scrollUntilVisible(chip, 120, scrollable: scrollable);
-    await tester.ensureVisible(chip);
+    final row = find.descendant(of: find.byType(ReportGallery), matching: find.text(title));
+    await tester.ensureVisible(row);
     await tester.pumpAndSettle();
-    await tester.tap(chip);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+  }
+
+  /// Elige el formato en el desplegable «Formato».
+  Future<void> chooseFormat(WidgetTester tester, String label) async {
+    await tester.ensureVisible(find.byType(ReportFormatField));
+    await tester.tap(find.byType(ReportFormatField));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label).last);
+    await tester.pumpAndSettle();
+  }
+
+  /// Pasa a la pestaña «Historial».
+  Future<void> openHistory(WidgetTester tester) async {
+    await tester.tap(find.text('Historial'));
     await tester.pumpAndSettle();
   }
 
@@ -108,14 +125,20 @@ void main() {
       await open(tester);
 
       expect(find.text('Reportes'), findsOneWidget);
-      expect(find.text('Elige un reporte, filtra y expórtalo en PDF o Excel.'), findsOneWidget);
-      final scrollable = find.descendant(of: find.byType(ReportGallery), matching: find.byType(Scrollable)).first;
+      expect(find.text('Consulta y descarga la información que necesitas.'), findsOneWidget);
       for (final title in ['Tickets de mantenimiento', 'Planes de mantenimiento', 'Inventario de equipos', 'Resumen operativo']) {
-        final chip = find.descendant(of: find.byType(ReportGallery), matching: find.text(title));
-        await tester.scrollUntilVisible(chip, 120, scrollable: scrollable);
-        expect(chip, findsOneWidget, reason: title);
+        expect(find.descendant(of: find.byType(ReportGallery), matching: find.text(title)), findsOneWidget, reason: title);
       }
       expect(find.text('Existencias del inventario'), findsNothing);
+    });
+
+    testWidgets('cada reporte es una fila con su descripción y el elegido lleva la marca', (tester) async {
+      await open(tester);
+
+      expect(find.descendant(of: find.byType(ReportGallery), matching: find.byIcon(Icons.check_circle_rounded)), findsOneWidget);
+      expect(find.descendant(of: find.byType(ReportGallery), matching: find.byIcon(Icons.radio_button_unchecked_rounded)), findsNWidgets(3));
+      await tapReport(tester, 'Inventario de equipos');
+      expect(find.descendant(of: find.byType(ReportGallery), matching: find.byIcon(Icons.check_circle_rounded)), findsOneWidget);
     });
 
     testWidgets('abre con el primero elegido y pide su vista previa sin filtros', (tester) async {
@@ -257,24 +280,25 @@ void main() {
   });
 
   group('exportar', () {
-    testWidgets('sin reportes:exportar no hay formatos ni botón de exportar', (tester) async {
+    testWidgets('sin reportes:exportar no hay formato ni botón de exportar', (tester) async {
       await open(tester);
 
-      expect(find.text('Formato de exportación'), findsNothing);
+      expect(find.byType(ReportFormatField), findsNothing);
       expect(find.textContaining('Exportar PDF'), findsNothing);
-      expect(find.text('Exportaciones recientes'), findsOneWidget);
+      expect(find.byTooltip('Filtros'), findsOneWidget, reason: 'sí se pueden consultar los filtros y la vista previa');
     });
 
-    testWidgets('con permiso: los dos formatos con los textos de la web, PDF elegido', (tester) async {
+    testWidgets('con permiso: el formato es un desplegable con PDF elegido y una nota de qué lleva cada uno', (tester) async {
       await open(tester, permissions: _export);
 
+      expect(find.byType(ReportFormatField), findsOneWidget);
       expect(find.text('Documento para imprimir o compartir: tabla y resumen ejecutivo.'), findsOneWidget);
-      expect(find.text('Hoja de cálculo para analizar: filtros, totales con fórmulas y gráficos.'), findsOneWidget);
       expect(find.text('Exportar PDF'), findsOneWidget);
 
-      await tester.tap(find.text('Hoja de cálculo para analizar: filtros, totales con fórmulas y gráficos.'));
-      await tester.pumpAndSettle();
+      await chooseFormat(tester, 'Excel');
+      expect(find.text('Hoja de cálculo para analizar: filtros, totales con fórmulas y gráficos.'), findsOneWidget);
       expect(find.text('Exportar Excel'), findsOneWidget);
+      expect(find.text('Documento para imprimir o compartir: tabla y resumen ejecutivo.'), findsNothing);
     });
 
     testWidgets('exportar descarga, comparte con el tipo del archivo y borra el temporal', (tester) async {
@@ -289,8 +313,7 @@ void main() {
       final disk = _DiskTempFiles(directory);
       temp = disk;
       await open(tester, permissions: _export);
-      await tester.tap(find.text('Hoja de cálculo para analizar: filtros, totales con fórmulas y gráficos.'));
-      await tester.pumpAndSettle();
+      await chooseFormat(tester, 'Excel');
 
       await tester.tap(find.text('Exportar Excel'));
       await waitUntil(tester, () => share.shared.isNotEmpty);
@@ -325,29 +348,112 @@ void main() {
   });
 
   group('exportaciones recientes', () {
-    testWidgets('lista formato, filas, quién y cuándo', (tester) async {
+    testWidgets('están en la pestaña «Historial»: lista formato, filas, quién y cuándo', (tester) async {
       await open(tester);
+      expect(find.text('Exportaciones recientes'), findsNothing, reason: 'no están en «Generar reporte»');
+
+      await openHistory(tester);
 
       expect(find.text('Exportaciones recientes'), findsOneWidget);
       expect(find.text('Excel · 25 registros'), findsOneWidget);
       expect(find.textContaining('Ana Pérez'), findsOneWidget);
       expect(find.text('PDF · 25 registros'), findsOneWidget);
       expect(find.textContaining('Sistema'), findsOneWidget);
+      expect(find.byType(ReportGallery), findsNothing);
     });
 
-    testWidgets('sin exportaciones lo dice, y si falla ofrece reintentar', (tester) async {
+    testWidgets('sin exportaciones lo dice', (tester) async {
       historyHandler = (_) => pagedResponse(const []);
       await open(tester);
+      await openHistory(tester);
+
       expect(find.text('Aún no has exportado reportes.'), findsOneWidget);
     });
 
     testWidgets('el historial puede fallar sin tumbar el resto de la pantalla', (tester) async {
       historyHandler = (_) => errorResponse(500);
       await open(tester);
+      await openHistory(tester);
 
       expect(find.textContaining('No pudimos cargar las exportaciones'), findsOneWidget);
+
+      await tester.tap(find.text('Generar reporte'));
+      await tester.pumpAndSettle();
       expect(find.text('Se exportarán 3 registros.'), findsOneWidget);
     });
+
+    testWidgets('el historial se pagina con números y cada página sustituye a la anterior', (tester) async {
+      historyHandler = (options) {
+        final page = options.queryParameters['page'] as int;
+        return pagedResponse([runJson(id: page, rows: page == 1 ? 11 : 22)], page: page, totalPages: 2, total: 9);
+      };
+      await open(tester);
+      await openHistory(tester);
+      expect(find.text('Excel · 11 registros'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+
+      expect(calls('/reports/history').last.queryParameters['page'], 2);
+      expect(find.text('Excel · 22 registros'), findsOneWidget);
+      expect(find.text('Excel · 11 registros'), findsNothing);
+      expect(find.byTooltip('Página siguiente'), findsNothing);
+      expect(find.byTooltip('Página anterior'), findsOneWidget);
+    });
+  });
+
+  group('indicadores y pestañas', () {
+    Finder inCard(String label, String value) => find.descendant(of: find.ancestor(of: find.text(label), matching: find.byType(Material)).first, matching: find.text(value));
+
+    testWidgets('tres cifras: reportes disponibles, última exportación y exportaciones', (tester) async {
+      historyHandler = (_) => pagedResponse([runJson(), runJson(id: 2)], total: 12);
+      await open(tester);
+
+      expect(inCard('Reportes disponibles', '4'), findsOneWidget, reason: 'solo cuentan los 4 de la app');
+      expect(inCard('Última exportación', 'Hace 2 h'), findsOneWidget);
+      expect(inCard('Exportaciones', '12'), findsOneWidget, reason: 'el total del servidor, no las que caben en la página');
+    });
+
+    testWidgets('sin exportaciones la última dice «Sin exportar» y el total es 0', (tester) async {
+      historyHandler = (_) => pagedResponse(const []);
+      await open(tester);
+
+      expect(inCard('Última exportación', 'Sin exportar'), findsOneWidget);
+      expect(inCard('Exportaciones', '0'), findsOneWidget);
+    });
+
+    testWidgets('si el historial falla las cifras que dependen de él salen con una raya', (tester) async {
+      historyHandler = (_) => errorResponse(500);
+      await open(tester);
+
+      expect(inCard('Reportes disponibles', '4'), findsOneWidget);
+      expect(inCard('Última exportación', '—'), findsOneWidget);
+      expect(inCard('Exportaciones', '—'), findsOneWidget);
+    });
+
+    testWidgets('las dos pestañas se alternan: «Generar reporte» y «Historial»', (tester) async {
+      await open(tester);
+      expect(find.byType(ReportGallery), findsOneWidget);
+
+      await openHistory(tester);
+      expect(find.byType(ReportGallery), findsNothing);
+      expect(find.text('Exportaciones recientes'), findsOneWidget);
+
+      await tester.tap(find.text('Generar reporte'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReportGallery), findsOneWidget);
+      expect(find.text('Exportaciones recientes'), findsNothing);
+    });
+
+    for (final size in const [Size(320, 568), Size(360, 640)]) {
+      testWidgets('las tres cifras miden lo mismo en ${size.width.toInt()}x${size.height.toInt()} con texto 1,3', (tester) async {
+        await open(tester, size: size, textScale: 1.3);
+
+        final sizes = [for (final label in ['Reportes disponibles', 'Última exportación', 'Exportaciones']) tester.getSize(find.ancestor(of: find.text(label), matching: find.byType(Material)).first)];
+        expect(sizes.toSet(), hasLength(1), reason: '$sizes');
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   group('tamaños', () {

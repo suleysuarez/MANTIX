@@ -192,4 +192,19 @@ void main() {
     expect(ReportFormat.values.map((f) => f.label), ['Excel', 'PDF']);
     expect(ReportFormat.values.map((f) => f.extension), ['xlsx', 'pdf']);
   });
+
+  group('lastExportText', () {
+    final now = DateTime(2026, 11, 10, 17, 30);
+
+    test('sin exportaciones dice «Sin exportar», nunca «Nunca»', () {
+      expect(lastExportText(null, now), 'Sin exportar');
+    });
+
+    test('con una exportación dice cuánto pasó', () {
+      expect(lastExportText(now.subtract(const Duration(seconds: 10)), now), 'Ahora mismo');
+      expect(lastExportText(now.subtract(const Duration(minutes: 5)), now), 'Hace 5 min');
+      expect(lastExportText(now.subtract(const Duration(hours: 2)), now), 'Hace 2 h');
+      expect(lastExportText(now.subtract(const Duration(days: 3)), now), 'Hace 3 días');
+    });
+  });
 }
