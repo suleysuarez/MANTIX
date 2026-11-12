@@ -151,19 +151,32 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
     ]),
   );
 
-  Widget _field(String label, TextEditingController controller, {String? Function(String?)? validator, bool required = true, int maxLines = 1, TextInputType? keyboard, String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 5),
-    TextFormField(controller: controller, maxLines: maxLines, keyboardType: keyboard,
-      decoration: InputDecoration(hintText: hint, isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-      validator: validator ?? (required ? (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : null : null)),
-  ]);
+  Widget _field(String label, TextEditingController controller, {required IconData icon, String? Function(String?)? validator, bool required = true, int maxLines = 1, TextInputType? keyboard, String? hint, Widget? suffix}) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(padding: const EdgeInsets.only(top: 23, right: 8), child: Icon(icon, color: AppColors.steel, size: 18)),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 10.5, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        TextFormField(controller: controller, maxLines: maxLines, keyboardType: keyboard,
+          style: const TextStyle(fontSize: 10.5, color: AppColors.navy),
+          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(fontSize: 9.5, color: AppColors.slate), suffixIcon: suffix, suffixIconConstraints: const BoxConstraints(minWidth: 30, minHeight: 30), isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+          validator: validator ?? (required ? (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : null : null)),
+      ])),
+    ],
+  );
 
-  Widget _dropdown(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 5),
-    DropdownButtonFormField<String>(initialValue: value, isExpanded: true, decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)), items: items, onChanged: onChanged),
-  ]);
+  Widget _dropdown(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String?> onChanged, {required IconData icon}) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(padding: const EdgeInsets.only(top: 23, right: 8), child: Icon(icon, color: AppColors.steel, size: 18)),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 10.5, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        DropdownButtonFormField<String>(initialValue: value, isExpanded: true, style: const TextStyle(fontSize: 10.5, color: AppColors.navy), decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)), items: items, onChanged: onChanged),
+      ])),
+    ],
+  );
 
   String? _skuValidator(String? value) {
     final text = value?.trim().toUpperCase() ?? '';
