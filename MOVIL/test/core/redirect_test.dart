@@ -8,6 +8,7 @@ import 'package:mantix/pages/queue/pending_requests_screen.dart';
 import 'package:mantix/pages/maintenance/maintenance_screen.dart';
 import 'package:mantix/pages/technicians/technicians_screen.dart';
 import 'package:mantix/pages/users/users_screen.dart';
+import 'package:mantix/pages/inventory/inventory_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
@@ -101,5 +102,11 @@ void main() {
     const path = UsersScreen.path;
     expect(redirect(signedIn(profile(permissions: const {'usuarios:ver', 'tickets:ver_asignados'})), path), isNull);
     expect(redirect(signedIn(profile(permissions: const {'usuarios:asignar', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path, reason: 'asignar sin poder ver tampoco basta');
+  });
+
+  test('Inventario exige inventario:ver y, sin él, vuelve al inicio', () {
+    const path = InventoryScreen.path;
+    expect(redirect(signedIn(profile(permissions: const {'inventario:ver', 'tickets:ver_asignados'})), path), isNull);
+    expect(redirect(signedIn(profile(permissions: const {'inventario:crear', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path);
   });
 }

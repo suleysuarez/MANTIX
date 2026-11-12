@@ -14,6 +14,7 @@ import '../../pages/home/dashboard_screen.dart';
 import '../../pages/home/module_placeholder_screen.dart';
 import '../../pages/profile/profile_screen.dart';
 import '../../pages/equipment/equipment_screen.dart';
+import '../../pages/inventory/inventory_screen.dart';
 import '../../pages/queue/pending_requests_screen.dart';
 import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/reports/reports_screen.dart';
@@ -76,6 +77,7 @@ String _activeTarget(UserProfile profile, String location) {
 
 const _routePermissions = {
   EquipmentScreen.path: 'equipos:ver',
+  InventoryScreen.path: 'inventario:ver',
   PendingRequestsScreen.path: 'solicitudes:ver_todos',
   UsersScreen.path: 'usuarios:ver',
   TechniciansScreen.path: 'tecnicos:ver',
@@ -114,6 +116,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: HomeDestination.globalDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.globalDashboard)),
       GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
       GoRoute(path: EquipmentScreen.path, builder: (_, _) => const EquipmentScreen()),
+      GoRoute(path: InventoryScreen.path, builder: (_, _) => const InventoryScreen()),
       GoRoute(path: TicketRoutes.list, builder: (_, _) => const TicketsScreen()),
       GoRoute(path: PendingRequestsScreen.path, builder: (_, _) => const PendingRequestsScreen()),
       GoRoute(path: UsersScreen.path, builder: (_, _) => const UsersScreen()),
