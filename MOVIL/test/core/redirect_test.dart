@@ -103,3 +103,9 @@ void main() {
     expect(redirect(signedIn(profile(permissions: const {'usuarios:asignar', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path, reason: 'asignar sin poder ver tampoco basta');
   });
 }
+
+  test('Inventario exige inventario:ver y, sin él, vuelve al inicio', () {
+    const path = InventoryScreen.path;
+    expect(redirect(signedIn(profile(permissions: const {'inventario:ver', 'tickets:ver_asignados'})), path), isNull);
+    expect(redirect(signedIn(profile(permissions: const {'inventario:crear', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path);
+  });
