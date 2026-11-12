@@ -6,7 +6,7 @@ import 'package:equatable/equatable.dart';
 import '../../core/errors/failure.dart';
 import '../../core/errors/failure_mapper.dart';
 import '../../models/settings/settings_models.dart';
-import '../../repositories/settings/settingsrepository.dart';
+import '../../repositories/settings/settings_repository.dart';
 
 part 'settings_event.dart';
 part 'settings_state.dart';
