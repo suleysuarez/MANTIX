@@ -46,12 +46,12 @@ class InventoryItem extends Equatable {
     name: json['name'] as String? ?? '',
     category: json['category'] as String? ?? 'other',
     unit: json['unit'] as String? ?? 'unidad',
-    unitCost: '\${json['unit_cost'] ?? '0'}',
+    unitCost: '${json['unit_cost'] ?? '0'}',
     stock: json['stock'] as int? ?? 0,
     minStock: json['min_stock'] as int? ?? 0,
     maxStock: json['max_stock'] as int?,
     status: json['status'] as String? ?? 'ok',
-    stockValue: '\${json['stock_value'] ?? '0'}',
+    stockValue: '${json['stock_value'] ?? '0'}',
     description: json['description'] as String?,
     location: json['location'] as String?,
     supplier: json['supplier'] as String?,
@@ -76,11 +76,11 @@ class InventoryOverview extends Equatable {
     final value = json['stock_value'] is Map ? (json['stock_value'] as Map).cast<String, Object?>() : const <String, Object?>{};
     final consumption = json['consumption'] is Map ? (json['consumption'] as Map).cast<String, Object?>() : const <String, Object?>{};
     return InventoryOverview(
-      stockValue: '\${value['total'] ?? '0'}',
+      stockValue: '${value['total'] ?? '0'}',
       lowStock: json['low_stock'] as int? ?? 0,
       outOfStock: json['out_of_stock'] as int? ?? 0,
       consumptionUnits: consumption['units'] as int? ?? 0,
-      consumptionValue: '\${consumption['value'] ?? '0'}',
+      consumptionValue: '${consumption['value'] ?? '0'}',
     );
   }
 

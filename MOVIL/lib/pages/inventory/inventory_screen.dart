@@ -147,7 +147,7 @@ class _InventoryViewState extends State<_InventoryView> {
           const SizedBox(height: 16),
           Row(children: [
             const Expanded(child: Text('INSUMOS', style: TextStyle(color: AppColors.navy, fontSize: 15, fontWeight: FontWeight.w900))),
-            Text('\${state.total} registros', style: const TextStyle(color: AppColors.slate, fontSize: 11)),
+            Text('${state.total} registros', style: const TextStyle(color: AppColors.slate, fontSize: 11)),
           ]),
           const SizedBox(height: 8),
           if (state.loading && state.items.isEmpty)
