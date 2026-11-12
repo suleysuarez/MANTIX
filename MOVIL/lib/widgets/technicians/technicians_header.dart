@@ -12,7 +12,7 @@ class TechniciansHeader extends StatelessWidget {
   static const asset = 'assets/images/tecnicos.png';
 
   /// Ancho que se deja libre a la derecha para la ilustración del banner.
-  static const _illustrationWidth = 92.0;
+  static const _illustrationWidth = 76.0;
 
   final Widget? action;
 
@@ -36,7 +36,7 @@ class TechniciansHeader extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Padding(
                 padding: EdgeInsets.only(right: _illustrationWidth),
@@ -46,18 +46,18 @@ class TechniciansHeader extends StatelessWidget {
                     TextSpan(text: 'TÉCNICO', style: TextStyle(color: AppColors.mustard)),
                     TextSpan(text: ' Y ESPECIALISTAS', style: TextStyle(color: AppColors.white)),
                   ]),
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, height: 1.1, letterSpacing: 0.2),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, height: 1.1, letterSpacing: 0.2),
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: 2),
               const Padding(
                 padding: EdgeInsets.only(right: _illustrationWidth),
                 child: Text(
-                  'Supervisa al equipo técnico: disponibilidad, especialidades y carga de tickets.',
-                  style: TextStyle(color: AppColors.skyLight, fontSize: 12.5, height: 1.35),
+                  'Disponibilidad y carga del equipo.',
+                  style: TextStyle(color: AppColors.skyLight, fontSize: 11, height: 1.3),
                 ),
               ),
-              if (action != null) ...[const SizedBox(height: AppSpacing.md), action!],
+              if (action != null) ...[const SizedBox(height: AppSpacing.sm), action!],
             ]),
           ),
         ]),

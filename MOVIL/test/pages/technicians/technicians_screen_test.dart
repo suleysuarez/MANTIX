@@ -83,6 +83,18 @@ void main() {
       expect(cardNames(tester), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
     });
 
+    for (final scale in [1.0, 1.3]) {
+      testWidgets('los cuatro KPI miden lo mismo con texto $scale', (tester) async {
+        await open(tester, size: const Size(360, 3200), textScale: scale);
+
+        final sizes = [
+          for (final label in ['TÉCNICOS DISPONIBLES', 'SIN CARGA', 'CON SOBRECARGA', 'TICKETS SIN ASIGNAR'])
+            tester.getSize(find.ancestor(of: find.text(label), matching: find.byType(Material)).first),
+        ];
+        expect(sizes.toSet(), hasLength(1), reason: '$sizes');
+      });
+    }
+
     testWidgets('cada tarjeta dice el estado con palabras y marca la cuenta inactiva', (tester) async {
       await open(tester);
 
@@ -235,13 +247,20 @@ void main() {
       expect(find.byType(ActiveFilterChip), findsNothing);
     });
 
-    testWidgets('se puede cambiar el orden; por defecto es menor carga', (tester) async {
+    testWidgets('el orden se elige dentro de los filtros; por defecto es menor carga', (tester) async {
       await open(tester);
+      expect(find.text('Ordenar por'), findsNothing, reason: 'ya no hay un botón de orden suelto en la pantalla');
+
+      await tester.tap(find.byType(FilterButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Ordenar por'), findsOneWidget);
       expect(find.text('Menor carga de tickets'), findsOneWidget);
 
       await tester.tap(find.text('Menor carga de tickets'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Nombre').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(FilterSheet), matching: find.text('Aplicar')));
       await tester.pumpAndSettle();
       expect(cardNames(tester), ['Ana Demo', 'Luis Demo', 'Marta Demo', 'Suley Suárez']);
     });

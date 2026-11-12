@@ -80,7 +80,7 @@ class TechnicianCard extends StatelessWidget {
               ]),
               const SizedBox(height: AppSpacing.md),
               Row(children: [
-                Expanded(flex: 2, child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS', prominent: true)),
+                Expanded(child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS')),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: _Stat(icon: Icons.task_alt_rounded, value: _count(workload, (w) => w.resolvedOf(technician.id)), label: 'RESUELTOS')),
               ]),
@@ -111,12 +111,11 @@ class TechnicianCard extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.value, required this.label, this.prominent = false});
+  const _Stat({required this.icon, required this.value, required this.label});
 
   final IconData icon;
   final String value;
   final String label;
-  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -124,21 +123,26 @@ class _Stat extends StatelessWidget {
     return Semantics(
       label: '$label: ${value == '—' ? 'no disponible' : value}',
       excludeSemantics: true,
-      child: Row(children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(color: neutralTone.background, borderRadius: AppRadius.smAll),
-          child: Icon(icon, size: 18, color: neutralTone.foreground),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(value, style: (prominent ? theme.textTheme.headlineSmall : theme.textTheme.titleMedium)?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
-            FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3))),
-          ]),
-        ),
-      ]),
+      // Los dos contadores comparten tamaño y fondo: ninguno pesa más que el otro.
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .3), borderRadius: AppRadius.mdAll),
+        child: Row(children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(color: AppColors.white.withValues(alpha: .8), borderRadius: AppRadius.smAll),
+            child: Icon(icon, size: 17, color: AppColors.steel),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(value, style: theme.textTheme.titleLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
+              FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3))),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 }
