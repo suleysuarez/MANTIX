@@ -16,13 +16,13 @@ App Android de Mantix (Flutter, `com.suleysuarez.mantix`). Consume la API FastAP
 | 8 Push y escaneo de QR | Sin empezar |
 | 9 Calidad y entrega | Sin empezar (ícono por defecto, release firmado con la clave de debug) |
 
-La app móvil usa autenticación nativa Mantix con correo y contraseña. Las cuentas nuevas deben verificar el correo y quedan pendientes de aprobación hasta que un administrador les asigne un rol. La web Angular conserva Clerk. Con permiso de solicitudes, además lista, consulta y crea solicitudes de mantenimiento. Aún no hay pantallas de Técnico, Supervisor ni Administrador.
+La app móvil usa autenticación nativa Mantix con correo y contraseña. Crear una cuenta no pide verificar el correo: se entra enseguida, pero la cuenta queda pendiente de aprobación hasta que un administrador les asigne un rol. La web Angular conserva Clerk. Con permiso de solicitudes, además lista, consulta y crea solicitudes de mantenimiento. Aún no hay pantallas de Técnico, Supervisor ni Administrador.
 
 ## Autenticación móvil
 
-La app Flutter usa los endpoints nativos de FastAPI: `/mobile-auth/register`, `/verify-email`, `/login`, `/resend-verification`, `/forgot-password` y `/reset-password`. El backend firma tokens Mantix y Flutter los guarda con `flutter_secure_storage` (Keystore/Keychain).
+La app Flutter usa los endpoints nativos de FastAPI `/mobile-auth/register` y `/mobile-auth/login`. Crear la cuenta **no envía ningún correo ni código**: la cuenta queda lista y la app inicia sesión enseguida. El backend firma tokens Mantix y Flutter los guarda con `flutter_secure_storage` (Keystore/Keychain). Los endpoints de verificación y de recuperación de contraseña por correo (`/verify-email`, `/resend-verification`, `/forgot-password`, `/reset-password`) siguen en la API, pero la app ya no los usa.
 
-Los códigos de verificación y recuperación se envían por SMTP (cuenta de Gmail con contraseña de aplicación; ver `backend/README.md`). Las cuentas registradas no reciben roles automáticamente: quedan pendientes hasta que un administrador asigne el rol correspondiente. La app consulta `GET /auth/me` para cargar roles y permisos.
+El correo solo haría falta para esos endpoints de recuperación, que la app no ofrece hoy (ver `backend/README.md` si se vuelven a usar). **Sin verificar el correo, cualquiera puede crear una cuenta con la dirección de otra persona:** por eso las cuentas nuevas no reciben roles automáticamente y quedan pendientes hasta que un administrador asigne el rol correspondiente. La app consulta `GET /auth/me` para cargar roles y permisos.
 
 **La autenticación Clerk de Angular/web no se modifica.** FastAPI acepta tanto los tokens Clerk existentes como los tokens nativos de la app.
 
