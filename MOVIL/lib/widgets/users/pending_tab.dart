@@ -69,7 +69,7 @@ class _PendingTabState extends State<PendingTab> with AutomaticKeepAliveClientMi
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(color: mustardTone.background, borderRadius: AppRadius.mdAll),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.navy),
+          const Icon(Icons.error_outline_rounded, size: 20, color: AppColors.navy),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: Text('Estas personas ya iniciaron sesión, pero no pueden usar Mantix hasta que les asignes un rol.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.navy, height: 1.3))),
         ]),
@@ -85,7 +85,18 @@ class _PendingTabState extends State<PendingTab> with AutomaticKeepAliveClientMi
           ]),
         ),
       const SizedBox(height: AppSpacing.md),
-      for (final user in state.users) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: PendingUserCard(user: user, action: widget.actionFor?.call(context, user))),
+      for (final user in state.users) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.md), child: PendingUserCard(user: user, action: widget.actionFor?.call(context, user))),
+      // Solo quien puede asignar roles ve qué hacer con ellas.
+      if (widget.actionFor != null)
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .45), borderRadius: AppRadius.mdAll),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.info_outline_rounded, size: 20, color: AppColors.steel),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(child: Text('Asigna un rol para habilitar el acceso de la persona.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.navy, height: 1.3))),
+          ]),
+        ),
     ];
   }
 }

@@ -300,6 +300,9 @@ Hecha en código y pruebas en la rama `feat/mobile-users-roles` (sale de `feat/m
 
 **Fuera de esta versión (decidido):** **crear usuario**, restablecer contraseña y crear, editar o borrar roles.
 
+**Ajuste de interfaz** (según la maqueta): las tres pestañas son píldoras (la elegida en mostaza, «Pendientes» con su número) y el encabezado cambia con la pestaña (icono en caja azul claro, línea mostaza, título y explicación). Las cifras son tres tarjetas con icono (total, activos e inactivos; «Sin ingresar» salió de las cifras). La tarjeta de usuario lleva el rol con su icono a la izquierda y el estado a la derecha, y el último acceso quedó solo en la ficha. En Pendientes cada persona lleva el chip «Pendiente de asignación» y el botón «Asignar rol» debajo de su tarjeta, con una ayuda al final solo para quien puede asignar. Las tarjetas de rol llevan su icono (por código, solo decora) y cuántas personas lo tienen. Diferencias con la maqueta: no hay **«Crear rol»** (crear roles sigue fuera de esta versión), no se muestra la **fecha de solicitud** del pendiente (`GET /admin/users/pending` no la trae), las tarjetas de rol no llevan flecha (no hay detalle del rol) y se mantiene el paginador del proyecto en vez de «1 de 1». Los textos «Define y administra los roles» y «permisos» se cambiaron porque la app solo consulta.
+
+
 **Verificación:** 865 pruebas (bloc, repositorio y widget; incluye cada flujo y cada error, y que el servidor reciba la petición correcta), `flutter analyze` sin avisos, sin overflow a 320×568 y 360×640 con texto a 1,3 y `flutter build apk --debug`. La revisión a ojo en el teléfono, y contra un backend real, la hace la persona dueña del proyecto.
 
 **Pendientes de backend de esta pantalla** (no se tocó `MOVIL/backend`):
@@ -310,6 +313,7 @@ Hecha en código y pruebas en la rama `feat/mobile-users-roles` (sale de `feat/m
 - `GET /admin/roles` solo da `id`, `code` y `name`; la descripción y el conteo completos piden `usuarios:asignar` (`/admin/roles/manage`).
 - `PATCH /admin/users/{id}` con un campo en `null` para borrarlo es lo que usa la web y lo que espera la app, pero **no se ha probado contra el backend real**.
 - `GET /admin/users` no tiene filtro «sin rol» (se obtiene de la pestaña Pendientes).
+- **El último acceso no se registra al iniciar sesión en el móvil.** `last_login_at` solo lo escribe `ClerkAuthService._touch_login` (el flujo de Clerk de la web); `MobileAuthService.login` no lo llama. Quien entra solo por la app queda con `last_login_at` vacío y se ve como «Pendiente de primer ingreso» (en la lista, en la ficha como «Último acceso: Nunca» y en las cifras de `never_signed_in`). Hace falta registrar el acceso en `login` y en `verify-email` (con el mismo intervalo de 30 minutos y la misma entrada de auditoría `auth.login`); sin migraciones, la columna ya existe. **No aprobado:** hasta entonces esos estados no son fiables para cuentas que solo usan el móvil, y quienes ya entraron seguirán vacíos hasta su próximo inicio de sesión.
 
 **Ramas:** `feat/mobile-users-roles` sale de `feat/mobile-ui-polish`, que tampoco se ha subido ni tiene PR (ajustes de la bandeja, el paginador, Equipos y el banner del dashboard). Orden de integración propuesto: 1) `feat/mobile-ui-polish`; 2) `feat/mobile-users-roles` (que ya incluye lo anterior). Nada se ha subido ni fusionado.
 

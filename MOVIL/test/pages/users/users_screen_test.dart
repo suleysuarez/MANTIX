@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/users/users_screen.dart';
+import 'package:mantix/widgets/users/users_tab_pills.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
 import 'package:mantix/widgets/users/user_cards.dart';
 
@@ -48,7 +49,7 @@ void main() {
   }
 
   Future<void> goTo(WidgetTester tester, String tab) async {
-    await tester.tap(find.descendant(of: find.byType(TabBar), matching: find.text(tab)));
+    await tester.tap(find.descendant(of: find.byType(UsersTabPills), matching: find.text(tab)));
     await tester.pumpAndSettle();
   }
 
@@ -58,11 +59,27 @@ void main() {
     testWidgets('una sola pantalla con tres pestañas y el número de pendientes', (tester) async {
       await open(tester);
 
-      expect(find.text('USUARIOS Y ROLES'), findsOneWidget);
+      expect(find.text('Usuarios y Roles'), findsOneWidget);
+      expect(find.text('Gestiona usuarios y roles de la plataforma.'), findsOneWidget);
       for (final tab in ['Usuarios', 'Pendientes', 'Roles']) {
-        expect(find.descendant(of: find.byType(TabBar), matching: find.text(tab)), findsOneWidget, reason: tab);
+        expect(find.descendant(of: find.byType(UsersTabPills), matching: find.text(tab)), findsOneWidget, reason: tab);
       }
-      expect(find.descendant(of: find.byType(TabBar), matching: find.text('1')), findsOneWidget, reason: 'una persona espera un rol');
+      expect(find.descendant(of: find.byType(UsersTabPills), matching: find.text('1')), findsOneWidget, reason: 'una persona espera un rol');
+    });
+
+    testWidgets('el encabezado sigue a la pestaña y vuelve al cambiar de nuevo', (tester) async {
+      await open(tester);
+      expect(find.text('Usuarios y Roles'), findsOneWidget);
+
+      await goTo(tester, 'Roles');
+      expect(find.text('Usuarios y Roles'), findsNothing);
+      expect(find.text('Los roles del sistema y cuántas personas tiene cada uno.'), findsOneWidget);
+
+      await goTo(tester, 'Pendientes');
+      expect(find.text('Personas que esperan tu aprobación.'), findsOneWidget);
+
+      await goTo(tester, 'Usuarios');
+      expect(find.text('Usuarios y Roles'), findsOneWidget);
     });
 
     testWidgets('sin pendientes la pestaña no lleva número', (tester) async {
@@ -70,8 +87,8 @@ void main() {
       summaryHandler = (_) => jsonResponse(200, {...usersSummaryJson, 'without_role': 0});
       await open(tester);
 
-      expect(find.descendant(of: find.byType(TabBar), matching: find.text('0')), findsNothing);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.text('1')), findsNothing);
+      expect(find.descendant(of: find.byType(UsersTabPills), matching: find.text('0')), findsNothing);
+      expect(find.descendant(of: find.byType(UsersTabPills), matching: find.text('1')), findsNothing);
     });
   });
 
@@ -79,10 +96,10 @@ void main() {
     testWidgets('muestra las cifras y cada persona con su correo, roles, estado y último acceso', (tester) async {
       await open(tester);
 
-      for (final value in ['40', '36', '4', '3']) {
+      for (final value in ['40', '36', '4']) {
         expect(find.text(value), findsWidgets, reason: value);
       }
-      for (final label in ['Total', 'Activos', 'Inactivos', 'Sin ingresar']) {
+      for (final label in ['Total', 'Activos', 'Inactivos']) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
       expect(find.byType(UserCard), findsNWidgets(3));
@@ -94,7 +111,7 @@ void main() {
       expect(find.text('Pendiente de primer ingreso'), findsOneWidget);
       expect(find.text('Inactivo'), findsOneWidget);
       expect(find.text('Sin rol'), findsOneWidget, reason: 'Luis no tiene rol');
-      expect(find.text('Último acceso: Nunca'), findsOneWidget);
+      expect(find.textContaining('Último acceso'), findsNothing, reason: 'el último acceso está en la ficha, no en la tarjeta');
     });
 
     testWidgets('la primera carga pide la página 1 de 20, ordenada por nombre', (tester) async {
@@ -225,7 +242,7 @@ void main() {
       summaryHandler = (_) => jsonResponse(200, usersSummaryJson);
       await tester.tap(find.text('Reintentar'));
       await tester.pumpAndSettle();
-      expect(find.text('Sin ingresar'), findsOneWidget);
+      expect(find.text('Activos'), findsOneWidget);
     });
   });
 
@@ -238,8 +255,24 @@ void main() {
       expect(find.byType(PendingUserCard), findsNWidgets(2));
       expect(find.text('Luis Nuevo'), findsOneWidget);
       expect(find.text('luis@mantix.test'), findsOneWidget);
-      expect(find.text('Sin rol'), findsNWidgets(2));
+      expect(find.text('Pendiente de asignación'), findsNWidgets(2));
       expect(find.textContaining('no pueden usar Mantix hasta que les asignes un rol'), findsOneWidget);
+      expect(find.text('Pendientes'), findsWidgets);
+      expect(find.text('Personas que esperan tu aprobación.'), findsOneWidget, reason: 'el encabezado sigue a la pestaña');
+    });
+
+    testWidgets('quien puede asignar roles ve el botón y la ayuda; quien solo ve, no', (tester) async {
+      await open(tester, permissions: _canAssign);
+      await goTo(tester, 'Pendientes');
+      expect(find.text('Asigna un rol para habilitar el acceso de la persona.'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Asignar rol'), findsOneWidget);
+    });
+
+    testWidgets('sin permiso para asignar no hay ayuda ni botón', (tester) async {
+      await open(tester, permissions: _viewOnly);
+      await goTo(tester, 'Pendientes');
+      expect(find.text('Asigna un rol para habilitar el acceso de la persona.'), findsNothing);
+      expect(find.text('Asignar rol'), findsNothing);
     });
 
     testWidgets('sin pendientes lo dice', (tester) async {
@@ -264,12 +297,13 @@ void main() {
   });
 
   group('pestaña Roles', () {
-    testWidgets('con solo «ver» muestra nombre, código y cuántas personas, sin descripción', (tester) async {
+    testWidgets('con solo «ver» muestra nombre y cuántas personas, sin descripción', (tester) async {
       await open(tester, permissions: _viewOnly);
       await goTo(tester, 'Roles');
 
       expect(find.byType(RoleCard), findsNWidgets(2));
-      expect(find.text('TECHNICIAN'), findsOneWidget);
+      expect(find.text('Técnico'), findsWidgets);
+      expect(find.text('Los roles del sistema y cuántas personas tiene cada uno.'), findsOneWidget, reason: 'el encabezado sigue a la pestaña');
       expect(find.text('9 personas'), findsOneWidget);
       expect(find.text('2 personas'), findsOneWidget);
       expect(find.text('Atiende tickets asignados'), findsNothing);
