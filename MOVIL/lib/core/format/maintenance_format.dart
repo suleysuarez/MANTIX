@@ -94,3 +94,14 @@ String formatPlanHours(double? hours) {
 
 /// «Cada 30 días».
 String intervalText(int days) => days == 1 ? 'Cada día' : 'Cada $days días';
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+/// «26/11/2026 09:00 a. m.»: la fecha y hora del primer servicio como se escribe en el formulario.
+String formatFormDateTime(DateTime date) {
+  final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+  return '${_two(date.day)}/${_two(date.month)}/${date.year} ${_two(hour)}:${_two(date.minute)} ${date.hour < 12 ? 'a. m.' : 'p. m.'}';
+}
+
+/// El primer servicio que propone el formulario: mañana a las 9:00.
+DateTime defaultFirstDue(DateTime now) => DateTime(now.year, now.month, now.day + 1, 9);
