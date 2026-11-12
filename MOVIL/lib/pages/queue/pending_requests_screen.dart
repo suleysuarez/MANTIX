@@ -137,7 +137,7 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
         return;
       case TriageOutcomeKind.succeeded:
         _summary.add(const QueueSummaryRequested());
-        return;
+        break;
       case TriageOutcomeKind.failed:
         _board.add(RequestBoardMoveReverted(outcome.ticket.id));
       case TriageOutcomeKind.blocked:
