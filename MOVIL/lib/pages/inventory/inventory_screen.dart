@@ -90,9 +90,18 @@ class _InventoryViewState extends State<_InventoryView> {
     if (result == true && mounted) _applyQuery(category: category, status: status, clearCategory: category == null, clearStatus: status == null);
   }
 
-  void _create() => showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, showDragHandle: true, backgroundColor: AppColors.canvas, builder: (_) => const InventoryItemFormSheet());
+  // La hoja cuelga del Navigator, fuera del BlocProvider de la pantalla: se le pasa el bloc.
+  void _create() {
+    final bloc = context.read<InventoryBloc>();
+    showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, showDragHandle: true, backgroundColor: AppColors.canvas,
+      builder: (_) => BlocProvider.value(value: bloc, child: const InventoryItemFormSheet()));
+  }
 
-  void _movement(InventoryItem item, String kind) => showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, showDragHandle: true, backgroundColor: AppColors.canvas, builder: (_) => InventoryMovementSheet(item: item, kind: kind));
+  void _movement(InventoryItem item, String kind) {
+    final bloc = context.read<InventoryBloc>();
+    showModalBottomSheet<void>(context: context, useSafeArea: true, isScrollControlled: true, showDragHandle: true, backgroundColor: AppColors.canvas,
+      builder: (_) => BlocProvider.value(value: bloc, child: InventoryMovementSheet(item: item, kind: kind)));
+  }
 
   @override
   Widget build(BuildContext context) => BlocListener<InventoryBloc, InventoryState>(
