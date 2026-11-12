@@ -52,9 +52,8 @@ void main() {
 
   Finder inSheet(Finder finder) => find.descendant(of: find.byType(BottomSheet), matching: finder);
 
-  /// Los dos campos de la hoja de contacto: el teléfono y el código (el de búsqueda de la pantalla queda detrás).
+  /// El campo de teléfono de la hoja de contacto (el de búsqueda de la pantalla queda detrás).
   Finder phoneField() => inSheet(find.byType(TextField)).at(0);
-  Finder codeField() => inSheet(find.byType(TextField)).at(1);
 
   /// En pantallas pequeñas los botones quedan abajo: se desplaza la ficha hasta verlos.
   Future<void> reveal(WidgetTester tester, Finder finder) async {
@@ -73,7 +72,8 @@ void main() {
       expect(find.text('Detalle del usuario'), findsOneWidget);
       expect(inSheet(find.text('pedro@mantix.test')), findsOneWidget);
       expect(inSheet(find.text('+57 300 123 4567')), findsOneWidget);
-      expect(inSheet(find.text('EMP-014')), findsWidgets);
+      expect(inSheet(find.text('EMP-014')), findsNothing, reason: 'el código de empleado ya no se muestra');
+      expect(inSheet(find.text('Código de empleado')), findsNothing);
       expect(inSheet(find.text('Técnico')), findsOneWidget);
       expect(inSheet(find.text('Activo')), findsOneWidget);
     });
@@ -83,7 +83,7 @@ void main() {
       await openDetail(tester, 'Luis Nuevo');
 
       expect(inSheet(find.text('Todavía no tiene un rol: no puede usar Mantix.')), findsOneWidget);
-      expect(inSheet(find.text('Sin registrar')), findsNWidgets(2));
+      expect(inSheet(find.text('Sin registrar')), findsOneWidget, reason: 'solo falta el teléfono: el código de empleado ya no se muestra');
       expect(inSheet(find.text('Pendiente de primer ingreso')), findsOneWidget);
     });
 
@@ -91,7 +91,7 @@ void main() {
       await open(tester, permissions: {'usuarios:ver'});
       await openDetail(tester, 'Pedro Gómez');
       expect(find.text('Cambiar roles'), findsNothing);
-      expect(find.text('Editar teléfono y código'), findsNothing);
+      expect(find.text('Editar teléfono'), findsNothing);
       expect(find.text('Desactivar cuenta'), findsNothing);
     });
 
@@ -99,7 +99,7 @@ void main() {
       await open(tester, permissions: {'usuarios:ver', 'usuarios:asignar'});
       await openDetail(tester, 'Pedro Gómez');
       expect(find.text('Cambiar roles'), findsOneWidget);
-      expect(find.text('Editar teléfono y código'), findsNothing);
+      expect(find.text('Editar teléfono'), findsNothing);
       expect(find.text('Desactivar cuenta'), findsNothing);
     });
 
@@ -107,7 +107,7 @@ void main() {
       await open(tester);
       await openDetail(tester, 'Pedro Gómez');
       expect(find.text('Cambiar roles'), findsOneWidget);
-      expect(find.text('Editar teléfono y código'), findsOneWidget);
+      expect(find.text('Editar teléfono'), findsOneWidget);
       expect(find.text('Desactivar cuenta'), findsOneWidget);
     });
 
@@ -381,11 +381,11 @@ void main() {
     });
   });
 
-  group('editar teléfono y código', () {
+  group('editar teléfono', () {
     Future<void> openContact(WidgetTester tester, String name) async {
       await open(tester);
       await openDetail(tester, name);
-      await tester.tap(find.text('Editar teléfono y código'));
+      await tester.tap(find.text('Editar teléfono'));
       await tester.pumpAndSettle();
     }
 
@@ -394,7 +394,7 @@ void main() {
 
       expect(find.text('Editar datos de contacto'), findsOneWidget);
       expect(tester.widget<TextField>(phoneField()).controller!.text, '+57 300 123 4567');
-      expect(tester.widget<TextField>(codeField()).controller!.text, 'EMP-014');
+      expect(inSheet(find.byType(TextField)), findsOneWidget, reason: 'solo el teléfono: el código de empleado ya no se edita');
       await tester.enterText(phoneField(), '  +57   311 000 1111 ');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Guardar cambios'));
@@ -402,33 +402,27 @@ void main() {
 
       expect(writes().single.method, 'PATCH');
       expect(writes().single.path, '/admin/users/4');
-      expect(writes().single.data, {'phone': '+57 311 000 1111'}, reason: 'el código no cambió y no viaja');
+      expect(writes().single.data, {'phone': '+57 311 000 1111'}, reason: 'solo viaja el teléfono');
       expect(find.text('Datos de Pedro Gómez actualizados.'), findsOneWidget);
     });
 
-    testWidgets('vaciar un campo lo borra', (tester) async {
+    testWidgets('vaciar el teléfono lo borra', (tester) async {
       await openContact(tester, 'Pedro Gómez');
 
-      await tester.enterText(codeField(), '');
+      await tester.enterText(phoneField(), '');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Guardar cambios'));
       await tester.pumpAndSettle();
 
-      expect(writes().single.data, {'employee_code': null});
+      expect(writes().single.data, {'phone': null});
     });
 
-    testWidgets('un teléfono o un código inválidos se explican y no se pueden guardar', (tester) async {
+    testWidgets('un teléfono inválido se explica y no se puede guardar', (tester) async {
       await openContact(tester, 'Pedro Gómez');
 
       await tester.enterText(phoneField(), 'abc');
       await tester.pumpAndSettle();
       expect(find.text('El teléfono solo admite números, espacios, +, ( ) y -.'), findsOneWidget);
-      expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Guardar cambios')).onPressed, isNull);
-
-      await tester.enterText(phoneField(), '+57 300 123 4567');
-      await tester.enterText(codeField(), 'x');
-      await tester.pumpAndSettle();
-      expect(find.text('El código solo admite letras, números, punto, guion y guion bajo (2 a 50).'), findsOneWidget);
       expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Guardar cambios')).onPressed, isNull);
       expect(writes(), isEmpty);
     });
@@ -441,18 +435,6 @@ void main() {
 
       expect(writes(), isEmpty);
       expect(inSheet(find.text('No hay cambios que guardar.')), findsOneWidget);
-    });
-
-    testWidgets('un código repetido lo explica el servidor', (tester) async {
-      writeHandler = (_) => errorResponse(409, code: 'user_employee_code_taken');
-      await openContact(tester, 'Pedro Gómez');
-
-      await tester.enterText(codeField(), 'EMP-099');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Guardar cambios'));
-      await tester.pumpAndSettle();
-
-      expect(inSheet(find.textContaining('Ya existe un usuario con ese código de empleado.')), findsOneWidget);
     });
   });
 
@@ -476,8 +458,8 @@ void main() {
         Navigator.of(tester.element(find.text('Roles de Pedro Gómez'))).pop();
         await tester.pumpAndSettle();
 
-        await reveal(tester, find.text('Editar teléfono y código'));
-        await tester.tap(find.text('Editar teléfono y código'));
+        await reveal(tester, find.text('Editar teléfono'));
+        await tester.tap(find.text('Editar teléfono'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await tester.enterText(phoneField(), 'abc');

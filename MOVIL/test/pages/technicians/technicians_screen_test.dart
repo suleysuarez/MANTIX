@@ -311,7 +311,8 @@ void main() {
       await openDetail(tester, 'Ana Demo');
 
       expect(find.text('Ficha del técnico'), findsOneWidget);
-      expect(find.text('TEC-01'), findsOneWidget);
+      expect(find.text('TEC-01'), findsNothing, reason: 'el código de empleado ya no se muestra');
+      expect(find.text('Sin código'), findsNothing);
       expect(find.text('tech1@demo.mantix.co'), findsWidgets);
       expect(find.text('Resueltos en 30 días'), findsOneWidget);
       expect(find.text('Indicadores de los últimos 30 días'), findsOneWidget);

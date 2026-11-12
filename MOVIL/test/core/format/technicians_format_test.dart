@@ -60,9 +60,9 @@ void main() {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters())), ['Bruno Paz', 'Zoe Mar', 'Ana Gil', 'Sofía Ruiz']);
     });
 
-    test('la búsqueda ignora tildes y mira nombre, correo, código y especialidad', () {
+    test('la búsqueda ignora tildes y mira nombre, correo y especialidad, pero ya no el código', () {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: ' sofia '))), ['Sofía Ruiz']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'tec-01'))), ['Sofía Ruiz']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'tec-01'))), isEmpty, reason: 'el código de empleado ya no se muestra ni se busca');
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'tech2@'))), ['Bruno Paz']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'IMPRESORAS'))), ['Ana Gil']);
     });

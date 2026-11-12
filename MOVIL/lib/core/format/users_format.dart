@@ -32,13 +32,11 @@ String lastAccessText(DateTime? value, DateTime now) {
   return formatDate(value);
 }
 
-/// Límites del backend para teléfono, código de empleado y cantidad de roles.
+/// Límites del backend para el teléfono y la cantidad de roles.
 const phoneMaxLength = 25;
-const employeeCodeMaxLength = 50;
 const maxRolesPerUser = 10;
 
 final _phone = RegExp(r'^\+?[0-9][0-9 ()-]{5,24}$');
-final _code = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{1,49}$');
 
 /// Quita los espacios sobrantes y junta los repetidos, como el backend.
 String collapseSpaces(String value) => value.trim().replaceAll(RegExp(r'\s+'), ' ');
@@ -51,24 +49,10 @@ String? phoneError(String? value) {
   return null;
 }
 
-/// Error del código de empleado, en español, o `null` si es válido o está vacío (es opcional).
-String? employeeCodeError(String? value) {
-  final code = (value ?? '').trim();
-  if (code.isEmpty) return null;
-  if (!_code.hasMatch(code)) return 'El código solo admite letras, números, punto, guion y guion bajo (2 a 50).';
-  return null;
-}
-
 /// Teléfono normalizado para enviarlo; `null` si quedó vacío (el servidor lo borra).
 String? normalizedPhone(String? value) {
   final phone = collapseSpaces(value ?? '');
   return phone.isEmpty ? null : phone;
-}
-
-/// Código de empleado normalizado: el servidor lo guarda en mayúsculas; `null` si quedó vacío.
-String? normalizedEmployeeCode(String? value) {
-  final code = (value ?? '').trim();
-  return code.isEmpty ? null : code.toUpperCase();
 }
 
 /// Error de la selección de roles al asignar, o `null` si es válida.

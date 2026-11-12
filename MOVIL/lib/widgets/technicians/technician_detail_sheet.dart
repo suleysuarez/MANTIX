@@ -159,7 +159,6 @@ class _TechnicianDetailState extends State<_TechnicianDetail> {
       children: [
         DetailHeader(
           icon: Icons.engineering_outlined,
-          pill: technician.employeeCode ?? 'Sin código',
           title: technician.fullName,
           chips: [
             TechnicianStatusChip(technician: technician, workload: workload),

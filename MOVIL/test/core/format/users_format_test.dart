@@ -56,26 +56,6 @@ void main() {
     });
   });
 
-  group('código de empleado', () {
-    test('vacío es válido', () => expect(employeeCodeError(' '), isNull));
-    test('válidos', () {
-      expect(employeeCodeError('EMP-014'), isNull);
-      expect(employeeCodeError('a1'), isNull);
-      expect(employeeCodeError('ab.cd_12-3'), isNull);
-    });
-    test('inválidos', () {
-      const message = 'El código solo admite letras, números, punto, guion y guion bajo (2 a 50).';
-      expect(employeeCodeError('x'), message);
-      expect(employeeCodeError('-abc'), message);
-      expect(employeeCodeError('con espacio'), message);
-      expect(employeeCodeError('a' * 51), message);
-    });
-    test('se normaliza en mayúsculas, como lo guarda el servidor', () {
-      expect(normalizedEmployeeCode(' emp-014 '), 'EMP-014');
-      expect(normalizedEmployeeCode(''), isNull);
-    });
-  });
-
   test('rolesError: al menos uno y como máximo diez', () {
     expect(rolesError(const []), 'Elige al menos un rol.');
     expect(rolesError(const [1]), isNull);

@@ -166,7 +166,7 @@ class _SearchRow extends StatelessWidget {
               textInputAction: TextInputAction.search,
               onChanged: onChanged,
               decoration: InputDecoration(
-                hintText: 'Buscar por nombre, correo o código…',
+                hintText: 'Buscar por nombre o correo…',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: value.text.isEmpty ? null : IconButton(tooltip: 'Borrar búsqueda', icon: const Icon(Icons.close_rounded), onPressed: onClear),
               ),

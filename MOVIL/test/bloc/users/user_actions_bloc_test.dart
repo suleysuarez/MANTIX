@@ -205,24 +205,24 @@ void main() {
     });
   });
 
-  group('editar teléfono y código', () {
+  group('editar teléfono', () {
     test('manda solo lo que cambió, normalizado', () async {
       final bloc = build();
       addTearDown(bloc.close);
 
-      final outcome = await run(bloc, UserContactChangeRequested(_user(), phone: '  +57  311 000 ', employeeCode: 'emp-014'));
+      final outcome = await run(bloc, UserContactChangeRequested(_user(), phone: '  +57  311 000 '));
 
       expect(outcome.kind, UserOutcomeKind.succeeded);
       expect(outcome.message, 'Datos de Luis Gómez actualizados.');
       expect(writes().single.method, 'PATCH');
-      expect(writes().single.data, {'phone': '+57 311 000'}, reason: 'el código quedó igual (EMP-014) y no viaja');
+      expect(writes().single.data, {'phone': '+57 311 000'});
     });
 
-    test('vaciar un campo lo borra con null', () async {
+    test('vaciar el teléfono lo borra con null', () async {
       final bloc = build();
       addTearDown(bloc.close);
 
-      await run(bloc, UserContactChangeRequested(_user(), phone: '  ', employeeCode: 'EMP-014'));
+      await run(bloc, UserContactChangeRequested(_user(), phone: '  '));
 
       expect(writes().single.data, {'phone': null});
     });
@@ -231,35 +231,32 @@ void main() {
       final bloc = build();
       addTearDown(bloc.close);
 
-      final outcome = await run(bloc, UserContactChangeRequested(_user(), phone: '+57 300 123 4567', employeeCode: 'emp-014'));
+      final outcome = await run(bloc, UserContactChangeRequested(_user(), phone: '+57 300 123 4567'));
 
       expect(outcome.kind, UserOutcomeKind.blocked);
       expect(outcome.message, 'No hay cambios que guardar.');
       expect(adapter.requests, isEmpty);
     });
 
-    test('un teléfono o un código con formato inválido no se piden', () async {
+    test('un teléfono con formato inválido no se pide', () async {
       final bloc = build();
       addTearDown(bloc.close);
 
-      final phone = await run(bloc, UserContactChangeRequested(_user(), phone: 'abc', employeeCode: 'EMP-014'));
+      final phone = await run(bloc, UserContactChangeRequested(_user(), phone: 'abc'));
       expect(phone.kind, UserOutcomeKind.blocked);
       expect(phone.message, 'El teléfono solo admite números, espacios, +, ( ) y -.');
-
-      final code = await run(bloc, UserContactChangeRequested(_user(), phone: '+57 300 123 4567', employeeCode: 'x'));
-      expect(code.message, 'El código solo admite letras, números, punto, guion y guion bajo (2 a 50).');
       expect(adapter.requests, isEmpty);
     });
 
-    test('un código de empleado repetido lo explica el servidor', () async {
-      handler = (_) => errorResponse(409, code: 'user_employee_code_taken');
+    test('si el servidor rechaza el cambio se avisa y no se da por guardado', () async {
+      handler = (_) => errorResponse(500);
       final bloc = build();
       addTearDown(bloc.close);
 
-      final outcome = await run(bloc, UserContactChangeRequested(_user(), employeeCode: 'EMP-099'));
+      final outcome = await run(bloc, UserContactChangeRequested(_user(), phone: '+57 311 000'));
 
       expect(outcome.kind, UserOutcomeKind.failed);
-      expect(outcome.message, contains('Ya existe un usuario con ese código de empleado.'));
+      expect(outcome.message, startsWith('No se pudieron guardar los datos de Luis Gómez:'));
     });
   });
 }

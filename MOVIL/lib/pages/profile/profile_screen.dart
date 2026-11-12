@@ -21,7 +21,6 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 Text(profile.fullName, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                 Text(profile.email),
-                if (profile.employeeCode != null) Text('Código de empleado: ${profile.employeeCode}'),
                 const SizedBox(height: 16),
                 Text('Roles', style: Theme.of(context).textTheme.titleMedium),
                 Wrap(spacing: 8, children: [for (final role in profile.roles) Chip(label: Text(role))]),
