@@ -111,19 +111,17 @@ void main() {
       expect(adapter.requests.map((r) => '${r.method} ${r.path}'), ['POST /admin/users/5/deactivate', 'POST /admin/users/5/activate']);
     });
 
-    test('updateContact manda solo lo que se pasa y null borra', () async {
+    test('updateContact manda el teléfono y null lo borra', () async {
       final adapter = FakeAdapter((_) => jsonResponse(200, userJson()));
       final repository = repo(adapter);
 
       await repository.updateContact(5, phone: (value: '+57 300 1'));
-      await repository.updateContact(5, employeeCode: (value: null));
-      await repository.updateContact(5, phone: (value: null), employeeCode: (value: 'EMP-1'));
+      await repository.updateContact(5, phone: (value: null));
 
       expect(adapter.requests[0].method, 'PATCH');
       expect(adapter.requests[0].path, '/admin/users/5');
       expect(adapter.requests[0].data, {'phone': '+57 300 1'});
-      expect(adapter.requests[1].data, {'employee_code': null});
-      expect(adapter.requests[2].data, {'phone': null, 'employee_code': 'EMP-1'});
+      expect(adapter.requests[1].data, {'phone': null});
     });
 
     test('los códigos de error del servidor llegan traducidos', () async {
@@ -142,8 +140,6 @@ void main() {
       expect(admin, isA<ConflictFailure>().having((f) => f.message, 'message', 'No se puede dejar al sistema sin administradores activos.'));
       final own = await failure(409, 'cannot_revoke_own_admin', (r) => r.setRoles(1, [3]));
       expect(own, isA<ConflictFailure>().having((f) => f.message, 'message', 'No puedes quitarte tu propio rol de administrador.'));
-      final code = await failure(409, 'user_employee_code_taken', (r) => r.updateContact(1, employeeCode: (value: 'X1')));
-      expect(code, isA<ConflictFailure>().having((f) => f.message, 'message', 'Ya existe un usuario con ese código de empleado.'));
       final role = await failure(404, 'role_not_found', (r) => r.setRoles(1, [99]));
       expect(role, isA<NotFoundFailure>().having((f) => f.message, 'message', 'Uno de los roles ya no existe o está inactivo.'));
       final user = await failure(404, 'user_not_found', (r) => r.setActive(99, active: true));

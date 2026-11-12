@@ -25,11 +25,10 @@ class UserActiveChangeRequested extends UserActionsEvent {
   final bool active;
 }
 
-/// Cambiar el teléfono y el código de empleado de [user]. Vacío borra el dato.
+/// Cambiar el teléfono de [user]. Vacío lo borra.
 class UserContactChangeRequested extends UserActionsEvent {
-  const UserContactChangeRequested(this.user, {this.phone, this.employeeCode});
+  const UserContactChangeRequested(this.user, {this.phone});
 
   final ManagedUser user;
   final String? phone;
-  final String? employeeCode;
 }

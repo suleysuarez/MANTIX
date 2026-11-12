@@ -54,9 +54,11 @@ class DetailField extends StatelessWidget {
 /// Cabecera oscura de una ficha con el acento mostaza: [leading] (icono), [pill] (etiqueta o
 /// número en mostaza), [title] y [chips] debajo.
 class DetailHeader extends StatelessWidget {
-  const DetailHeader({super.key, required this.icon, required this.pill, required this.title, this.chips = const []});
+  const DetailHeader({super.key, required this.icon, this.pill, required this.title, this.chips = const []});
   final IconData icon;
-  final String pill;
+
+  /// Etiqueta mostaza junto al título; sin ella, solo salen los chips.
+  final String? pill;
   final String title;
   final List<Widget> chips;
 
@@ -83,10 +85,10 @@ class DetailHeader extends StatelessWidget {
             Text(title, style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.2)),
             const SizedBox(height: AppSpacing.sm),
             Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xs, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Container(
+              if (pill != null) Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: AppColors.mustard, borderRadius: AppRadius.pillAll),
-                child: Text(pill, style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
+                child: Text(pill!, style: theme.textTheme.labelMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
               ),
               ...chips,
             ]),

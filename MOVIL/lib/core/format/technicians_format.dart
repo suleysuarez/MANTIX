@@ -96,7 +96,7 @@ List<Technician> filterTechnicians(Iterable<Technician> technicians, Workload? w
     if (filters.availability.isNotEmpty && !filters.availability.contains(technician.isAvailable)) return false;
     if (filters.loads.isNotEmpty && !filters.loads.contains(loadBucket(open(technician)))) return false;
     if (query.isEmpty) return true;
-    final haystack = normalize([technician.fullName, technician.email, technician.employeeCode ?? '', technician.specialization ?? ''].join(' '));
+    final haystack = normalize([technician.fullName, technician.email, technician.specialization ?? ''].join(' '));
     return haystack.contains(query);
   }).toList();
 

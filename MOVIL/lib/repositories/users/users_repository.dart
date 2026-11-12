@@ -95,12 +95,11 @@ class UsersRepository {
         return ManagedUser.fromJson(response.data!);
       });
 
-  /// Cambia teléfono y código de empleado (requiere `usuarios:editar`). Solo viaja el campo que
-  /// se pasa: ausente no cambia; `(value: null)` lo borra y `(value: 'x')` lo cambia.
-  Future<ManagedUser> updateContact(int userId, {({String? value})? phone, ({String? value})? employeeCode}) => _guard(() async {
+  /// Cambia el teléfono (requiere `usuarios:editar`). Solo viaja si se pasa: ausente no cambia;
+  /// `(value: null)` lo borra y `(value: 'x')` lo cambia.
+  Future<ManagedUser> updateContact(int userId, {({String? value})? phone}) => _guard(() async {
         final response = await _dio.patch<Map<String, Object?>>('/admin/users/$userId', data: {
           if (phone != null) 'phone': phone.value,
-          if (employeeCode != null) 'employee_code': employeeCode.value,
         });
         _changes.add(null);
         return ManagedUser.fromJson(response.data!);

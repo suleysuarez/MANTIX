@@ -33,7 +33,7 @@ class UserPermissions {
 }
 
 /// Ficha de una persona en una hoja inferior arrastrable: sus datos y, según los permisos,
-/// cambiar sus roles, editar teléfono y código, y activar o desactivar su cuenta. Al terminar una
+/// cambiar sus roles, editar el teléfono, y activar o desactivar su cuenta. Al terminar una
 /// acción bien la hoja se cierra y el aviso lo da la pantalla; si falla, el motivo sale dentro
 /// de la hoja y la persona sigue donde estaba.
 Future<void> showUserDetail(
@@ -97,7 +97,7 @@ class _UserDetailState extends State<_UserDetail> {
     final input = await showContactSheet(context, user: _user);
     if (input == null || !mounted) return;
     setState(() => _error = null);
-    _actions.add(UserContactChangeRequested(_user, phone: input.phone, employeeCode: input.employeeCode));
+    _actions.add(UserContactChangeRequested(_user, phone: input.phone));
   }
 
   Future<void> _toggle() async {
@@ -132,7 +132,6 @@ class _UserDetailState extends State<_UserDetail> {
           children: [
             DetailHeader(
               icon: Icons.person_outline_rounded,
-              pill: _user.employeeCode ?? 'Sin código',
               title: _user.fullName,
               chips: [
                 AppChip(label: accessLabel(state), colors: accessColors(state), semanticPrefix: 'Estado'),
@@ -162,7 +161,6 @@ class _UserDetailState extends State<_UserDetail> {
             DetailSection(icon: Icons.info_outline_rounded, title: 'Datos de la cuenta', children: [
               DetailField('Correo', _user.email),
               DetailField('Teléfono', _user.phone ?? 'Sin registrar'),
-              DetailField('Código de empleado', _user.employeeCode ?? 'Sin registrar'),
               DetailField('Creada', formatDate(_user.createdAt)),
               DetailField('Último acceso', lastAccessText(_user.lastLoginAt, now)),
             ]),
@@ -171,7 +169,7 @@ class _UserDetailState extends State<_UserDetail> {
               if (widget.can.canAssignRoles) FilledButton.icon(onPressed: busy ? null : _changeRoles, icon: const Icon(Icons.admin_panel_settings_outlined), label: const Text('Cambiar roles'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50))),
               if (widget.can.canEdit) ...[
                 const SizedBox(height: AppSpacing.sm),
-                OutlinedButton.icon(onPressed: busy ? null : _edit, icon: const Icon(Icons.edit_outlined), label: const Text('Editar teléfono y código'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50))),
+                OutlinedButton.icon(onPressed: busy ? null : _edit, icon: const Icon(Icons.edit_outlined), label: const Text('Editar teléfono'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50))),
               ],
               if (canToggle) ...[
                 const SizedBox(height: AppSpacing.sm),

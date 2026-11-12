@@ -78,19 +78,17 @@ class UserActionsBloc extends Bloc<UserActionsEvent, UserActionsState> {
   Future<void> _onContact(UserContactChangeRequested event, Emitter<UserActionsState> emit) async {
     final user = event.user;
     if (state.inFlight.contains(user.id)) return;
-    final problem = phoneError(event.phone) ?? employeeCodeError(event.employeeCode);
+    final problem = phoneError(event.phone);
     if (problem != null) return emit(state.copyWith(outcome: _outcome(UserOutcomeKind.blocked, user.id, problem)));
     final phone = normalizedPhone(event.phone);
-    final code = normalizedEmployeeCode(event.employeeCode);
     final phoneChanged = phone != user.phone;
-    final codeChanged = code != user.employeeCode;
-    if (!phoneChanged && !codeChanged) {
+    if (!phoneChanged) {
       return emit(state.copyWith(outcome: _outcome(UserOutcomeKind.blocked, user.id, 'No hay cambios que guardar.')));
     }
     await _run(
       user.id,
       emit,
-      action: () => _repository.updateContact(user.id, phone: phoneChanged ? (value: phone) : null, employeeCode: codeChanged ? (value: code) : null),
+      action: () => _repository.updateContact(user.id, phone: (value: phone)),
       success: (_) => 'Datos de ${user.fullName} actualizados.',
       failurePrefix: 'No se pudieron guardar los datos de ${user.fullName}:',
     );

@@ -7,9 +7,9 @@ import '../../models/users/user_models.dart';
 import '../shared/mantix_sheet.dart';
 
 /// Lo que se escribió en la hoja de contacto, tal cual (el Bloc lo normaliza y compara).
-typedef UserContactInput = ({String phone, String employeeCode});
+typedef UserContactInput = ({String phone});
 
-/// Hoja para editar el teléfono y el código de empleado de [user]. Devuelve lo escrito o `null`
+/// Hoja para editar el teléfono de [user]. Devuelve lo escrito o `null`
 /// si se cierra sin guardar. No manda nada al servidor. El nombre y el correo no se editan aquí.
 Future<UserContactInput?> showContactSheet(BuildContext context, {required ManagedUser user}) => showMantixSheet<UserContactInput>(
       context,
@@ -30,16 +30,13 @@ class _ContactBody extends StatefulWidget {
 
 class _ContactBodyState extends State<_ContactBody> {
   late final _phone = TextEditingController(text: widget.user.phone ?? '');
-  late final _code = TextEditingController(text: widget.user.employeeCode ?? '');
 
-  /// El error de cada campo solo se enseña cuando la persona ya escribió en él.
+  /// El error solo se enseña cuando la persona ya escribió en el campo.
   bool _phoneTouched = false;
-  bool _codeTouched = false;
 
   @override
   void dispose() {
     _phone.dispose();
-    _code.dispose();
     super.dispose();
   }
 
@@ -47,8 +44,7 @@ class _ContactBodyState extends State<_ContactBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final phoneProblem = phoneError(_phone.text);
-    final codeProblem = employeeCodeError(_code.text);
-    final valid = phoneProblem == null && codeProblem == null;
+    final valid = phoneProblem == null;
     return Column(children: [
       Expanded(
         child: ListView(controller: widget.controller, padding: const EdgeInsets.all(AppSpacing.lg), children: [
@@ -63,16 +59,8 @@ class _ContactBodyState extends State<_ContactBody> {
             onChanged: (_) => setState(() => _phoneTouched = true),
             decoration: InputDecoration(labelText: 'Teléfono', hintText: '+57 300 123 4567', prefixIcon: const Icon(Icons.phone_outlined), errorText: _phoneTouched ? phoneProblem : null, errorMaxLines: 2),
           ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _code,
-            maxLength: employeeCodeMaxLength,
-            textCapitalization: TextCapitalization.characters,
-            onChanged: (_) => setState(() => _codeTouched = true),
-            decoration: InputDecoration(labelText: 'Código de empleado', hintText: 'EMP-014', prefixIcon: const Icon(Icons.badge_outlined), errorText: _codeTouched ? codeProblem : null, errorMaxLines: 2),
-          ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Déjalo vacío para borrar el dato. El nombre y el correo no se cambian desde aquí.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate, height: 1.3)),
+          Text('Déjalo vacío para borrar el teléfono. El nombre y el correo no se cambian desde aquí.', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate, height: 1.3)),
         ]),
       ),
       Container(
@@ -82,7 +70,7 @@ class _ContactBodyState extends State<_ContactBody> {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: FilledButton.icon(
-              onPressed: valid ? () => Navigator.of(context).pop((phone: _phone.text, employeeCode: _code.text)) : null,
+              onPressed: valid ? () => Navigator.of(context).pop((phone: _phone.text)) : null,
               icon: const Icon(Icons.check_rounded),
               label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Guardar cambios', maxLines: 1)),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
