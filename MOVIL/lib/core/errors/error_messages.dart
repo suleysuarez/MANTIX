@@ -39,7 +39,6 @@ const Map<String, String> messagesByErrorCode = {
   'category_not_found': 'Esa categoría no existe o está inactiva.',
   'user_inactive': 'Tu usuario está inactivo. Habla con un administrador.',
   'auth_invalid_credentials': 'El correo o la contraseña no son correctos.',
-  'auth_email_not_verified': 'Verifica tu correo antes de iniciar sesión.',
   'auth_email_already_verified': 'Este correo ya está verificado. Inicia sesión.',
   'auth_code_invalid': 'El código no es válido o ha vencido.',
   'auth_code_attempts_exceeded': 'Superaste los intentos. Solicita un nuevo código.',

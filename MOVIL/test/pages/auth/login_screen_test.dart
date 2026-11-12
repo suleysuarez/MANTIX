@@ -13,7 +13,10 @@ class _MockMobileAuthRepository extends Mock implements MobileAuthRepository {}
 void main() {
   late _MockMobileAuthRepository repository;
 
-  setUp(() => repository = _MockMobileAuthRepository());
+  setUp(() {
+    repository = _MockMobileAuthRepository();
+    when(() => repository.login(email: any(named: 'email'), password: any(named: 'password'))).thenAnswer((_) async {});
+  });
 
   Future<void> pumpLogin(WidgetTester tester) async {
     tester.view.physicalSize = const Size(900, 2000);
@@ -37,7 +40,7 @@ void main() {
     expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.widgetWithText(FilledButton, 'Iniciar sesión'), findsOneWidget);
     expect(find.text('Crear una cuenta'), findsOneWidget);
-    expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
+    expect(find.text('¿Olvidaste tu contraseña?'), findsNothing, reason: 'ya no hay recuperación por correo');
   });
 
   testWidgets('con un correo inválido muestra el error y no llama al servidor', (tester) async {
@@ -97,8 +100,8 @@ void main() {
     expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
     verifyNever(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName')));
   });
-  Future<void> registerAndReachVerification(WidgetTester tester) async {
-    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName'))).thenAnswer((_) async {});
+  /// Abre el registro, escribe los datos de Ana y lo envía (sin simular nada: cada prueba decide qué responde el servidor).
+  Future<void> submitRegistration(WidgetTester tester) async {
     await pumpLogin(tester);
     await tester.tap(find.text('Crear una cuenta'));
     await tester.pumpAndSettle();
@@ -109,47 +112,49 @@ void main() {
     await tester.enterText(field(4), 'Clave12345');
     await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
     await tester.pumpAndSettle();
-    expect(find.text('Verifica tu correo'), findsOneWidget);
   }
 
-  testWidgets('la contraseña del registro viaja junto al código al verificar el correo', (tester) async {
-    when(() => repository.verifyEmail(email: any(named: 'email'), code: any(named: 'code'), password: any(named: 'password'))).thenAnswer((_) async {});
-    await registerAndReachVerification(tester);
+  Future<void> registerAccount(WidgetTester tester) async {
+    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName'))).thenAnswer((_) async {});
+    await submitRegistration(tester);
+  }
 
-    await tester.enterText(field(0), '123456');
-    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
-    await tester.pumpAndSettle();
+  testWidgets('al crear la cuenta se inicia sesión enseguida, sin pedir ningún código', (tester) async {
+    await registerAccount(tester);
 
-    verify(() => repository.verifyEmail(email: 'ana@mantix.test', code: '123456', password: 'Clave12345')).called(1);
+    verify(() => repository.register(email: 'ana@mantix.test', password: 'Clave12345', firstName: 'Ana', lastName: 'Pérez')).called(1);
+    verify(() => repository.login(email: 'ana@mantix.test', password: 'Clave12345')).called(1);
+    expect(find.text('Verifica tu correo'), findsNothing);
+    expect(find.text('Código de 6 dígitos'), findsNothing);
   });
 
-  testWidgets('si el código es incorrecto se puede reintentar sin volver a escribir la contraseña', (tester) async {
-    var attempts = 0;
-    when(() => repository.verifyEmail(email: any(named: 'email'), code: any(named: 'code'), password: any(named: 'password'))).thenAnswer((_) async {
-      attempts++;
-      if (attempts == 1) {
-        throw DioException(
-          requestOptions: RequestOptions(path: '/mobile-auth/verify-email'),
-          response: Response(requestOptions: RequestOptions(path: '/mobile-auth/verify-email'), statusCode: 403, data: {'detail': 'El código no es válido o ha vencido.', 'code': 'auth_code_invalid'}),
-          type: DioExceptionType.badResponse,
-        );
-      }
-    });
-    await registerAndReachVerification(tester);
+  testWidgets('si la cuenta se crea pero el inicio de sesión falla, vuelve al acceso con un aviso', (tester) async {
+    when(() => repository.login(email: any(named: 'email'), password: any(named: 'password'))).thenThrow(
+      DioException(requestOptions: RequestOptions(path: '/mobile-auth/login'), type: DioExceptionType.connectionError),
+    );
+    await registerAccount(tester);
 
-    await tester.enterText(field(0), '000000');
-    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
-    await tester.pumpAndSettle();
-    expect(find.text('El código no es válido o ha vencido.'), findsOneWidget);
-
-    await tester.enterText(field(0), '123456');
-    await tester.tap(find.widgetWithText(FilledButton, 'Verificar y continuar'));
-    await tester.pumpAndSettle();
-
-    verify(() => repository.verifyEmail(email: 'ana@mantix.test', code: '123456', password: 'Clave12345')).called(1);
+    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
+    expect(find.text('Tu cuenta se creó. Inicia sesión para continuar.'), findsOneWidget);
   });
+
+  testWidgets('un correo ya registrado se explica y no inicia sesión', (tester) async {
+    when(() => repository.register(email: any(named: 'email'), password: any(named: 'password'), firstName: any(named: 'firstName'), lastName: any(named: 'lastName'))).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/mobile-auth/register'),
+        response: Response(requestOptions: RequestOptions(path: '/mobile-auth/register'), statusCode: 409, data: {'detail': 'Ya existe una cuenta con este correo.', 'code': 'user_email_taken'}),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+    await submitRegistration(tester);
+
+    expect(find.text('Ya existe una cuenta con este correo.'), findsOneWidget);
+    expect(find.text('Crea tu cuenta'), findsOneWidget);
+    verifyNever(() => repository.login(email: any(named: 'email'), password: any(named: 'password')));
+  });
+
   testWidgets('el registro envía el nombre y el apellido', (tester) async {
-    await registerAndReachVerification(tester);
+    await registerAccount(tester);
 
     verify(() => repository.register(email: 'ana@mantix.test', password: 'Clave12345', firstName: 'Ana', lastName: 'Pérez')).called(1);
   });
@@ -174,16 +179,6 @@ void main() {
     verify(() => repository.register(email: 'ana@mantix.test', password: 'Clave12345', firstName: 'Ana', lastName: '')).called(1);
   });
 
-  testWidgets('desde la verificación se puede volver al registro conservando los datos', (tester) async {
-    await registerAndReachVerification(tester);
-
-    await tester.tap(find.text('Volver al registro'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Crea tu cuenta'), findsOneWidget);
-    expect(find.text('Ana'), findsOneWidget);
-    expect(find.text('ana@mantix.test'), findsOneWidget);
-  });
   Future<void> pumpRegisterOn(WidgetTester tester, Size size, {double textScale = 1}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
