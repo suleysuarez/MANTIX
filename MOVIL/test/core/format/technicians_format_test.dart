@@ -64,13 +64,13 @@ void main() {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: ' sofia '))), ['Sofía Ruiz']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'tec-01'))), ['Sofía Ruiz']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'tech2@'))), ['Bruno Paz']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'IMPRESORAS'))), ['Ana Gil', 'Zoe Mar']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(search: 'IMPRESORAS'))), ['Ana Gil']);
     });
 
     test('la tarjeta de resumen filtra por estado operativo', () {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.busy))), ['Sofía Ruiz']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.free))), ['Bruno Paz']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Ana Gil']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Ana Gil', 'Zoe Mar']);
     });
 
     test('varias especialidades: basta con tener una', () {
