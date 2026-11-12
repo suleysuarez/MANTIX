@@ -7,12 +7,14 @@ import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/maintenance/maintenance_calendar_bloc.dart';
 import '../../bloc/maintenance/schedule_actions_bloc.dart';
 import '../../bloc/maintenance/upcoming_maintenance_bloc.dart';
+import '../../core/format/maintenance_calendar.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../repositories/maintenance/maintenance_repository.dart';
 import '../../repositories/technicians/technicians_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
+import '../../widgets/maintenance/maintenance_agenda.dart';
 import '../../widgets/maintenance/maintenance_calendar_card.dart';
 import '../../widgets/maintenance/maintenance_cards.dart';
 import '../../widgets/maintenance/maintenance_header.dart';
@@ -41,7 +43,10 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   late final MaintenanceCalendarBloc _calendar;
   late final UpcomingMaintenanceBloc _upcoming;
   late final ScheduleActionsBloc _actions;
-  bool _list = false;
+  _MaintenanceView _view = _MaintenanceView.calendar;
+
+  /// Lunes de la semana que se ve en «Semana».
+  late DateTime _weekStart = startOfWeek(_now);
 
   DateTime get _now => (widget.clock ?? DateTime.now)();
 
@@ -73,6 +78,30 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       ..showSnackBar(SnackBar(content: Text(outcome.message), backgroundColor: outcome.isError ? AppColors.error : AppColors.navy));
   }
 
+  void _setView(_MaintenanceView view) {
+    setState(() => _view = view);
+    if (view == _MaintenanceView.week) _coverWeek();
+  }
+
+  /// La cuadrícula del calendario cubre las semanas completas de su mes: si la semana elegida cae
+  /// en otro mes (la miramos por su jueves, como el calendario ISO), se mueve el mes del calendario.
+  void _coverWeek() {
+    final target = monthStart(addDays(_weekStart, 3));
+    final anchor = _calendar.state.anchor;
+    final months = (target.year - anchor.year) * 12 + target.month - anchor.month;
+    if (months != 0) _calendar.add(CalendarMonthShifted(months.sign));
+  }
+
+  void _shiftWeek(int direction) {
+    setState(() => _weekStart = addDays(_weekStart, 7 * direction));
+    _coverWeek();
+  }
+
+  void _weekToday() {
+    setState(() => _weekStart = startOfWeek(_now));
+    _coverWeek();
+  }
+
   Future<void> _refresh() {
     final calendar = Completer<void>();
     final upcoming = Completer<void>();
@@ -100,7 +129,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: _ViewToggle(list: _list, onChanged: (list) => setState(() => _list = list)),
+        child: _ViewPills(view: _view, onChanged: _setView),
       ),
       const SizedBox(height: AppSpacing.md),
     ]);
@@ -116,7 +145,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         drawer: MantixDrawer(profile: profile, selectedPath: MaintenanceScreen.path),
         body: DecoratedBox(
           decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.skyLight.withValues(alpha: .45), AppColors.canvas], stops: const [0, .45])),
-          child: _list
+          child: _view == _MaintenanceView.list
               ? SchedulesTab(top: top, now: _now, canFilterByTechnician: profile.can('tecnicos:ver'), onOpen: (schedule) => openPlan(schedule.id))
               : RefreshIndicator(
                   color: AppColors.steel,
@@ -129,16 +158,23 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          if (_view == _MaintenanceView.month)
+                            _MonthAgenda(now: _now, onOpen: openPlan)
+                          else if (_view == _MaintenanceView.week)
+                            _WeekAgenda(now: _now, weekStart: _weekStart, onPrevious: () => _shiftWeek(-1), onNext: () => _shiftWeek(1), onToday: _weekToday, onOpen: openPlan)
+                          else ...[
                           _CalendarSection(now: _now, onOpen: openPlan),
                           const SizedBox(height: AppSpacing.lg),
                           BlocBuilder<UpcomingMaintenanceBloc, UpcomingMaintenanceState>(
                             builder: (context, state) => UpcomingSection(
                               state: state,
                               onOpen: (event) => openPlan(event.scheduleId),
-                              onSeeAll: () => setState(() => _list = true),
+                              onSeeAll: () => setState(() => _view = _MaintenanceView.list),
                               onRetry: () => _upcoming.add(const UpcomingRequested()),
+                              onRangeChanged: (range) => _upcoming.add(UpcomingRangeChanged(range)),
                             ),
                           ),
+                          ],
                         ]),
                       ),
                     ],
@@ -166,33 +202,137 @@ class _ProgramButton extends StatelessWidget {
       );
 }
 
-/// El conmutador Calendario / Lista: el seleccionado va en navy.
-class _ViewToggle extends StatelessWidget {
-  const _ViewToggle({required this.list, required this.onChanged});
+enum _MaintenanceView { calendar, list, month, week }
 
-  final bool list;
-  final ValueChanged<bool> onChanged;
+/// Las vistas como píldoras: Calendario, Lista, Mes y Semana. La elegida va en navy con texto blanco.
+class _ViewPills extends StatelessWidget {
+  const _ViewPills({required this.view, required this.onChanged});
+
+  final _MaintenanceView view;
+  final ValueChanged<_MaintenanceView> onChanged;
+
+  static const _options = [
+    (_MaintenanceView.calendar, 'Calendario', Icons.calendar_month_outlined),
+    (_MaintenanceView.list, 'Lista', Icons.view_list_outlined),
+    (_MaintenanceView.month, 'Mes', Icons.calendar_view_month_outlined),
+    (_MaintenanceView.week, 'Semana', Icons.calendar_view_week_outlined),
+  ];
 
   @override
   Widget build(BuildContext context) => Semantics(
         container: true,
         label: 'Vista de mantenimientos',
-        child: SegmentedButton<bool>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: false, icon: Icon(Icons.calendar_month_outlined, size: 18), label: FittedBox(fit: BoxFit.scaleDown, child: Text('Calendario'))),
-            ButtonSegment(value: true, icon: Icon(Icons.view_list_outlined, size: 18), label: FittedBox(fit: BoxFit.scaleDown, child: Text('Lista'))),
+        child: Row(children: [
+          for (var i = 0; i < _options.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            Expanded(child: _Pill(label: _options[i].$2, icon: _options[i].$3, selected: view == _options[i].$1, onTap: () => onChanged(_options[i].$1))),
           ],
-          selected: {list},
-          onSelectionChanged: (selection) => onChanged(selection.first),
-          style: SegmentedButton.styleFrom(
-            backgroundColor: AppColors.white,
-            foregroundColor: AppColors.steel,
-            selectedBackgroundColor: AppColors.navy,
-            selectedForegroundColor: AppColors.white,
-            side: const BorderSide(color: AppColors.grey),
-            minimumSize: const Size.fromHeight(48),
+        ]),
+      );
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? AppColors.white : AppColors.steel;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: selected ? AppColors.navy : AppColors.white,
+        shape: StadiumBorder(side: BorderSide(color: selected ? AppColors.navy : AppColors.skyLight)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(icon, size: 17, color: foreground),
+                  const SizedBox(width: 4),
+                  Text(label, maxLines: 1, style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 13)),
+                ]),
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// «Mes»: los servicios del mes del calendario, día por día, con flechas para cambiar de mes.
+class _MonthAgenda extends StatelessWidget {
+  const _MonthAgenda({required this.now, required this.onOpen});
+
+  final DateTime now;
+  final ValueChanged<int> onOpen;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<MaintenanceCalendarBloc, MaintenanceCalendarState>(
+        builder: (context, state) {
+          final bloc = context.read<MaintenanceCalendarBloc>();
+          return MaintenanceAgenda(
+            title: monthTitle(state.anchor),
+            days: [for (final day in monthGrid(state.anchor, today: now)) if (day.inMonth) day.date],
+            byDay: state.byDay,
+            today: now,
+            hideEmptyDays: true,
+            isCurrent: state.anchor == monthStart(now),
+            loading: state.loading,
+            errorMessage: state.status == CalendarStatus.failure ? 'No pudimos cargar el mes. ${state.failure?.message ?? ''}'.trim() : null,
+            previousLabel: 'Mes anterior',
+            nextLabel: 'Mes siguiente',
+            onPrevious: () => bloc.add(const CalendarMonthShifted(-1)),
+            onNext: () => bloc.add(const CalendarMonthShifted(1)),
+            onToday: () => bloc.add(const CalendarTodayRequested()),
+            onRetry: () => bloc.add(const CalendarRequested()),
+            onOpen: onOpen,
+          );
+        },
+      );
+}
+
+/// «Semana»: los siete días de la semana elegida (de lunes a domingo), con flechas para cambiar de semana.
+class _WeekAgenda extends StatelessWidget {
+  const _WeekAgenda({required this.now, required this.weekStart, required this.onPrevious, required this.onNext, required this.onToday, required this.onOpen});
+
+  final DateTime now;
+  final DateTime weekStart;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+  final ValueChanged<int> onOpen;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<MaintenanceCalendarBloc, MaintenanceCalendarState>(
+        builder: (context, state) => MaintenanceAgenda(
+          title: weekTitle(weekStart),
+          days: [for (var i = 0; i < 7; i++) addDays(weekStart, i)],
+          byDay: state.byDay,
+          today: now,
+          isCurrent: weekStart == startOfWeek(now),
+          loading: state.loading,
+          errorMessage: state.status == CalendarStatus.failure ? 'No pudimos cargar la semana. ${state.failure?.message ?? ''}'.trim() : null,
+          previousLabel: 'Semana anterior',
+          nextLabel: 'Semana siguiente',
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onToday: onToday,
+          onRetry: () => context.read<MaintenanceCalendarBloc>().add(const CalendarRequested()),
+          onOpen: onOpen,
         ),
       );
 }

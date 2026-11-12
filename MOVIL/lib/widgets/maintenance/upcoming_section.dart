@@ -9,18 +9,21 @@ import 'maintenance_cards.dart';
 /// «Próximos mantenimientos»: los primeros [limit] servicios (los vencidos primero) y el enlace
 /// «Ver todos» a la lista de planes. Maneja cargando, vacío y error con reintento.
 class UpcomingSection extends StatelessWidget {
-  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.limit = 3});
+  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.onRangeChanged, this.limit = 3});
 
   final UpcomingMaintenanceState state;
   final ValueChanged<CalendarEvent> onOpen;
   final VoidCallback onSeeAll;
   final VoidCallback onRetry;
+
+  /// Si no se pasa, no se muestran los chips del rango.
+  final ValueChanged<UpcomingRange>? onRangeChanged;
   final int limit;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final items = state.items.take(limit).toList();
+    final items = state.visibleItems.take(limit).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         const Icon(Icons.schedule_rounded, color: AppColors.navy),
@@ -32,17 +35,56 @@ class UpcomingSection extends StatelessWidget {
           child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Ver todos'), Icon(Icons.chevron_right_rounded, size: 20)]),
         ),
       ]),
-      const SizedBox(height: AppSpacing.sm),
+      if (onRangeChanged != null) ...[
+        _RangeChips(range: state.range, onChanged: onRangeChanged!),
+        const SizedBox(height: AppSpacing.sm),
+      ] else
+        const SizedBox(height: AppSpacing.sm),
       if (state.initialLoading)
         const MaintenanceListSkeleton(label: 'Cargando próximos mantenimientos', count: 2)
       else if (state.unavailable)
         _Message(icon: Icons.cloud_off_outlined, text: 'No pudimos cargar los próximos mantenimientos. ${state.failure?.message ?? ''}'.trim(), actionLabel: 'Reintentar', onAction: onRetry)
       else if (items.isEmpty)
-        const _Message(icon: Icons.event_available_outlined, text: 'No hay mantenimientos próximos ni vencidos.')
+        _Message(icon: Icons.event_available_outlined, text: state.range == UpcomingRange.all ? 'No hay mantenimientos próximos ni vencidos.' : 'No hay mantenimientos en este rango.')
       else
         for (final event in items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: MaintenanceEventCard(event: event, onTap: () => onOpen(event))),
     ]);
   }
+}
+
+/// «Servicios entre»: Todo, Hoy, Próx. 7 días y Próx. 30 días. El elegido va en navy.
+class _RangeChips extends StatelessWidget {
+  const _RangeChips({required this.range, required this.onChanged});
+
+  final UpcomingRange range;
+  final ValueChanged<UpcomingRange> onChanged;
+
+  static const _labels = {
+    UpcomingRange.all: 'Todo',
+    UpcomingRange.today: 'Hoy',
+    UpcomingRange.week: 'Próx. 7 días',
+    UpcomingRange.month: 'Próx. 30 días',
+  };
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        container: true,
+        label: 'Servicios entre',
+        child: Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xs, children: [
+          for (final entry in _labels.entries)
+            ChoiceChip(
+              label: Text(entry.value),
+              selected: range == entry.key,
+              onSelected: (_) => onChanged(entry.key),
+              showCheckmark: false,
+              backgroundColor: AppColors.white,
+              selectedColor: AppColors.navy,
+              side: BorderSide(color: range == entry.key ? AppColors.navy : AppColors.skyLight),
+              labelStyle: TextStyle(color: range == entry.key ? AppColors.white : AppColors.steel, fontWeight: FontWeight.w700, fontSize: 12.5),
+              visualDensity: VisualDensity.compact,
+            ),
+        ]),
+      );
 }
 
 class _Message extends StatelessWidget {

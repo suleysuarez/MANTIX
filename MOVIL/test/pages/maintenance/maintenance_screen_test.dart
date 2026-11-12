@@ -68,6 +68,70 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  group('vistas Mes y Semana', () {
+    testWidgets('las cuatro vistas salen como píldoras', (tester) async {
+      await open(tester);
+
+      for (final label in ['Calendario', 'Lista', 'Mes', 'Semana']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+    });
+
+    testWidgets('«Mes» lista día por día los servicios del mes y deja cambiar de mes', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Mes'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MaintenanceCalendarCard), findsNothing);
+      expect(find.text('Octubre 2026'), findsOneWidget);
+      expect(cardTitles(tester), ['Cambio de baterías', 'Revisión de UPS', 'Limpieza de servidor', 'Mantenimiento Preventivo']);
+
+      await tester.tap(find.byTooltip('Mes siguiente'));
+      await tester.pumpAndSettle();
+      expect(find.text('Noviembre 2026'), findsOneWidget);
+      expect(find.text('Ir a hoy'), findsOneWidget);
+    });
+
+    testWidgets('«Semana» muestra los siete días y cambia de semana', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Semana'));
+      await tester.pumpAndSettle();
+
+      // Hoy es domingo 25 de octubre: su semana va del 19 al 25.
+      expect(find.text('19 – 25 oct 2026'), findsOneWidget);
+      for (final day in ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']) {
+        expect(find.text(day), findsOneWidget, reason: day);
+      }
+      expect(find.text('Sin servicios'), findsNWidgets(7));
+
+      await tester.tap(find.byTooltip('Semana siguiente'));
+      await tester.pumpAndSettle();
+      expect(find.text('26 oct – 1 nov 2026'), findsOneWidget);
+      expect(find.text('Ir a hoy'), findsOneWidget);
+      expect(cardTitles(tester), ['Mantenimiento Preventivo'], reason: 'el 28 de octubre cae en esa semana');
+
+      await tester.tap(find.text('Ir a hoy'));
+      await tester.pumpAndSettle();
+      expect(find.text('19 – 25 oct 2026'), findsOneWidget);
+    });
+
+    testWidgets('«Servicios entre» filtra los próximos y «Hoy» sin servicios lo dice', (tester) async {
+      await open(tester);
+      for (final label in ['Todo', 'Hoy', 'Próx. 7 días', 'Próx. 30 días']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+
+      await tester.tap(find.text('Hoy'));
+      await tester.pumpAndSettle();
+      expect(find.text('No hay mantenimientos en este rango.'), findsOneWidget);
+
+      await tester.tap(find.text('Próx. 7 días'));
+      await tester.pumpAndSettle();
+      expect(find.text('Mantenimiento Preventivo'), findsOneWidget);
+      expect(find.text('Revisión de UPS'), findsNothing, reason: 'el vencido queda fuera de los próximos días');
+    });
+  });
+
   group('calendario', () {
     testWidgets('encabezado, conmutador, mes, semana y leyenda', (tester) async {
       await open(tester);

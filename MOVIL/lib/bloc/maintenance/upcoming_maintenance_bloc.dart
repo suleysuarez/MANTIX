@@ -18,6 +18,7 @@ part 'upcoming_maintenance_state.dart';
 class UpcomingMaintenanceBloc extends Bloc<UpcomingMaintenanceEvent, UpcomingMaintenanceState> {
   UpcomingMaintenanceBloc({required this._repository, DateTime Function()? clock}) : _clock = clock ?? DateTime.now, super(const UpcomingMaintenanceState()) {
     on<UpcomingRequested>(_onRequested);
+    on<UpcomingRangeChanged>((event, emit) => emit(state.copyWith(range: event.range)));
     _changes = _repository.changes.listen((_) => add(const UpcomingRequested()));
   }
 
@@ -35,7 +36,7 @@ class UpcomingMaintenanceBloc extends Bloc<UpcomingMaintenanceEvent, UpcomingMai
     try {
       final today = startOfDay(_clock());
       final data = await _repository.calendar(addDays(today, -pastDays), addDays(today, aheadDays));
-      emit(state.copyWith(status: UpcomingStatus.ready, items: upcomingEvents(data.events)));
+      emit(state.copyWith(status: UpcomingStatus.ready, items: upcomingEvents(data.events), today: today));
     } catch (error) {
       emit(state.copyWith(status: UpcomingStatus.failure, failure: toFailure(error)));
     } finally {
