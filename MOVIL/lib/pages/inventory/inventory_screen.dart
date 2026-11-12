@@ -204,7 +204,7 @@ class _StockValue extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFDDEEFF), Color(0xFFC7E2FC)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(colors: [AppColors.skyLight, AppColors.sky], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.skyLight.withValues(alpha: .8)),
       ),
@@ -256,7 +256,7 @@ class _ItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = _statusLabel(item.status);
-    final color = item.status == 'low' ? AppColors.mustard : item.status == 'out' ? AppColors.error : const Color(0xFF16845B);
+    final color = item.status == 'low' ? AppColors.mustard : item.status == 'out' ? AppColors.error : AppColors.steel;
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       elevation: 0,
