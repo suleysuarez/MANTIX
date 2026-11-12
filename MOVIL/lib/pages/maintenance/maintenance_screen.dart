@@ -5,15 +5,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/maintenance/maintenance_calendar_bloc.dart';
+import '../../bloc/maintenance/schedule_actions_bloc.dart';
 import '../../bloc/maintenance/upcoming_maintenance_bloc.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../repositories/maintenance/maintenance_repository.dart';
+import '../../repositories/technicians/technicians_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/maintenance/maintenance_calendar_card.dart';
 import '../../widgets/maintenance/maintenance_cards.dart';
 import '../../widgets/maintenance/maintenance_header.dart';
+import '../../widgets/maintenance/schedule_form_sheet.dart';
 import '../../widgets/maintenance/schedule_detail_sheet.dart';
 import '../../widgets/maintenance/schedules_tab.dart';
 import '../../widgets/maintenance/upcoming_section.dart';
@@ -37,6 +40,7 @@ class MaintenanceScreen extends StatefulWidget {
 class _MaintenanceScreenState extends State<MaintenanceScreen> {
   late final MaintenanceCalendarBloc _calendar;
   late final UpcomingMaintenanceBloc _upcoming;
+  late final ScheduleActionsBloc _actions;
   bool _list = false;
 
   DateTime get _now => (widget.clock ?? DateTime.now)();
@@ -47,13 +51,26 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     final repository = context.read<MaintenanceRepository>();
     _calendar = MaintenanceCalendarBloc(repository: repository, clock: widget.clock)..add(const CalendarRequested());
     _upcoming = UpcomingMaintenanceBloc(repository: repository, clock: widget.clock)..add(const UpcomingRequested());
+    _actions = ScheduleActionsBloc(repository: repository, clock: widget.clock);
   }
 
   @override
   void dispose() {
     unawaited(_calendar.close());
     unawaited(_upcoming.close());
+    unawaited(_actions.close());
     super.dispose();
+  }
+
+  /// El resultado de cada acción en un aviso: navy si salió bien, rojo si no. Lo que ni se pidió
+  /// (un dato no válido) ya se explica dentro de la hoja. El calendario, los próximos y la lista se
+  /// recargan solos cuando algo cambia.
+  void _onOutcome(BuildContext context, ScheduleActionsState state) {
+    final outcome = state.outcome!;
+    if (outcome.kind == ScheduleOutcomeKind.blocked) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(outcome.message), backgroundColor: outcome.isError ? AppColors.error : AppColors.navy));
   }
 
   Future<void> _refresh() {
@@ -71,8 +88,16 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     if (profile == null) {
       return const Scaffold(body: Center(child: Text('No encontramos los datos de tu sesión.')));
     }
+    final canEdit = profile.can('mantenimiento:editar');
+    // Programar exige además elegir el equipo, que se busca con `equipos:ver`.
+    final canCreate = profile.can('mantenimiento:crear') && profile.can('equipos:ver');
+    void openPlan(int id) => showScheduleDetail(context, scheduleId: id, now: _now, actions: _actions, canEdit: canEdit);
     final top = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const MaintenanceHeader(),
+      MaintenanceHeader(
+        action: canCreate
+            ? _ProgramButton(onPressed: () => showScheduleForm(context, actions: _actions, now: _now, techniciansRepository: profile.can('tecnicos:ver') ? context.read<TechniciansRepository>() : null))
+            : null,
+      ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: _ViewToggle(list: _list, onChanged: (list) => setState(() => _list = list)),
@@ -81,14 +106,18 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     ]);
     return MultiBlocProvider(
       providers: [BlocProvider.value(value: _calendar), BlocProvider.value(value: _upcoming)],
-      child: Scaffold(
+      child: BlocListener<ScheduleActionsBloc, ScheduleActionsState>(
+        bloc: _actions,
+        listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
+        listener: _onOutcome,
+        child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: MaintenanceScreen.path),
         body: DecoratedBox(
           decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.skyLight.withValues(alpha: .45), AppColors.canvas], stops: const [0, .45])),
           child: _list
-              ? SchedulesTab(top: top, now: _now, canFilterByTechnician: profile.can('tecnicos:ver'), onOpen: (schedule) => showScheduleDetail(context, scheduleId: schedule.id, now: _now))
+              ? SchedulesTab(top: top, now: _now, canFilterByTechnician: profile.can('tecnicos:ver'), onOpen: (schedule) => openPlan(schedule.id))
               : RefreshIndicator(
                   color: AppColors.steel,
                   onRefresh: _refresh,
@@ -100,12 +129,12 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          _CalendarSection(now: _now, onOpen: (id) => showScheduleDetail(context, scheduleId: id, now: _now)),
+                          _CalendarSection(now: _now, onOpen: openPlan),
                           const SizedBox(height: AppSpacing.lg),
                           BlocBuilder<UpcomingMaintenanceBloc, UpcomingMaintenanceState>(
                             builder: (context, state) => UpcomingSection(
                               state: state,
-                              onOpen: (event) => showScheduleDetail(context, scheduleId: event.scheduleId, now: _now),
+                              onOpen: (event) => openPlan(event.scheduleId),
                               onSeeAll: () => setState(() => _list = true),
                               onRetry: () => _upcoming.add(const UpcomingRequested()),
                             ),
@@ -117,8 +146,24 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 ),
         ),
       ),
+      ),
     );
   }
+}
+
+/// «Programar mantenimiento»: el botón mostaza del encabezado, con texto navy.
+class _ProgramButton extends StatelessWidget {
+  const _ProgramButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.add_rounded, size: 22),
+        label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Programar mantenimiento', maxLines: 1)),
+        style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy, minimumSize: const Size(0, 50), shape: const StadiumBorder(), textStyle: const TextStyle(fontWeight: FontWeight.w800)),
+      );
 }
 
 /// El conmutador Calendario / Lista: el seleccionado va en navy.
