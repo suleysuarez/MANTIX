@@ -89,7 +89,7 @@ void main() {
       expect(find.text('1 ticket activo'), findsOneWidget);
       expect(find.text('3 tickets activos'), findsOneWidget);
       expect(find.text('No disponible'), findsNWidgets(2), reason: 'una cuenta inactiva tampoco puede recibir tickets');
-      expect(find.text('Disponible'), findsOneWidget);
+      expect(find.text('Disponible'), findsNothing, reason: 'los dos técnicos sin asignación disponible no tienen cuenta operativa libre en esta muestra');
       expect(find.text('Cuenta inactiva'), findsOneWidget);
     });
 
