@@ -26,7 +26,7 @@ class FilterSheet extends StatelessWidget {
               Row(children: [
                 const Icon(Icons.tune_rounded, color: AppColors.steel),
                 const SizedBox(width: AppSpacing.sm),
-                Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy)),
+                Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy))),
               ]),
               const SizedBox(height: AppSpacing.lg),
               for (final child in children) ...[child, const SizedBox(height: AppSpacing.md)],

@@ -387,6 +387,29 @@ Hecha en código y pruebas en la rama `feat/mobile-maintenance` (sale de `feat/m
 
 **Ramas:** `feat/mobile-maintenance` sale de `feat/mobile-technicians`, que sale de `feat/mobile-users-roles` y esta de `feat/mobile-ui-polish` (ver «Usuarios y roles»). Nada se ha subido ni fusionado.
 
+## Reportes
+
+Hecha en código y pruebas en la rama `feat/mobile-reports` (sale de `feat/mobile-maintenance`). Ruta `/inicio/reportes` (la que ya tenía el menú; antes era un marcador de posición); exige `reportes:ver`. Exportar exige además `reportes:exportar`: sin él no se muestran los formatos ni el botón. La autorización real es del backend. No se tocó ningún backend.
+
+- **Solo 4 reportes**, en este orden: Tickets de mantenimiento, Planes de mantenimiento, Inventario de equipos y Resumen operativo. Se quedan fuera las existencias y los movimientos de inventario (la app no tiene ese módulo) y los listados de técnicos y usuarios, que ya tienen su pantalla.
+- **Solo PDF y Excel** (la web también exporta CSV). Las tarjetas de formato llevan los textos de la web. PDF y Excel salen del mismo generador y la misma paleta que en la web, así que el archivo es el mismo.
+- **De dónde sale cada dato:** `GET /reports/catalog` (reportes y filtros que admite cada uno, límite de filas), `POST /reports/preview` (primeras filas, total y comparativo), `POST /reports/generate` (el archivo, descargado en streaming a un temporal con espera de hasta 120 s, compartido con la hoja del sistema y borrado después) y `GET /reports/history` (paginado por cabeceras).
+- **Filtros:** solo viaja lo que el reporte admite (el servidor rechaza el resto). Fechas pasadas o futuras (los planes tienen fechas por venir), máximo 366 días; con un rango inválido no se pide nada y se explica. Comparativo con el periodo anterior solo en tickets y planes, y solo con las dos fechas. Cambiar de reporte limpia los filtros.
+- **Contador de lo que se exportará:** sale de la vista previa (`total_rows`), con el aviso de archivo grande desde 2.000 filas y el bloqueo por encima del máximo del servidor, como la web.
+- **Historial:** «Exportaciones recientes», por páginas, que se recarga solo después de exportar y falla por separado.
+- **Estructura:** `ReportsRepository`; blocs `ReportsCatalogBloc`, `ReportPreviewBloc` (uno por reporte; descarta respuestas viejas), `ReportExportBloc` (una exportación a la vez) y `ReportHistoryBloc`; reglas en `core/format/report_format.dart`; widgets en `widgets/reports/`. Mostaza con texto navy para el reporte elegido, el formato elegido y el botón de exportar.
+- **Cambio compartido:** el título de `FilterSheet` ahora se ajusta al ancho (desbordaba con textos largos y texto grande).
+- **Verificación pendiente en dispositivo:** que el PDF y el Excel se abran bien desde la hoja de compartir en Android.
+
+**Pendientes de backend de esta pantalla** (no se tocó `MOVIL/backend` ni `WEB/backend`):
+
+- No hay un conteo barato para estos 4 reportes: la web tiene `/reports/{report}/export/count`, pero solo para tickets, técnicos y usuarios. La app usa la vista previa, que además trae las filas.
+- Las opciones de columnas y de incluir el resumen solo existen en esas exportaciones; en estos 4 reportes el archivo sale con el contenido por defecto del servidor.
+- `docs/error-codes.md` no tiene códigos propios de reportes salvo `export_forbidden`; ante un 422 al generar, la app pide acotar los filtros sin mostrar el detalle del servidor.
+- `GET /reports/overview` (actividad de exportaciones) existe, pero la app no lo muestra.
+
+**Ramas:** `feat/mobile-reports` sale de `feat/mobile-maintenance`. Nada se ha subido ni fusionado.
+
 ## Notificaciones y encabezado de los módulos
 
 Todos los módulos con menú (dashboard, equipos, solicitudes, bandeja, reportes y los módulos aún sin construir) comparten `MantixAppBar` y `MantixDrawer`: la «M» a la izquierda, la campana de notificaciones, el avatar (abre el perfil) y el menú por permisos.
