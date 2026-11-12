@@ -16,6 +16,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<InventoryQueryChanged>(_onQueryChanged);
     on<InventoryPageChanged>(_onPageChanged);
     on<InventoryItemCreateRequested>(_onCreateItem);
+    on<InventoryItemUpdateRequested>(_onUpdateItem);
     on<InventoryMovementRequested>(_onMovement);
   }
 
@@ -63,10 +64,23 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   }
 
   Future<void> _onCreateItem(InventoryItemCreateRequested event, Emitter<InventoryState> emit) async {
-    emit(state.copyWith(saving: true, clearFailure: true, clearCreated: true, clearNotice: true));
+    emit(state.copyWith(saving: true, clearFailure: true, clearSaved: true, clearNotice: true));
     try {
       final item = await repository.createItem(event.payload);
-      emit(state.copyWith(saving: false, createdItem: item, notice: 'Ítem creado correctamente.'));
+      // El listado va ordenado del más reciente al más antiguo: se vuelve a la página 1 y se
+      // limpian búsqueda y filtros para que el ítem nuevo salga el primero.
+      emit(state.copyWith(saving: false, savedItem: item, notice: 'Ítem creado correctamente.', page: 1, search: '', clearCategory: true, clearStatus: true));
+      add(const InventoryStarted());
+    } catch (error) {
+      emit(state.copyWith(saving: false, failure: toFailure(error)));
+    }
+  }
+
+  Future<void> _onUpdateItem(InventoryItemUpdateRequested event, Emitter<InventoryState> emit) async {
+    emit(state.copyWith(saving: true, clearFailure: true, clearSaved: true, clearNotice: true));
+    try {
+      final item = await repository.updateItem(event.itemId, event.payload);
+      emit(state.copyWith(saving: false, savedItem: item, notice: 'Cambios guardados.'));
       add(const InventoryStarted());
     } catch (error) {
       emit(state.copyWith(saving: false, failure: toFailure(error)));
