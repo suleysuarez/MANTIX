@@ -6,7 +6,7 @@ class TechnicianDetailState extends Equatable {
   const TechnicianDetailState({
     this.performanceStatus = DetailBlockStatus.loading,
     this.performance,
-    this.period,
+    this.period = '30d',
     this.performanceFailure,
     this.ticketsStatus = DetailBlockStatus.loading,
     this.tickets = const [],
@@ -20,7 +20,7 @@ class TechnicianDetailState extends Equatable {
   final TechnicianPerformance? performance;
 
   /// Periodo de los indicadores, tal como lo devuelve el servidor (`30d`).
-  final String? period;
+  final String period;
   final Failure? performanceFailure;
 
   final DetailBlockStatus ticketsStatus;

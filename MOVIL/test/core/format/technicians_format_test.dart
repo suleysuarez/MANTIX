@@ -69,8 +69,8 @@ void main() {
 
     test('la tarjeta de resumen filtra por estado operativo', () {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.busy))), ['Sofía Ruiz']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.free))), ['Bruno Paz', 'Zoe Mar']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Ana Gil']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.free))), ['Bruno Paz']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Zoe Mar', 'Ana Gil']);
     });
 
     test('varias especialidades: basta con tener una', () {
@@ -93,7 +93,7 @@ void main() {
     test('los otros órdenes', () {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(), order: TechnicianOrder.name)), ['Ana Gil', 'Bruno Paz', 'Sofía Ruiz', 'Zoe Mar']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(), order: TechnicianOrder.resolved)), ['Bruno Paz', 'Sofía Ruiz', 'Ana Gil', 'Zoe Mar']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(), order: TechnicianOrder.availability)), ['Bruno Paz', 'Zoe Mar', 'Sofía Ruiz', 'Ana Gil']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(), order: TechnicianOrder.availability)), ['Bruno Paz', 'Sofía Ruiz', 'Ana Gil', 'Zoe Mar']);
     });
 
     test('el técnico recién registrado sale primero', () {
@@ -109,12 +109,12 @@ void main() {
   group('summarize', () {
     test('cuenta sobre todos los técnicos', () {
       final summary = summarize(all, workload);
-      expect(summary, const TechnicianSummary(total: 4, available: 3, busy: 1, unavailable: 1, openTickets: 4, resolved: 33));
-      expect(summary.free, 2);
+      expect(summary, const TechnicianSummary(total: 4, available: 2, busy: 1, unavailable: 2, openTickets: 4, resolved: 33, overloaded: 1));
+      expect(summary.free, 1);
     });
 
     test('sin carga no hay ocupados ni tickets', () {
-      expect(summarize(all, null), const TechnicianSummary(total: 4, available: 3, unavailable: 1));
+      expect(summarize(all, null), const TechnicianSummary(total: 4, available: 2, unavailable: 2));
     });
   });
 

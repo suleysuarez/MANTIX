@@ -31,7 +31,7 @@ String orderLabel(TechnicianOrder order) => switch (order) {
 
 /// Sin datos de carga ([workload] `null`) nadie cuenta como ocupado.
 TechnicianStatus technicianStatus(Technician technician, Workload? workload) {
-  if (!technician.isAvailable) return TechnicianStatus.unavailable;
+  if (!technician.isActive || !technician.isAvailable) return TechnicianStatus.unavailable;
   return (workload?.openOf(technician.id) ?? 0) > 0 ? TechnicianStatus.busy : TechnicianStatus.free;
 }
 
@@ -117,8 +117,11 @@ List<Technician> filterTechnicians(Iterable<Technician> technicians, Workload? w
 }
 
 TechnicianSummary summarize(Iterable<Technician> technicians, Workload? workload) {
-  var total = 0, available = 0, busy = 0, unavailable = 0, openTickets = 0, resolved = 0;
-  for (final technician in technicians) {
+  var total = 0, available = 0, busy = 0, unavailable = 0, openTickets = 0, resolved = 0, overloaded = 0;
+  final people = technicians.toList();
+  final assignable = people.where((t) => t.isActive && t.isAvailable).toList();
+  final average = assignable.isEmpty || workload == null ? 0.0 : assignable.fold<int>(0, (sum, t) => sum + workload.openOf(t.id)) / assignable.length;
+  for (final technician in people) {
     total++;
     final status = technicianStatus(technician, workload);
     if (status == TechnicianStatus.unavailable) {
@@ -127,10 +130,12 @@ TechnicianSummary summarize(Iterable<Technician> technicians, Workload? workload
       available++;
       if (status == TechnicianStatus.busy) busy++;
     }
-    openTickets += workload?.openOf(technician.id) ?? 0;
+    final open = workload?.openOf(technician.id) ?? 0;
+    if (technician.isActive && technician.isAvailable && workload != null && open > average) overloaded++;
+    openTickets += open;
     resolved += workload?.resolvedOf(technician.id) ?? 0;
   }
-  return TechnicianSummary(total: total, available: available, busy: busy, unavailable: unavailable, openTickets: openTickets, resolved: resolved);
+  return TechnicianSummary(total: total, available: available, busy: busy, unavailable: unavailable, openTickets: openTickets, resolved: resolved, overloaded: overloaded);
 }
 
 /// Error de la especialización, o `null` si es válida (sin contar espacios sobrantes).

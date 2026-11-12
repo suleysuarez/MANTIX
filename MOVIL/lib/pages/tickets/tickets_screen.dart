@@ -241,7 +241,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
             ));
         },
         child: BlocProvider(
-          key: ValueKey('$_statusCsv|${_priorities.join(',')}|${_equipments.keys.join(',')}|$_search|$_dates|$_pageSize|$_generation'),
+          key: ValueKey('$_statusCsv|${_priorities.join(',')}|${_equipments.keys.join(',')}|$_search|$_dates|$_pageSize|$_generation|$_kanban'),
           create: (context) => TicketsBloc(
             repository: _repository,
             status: _statusCsv,
@@ -250,7 +250,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
             dateTo: _dates?.end,
             priorities: [for (final p in knownPriorities) if (_priorities.contains(p)) p],
             equipmentIds: _equipments.keys.toList(),
-            pageSize: _pageSize,
+            pageSize: _kanban ? 500 : _pageSize,
           )..add(const PagedStarted()),
           child: Builder(
             builder: (context) => Scaffold(
@@ -514,7 +514,7 @@ class _TicketResults extends StatelessWidget {
           ],
         if (pageFailure != null)
           Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-        if (info != null) ...[
+        if (!kanban && info != null) ...[
           const SizedBox(height: 8),
           Paginator(page: info!.page, pageSize: info!.pageSize, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
         ],

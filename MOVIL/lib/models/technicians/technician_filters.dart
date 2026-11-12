@@ -54,7 +54,7 @@ class TechnicianFilters extends Equatable {
 /// Cifras de las tarjetas de resumen. [available] cuenta a todos los disponibles, con o sin
 /// tickets; los libres son [free].
 class TechnicianSummary extends Equatable {
-  const TechnicianSummary({this.total = 0, this.available = 0, this.busy = 0, this.unavailable = 0, this.openTickets = 0, this.resolved = 0});
+  const TechnicianSummary({this.total = 0, this.available = 0, this.busy = 0, this.unavailable = 0, this.openTickets = 0, this.resolved = 0, this.overloaded = 0});
 
   final int total;
   final int available;
@@ -62,9 +62,10 @@ class TechnicianSummary extends Equatable {
   final int unavailable;
   final int openTickets;
   final int resolved;
+  final int overloaded;
 
   int get free => available - busy;
 
   @override
-  List<Object?> get props => [total, available, busy, unavailable, openTickets, resolved];
+  List<Object?> get props => [total, available, busy, unavailable, openTickets, resolved, overloaded];
 }

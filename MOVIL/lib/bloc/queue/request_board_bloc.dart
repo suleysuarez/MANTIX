@@ -27,6 +27,7 @@ class RequestBoardBloc extends Bloc<RequestBoardEvent, RequestBoardState> {
     on<RequestBoardColumnRetried>(_onRetry);
     on<RequestBoardMovedOptimistically>(_onMoved);
     on<RequestBoardMoveReverted>(_onReverted);
+    _changes = _repository.changes.listen((_) => add(const RequestBoardRefreshed()));
   }
 
   /// Tarjetas que se piden por columna y por vez.
@@ -34,6 +35,7 @@ class RequestBoardBloc extends Bloc<RequestBoardEvent, RequestBoardState> {
 
   final RequestsRepository _repository;
   final Duration searchDebounce;
+  late final StreamSubscription<void> _changes;
 
   /// Se suma con cada recarga completa: una respuesta de una recarga anterior se descarta.
   int _generation = 0;
@@ -160,6 +162,12 @@ class RequestBoardBloc extends Bloc<RequestBoardEvent, RequestBoardState> {
   }
 
   int _atLeastZero(int value) => value < 0 ? 0 : value;
+
+  @override
+  Future<void> close() async {
+    await _changes.cancel();
+    return super.close();
+  }
 
   void _replace(Emitter<RequestBoardState> emit, BoardColumn column) {
     if (emit.isDone) return;

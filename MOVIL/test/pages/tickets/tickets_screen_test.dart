@@ -9,6 +9,7 @@ import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/pages/tickets/tickets_screen.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
+import 'package:mantix/widgets/shared/paginator.dart';
 import 'package:mantix/widgets/tickets/ticket_cards.dart';
 
 import '../../support/paginator_support.dart';
@@ -325,6 +326,24 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('Kanban carga también las páginas siguientes sin mostrar paginador', (tester) async {
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int;
+        return pagedResponse(
+          [ticketJson(id: page == 1 ? 1 : 501, title: page == 1 ? 'Primer ticket' : 'Ticket 501')],
+          page: page,
+          totalPages: 2,
+          total: 501,
+        );
+      };
+      await openBoard(tester);
+
+      expect(find.text('Ticket 501'), findsNWidgets(2), reason: 'el número y el título coinciden en esta tarjeta');
+      expect(find.byType(TicketKanbanCard), findsNWidgets(2));
+      expect(listRequests().where((r) => r.queryParameters['size'] == 500), hasLength(2));
+      expect(find.byType(Paginator), findsNothing);
+    });
+
     testWidgets('muestra un estado debajo de otro con su contador y sin desplazamiento horizontal', (tester) async {
       await openBoard(tester);
 
@@ -333,6 +352,8 @@ void main() {
       }
       expect(find.text('Equipo en curso'), findsOneWidget);
       expect(find.text('Equipo nuevo'), findsOneWidget);
+      expect(find.byType(Paginator), findsNothing, reason: 'Kanban no pagina');
+      expect(lastQuery()['size'], 500, reason: 'Kanban carga la página máxima del API');
       final horizontal = tester.widgetList<Scrollable>(find.byType(Scrollable)).where((s) => s.axisDirection == AxisDirection.right || s.axisDirection == AxisDirection.left);
       // El único desplazamiento horizontal posible es el de los campos de texto y el carrusel
       // de atención prioritaria; el tablero no añade ninguno.
@@ -396,7 +417,18 @@ void main() {
     });
 
     Future<void> openMenuFor(WidgetTester tester, String target) async {
-      await tester.tap(find.byTooltip('Mover a…').first);
+      // En pantallas estrechas el tablero queda más abajo dentro del ListView y la
+      // tarjeta puede no estar construida todavía (el ListView es perezoso). Se desplaza hasta que
+      // exista el menú; un `.first` sobre algo aún no construido lanzaría «No element».
+      for (var i = 0; i < 30 && find.byTooltip('Mover a…').evaluate().isEmpty; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -240));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      final moveMenu = find.byTooltip('Mover a…').first;
+      await tester.ensureVisible(moveMenu);
+      await tester.pumpAndSettle();
+      await tester.tap(moveMenu);
       await tester.pumpAndSettle();
       await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text(target)));
       await tester.pumpAndSettle();

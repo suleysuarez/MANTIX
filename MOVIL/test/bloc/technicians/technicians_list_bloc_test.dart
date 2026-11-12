@@ -56,7 +56,7 @@ void main() {
         expect(state.status, TechniciansStatus.ready);
         expect(state.hasWorkload, isTrue);
         expect(names(state), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
-        expect(state.summary, const TechnicianSummary(total: 4, available: 3, busy: 2, unavailable: 1, openTickets: 4, resolved: 38));
+        expect(state.summary, const TechnicianSummary(total: 4, available: 3, busy: 2, unavailable: 1, openTickets: 4, resolved: 38, overloaded: 1));
         expect(state.specialties, ['Hardware', 'Redes', 'Software']);
         expect(adapter.requests.map((r) => r.path), containsAll(['/technicians', '/dashboard/workload']));
       },

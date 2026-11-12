@@ -335,6 +335,19 @@ class _Performance extends StatelessWidget {
           final period = periodLabel(state.period);
           final data = state.performance;
           return DetailSection(icon: Icons.insights_rounded, title: period == null ? 'Indicadores' : 'Indicadores de los últimos $period', children: [
+            SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: '7d', label: Text('7 días')),
+                ButtonSegment(value: '30d', label: Text('30 días')),
+                ButtonSegment(value: '12m', label: Text('12 meses')),
+              ],
+              selected: {state.period},
+              onSelectionChanged: (values) {
+                if (values.isNotEmpty) context.read<TechnicianDetailBloc>().add(TechnicianPerformancePeriodChanged(values.first));
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
             if (state.performanceStatus == DetailBlockStatus.loading)
               Semantics(label: 'Cargando indicadores', child: const Column(children: [Skeleton(height: 44), SizedBox(height: AppSpacing.sm), Skeleton(height: 44)]))
             else if (state.performanceStatus == DetailBlockStatus.failure)

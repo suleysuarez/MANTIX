@@ -17,6 +17,11 @@ class TechnicianDetailBloc extends Bloc<TechnicianDetailEvent, TechnicianDetailS
   TechnicianDetailBloc({required this._technicians, required this._requests, required this.technicianId, this.withTickets = true}) : super(const TechnicianDetailState()) {
     on<TechnicianDetailRequested>(_onRequested);
     on<TechnicianPerformanceRetried>((_, emit) => _loadPerformance(emit));
+    on<TechnicianPerformancePeriodChanged>((event, emit) async {
+      if (!const {'7d', '30d', '12m'}.contains(event.period)) return;
+      emit(state.copyWith(period: event.period, performanceStatus: DetailBlockStatus.loading));
+      await _loadPerformance(emit, period: event.period);
+    });
     on<TechnicianTicketsRetried>((_, emit) => _loadTickets(emit));
   }
 
@@ -36,12 +41,13 @@ class TechnicianDetailBloc extends Bloc<TechnicianDetailEvent, TechnicianDetailS
 
   Future<void> _onRequested(TechnicianDetailRequested event, Emitter<TechnicianDetailState> emit) => Future.wait([_loadPerformance(emit), if (withTickets) _loadTickets(emit)]);
 
-  Future<void> _loadPerformance(Emitter<TechnicianDetailState> emit) async {
-    emit(state.copyWith(performanceStatus: DetailBlockStatus.loading));
+  Future<void> _loadPerformance(Emitter<TechnicianDetailState> emit, {String? period}) async {
+    final selectedPeriod = period ?? state.period;
+    emit(state.copyWith(performanceStatus: DetailBlockStatus.loading, period: selectedPeriod));
     try {
-      final report = await _technicians.performance();
+      final report = await _technicians.performance(period: selectedPeriod);
       // Sin fila propia (por ejemplo, el servidor solo deja ver la de quien llama) no hay dato.
-      emit(state.copyWith(performanceStatus: DetailBlockStatus.ready, performance: report.byTechnician[technicianId], period: report.period));
+      emit(state.copyWith(performanceStatus: DetailBlockStatus.ready, performance: report.byTechnician[technicianId], period: selectedPeriod));
     } catch (error) {
       emit(state.copyWith(performanceStatus: DetailBlockStatus.failure, performanceFailure: toFailure(error)));
     }

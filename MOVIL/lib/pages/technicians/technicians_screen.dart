@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/queue/queue_summary_bloc.dart';
 import '../../bloc/technicians/technician_actions_bloc.dart';
 import '../../bloc/technicians/technicians_list_bloc.dart';
 import '../../core/format/technicians_format.dart';
@@ -12,6 +13,8 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/technicians/technician_filters.dart';
 import '../../models/technicians/technician_models.dart';
 import '../../repositories/technicians/technicians_repository.dart';
+import '../../repositories/queue/queue_repository.dart';
+import '../../repositories/requests/requests_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
 import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -47,6 +50,8 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
 
   late final TechniciansListBloc _list;
   late final TechnicianActionsBloc _actions;
+  late final QueueSummaryBloc _queueSummary;
+  StreamSubscription<void>? _requestChanges;
   int? _highlightId;
   Timer? _highlightTimer;
   final _searchController = TextEditingController();
@@ -59,6 +64,12 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     super.initState();
     final repository = context.read<TechniciansRepository>();
     _list = TechniciansListBloc(repository: repository)..add(const TechniciansRequested());
+    _queueSummary = QueueSummaryBloc(repository: context.read<QueueRepository>())..add(const QueueSummaryRequested());
+    _requestChanges = context.read<RequestsRepository>().changes.listen((_) {
+      if (!mounted) return;
+      _list.add(const TechniciansRequested());
+      _queueSummary.add(const QueueSummaryRequested());
+    });
     // Quien usa la app no puede desactivar su propia cuenta.
     final auth = context.read<AuthBloc>().state;
     _actions = TechnicianActionsBloc(repository: repository, currentUserId: auth is Authenticated ? auth.profile.id : null);
@@ -70,6 +81,8 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     _highlightTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
+    unawaited(_requestChanges?.cancel());
+    unawaited(_queueSummary.close());
     unawaited(_list.close());
     unawaited(_actions.close());
     super.dispose();
@@ -136,14 +149,14 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
       return const Scaffold(body: Center(child: Text('No encontramos los datos de tu sesión.')));
     }
     // La tarifa solo llega a quien gestiona técnicos; a los demás ni se les enseña el campo.
-    final showRate = profile.can('tecnicos:editar');
+    const showRate = false; // La tarifa por técnico no se expone en la app móvil.
     final showTickets = profile.can('tickets:ver');
     final canEdit = profile.can('tecnicos:editar');
     final canChangeAccount = profile.can('usuarios:cambiar_estado');
     // Registrar exige además buscar al usuario, que el servidor guarda tras `equipos:asignar`.
     final canCreate = profile.can('tecnicos:crear') && profile.can('equipos:asignar');
-    return BlocProvider.value(
-      value: _list,
+    return MultiBlocProvider(
+      providers: [BlocProvider.value(value: _list), BlocProvider.value(value: _queueSummary)],
       child: BlocListener<TechnicianActionsBloc, TechnicianActionsState>(
         bloc: _actions,
         listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
@@ -168,12 +181,12 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
                     if (state.unavailable)
                       EmptyState(icon: Icons.cloud_off_outlined, title: 'No pudimos cargar los técnicos', message: state.failure?.message, actionLabel: 'Reintentar', onAction: () => _list.add(const TechniciansRequested()))
                     else ...[
-                      TechniciansKpiGrid(
-                        summary: state.initialLoading ? null : state.summary,
-                        hasWorkload: state.hasWorkload,
-                        windowDays: state.workload?.windowDays ?? 30,
-                        selected: state.filters.status,
-                        onSelect: (status) => _list.add(TechniciansFiltersChanged(state.filters.copyWith(status: status, clearStatus: status == null))),
+                      BlocBuilder<QueueSummaryBloc, QueueSummaryState>(
+                        builder: (context, queueState) => TechniciansKpiGrid(
+                          summary: state.initialLoading ? null : state.summary,
+                          hasWorkload: state.hasWorkload,
+                          unassignedTickets: queueState.summary?.unassigned,
+                        ),
                       ),
                       if (!state.initialLoading && !state.hasWorkload) _WorkloadNotice(message: state.workloadFailure?.message, onRetry: () => _list.add(const TechniciansRequested())),
                       const SizedBox(height: AppSpacing.md),

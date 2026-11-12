@@ -13,6 +13,11 @@ class TechnicianPerformanceRetried extends TechnicianDetailEvent {
   const TechnicianPerformanceRetried();
 }
 
+class TechnicianPerformancePeriodChanged extends TechnicianDetailEvent {
+  const TechnicianPerformancePeriodChanged(this.period);
+  final String period;
+}
+
 class TechnicianTicketsRetried extends TechnicianDetailEvent {
   const TechnicianTicketsRetried();
 }

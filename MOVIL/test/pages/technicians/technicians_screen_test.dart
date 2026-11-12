@@ -38,6 +38,7 @@ void main() {
     adapter = FakeAdapter((options) => switch (options.path) {
           '/technicians' => techniciansHandler(options),
           '/dashboard/workload' => workloadHandler(options),
+          '/maintenance/queue/summary' => jsonResponse(200, {'pending_total': 4, 'unassigned': 2}),
           '/dashboard/technicians' => performanceHandler(options),
           '/maintenance/requests' => ticketsHandler(options),
           _ => errorResponse(404),
@@ -73,13 +74,12 @@ void main() {
 
       expect(find.textContaining('PERSONAL', findRichText: true), findsOneWidget);
       expect(find.textContaining('BANDEJA DE TRIAJE'), findsNothing, reason: 'la etiqueta de la maqueta era de otra pantalla');
-      for (final label in ['TOTAL TÉCNICOS', 'DISPONIBLES', 'CON TICKETS ACTIVOS', 'NO DISPONIBLES', 'RESUELTOS']) {
+      for (final label in ['TÉCNICOS DISPONIBLES', 'SIN CARGA', 'CON SOBRECARGA', 'TICKETS SIN ASIGNAR']) {
         expect(find.text(label), findsWidgets, reason: label);
       }
-      expect(find.text('4 tickets abiertos'), findsOneWidget);
-      expect(find.text('38'), findsOneWidget, reason: 'resueltos del equipo');
-      expect(find.text('Últimos 30 días'), findsOneWidget);
-      expect(find.text('4 técnicos registrados'), findsOneWidget);
+      expect(find.text('4 tickets abiertos'), findsNothing, reason: 'la carga global no es uno de los KPI operativos');
+      expect(find.text('2'), findsWidgets, reason: 'tickets sin asignar en la bandeja');
+      expect(find.text('4 técnicos registrados'), findsOneWidget, reason: 'se conserva como contexto secundario, no como KPI');
       expect(cardNames(tester), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
     });
 
@@ -88,22 +88,16 @@ void main() {
 
       expect(find.text('1 ticket activo'), findsOneWidget);
       expect(find.text('3 tickets activos'), findsOneWidget);
-      expect(find.text('No disponible'), findsOneWidget);
-      expect(find.text('Disponible'), findsOneWidget);
+      expect(find.text('No disponible'), findsNWidgets(2), reason: 'una cuenta inactiva tampoco puede recibir tickets');
+      expect(find.text('Disponible'), findsNothing, reason: 'los dos técnicos sin asignación disponible no tienen cuenta operativa libre en esta muestra');
       expect(find.text('Cuenta inactiva'), findsOneWidget);
     });
 
-    testWidgets('la tarifa por hora solo se enseña a quien gestiona técnicos', (tester) async {
-      await open(tester);
+    testWidgets('no expone tarifas por técnico en la interfaz móvil', (tester) async {
+      await open(tester, permissions: _manager);
       expect(find.text('TARIFA POR HORA'), findsNothing);
       expect(find.text(r'$35,00'), findsNothing);
-    });
-
-    testWidgets('quien gestiona técnicos ve la tarifa con coma, y «—» si no hay', (tester) async {
-      await open(tester, permissions: _manager);
-      expect(find.text('TARIFA POR HORA'), findsNWidgets(4));
-      expect(find.text(r'$35,00'), findsOneWidget);
-      expect(find.text(r'$40,00'), findsOneWidget);
+      expect(find.text(r'$40,00'), findsNothing);
     });
 
     testWidgets('la vista de tabla muestra las mismas personas con abiertos y resueltos', (tester) async {
@@ -127,7 +121,7 @@ void main() {
       await open(tester);
 
       expect(cardNames(tester), hasLength(4));
-      expect(find.text('Carga no disponible'), findsOneWidget);
+      expect(find.text('—'), findsWidgets);
       expect(find.text('La carga de tickets no está disponible.'), findsOneWidget);
 
       workloadHandler = (_) => jsonResponse(200, workloadJson({2: (3, 15)}));
@@ -186,14 +180,12 @@ void main() {
       expect(cardNames(tester), hasLength(4));
     });
 
-    testWidgets('tocar una cifra filtra por ese estado y «Total» lo quita', (tester) async {
+    testWidgets('los KPI resumen capacidad y demanda sin alterar la lista', (tester) async {
       await open(tester);
-      await tester.tap(find.text('CON TICKETS ACTIVOS'));
-      await tester.pumpAndSettle();
-      expect(cardNames(tester), ['Ana Demo', 'Luis Demo']);
-
-      await tester.tap(find.text('TOTAL TÉCNICOS'));
-      await tester.pumpAndSettle();
+      expect(find.text('TÉCNICOS DISPONIBLES'), findsOneWidget);
+      expect(find.text('SIN CARGA'), findsOneWidget);
+      expect(find.text('CON SOBRECARGA'), findsOneWidget);
+      expect(find.text('TICKETS SIN ASIGNAR'), findsOneWidget);
       expect(cardNames(tester), hasLength(4));
     });
 
@@ -317,9 +309,18 @@ void main() {
       expect(request.queryParameters['technician_id'], [1]);
     });
 
-    testWidgets('quien gestiona técnicos ve la tarifa en la ficha', (tester) async {
+    testWidgets('no expone la tarifa en la ficha móvil, tampoco a quien gestiona técnicos', (tester) async {
       await openDetail(tester, 'Ana Demo', permissions: _manager);
-      expect(find.text('Tarifa por hora'), findsOneWidget);
+      expect(find.text('Tarifa por hora'), findsNothing);
+    });
+
+    testWidgets('permite cambiar el periodo de rendimiento entre 7 días, 30 días y 12 meses', (tester) async {
+      await openDetail(tester, 'Ana Demo');
+      await tester.tap(find.text('7 días'));
+      await tester.pumpAndSettle();
+      final performanceCalls = adapter.requests.where((r) => r.path == '/dashboard/technicians').toList();
+      expect(performanceCalls.last.queryParameters['period'], '7d');
+      expect(find.text('Indicadores de los últimos 7 días'), findsOneWidget);
     });
 
     testWidgets('si los indicadores fallan, los tickets siguen y se puede reintentar', (tester) async {
@@ -388,11 +389,13 @@ void main() {
         expect(find.text('Ficha del técnico'), findsOneWidget);
         expect(tester.takeException(), isNull);
         // La ficha entera, de arriba abajo: las secciones se construyen al desplazarse.
-        for (var i = 0; i < 6; i++) {
-          await tester.drag(find.byType(ListView).last, const Offset(0, -350));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
-        }
+        await tester.scrollUntilVisible(
+          find.textContaining('Tickets abiertos ('),
+          250,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
         expect(find.textContaining('Tickets abiertos ('), findsOneWidget);
       });
 

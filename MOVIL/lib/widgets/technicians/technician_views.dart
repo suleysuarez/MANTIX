@@ -80,7 +80,7 @@ class TechnicianCard extends StatelessWidget {
               ]),
               const SizedBox(height: AppSpacing.md),
               Row(children: [
-                Expanded(child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS')),
+                Expanded(flex: 2, child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS', prominent: true)),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: _Stat(icon: Icons.task_alt_rounded, value: _count(workload, (w) => w.resolvedOf(technician.id)), label: 'RESUELTOS')),
               ]),
@@ -111,11 +111,12 @@ class TechnicianCard extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.value, required this.label});
+  const _Stat({required this.icon, required this.value, required this.label, this.prominent = false});
 
   final IconData icon;
   final String value;
   final String label;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +134,7 @@ class _Stat extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(value, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
+            Text(value, style: (prominent ? theme.textTheme.headlineSmall : theme.textTheme.titleMedium)?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
             FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3))),
           ]),
         ),
@@ -153,7 +154,8 @@ class TechniciansTable extends StatelessWidget {
   final int? highlightedId;
 
   static const _statusWidth = 96.0;
-  static const _numberWidth = 44.0;
+  static const _numberWidth = 42.0;
+  static const _metricGap = 12.0;
   static const _arrowWidth = 20.0;
 
   @override
@@ -172,6 +174,7 @@ class TechniciansTable extends StatelessWidget {
             Expanded(child: Text('TÉCNICO', maxLines: 1, overflow: TextOverflow.ellipsis, style: head)),
             SizedBox(width: _statusWidth, child: fitted('ESTADO')),
             SizedBox(width: _numberWidth, child: fitted('ABIERTOS')),
+            const SizedBox(width: _metricGap),
             SizedBox(width: _numberWidth, child: fitted('RESUELTOS')),
             const SizedBox(width: _arrowWidth),
           ]),
@@ -230,6 +233,7 @@ class _Row extends StatelessWidget {
                   child: FittedBox(fit: BoxFit.scaleDown, child: TechnicianStatusChip(technician: technician, workload: workload)),
                 ),
                 SizedBox(width: TechniciansTable._numberWidth, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text(open, style: number)))),
+                const SizedBox(width: TechniciansTable._metricGap),
                 SizedBox(width: TechniciansTable._numberWidth, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text(resolved, style: number)))),
                 const SizedBox(width: TechniciansTable._arrowWidth, child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.slate)),
               ]),
