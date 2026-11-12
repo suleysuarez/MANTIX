@@ -392,7 +392,7 @@ void main() {
         await tester.scrollUntilVisible(
           find.textContaining('Tickets abiertos ('),
           250,
-          scrollable: find.byType(ListView).last,
+          scrollable: find.byType(Scrollable).last,
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
