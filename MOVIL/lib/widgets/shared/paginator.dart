@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 
-/// Tamaños de página que ofrece el selector.
-const List<int> pageSizeOptions = [5, 10, 20, 50];
-
 /// Qué se dibuja en la fila de páginas: números de página y `null` por cada «…». Con [slots] huecos
 /// (mínimo 5): todas las páginas si caben; cerca del principio «1 2 3 4 5 … 99»; en el
 /// medio «1 … 4 5 6 … 99»; cerca del final «1 … 95 96 97 98 99». Primera y última siempre salen.
@@ -24,13 +21,11 @@ List<int?> visiblePages({required int page, required int totalPages, required in
 }
 
 /// Paginador: una fila de ancho completo, centrada, con flechas en los extremos y los números de
-/// página en medio (la actual, en un círculo mostaza), sin cuadro de fondo; y debajo el selector
-/// de tamaño de página cuando hay para elegir.
+/// página en medio (la actual, en un círculo mostaza), sin cuadro de fondo. No ofrece elegir el
+/// tamaño de página: cada pantalla usa el suyo.
 ///
 /// * Con una sola página se muestra solo «1», sin flechas.
 /// * En la primera página no hay «anterior»; en la última, no hay «siguiente».
-/// * El selector de tamaño solo aparece si el total supera la opción más pequeña
-///   y la pantalla pasa [onPageSize].
 class Paginator extends StatelessWidget {
   const Paginator({
     super.key,
@@ -39,7 +34,6 @@ class Paginator extends StatelessWidget {
     required this.total,
     required this.totalPages,
     required this.onPage,
-    this.onPageSize,
     this.loading = false,
   });
 
@@ -49,9 +43,6 @@ class Paginator extends StatelessWidget {
   final int total;
   final int totalPages;
   final ValueChanged<int> onPage;
-
-  /// Se llama con el tamaño elegido; la pantalla vuelve a la página 1.
-  final ValueChanged<int>? onPageSize;
   final bool loading;
 
   /// Ancho de cada número de página y lado de cada flecha (48: el mínimo táctil de Material).
@@ -61,10 +52,6 @@ class Paginator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (total <= 0) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final showSize = onPageSize != null && total > pageSizeOptions.first;
-    final sizes = {...pageSizeOptions, pageSize}.toList()..sort();
-    final label = theme.textTheme.labelLarge?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w700);
 
     void go(int value) {
       if (!loading) onPage(value);
@@ -72,29 +59,8 @@ class Paginator extends StatelessWidget {
 
     return Opacity(
       opacity: loading ? .5 : 1,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // Los números salen siempre; con una sola página, solo «1» y ninguna flecha.
-        _Pill(page: page, totalPages: totalPages < 1 ? 1 : totalPages, onPage: go),
-        if (showSize) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Center(
-            child: Semantics(
-              label: 'Elementos por página',
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: sizes.contains(pageSize) ? pageSize : null,
-                  isDense: false,
-                  borderRadius: AppRadius.mdAll,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
-                  style: label,
-                  items: [for (final size in sizes) DropdownMenuItem(value: size, child: Text('$size por página'))],
-                  onChanged: loading ? null : (value) => value == null || value == pageSize ? null : onPageSize!(value),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ]),
+      // Los números salen siempre; con una sola página, solo «1» y ninguna flecha.
+      child: _Pill(page: page, totalPages: totalPages < 1 ? 1 : totalPages, onPage: go),
     );
   }
 }

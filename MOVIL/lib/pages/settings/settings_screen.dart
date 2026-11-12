@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/settings/settings_bloc.dart';
+import '../../core/format/settings_format.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/settings/settings_models.dart';
@@ -77,14 +78,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onRefresh: () { final done = Completer<void>(); _bloc.add(SettingsRefreshRequested(done)); return done.future; },
           child: ListView(padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
             physics: const AlwaysScrollableScrollPhysics(), children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Container(width: 5, height: 46, decoration: BoxDecoration(color: AppColors.mustard, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 9),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Configuración', style: TextStyle(color: AppColors.navy, fontSize: 23, fontWeight: FontWeight.w900)),
-                SizedBox(height: 3),
-                Text('Administra los datos esenciales y revisa el estado de Mantix.', style: TextStyle(color: AppColors.steel, fontSize: 12)),
+                Text('Configuración', style: TextStyle(color: AppColors.navy, fontSize: 30, fontWeight: FontWeight.w900, height: 1)),
+                SizedBox(height: 4),
+                Text('Administra los datos esenciales y revisa el estado de Mantix.', style: TextStyle(color: AppColors.steel, fontSize: 11.5)),
               ])),
-              IconButton.filledTonal(tooltip: 'Actualizar', onPressed: state.loading ? null : () => _bloc.add(const SettingsRefreshRequested()),
-                icon: const Icon(Icons.refresh_rounded), style: IconButton.styleFrom(backgroundColor: AppColors.skyLight.withValues(alpha: .55), foregroundColor: AppColors.steel)),
+              IconButton.filled(tooltip: 'Actualizar', onPressed: state.loading ? null : () => _bloc.add(const SettingsRefreshRequested()),
+                icon: const Icon(Icons.refresh_rounded), style: IconButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy)),
             ]),
             const SizedBox(height: AppSpacing.lg),
             if (state.loading && state.health == null)
@@ -101,8 +104,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _CatalogCard(categories: state.categories, priorities: state.priorities, canEdit: canEdit, onOpen: () => _openCatalogs(canEdit)),
               const SizedBox(height: AppSpacing.md),
               _AuditCard(entries: state.health!.audit.recent),
-              const SizedBox(height: AppSpacing.md),
-              _RuntimeCard(environment: state.health!.environment),
               if (state.loading) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator(minHeight: 2, color: AppColors.mustard, backgroundColor: AppColors.skyLight)),
             ],
           ]),
@@ -119,7 +120,8 @@ class _Metrics extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     const _Title('Resumen administrativo', 'Indicadores clave de la plataforma.'),
     const SizedBox(height: 9),
-    GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, childAspectRatio: 2.05, children: [
+    // Una altura que crece con el tamaño de letra (con una proporción fija, la letra grande se desbordaba).
+    GridView(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, mainAxisExtent: 74 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)), children: [
       _Metric('Usuarios activos', health.users.active.toString(), 'de ${health.users.total} cuentas', Icons.groups_outlined),
       _Metric('Roles activos', health.roles.where((r) => r.isActive).length.toString(), 'perfiles de acceso', Icons.admin_panel_settings_outlined),
       _Metric('Actividad en 24 h', health.audit.last24h.toString(), 'acciones registradas', Icons.history_rounded),
@@ -137,8 +139,8 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(11),
     decoration: BoxDecoration(color: AppColors.white, borderRadius: AppRadius.mdAll, border: Border.all(color: AppColors.grey.withValues(alpha: .75))),
     child: Row(children: [
-      Container(width: 34, height: 34, decoration: BoxDecoration(color: mustard ? AppColors.mustard.withValues(alpha: .22) : AppColors.skyLight.withValues(alpha: .55), borderRadius: AppRadius.smAll),
-        child: Icon(icon, size: 18, color: mustard ? AppColors.navy : AppColors.steel)),
+      Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: mustard ? .5 : .28), borderRadius: AppRadius.smAll),
+        child: Icon(icon, size: 18, color: AppColors.navy)),
       const SizedBox(width: 8),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(value, style: const TextStyle(color: AppColors.navy, fontSize: 20, height: 1.1, fontWeight: FontWeight.w900)),
@@ -154,8 +156,11 @@ class _SystemCard extends StatelessWidget {
   final SystemHealth health;
   @override
   Widget build(BuildContext context) {
-    final color = health.overall == 'ok' ? AppColors.steel : health.overall == 'error' ? AppColors.error : AppColors.mustard;
-    final label = health.overall == 'ok' ? 'Operativo' : health.overall == 'error' ? 'Requiere atención' : 'Revisar componentes';
+    final integrations = visibleIntegrations(health.integrations);
+    final overall = overallStatus(integrations, health.overall);
+    final environment = health.environment;
+    final color = overall == 'ok' ? AppColors.steel : overall == 'error' ? AppColors.error : AppColors.mustard;
+    final label = overall == 'ok' ? 'Operativo' : overall == 'error' ? 'Requiere atención' : 'Revisar componentes';
     return _Panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const _IconTile(Icons.monitor_heart_outlined),
@@ -166,7 +171,15 @@ class _SystemCard extends StatelessWidget {
             Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 10, fontWeight: FontWeight.w800))])),
       ]),
       const SizedBox(height: 10),
-      for (final item in health.integrations) _IntegrationRow(item),
+      for (final item in integrations) _IntegrationRow(item),
+      const Divider(height: 22, color: AppColors.grey),
+      const Text('Información del servicio', style: TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 4),
+      _InfoLine('Entorno', environmentLabel(environment.name)),
+      _InfoLine('Versión API', environment.version),
+      _InfoLine('Límite por adjunto', '${environment.maxUploadMb} MB'),
+      _InfoLine('Avisos preventivos', 'Cada ${environment.reminderIntervalMinutes} min'),
+      _InfoLine('Tareas automáticas', environment.schedulerEnabled ? 'Habilitadas' : 'Deshabilitadas'),
       const SizedBox(height: 6),
       Text('Última revisión: ${DateFormat('dd/MM/yyyy · HH:mm').format(health.generatedAt.toLocal())}', style: const TextStyle(color: AppColors.slate, fontSize: 10)),
     ]));
@@ -204,7 +217,7 @@ class _OrganizationCard extends StatelessWidget {
       Text(organization?.companyName ?? 'Mantix', style: const TextStyle(color: AppColors.steel, fontSize: 12, fontWeight: FontWeight.w700)),
       const Text('Nombre que aparece en los reportes exportados.', style: TextStyle(color: AppColors.slate, fontSize: 10)),
     ])),
-    if (canEdit) IconButton(tooltip: 'Editar organización', onPressed: onEdit, icon: const Icon(Icons.edit_outlined, color: AppColors.steel)),
+    if (canEdit) IconButton.filled(tooltip: 'Editar organización', onPressed: onEdit, icon: const Icon(Icons.edit_outlined), style: IconButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy)),
   ]));
 }
 
@@ -224,9 +237,9 @@ class _CatalogCard extends StatelessWidget {
       Expanded(child: _CountTile('Prioridades', priorities.where((p) => p.isActive).length, priorities.length)),
     ]),
     const SizedBox(height: 11),
-    SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: onOpen, icon: Icon(canEdit ? Icons.settings_outlined : Icons.visibility_outlined, size: 17),
+    SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: onOpen, icon: Icon(canEdit ? Icons.settings_outlined : Icons.visibility_outlined, size: 17),
       label: Text(canEdit ? 'Administrar catálogos' : 'Consultar catálogos'),
-      style: OutlinedButton.styleFrom(foregroundColor: AppColors.steel, side: const BorderSide(color: AppColors.skyLight), minimumSize: const Size(0, 44)))),
+      style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy, textStyle: const TextStyle(fontWeight: FontWeight.w800), minimumSize: const Size(0, 46)))),
   ]));
 }
 
@@ -262,20 +275,6 @@ class _AuditCard extends StatelessWidget {
   ]));
 }
 
-class _RuntimeCard extends StatelessWidget {
-  const _RuntimeCard({required this.environment});
-  final EnvironmentInfo environment;
-  @override
-  Widget build(BuildContext context) => _Panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text('Información del servicio', style: TextStyle(color: AppColors.navy, fontSize: 13, fontWeight: FontWeight.w900)),
-    const SizedBox(height: 7),
-    _InfoLine('Entorno', environment.name), _InfoLine('Versión API', environment.version),
-    _InfoLine('Límite por adjunto', '${environment.maxUploadMb} MB'),
-    _InfoLine('Avisos preventivos', 'Cada ${environment.reminderIntervalMinutes} min'),
-    _InfoLine('Tareas automáticas', environment.schedulerEnabled ? 'Habilitadas' : 'Deshabilitadas'),
-  ]));
-}
-
 class _InfoLine extends StatelessWidget {
   const _InfoLine(this.label, this.value);
   final String label, value;
@@ -301,16 +300,23 @@ class _IconTile extends StatelessWidget {
   const _IconTile(this.icon);
   final IconData icon;
   @override
-  Widget build(BuildContext context) => Container(width: 37, height: 37, decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.smAll), child: Icon(icon, color: AppColors.steel, size: 20));
+  Widget build(BuildContext context) => Container(width: 37, height: 37, decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .28), borderRadius: AppRadius.smAll), child: Icon(icon, color: AppColors.navy, size: 20));
 }
 
 class _Panel extends StatelessWidget {
   const _Panel({required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14),
+  Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(color: AppColors.white, borderRadius: AppRadius.lgAll, border: Border.all(color: AppColors.grey.withValues(alpha: .7)),
-      boxShadow: const [BoxShadow(color: Color(0x080B172A), blurRadius: 10, offset: Offset(0, 2))]), child: child);
+      boxShadow: const [BoxShadow(color: Color(0x080B172A), blurRadius: 10, offset: Offset(0, 2))]),
+    clipBehavior: Clip.antiAlias,
+    // Una franja mostaza arriba da a cada tarjeta el mismo acento de la marca.
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Container(height: 3, color: AppColors.mustard),
+      Padding(padding: const EdgeInsets.all(14), child: child),
+    ]),
+  );
 }
 
 class _LoadError extends StatelessWidget {

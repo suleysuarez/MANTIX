@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/profile/profile_models.dart';
 import '../shared/empty_state.dart';
+import '../shared/paginator.dart';
 import '../shared/skeleton.dart';
 
 /// Una fila de datos: icono, nombre del dato y su valor. Sin valor sale «Sin registrar» en gris.
@@ -68,12 +69,14 @@ IconData _kindIcon(String kind) => switch (kind) {
     };
 
 /// «Mi actividad»: las últimas acciones sobre mi cuenta, con cargando, vacío y error con
-/// reintento. «Ver más» pide la página siguiente.
+/// reintento, y el paginador numerado debajo (una página sustituye a la anterior).
 class ProfileHistorySection extends StatelessWidget {
-  const ProfileHistorySection({super.key, required this.state, required this.onMore, required this.onRetry});
+  const ProfileHistorySection({super.key, required this.state, required this.onPage, required this.onRetry});
 
   final PagedListState<HistoryEntry> state;
-  final VoidCallback onMore;
+
+  /// Va a esa página (base 1).
+  final ValueChanged<int> onPage;
   final VoidCallback onRetry;
 
   @override
@@ -110,15 +113,10 @@ class ProfileHistorySection extends StatelessWidget {
               Text(historyKindLabel(entry.kind), style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w700)),
             ]),
           ),
-        if (state.loadingMore)
-          const Padding(padding: EdgeInsets.all(AppSpacing.md), child: Center(child: CircularProgressIndicator(color: AppColors.steel, strokeWidth: 2.5)))
-        else if (state.hasMore)
-          TextButton(onPressed: onMore, child: const Text('Ver más'))
-        else if (state.loadMoreFailure != null)
-          Column(children: [
-            Text(state.loadMoreFailure!.message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.error, fontSize: 12)),
-            TextButton(onPressed: onMore, child: const Text('Reintentar')),
-          ]),
+        if (state.loadMoreFailure != null)
+          Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(state.loadMoreFailure!.message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+        if (state.info case final info?)
+          Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage),
       ],
     ]);
   }

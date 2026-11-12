@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -12,6 +14,7 @@ import '../repositories/auth/mobile_auth_repository.dart';
 import '../repositories/catalogs/catalogs_repository.dart';
 import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/inventory/inventory_repository.dart';
+import '../bloc/profile/avatar_cubit.dart';
 import '../repositories/profile/profile_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
 import '../repositories/queue/queue_repository.dart';
@@ -105,11 +108,20 @@ class _MantixAppState extends State<MantixApp> {
           BlocProvider.value(value: widget.authBloc),
           BlocProvider(create: (_) => PermissionsCubit(widget.authBloc)),
           BlocProvider(create: (_) => NotificationsBloc(repository: widget.notificationsRepository)),
+          BlocProvider(create: (_) => AvatarCubit(widget.profileRepository)),
         ],
-        // Las notificaciones se cargan al iniciar sesión y se vacían al cerrarla.
+        // Las notificaciones y mi foto se cargan al iniciar sesión y se vacían al cerrarla.
         child: BlocListener<AuthBloc, AuthState>(
           listenWhen: (previous, current) => (previous is Authenticated) != (current is Authenticated),
-          listener: (context, state) => context.read<NotificationsBloc>().add(state is Authenticated ? const NotificationsLoaded() : const NotificationsCleared()),
+          listener: (context, state) {
+            context.read<NotificationsBloc>().add(state is Authenticated ? const NotificationsLoaded() : const NotificationsCleared());
+            final avatar = context.read<AvatarCubit>();
+            if (state is Authenticated) {
+              unawaited(avatar.load());
+            } else {
+              avatar.clear();
+            }
+          },
           child: MaterialApp.router(
           title: 'Mantix',
           debugShowCheckedModeBanner: false,

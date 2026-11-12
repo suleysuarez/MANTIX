@@ -46,7 +46,7 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
   DateTimeRange? _dates;
   String _search = '';
   EquipmentView _view = EquipmentView.table;
-  int _pageSize = 10;
+  final int _pageSize = 10;
 
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
@@ -229,7 +229,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> {
                 key: ObjectKey(_listBloc),
                 view: _view,
                 pageSize: _pageSize,
-                onPageSize: (size) => _applyFilters(() => _pageSize = size),
                 filtered: filtered,
                 highlightId: _highlightId,
                 onResetFilters: _resetFilters,
@@ -598,11 +597,10 @@ class _ViewOption extends StatelessWidget {
 
 /// El listado propiamente dicho, con sus estados (cargando, error, vacío, datos) y la paginación.
 class _ListSection extends StatelessWidget {
-  const _ListSection({super.key, required this.view, required this.pageSize, required this.onPageSize, required this.filtered, required this.onResetFilters, this.highlightId});
+  const _ListSection({super.key, required this.view, required this.pageSize, required this.filtered, required this.onResetFilters, this.highlightId});
 
   final EquipmentView view;
   final int pageSize;
-  final ValueChanged<int> onPageSize;
   final bool filtered;
   final VoidCallback onResetFilters;
   final int? highlightId;
@@ -640,7 +638,6 @@ class _ListSection extends StatelessWidget {
               pageSize: pageSize,
               loading: state.loadingPage,
               onPage: (page) => bloc.add(EquipmentPageSelected(page)),
-              onPageSize: onPageSize,
             ),
             const SizedBox(height: 24),
           ]);

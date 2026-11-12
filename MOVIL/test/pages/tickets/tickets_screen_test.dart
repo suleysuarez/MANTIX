@@ -264,21 +264,17 @@ void main() {
       expect(find.text('Ticket de la página 3'), findsWidgets);
     });
 
-    testWidgets('cambiar el tamaño de página pide size=10 desde la página 1', (tester) async {
+    testWidgets('pide siempre 20 por página y no ofrece cambiar el tamaño', (tester) async {
       listHandler = (options) {
         final page = options.queryParameters['page'] as int? ?? 1;
         return pagedResponse([ticketJson(id: page)], page: page, totalPages: 3, total: 41);
       };
       await pump(tester);
-      expect(lastQuery()['size'], 20);
-      await tester.scrollUntilVisible(find.byType(DropdownButton<int>), 300, scrollable: find.byType(Scrollable).first);
-      await tester.tap(find.byType(DropdownButton<int>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('10 por página').last);
-      await tester.pumpAndSettle();
 
-      expect(lastQuery()['size'], 10);
+      expect(lastQuery()['size'], 20);
       expect(lastQuery()['page'], 1);
+      expect(find.byType(DropdownButton<int>), findsNothing);
+      expect(find.textContaining('por página'), findsNothing);
     });
   });
 

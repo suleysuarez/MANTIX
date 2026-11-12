@@ -56,4 +56,25 @@ void main() {
 
     expect(find.text('Usuarios y roles'), findsNothing);
   });
+
+  testWidgets('el técnico tiene «Mi bandeja» y no «Dashboard»: llevaban a la misma pantalla', (tester) async {
+    await openMenu(tester, {'tickets:ver', 'tickets:ver_asignados', 'mantenimiento:ver'});
+
+    expect(find.text('Mi bandeja'), findsOneWidget);
+    expect(find.text('Dashboard'), findsNothing);
+  });
+
+  testWidgets('quien ve todo (supervisor) sigue teniendo «Dashboard» y no «Mi bandeja»', (tester) async {
+    await openMenu(tester, {'tickets:ver', 'tickets:ver_asignados', 'tickets:ver_todos', 'dashboard:ver_todos'});
+
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Mi bandeja'), findsNothing);
+  });
+
+  testWidgets('quien no tiene nada asignado conserva «Dashboard»', (tester) async {
+    await openMenu(tester, {'solicitudes:ver'});
+
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Mi bandeja'), findsNothing);
+  });
 }

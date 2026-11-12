@@ -212,7 +212,6 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
                           _list.add(TechniciansPageChanged(page));
                           if (_scrollController.hasClients) _scrollController.jumpTo(0);
                         },
-                        onPageSize: (size) => _list.add(TechniciansPageSizeChanged(size)),
                       ),
                     ],
                   ]),
@@ -348,7 +347,7 @@ class _ViewToggle extends StatelessWidget {
 
 /// La lista con sus estados (cargando, vacío, datos) y el paginador.
 class _Results extends StatelessWidget {
-  const _Results({required this.state, required this.table, required this.showRate, required this.highlightId, required this.onClearFilters, required this.onOpen, required this.onPage, required this.onPageSize});
+  const _Results({required this.state, required this.table, required this.showRate, required this.highlightId, required this.onClearFilters, required this.onOpen, required this.onPage});
 
   final TechniciansListState state;
   final bool table;
@@ -357,7 +356,6 @@ class _Results extends StatelessWidget {
   final VoidCallback onClearFilters;
   final ValueChanged<Technician> onOpen;
   final ValueChanged<int> onPage;
-  final ValueChanged<int> onPageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -402,7 +400,7 @@ class _Results extends StatelessWidget {
             child: TechnicianCard(technician: technician, workload: state.workload, showRate: showRate, highlighted: technician.id == highlightId, onTap: () => onOpen(technician)),
           ),
       const SizedBox(height: AppSpacing.md),
-      Paginator(page: state.page, totalPages: state.totalPages, total: filtered.length, pageSize: state.pageSize, onPage: onPage, onPageSize: onPageSize),
+      Paginator(page: state.page, totalPages: state.totalPages, total: filtered.length, pageSize: state.pageSize, onPage: onPage),
     ]);
   }
 }

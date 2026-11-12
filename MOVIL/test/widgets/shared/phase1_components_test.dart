@@ -42,13 +42,12 @@ class _Numbers extends PagedBloc<int> {
   }
 }
 
-Paginator paginator({int page = 1, int pageSize = 5, int total = 23, int totalPages = 5, ValueChanged<int>? onPage, ValueChanged<int>? onPageSize}) =>
-    Paginator(page: page, pageSize: pageSize, total: total, totalPages: totalPages, onPage: onPage ?? (_) {}, onPageSize: onPageSize);
+Paginator paginator({int page = 1, int pageSize = 5, int total = 23, int totalPages = 5, ValueChanged<int>? onPage}) => Paginator(page: page, pageSize: pageSize, total: total, totalPages: totalPages, onPage: onPage ?? (_) {});
 
 void main() {
   group('Paginator', () {
     testWidgets('no escribe el rango «1-5 de 23» ni dibuja un cuadro de fondo: solo flechas y números', (tester) async {
-      await pumpSized(tester, paginator(onPageSize: (_) {}));
+      await pumpSized(tester, paginator());
 
       expect(find.textContaining(' de 23'), findsNothing);
       // Lo único con sombra o borde es el aro de la página actual (un círculo): ningún cuadro.
@@ -64,7 +63,7 @@ void main() {
     });
 
     testWidgets('en la primera página no hay «anterior» y sí «siguiente»', (tester) async {
-      await pumpSized(tester, paginator(onPageSize: (_) {}));
+      await pumpSized(tester, paginator());
       expect(find.byTooltip('Página anterior'), findsNothing);
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
     });
@@ -75,8 +74,8 @@ void main() {
       expect(find.byTooltip('Página anterior'), findsOneWidget);
     });
 
-    testWidgets('con una sola página no hay flechas, «1 / 1» ni selector con pocos elementos', (tester) async {
-      await pumpSized(tester, paginator(total: 3, totalPages: 1, onPageSize: (_) {}));
+    testWidgets('con una sola página no hay flechas ni «1 / 1»', (tester) async {
+      await pumpSized(tester, paginator(total: 3, totalPages: 1));
       expect(find.textContaining(' de 3'), findsNothing);
       expect(find.byTooltip('Página anterior'), findsNothing);
       expect(find.byTooltip('Página siguiente'), findsNothing);
@@ -89,22 +88,11 @@ void main() {
       expect(selected, findsOneWidget);
     });
 
-    testWidgets('el selector de tamaño aparece si el total supera 5 y avisa del cambio', (tester) async {
-      int? chosen;
-      await pumpSized(tester, paginator(total: 6, totalPages: 2, onPageSize: (size) => chosen = size));
-      await tester.tap(find.byType(DropdownButton<int>));
-      await tester.pumpAndSettle();
-      for (final size in pageSizeOptions) {
-        expect(find.text('$size por página'), findsWidgets);
-      }
-      await tester.tap(find.text('20 por página').last);
-      await tester.pumpAndSettle();
-      expect(chosen, 20);
-    });
+    testWidgets('no ofrece elegir el tamaño de página, con muchos elementos tampoco', (tester) async {
+      await pumpSized(tester, paginator(total: 500, totalPages: 100));
 
-    testWidgets('sin onPageSize no hay selector', (tester) async {
-      await pumpSized(tester, paginator());
       expect(find.byType(DropdownButton<int>), findsNothing);
+      expect(find.textContaining('por página'), findsNothing);
     });
 
     testWidgets('pasar de página avisa y, cargando, no hace nada', (tester) async {
@@ -122,7 +110,7 @@ void main() {
 
     for (final size in _sizes) {
       testWidgets('sin overflow en ${size.width.toInt()}x${size.height.toInt()} con texto 1,3', (tester) async {
-        await pumpSized(tester, paginator(page: 3, onPageSize: (_) {}), size: size, textScale: 1.3);
+        await pumpSized(tester, paginator(page: 3), size: size, textScale: 1.3);
         expect(tester.takeException(), isNull);
       });
     }

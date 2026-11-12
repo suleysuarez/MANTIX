@@ -4,12 +4,13 @@ import '../../bloc/maintenance/upcoming_maintenance_bloc.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/maintenance/maintenance_models.dart';
+import '../shared/paginator.dart';
 import 'maintenance_cards.dart';
 
 /// «Próximos mantenimientos»: los primeros [limit] servicios (los vencidos primero) y el enlace
 /// «Ver todos» a la lista de planes. Maneja cargando, vacío y error con reintento.
 class UpcomingSection extends StatelessWidget {
-  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.onRangeChanged, this.title = 'Próximos mantenimientos', this.limit = 3});
+  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.onRangeChanged, this.title = 'Próximos mantenimientos', this.limit = 3, this.page = 1, this.onPage});
 
   final UpcomingMaintenanceState state;
   final ValueChanged<CalendarEvent> onOpen;
@@ -21,12 +22,25 @@ class UpcomingSection extends StatelessWidget {
 
   /// El título de la sección; en el panel del técnico es «Mis mantenimientos».
   final String title;
+
+  /// Cuántos servicios se ven a la vez (y, con [onPage], el tamaño de cada página).
   final int limit;
+
+  /// Página actual (base 1). Solo cuenta si se pasa [onPage].
+  final int page;
+
+  /// Si se pasa, debajo de la lista sale el paginador numerado y esta función recibe la página elegida.
+  final ValueChanged<int>? onPage;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final items = state.visibleItems.take(limit).toList();
+    final all = state.visibleItems;
+    final paged = onPage != null;
+    final totalPages = paged ? (all.length / limit).ceil() : 1;
+    // Al cambiar el rango la lista se acorta: la página nunca queda más allá de la última.
+    final current = paged && totalPages > 0 ? page.clamp(1, totalPages) : 1;
+    final items = paged ? all.skip((current - 1) * limit).take(limit).toList() : all.take(limit).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         const Icon(Icons.schedule_rounded, color: AppColors.navy),
@@ -51,6 +65,7 @@ class UpcomingSection extends StatelessWidget {
         _Message(icon: Icons.event_available_outlined, text: state.range == UpcomingRange.all ? 'No hay mantenimientos próximos ni vencidos.' : 'No hay mantenimientos en este rango.')
       else
         for (final event in items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: MaintenanceEventCard(event: event, onTap: () => onOpen(event))),
+      if (paged && !state.initialLoading && !state.unavailable && all.isNotEmpty) Paginator(page: current, pageSize: limit, total: all.length, totalPages: totalPages, onPage: onPage!),
     ]);
   }
 }

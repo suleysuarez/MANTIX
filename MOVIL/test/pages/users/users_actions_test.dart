@@ -253,6 +253,33 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('los pendientes se reparten de 10 en 10 con el paginador y cada página sustituye a la anterior', (tester) async {
+      adapter = FakeAdapter((options) {
+        if (options.method != 'GET') return writeHandler(options);
+        return switch (options.path) {
+          '/admin/users/summary' => jsonResponse(200, usersSummaryJson),
+          '/admin/users/pending' => jsonResponse(200, [for (var i = 1; i <= 12; i++) pendingJson(id: 100 + i, name: 'Persona $i', email: 'p$i@mantix.test')]),
+          '/admin/users' => pagedResponse(people()),
+          _ => errorResponse(404),
+        };
+      });
+      await open(tester, size: const Size(1000, 6000));
+      await toPending(tester);
+
+      expect(find.byType(PendingUserCard), findsNWidgets(10));
+      expect(find.text('Persona 1'), findsOneWidget);
+      expect(find.text('Persona 11'), findsNothing);
+      expect(find.textContaining('por página'), findsNothing, reason: 'no hay selector de tamaño');
+
+      await tester.tap(find.byTooltip('Página siguiente'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PendingUserCard), findsNWidgets(2));
+      expect(find.text('Persona 11'), findsOneWidget);
+      expect(find.text('Persona 1'), findsNothing);
+      expect(find.byTooltip('Página siguiente'), findsNothing);
+    });
+
     testWidgets('el botón «Asignar rol» solo sale con permiso de asignar', (tester) async {
       await open(tester, permissions: {'usuarios:ver'});
       await toPending(tester);

@@ -37,7 +37,7 @@ class MyRequestsScreen extends StatefulWidget {
 class _MyRequestsScreenState extends State<MyRequestsScreen> {
   /// Filtro elegido: estado efímero de la pantalla. Cambiarlo crea un `MyRequestsBloc` nuevo.
   String? _status;
-  int _pageSize = 20;
+  final int _pageSize = 20;
 
   /// Sube cuando hay que empezar de cero aunque el filtro no cambie (una solicitud nueva).
   int _generation = 0;
@@ -107,7 +107,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                   onRefresh: context.read<MyRequestsBloc>().refresh,
                   onLoadMore: () => context.read<MyRequestsBloc>().add(const PagedLoadMoreRequested()),
                   onPage: (page) => context.read<MyRequestsBloc>().add(PagedPageSelected(page)),
-                  onPageSize: (size) => setState(() => _pageSize = size),
                   itemBuilder: (context, item) => _RequestCard(item: item, highlighted: item.id == _highlightId),
                   empty: EmptyState(
                     icon: Icons.assignment_outlined,

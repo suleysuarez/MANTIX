@@ -52,7 +52,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
   DateTimeRange? _dates;
   String _search = '';
   bool _kanban = false;
-  int _pageSize = 20;
+  final int _pageSize = 20;
 
   /// Sube cada vez que hay que empezar de cero aunque los filtros no hayan cambiado (un
   /// ticket nuevo): la clave del Bloc cambia y el listado vuelve a la página 1.
@@ -327,7 +327,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                               loadingPage: state.loadingMore,
                               pageFailure: state.loadMoreFailure?.message,
                               onOpen: (item) => showTicketDetail(context, item.id),
-                              onPageSize: (size) => setState(() => _pageSize = size),
                               onPage: (page) {
                                 context.read<TicketsBloc>().add(PagedPageSelected(page));
                                 if (_scrollController.hasClients) _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
@@ -477,8 +476,7 @@ class _TicketResults extends StatelessWidget {
     required this.pageFailure,
     required this.onOpen,
     required this.onPage,
-    required this.onPageSize,
-  });
+    });
 
   final List<TicketListItem> items;
   final bool kanban;
@@ -490,7 +488,6 @@ class _TicketResults extends StatelessWidget {
   final String? pageFailure;
   final ValueChanged<TicketListItem> onOpen;
   final ValueChanged<int> onPage;
-  final ValueChanged<int> onPageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -516,7 +513,7 @@ class _TicketResults extends StatelessWidget {
           Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         if (!kanban && info != null) ...[
           const SizedBox(height: 8),
-          Paginator(page: info!.page, pageSize: info!.pageSize, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
+          Paginator(page: info!.page, pageSize: info!.pageSize, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage),
         ],
       ],
     );

@@ -369,7 +369,8 @@ void main() {
 
       expect(selectedPage(tester), 1);
       expect(find.textContaining(' de 25'), findsNothing, reason: 'ya no se escribe el rango');
-      expect(find.byType(DropdownButton<int>), findsOneWidget);
+      expect(find.byType(DropdownButton<int>), findsNothing, reason: 'ya no se elige el tamaño de página');
+      expect(find.textContaining('por página'), findsNothing);
       expect(find.byTooltip('Página anterior'), findsNothing, reason: 'en la página 1 no hay «anterior»');
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
     });
@@ -405,7 +406,7 @@ void main() {
       expect(find.byTooltip('Página siguiente'), findsNothing, reason: 'en la última no hay «siguiente»');
     });
 
-    testWidgets('conserva diez equipos por página y el selector vuelve a la página 1 con el tamaño nuevo', (tester) async {
+    testWidgets('pide diez equipos por página y al pasar de página sigue pidiendo diez', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
@@ -415,13 +416,6 @@ void main() {
       expect(lastQuery()['size'], 10);
       expect(lastQuery()['page'], 2);
       expect(selectedPage(tester), 2);
-
-      await tester.tap(find.byType(DropdownButton<int>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('5 por página').last);
-      await tester.pumpAndSettle();
-      expect(lastQuery()['size'], 5);
-      expect(lastQuery()['page'], 1);
     });
   });
 
