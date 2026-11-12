@@ -417,12 +417,10 @@ void main() {
     });
 
     Future<void> openMenuFor(WidgetTester tester, String target) async {
-      await tester.scrollUntilVisible(
-        find.byTooltip('Mover a…'),
-        180,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.byTooltip('Mover a…').first);
+      final moveMenu = find.byTooltip('Mover a…').first;
+      await tester.ensureVisible(moveMenu);
+      await tester.pumpAndSettle();
+      await tester.tap(moveMenu);
       await tester.pumpAndSettle();
       await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text(target)));
       await tester.pumpAndSettle();
