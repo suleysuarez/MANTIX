@@ -60,14 +60,8 @@ class MantixAppBar extends StatelessWidget implements PreferredSizeWidget {
             onTap: () => context.go(HomeDestination.profile.path),
             child: Padding(
               padding: const EdgeInsets.all(6),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.sky,
-                  child: Text(initialsOf(profile.fullName), style: const TextStyle(color: AppColors.navy, fontSize: 11, fontWeight: FontWeight.w800)),
-                ),
-                const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-              ]),
+              // Solo la burbuja con las iniciales: sin la flecha, que no abre ningún menú (lleva al perfil).
+              child: MyAvatar(name: profile.fullName, radius: 16, fontSize: 11),
             ),
           ),
           ),

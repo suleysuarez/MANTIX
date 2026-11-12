@@ -8,10 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mantix/bloc/auth/auth_bloc.dart';
 import 'package:mantix/bloc/auth/permissions_cubit.dart';
+import 'package:mantix/bloc/profile/avatar_cubit.dart';
 import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/profile/profile_repository.dart';
+import 'package:mantix/repositories/settings/settings_repository.dart';
 import 'package:mantix/services/device_services.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
@@ -157,11 +159,13 @@ Future<GoRouter> pumpScreen(
         RepositoryProvider(create: (_) => ReportsRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => EquipmentRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => ProfileRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => SettingsRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => DeviceServices()),
       ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: permissionsCubit(permissions)),
+          BlocProvider(create: (_) => AvatarCubit(ProfileRepository(dioWith(adapter)))),
           BlocProvider<AuthBloc>.value(value: authenticatedBloc(testProfile(permissions: permissions))),
           BlocProvider<NotificationsBloc>.value(value: notificationsBloc()),
         ],

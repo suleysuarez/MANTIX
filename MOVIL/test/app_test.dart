@@ -104,11 +104,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ana Pérez'), findsWidgets, reason: 'en el encabezado y en «Mis datos»');
-    // Los permisos están plegados: se abren para verlos.
-    await tester.scrollUntilVisible(find.textContaining('Mis permisos'), 200);
-    await tester.tap(find.textContaining('Mis permisos'));
-    await tester.pumpAndSettle();
-    expect(find.text('tickets:ver'), findsOneWidget);
+    expect(find.textContaining('Mis permisos'), findsNothing, reason: 'el perfil ya no lista los permisos');
   });
 
   testWidgets('los botones táctiles miden al menos 48 px', (tester) async {

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mantix/bloc/profile/avatar_cubit.dart';
 import 'package:mantix/pages/profile/profile_screen.dart';
 
 import '../../support/fakes.dart';
@@ -71,14 +73,11 @@ void main() {
       expect(find.text('Nunca'), findsNothing);
     });
 
-    testWidgets('los permisos están plegados y se abren al tocarlos', (tester) async {
+    testWidgets('no muestra los permisos', (tester) async {
       await open(tester);
 
+      expect(find.textContaining('Mis permisos'), findsNothing);
       expect(find.text('tickets:ver'), findsNothing);
-      await tester.tap(find.textContaining('Mis permisos (3)'));
-      await tester.pumpAndSettle();
-      expect(find.text('tickets:ver'), findsOneWidget);
-      expect(find.text('perfil:editar'), findsOneWidget);
     });
 
     testWidgets('sin actividad lo dice', (tester) async {
@@ -88,19 +87,23 @@ void main() {
       expect(find.text('Aún no hay actividad'), findsOneWidget);
     });
 
-    testWidgets('con más actividad ofrece «Ver más» y pide la página siguiente', (tester) async {
+    testWidgets('la actividad se pagina con números y cada página sustituye a la anterior', (tester) async {
       historyHandler = (options) {
         final page = options.queryParameters['page'] as int;
         return pagedResponse([historyJson(id: page, action: page == 1 ? 'auth.login' : 'profile.updated', kind: page == 1 ? 'session' : 'profile')], page: page, totalPages: 2, total: 2);
       };
       await open(tester);
+      expect(find.text('Iniciaste sesión'), findsOneWidget);
       expect(find.text('Actualizaste tus datos'), findsNothing);
+      expect(find.text('Ver más'), findsNothing, reason: 'ya no hay botón «Ver más»');
 
-      await tester.tap(find.text('Ver más'));
+      await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
 
       expect(find.text('Actualizaste tus datos'), findsOneWidget);
-      expect(find.text('Ver más'), findsNothing);
+      expect(find.text('Iniciaste sesión'), findsNothing, reason: 'la página nueva sustituye a la anterior');
+      expect(find.byTooltip('Página siguiente'), findsNothing);
+      expect(find.byTooltip('Página anterior'), findsOneWidget);
     });
 
     testWidgets('si no cargan los datos queda lo que sabe la sesión y un reintento', (tester) async {
@@ -210,6 +213,24 @@ void main() {
       expect(find.text('Tomar una foto'), findsOneWidget);
       expect(find.text('Elegir de la galería'), findsOneWidget);
       expect(find.text('Quitar mi foto'), findsNothing);
+    });
+
+    testWidgets('mi foto se ve en todo el encabezado: el perfil la comparte con el AvatarCubit y al quitarla se vacía', (tester) async {
+      profileHandler = (options) => options.path == '/profile/avatar' && options.method == 'GET'
+          ? ResponseBody.fromBytes(_tinyPng, 200, headers: {
+              Headers.contentTypeHeader: ['image/jpeg']
+            })
+          : jsonResponse(200, profileJson(hasAvatar: options.method != 'DELETE'));
+      await open(tester);
+      final avatar = tester.element(find.byType(ProfileScreen)).read<AvatarCubit>();
+      expect(avatar.state, _tinyPng, reason: 'al cargar el perfil la foto pasa al resto de la app');
+
+      await tester.tap(find.byIcon(Icons.photo_camera_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quitar mi foto'));
+      await tester.pumpAndSettle();
+
+      expect(avatar.state, isNull);
     });
 
     testWidgets('con foto ofrece quitarla y al hacerlo la borra', (tester) async {

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -7,12 +10,67 @@ import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/users/users_screen.dart';
 import '../../pages/settings/settings_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/profile/avatar_cubit.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/auth/user_profile.dart';
 import 'brand_logo.dart';
 
 /// Iniciales (hasta dos) de un nombre; «M» si no hay ninguna.
+/// Mi foto en un círculo, o mis iniciales si no hay. Se actualiza sola cuando cambia la foto
+/// (`AvatarCubit`). Si la pantalla no tiene ese Cubit (por ejemplo, en una prueba), muestra las iniciales.
+class MyAvatar extends StatefulWidget {
+  const MyAvatar({super.key, required this.name, required this.radius, this.backgroundColor = AppColors.sky, this.fontSize});
+
+  final String name;
+  final double radius;
+  final Color backgroundColor;
+  final double? fontSize;
+
+  @override
+  State<MyAvatar> createState() => _MyAvatarState();
+}
+
+class _MyAvatarState extends State<MyAvatar> {
+  AvatarCubit? _cubit;
+  StreamSubscription<Uint8List?>? _subscription;
+  Uint8List? _bytes;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    AvatarCubit? found;
+    try {
+      found = context.read<AvatarCubit>();
+    } on Object {
+      found = null; // sin Cubit en este árbol: solo iniciales
+    }
+    if (identical(found, _cubit)) return;
+    unawaited(_subscription?.cancel());
+    _cubit = found;
+    _bytes = found?.state;
+    _subscription = found?.stream.listen((bytes) {
+      if (mounted) setState(() => _bytes = bytes);
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CircleAvatar(
+        radius: widget.radius,
+        backgroundColor: widget.backgroundColor,
+        foregroundImage: _bytes == null ? null : MemoryImage(_bytes!),
+        // Si la foto no se puede dibujar, quedan las iniciales de debajo.
+        onForegroundImageError: _bytes == null ? null : (error, stack) {},
+        child: Text(initialsOf(widget.name), style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800, fontSize: widget.fontSize)),
+      );
+}
+
 String initialsOf(String name) {
   final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).take(2);
   final value = parts.map((part) => part[0].toUpperCase()).join();
@@ -41,8 +99,10 @@ class MantixDrawer extends StatelessWidget {
   /// Ruta de la pantalla actual: su elemento del menú queda resaltado.
   final String selectedPath;
 
+  static const _dashboardPath = '/inicio/dashboard-global';
+
   static const _navItems = <_NavItem>[
-    _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
+    _NavItem('Dashboard', Icons.home_rounded, _dashboardPath),
     // Quien ve todos los tickets trabaja desde Tickets; la bandeja es para quien solo ve los asignados.
     _NavItem('Mi bandeja', Icons.assignment_ind_outlined, '/inicio/bandeja', 'tickets:ver_asignados', [], 'tickets:ver_todos'),
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
@@ -77,7 +137,11 @@ class MantixDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Quien trabaja desde «Mi bandeja» (tiene lo asignado y no ve todo) no necesita también «Dashboard»:
+    // llevaba a esa misma pantalla.
+    final hasInbox = profile.can('tickets:ver_asignados') && !profile.can('tickets:ver_todos');
     final allowed = _navItems.where((item) =>
+      !(hasInbox && item.path == _dashboardPath) &&
       (item.hiddenWith == null || !profile.can(item.hiddenWith!)) &&
       ((item.permission == null && item.anyPermissions.isEmpty) ||
       (item.permission != null && profile.can(item.permission!)) ||
@@ -150,11 +214,7 @@ class MantixDrawer extends StatelessWidget {
                           padding: const EdgeInsets.all(11),
                           child: Row(
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.sky,
-                                child: Text(initialsOf(profile.fullName), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800)),
-                              ),
+                              MyAvatar(name: profile.fullName, radius: 22),
                               const SizedBox(width: 11),
                               Expanded(
                                 child: Column(
