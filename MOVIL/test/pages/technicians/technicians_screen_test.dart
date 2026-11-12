@@ -79,7 +79,7 @@ void main() {
       }
       expect(find.text('4 tickets abiertos'), findsNothing, reason: 'la carga global no es uno de los KPI operativos');
       expect(find.text('2'), findsWidgets, reason: 'tickets sin asignar en la bandeja');
-      expect(find.text('4 técnicos registrados'), findsNothing, reason: 'evita el conteo sin valor operativo');
+      expect(find.text('4 técnicos registrados'), findsOneWidget, reason: 'se conserva como contexto secundario, no como KPI');
       expect(cardNames(tester), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
     });
 
