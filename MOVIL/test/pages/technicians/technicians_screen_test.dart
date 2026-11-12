@@ -309,9 +309,18 @@ void main() {
       expect(request.queryParameters['technician_id'], [1]);
     });
 
-    testWidgets('quien gestiona técnicos ve la tarifa en la ficha', (tester) async {
+    testWidgets('no expone la tarifa en la ficha móvil, tampoco a quien gestiona técnicos', (tester) async {
       await openDetail(tester, 'Ana Demo', permissions: _manager);
-      expect(find.text('Tarifa por hora'), findsOneWidget);
+      expect(find.text('Tarifa por hora'), findsNothing);
+    });
+
+    testWidgets('permite cambiar el periodo de rendimiento entre 7 días, 30 días y 12 meses', (tester) async {
+      await openDetail(tester, 'Ana Demo');
+      await tester.tap(find.text('7 días'));
+      await tester.pumpAndSettle();
+      final performanceCalls = adapter.requests.where((r) => r.path == '/dashboard/technicians').toList();
+      expect(performanceCalls.last.queryParameters['period'], '7d');
+      expect(find.text('Indicadores de los últimos 7 días'), findsOneWidget);
     });
 
     testWidgets('si los indicadores fallan, los tickets siguen y se puede reintentar', (tester) async {
