@@ -23,7 +23,7 @@ class InventoryItem extends Equatable {
     required this.id, required this.sku, required this.name, required this.category,
     required this.unit, required this.unitCost, required this.stock, required this.minStock,
     required this.status, required this.stockValue, this.description, this.maxStock,
-    this.location, this.supplier,
+    this.location, this.supplier, this.createdAt, this.levelPct,
   });
   final int id;
   final String sku;
@@ -40,6 +40,12 @@ class InventoryItem extends Equatable {
   final String? location;
   final String? supplier;
 
+  /// Cuándo se creó el ítem (`created_at`); `null` si el servidor no lo envía.
+  final DateTime? createdAt;
+
+  /// Stock frente al máximo (o al doble del mínimo si no hay máximo), de 0 a 100; `null` si no llega.
+  final double? levelPct;
+
   factory InventoryItem.fromJson(Map<String, Object?> json) => InventoryItem(
     id: json['id'] as int,
     sku: json['sku'] as String? ?? '',
@@ -55,18 +61,74 @@ class InventoryItem extends Equatable {
     description: json['description'] as String?,
     location: json['location'] as String?,
     supplier: json['supplier'] as String?,
+    createdAt: _dateOrNull(json['created_at']),
+    levelPct: json['level_pct'] is num ? (json['level_pct']! as num).toDouble() : null,
   );
 
   @override
-  List<Object?> get props => [id, sku, name, category, unit, unitCost, stock, minStock, maxStock, status, stockValue, description, location, supplier];
+  List<Object?> get props => [id, sku, name, category, unit, unitCost, stock, minStock, maxStock, status, stockValue, description, location, supplier, createdAt, levelPct];
+}
+
+DateTime? _dateOrNull(Object? value) => value is String ? DateTime.tryParse(value)?.toLocal() : null;
+
+/// Una fila del historial de un ítem (`GET /inventory/items/{id}/movements`).
+///
+/// [quantity] lleva signo: las entradas son positivas y los consumos, negativos. La carga inicial
+/// de un ítem nuevo llega como una entrada con la nota «Carga inicial».
+class InventoryMovement extends Equatable {
+  const InventoryMovement({
+    required this.id, required this.itemId, required this.kind, required this.quantity,
+    required this.stockAfter, this.unitCost, this.notes, this.createdBy, this.createdAt,
+  });
+  final int id;
+  final int itemId;
+
+  /// `in`, `out` o `adjust`.
+  final String kind;
+  final int quantity;
+  final int stockAfter;
+  final String? unitCost;
+  final String? notes;
+  final String? createdBy;
+  final DateTime? createdAt;
+
+  /// Es la entrada que el servidor crea al dar de alta un ítem con existencias.
+  bool get isInitialLoad => kind == 'in' && notes == initialLoadNote;
+
+  static const initialLoadNote = 'Carga inicial';
+
+  factory InventoryMovement.fromJson(Map<String, Object?> json) => InventoryMovement(
+    id: json['id'] as int,
+    itemId: json['item_id'] as int? ?? 0,
+    kind: json['kind'] as String? ?? 'adjust',
+    quantity: json['quantity'] as int? ?? 0,
+    stockAfter: json['stock_after'] as int? ?? 0,
+    unitCost: json['unit_cost'] == null ? null : '${json['unit_cost']}',
+    notes: json['notes'] as String?,
+    createdBy: json['created_by'] as String?,
+    createdAt: _dateOrNull(json['created_at']),
+  );
+
+  @override
+  List<Object?> get props => [id, itemId, kind, quantity, stockAfter, unitCost, notes, createdBy, createdAt];
 }
 
 class InventoryOverview extends Equatable {
   const InventoryOverview({
     required this.stockValue, required this.lowStock, required this.outOfStock,
-    required this.consumptionUnits, required this.consumptionValue,
+    required this.consumptionUnits, required this.consumptionValue, this.stockChangePct,
+    this.activeItems = 0, this.previousConsumptionUnits = 0,
   });
   final String stockValue;
+
+  /// Variación del valor del stock frente al inicio del periodo; `null` si no hay referencia.
+  final double? stockChangePct;
+
+  /// Ítems activos contados (`stock_value.items`): la base de las rayitas de «Por reponer» y «Agotados».
+  final int activeItems;
+
+  /// Unidades consumidas en el periodo anterior: la referencia de la rayita de «Consumo».
+  final int previousConsumptionUnits;
   final int lowStock;
   final int outOfStock;
   final int consumptionUnits;
@@ -81,11 +143,14 @@ class InventoryOverview extends Equatable {
       outOfStock: json['out_of_stock'] as int? ?? 0,
       consumptionUnits: consumption['units'] as int? ?? 0,
       consumptionValue: '${consumption['value'] ?? '0'}',
+      activeItems: value['items'] as int? ?? 0,
+      previousConsumptionUnits: consumption['previous_units'] as int? ?? 0,
+      stockChangePct: value['change_pct'] is num ? (value['change_pct']! as num).toDouble() : null,
     );
   }
 
   @override
-  List<Object?> get props => [stockValue, lowStock, outOfStock, consumptionUnits, consumptionValue];
+  List<Object?> get props => [stockValue, lowStock, outOfStock, consumptionUnits, consumptionValue, stockChangePct, activeItems, previousConsumptionUnits];
 }
 
 class InventoryPage extends Equatable {

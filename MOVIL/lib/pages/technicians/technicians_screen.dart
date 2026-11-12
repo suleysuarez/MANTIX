@@ -110,8 +110,10 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
 
   Future<void> _showFilters() async {
     final state = _list.state;
-    final result = await showTechniciansFilterSheet(context, initial: state.filters, specialties: state.specialties);
-    if (result != null && mounted) _list.add(TechniciansFiltersChanged(result));
+    final result = await showTechniciansFilterSheet(context, initial: state.filters, specialties: state.specialties, order: state.order);
+    if (result == null || !mounted) return;
+    if (result.filters != state.filters) _list.add(TechniciansFiltersChanged(result.filters));
+    if (result.order != state.order) _list.add(TechniciansOrderChanged(result.order));
   }
 
   /// El resultado de cada acción en un aviso: navy si salió bien, rojo si no. Lo que ni se pidió
@@ -190,12 +192,10 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
                       ),
                       if (!state.initialLoading && !state.hasWorkload) _WorkloadNotice(message: state.workloadFailure?.message, onRetry: () => _list.add(const TechniciansRequested())),
                       const SizedBox(height: AppSpacing.md),
-                      _SearchField(controller: _searchController, onChanged: _onSearchChanged, onClear: _clearSearch),
-                      const SizedBox(height: AppSpacing.sm),
                       Row(children: [
-                        FilterButton(count: state.filters.activeCount, onPressed: _showFilters),
+                        Expanded(child: _SearchField(controller: _searchController, onChanged: _onSearchChanged, onClear: _clearSearch)),
                         const SizedBox(width: AppSpacing.sm),
-                        Expanded(child: _OrderButton(order: state.order, onChanged: (order) => _list.add(TechniciansOrderChanged(order)))),
+                        FilterButton(count: state.filters.activeCount, onPressed: _showFilters),
                       ]),
                       _ActiveFilterChips(filters: state.filters, specialties: state.specialties, onChanged: (filters) => _list.add(TechniciansFiltersChanged(filters))),
                       const SizedBox(height: AppSpacing.md),
@@ -281,48 +281,13 @@ class _SearchField extends StatelessWidget {
           maxLength: 100,
           onChanged: onChanged,
           decoration: InputDecoration(
-            hintText: 'Buscar por nombre, especialidad, código o correo…',
+            hintText: 'Buscar técnico…',
             counterText: '',
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: value.text.isEmpty ? null : IconButton(tooltip: 'Borrar búsqueda', icon: const Icon(Icons.close_rounded), onPressed: onClear),
           ),
         ),
       );
-}
-
-/// Orden de la lista; por defecto, menor carga primero.
-class _OrderButton extends StatelessWidget {
-  const _OrderButton({required this.order, required this.onChanged});
-
-  final TechnicianOrder order;
-  final ValueChanged<TechnicianOrder> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return PopupMenuButton<TechnicianOrder>(
-      tooltip: 'Ordenar la lista',
-      initialValue: order,
-      onSelected: onChanged,
-      itemBuilder: (context) => [for (final option in TechnicianOrder.values) PopupMenuItem(value: option, child: Text(orderLabel(option)))],
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 52),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(color: AppColors.white, borderRadius: AppRadius.mdAll, border: Border.all(color: AppColors.grey)),
-        child: Row(children: [
-          const Icon(Icons.sort_rounded, size: 20, color: AppColors.steel),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text('Ordenar por', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w700)),
-              Text(orderLabel(order), maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w700)),
-            ]),
-          ),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate),
-        ]),
-      ),
-    );
-  }
 }
 
 /// Un chip por cada valor filtrado en la hoja, que se quita con su equis.

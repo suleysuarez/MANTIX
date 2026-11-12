@@ -19,7 +19,7 @@ class TechniciansKpiGrid extends StatelessWidget {
     final data = summary;
     if (data == null) {
       return const Column(children: [
-        Row(children: [Expanded(child: Skeleton(height: 84, radius: AppRadius.lg)), SizedBox(width: AppSpacing.sm), Expanded(child: Skeleton(height: 84, radius: AppRadius.lg))]),
+        Row(children: [Expanded(child: Skeleton(height: 60, radius: AppRadius.lg)), SizedBox(width: AppSpacing.sm), Expanded(child: Skeleton(height: 84, radius: AppRadius.lg))]),
         SizedBox(height: AppSpacing.sm),
         Row(children: [Expanded(child: Skeleton(height: 84, radius: AppRadius.lg)), SizedBox(width: AppSpacing.sm), Expanded(child: Skeleton(height: 84, radius: AppRadius.lg))]),
       ]);
@@ -30,10 +30,13 @@ class TechniciansKpiGrid extends StatelessWidget {
       _KpiCard(label: 'CON SOBRECARGA', value: hasWorkload ? '${data.overloaded}' : '—', caption: 'Por encima del promedio del equipo', icon: Icons.balance_outlined, tone: neutralTone),
       _KpiCard(label: 'TICKETS SIN ASIGNAR', value: unassignedTickets == null ? '—' : '$unassignedTickets', caption: 'Trabajo que espera técnico', icon: Icons.assignment_late_outlined, tone: neutralTone),
     ];
+    // Una altura explícita para las cuatro: depende solo del tamaño de la letra, no del texto de cada
+    // tarjeta, así que todas miden lo mismo (con `IntrinsicHeight` una fila salía más alta que otra).
+    final height = _KpiCard.heightFor(context);
     return Column(children: [
-      IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: cards[0]), const SizedBox(width: AppSpacing.sm), Expanded(child: cards[1])])),
+      SizedBox(height: height, child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: cards[0]), const SizedBox(width: AppSpacing.sm), Expanded(child: cards[1])])),
       const SizedBox(height: AppSpacing.sm),
-      IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: cards[2]), const SizedBox(width: AppSpacing.sm), Expanded(child: cards[3])])),
+      SizedBox(height: height, child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: cards[2]), const SizedBox(width: AppSpacing.sm), Expanded(child: cards[3])])),
     ]);
   }
 }
@@ -48,6 +51,18 @@ class _KpiCard extends StatelessWidget {
   final IconData icon;
   final ChipColors tone;
 
+  static const _labelSize = 10.0;
+  static const _labelHeight = 1.4;
+  static const _valueSize = 22.0;
+  static const _valueHeight = 1.2;
+  static const _verticalPadding = AppSpacing.sm;
+
+  /// Alto de la tarjeta: dos líneas de nombre, una de cifra y el relleno, con la letra del usuario.
+  static double heightFor(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return scaler.scale(_labelSize * _labelHeight) * 2 + scaler.scale(_valueSize * _valueHeight) + _verticalPadding * 2 + 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -58,21 +73,25 @@ class _KpiCard extends StatelessWidget {
         color: AppColors.white,
         shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: AppColors.skyLight.withValues(alpha: .7))),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: _verticalPadding),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3)),
-                  FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value, style: theme.textTheme.headlineSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
-                  Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel)),
+                  // Siempre se reservan dos líneas para el nombre: las cuatro tarjetas miden lo mismo
+                  // aunque un nombre ocupe una línea y otro dos, también con letra agrandada.
+                  SizedBox(
+                    height: MediaQuery.textScalerOf(context).scale(_labelSize * _labelHeight) * 2,
+                    child: Align(alignment: Alignment.centerLeft, child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .2, fontSize: _labelSize, height: _labelHeight))),
+                  ),
+                  FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value, style: theme.textTheme.titleLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, fontSize: _valueSize, height: _valueHeight))),
                 ]),
               ),
               const SizedBox(width: AppSpacing.xs),
               Container(
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(color: tone.background, borderRadius: AppRadius.smAll),
-                child: Icon(icon, size: 18, color: tone.foreground),
+                child: Icon(icon, size: 16, color: tone.foreground),
               ),
           ]),
         ),

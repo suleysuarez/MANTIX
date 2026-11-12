@@ -82,7 +82,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
         color: tinted ? Color.alphaBlend(AppColors.skyLight.withValues(alpha: .3), AppColors.white) : AppColors.white,
         borderRadius: AppRadius.lgAll,
@@ -90,12 +90,12 @@ class _StatCard extends StatelessWidget {
         boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: .05), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: loading
-          ? const Column(mainAxisSize: MainAxisSize.min, children: [Skeleton(width: 36, height: 36, radius: 18), SizedBox(height: 8), Skeleton(width: 34, height: 22), SizedBox(height: 6), Skeleton(width: 46, height: 10)])
+          ? const Column(mainAxisSize: MainAxisSize.min, children: [Skeleton(width: 30, height: 30, radius: 15), SizedBox(height: 6), Skeleton(width: 30, height: 18), SizedBox(height: 4), Skeleton(width: 42, height: 10)])
           : Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 38, height: 38, decoration: BoxDecoration(color: iconBackground, shape: BoxShape.circle), child: Icon(icon, size: 22, color: iconColor)),
-              const SizedBox(height: 6),
+              Container(width: 30, height: 30, decoration: BoxDecoration(color: iconBackground, shape: BoxShape.circle), child: Icon(icon, size: 18, color: iconColor)),
+              const SizedBox(height: 4),
               // El número y el nombre se encogen en una tarjeta estrecha en vez de desbordar.
-              FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: theme.textTheme.headlineSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
+              FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: theme.textTheme.titleLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
               FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: theme.textTheme.labelMedium?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w700))),
             ]),
     );

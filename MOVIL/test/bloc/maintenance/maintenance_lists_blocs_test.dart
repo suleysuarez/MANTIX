@@ -64,6 +64,35 @@ void main() {
       expect(bloc.state.unavailable, isFalse);
     });
 
+    test('«Servicios entre» filtra por rango desde hoy sin volver a pedir al servidor', () async {
+      String at(int day, [int month = 10]) => DateTime(2026, month, day, 12).toUtc().toIso8601String();
+      handler = (_) => calendarResponse([
+            calendarEventJson(id: 1, kind: 'overdue', at: at(6)),
+            calendarEventJson(id: 2, at: at(25)),
+            calendarEventJson(id: 3, at: at(30)),
+            calendarEventJson(id: 4, at: at(2, 11)),
+            calendarEventJson(id: 5, at: at(20, 11)),
+          ]);
+      final bloc = await loaded();
+      List<int> ids() => bloc.state.visibleItems.map((e) => e.scheduleId).toList();
+
+      expect(bloc.state.range, UpcomingRange.all);
+      expect(ids(), [1, 2, 3, 4, 5], reason: 'Todo deja los vencidos y todos los programados cargados');
+
+      bloc.add(const UpcomingRangeChanged(UpcomingRange.today));
+      await bloc.stream.firstWhere((state) => state.range == UpcomingRange.today);
+      expect(ids(), [2], reason: 'Hoy: solo lo de hoy');
+
+      bloc.add(const UpcomingRangeChanged(UpcomingRange.week));
+      await bloc.stream.firstWhere((state) => state.range == UpcomingRange.week);
+      expect(ids(), [2, 3], reason: 'Próx. 7 días: de hoy al 1 de noviembre; el del 2 de noviembre y el vencido quedan fuera');
+
+      bloc.add(const UpcomingRangeChanged(UpcomingRange.month));
+      await bloc.stream.firstWhere((state) => state.range == UpcomingRange.month);
+      expect(ids(), [2, 3, 4, 5]);
+      expect(adapter.requests, hasLength(1), reason: 'cambiar de rango no vuelve a pedir');
+    });
+
     test('sin servicios queda lista y vacía', () async {
       handler = (_) => calendarResponse([]);
       final bloc = await loaded();

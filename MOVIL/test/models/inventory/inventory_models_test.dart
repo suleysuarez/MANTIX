@@ -49,4 +49,22 @@ void main() {
     expect(overview.outOfStock, 0);
     expect(overview.consumptionUnits, 0);
   });
+
+  test('decodifica un movimiento con cantidad firmada y la carga inicial', () {
+    final out = InventoryMovement.fromJson({'id': 2, 'item_id': 7, 'kind': 'out', 'quantity': -3, 'stock_after': 2, 'unit_cost': null, 'notes': 'Cambio de SSD', 'created_by': 'Ana', 'created_at': '2026-11-12T15:00:00Z'});
+    final initial = InventoryMovement.fromJson({'id': 1, 'item_id': 7, 'kind': 'in', 'quantity': 5, 'stock_after': 5, 'unit_cost': '12.50', 'notes': 'Carga inicial', 'created_by': null, 'created_at': '2026-11-12T14:00:00Z'});
+
+    expect((out.kind, out.quantity, out.stockAfter, out.notes), ('out', -3, 2, 'Cambio de SSD'));
+    expect(out.isInitialLoad, isFalse);
+    expect(initial.isInitialLoad, isTrue);
+    expect(initial.unitCost, '12.50');
+    expect(initial.createdBy, isNull);
+    expect(out.createdAt, isNotNull);
+  });
+
+  test('el insumo lee created_at y tolera que falte', () {
+    final base = {'id': 7, 'sku': 'A-1', 'name': 'Cable'};
+    expect(InventoryItem.fromJson({...base, 'created_at': '2026-11-12T14:00:00Z'}).createdAt, isNotNull);
+    expect(InventoryItem.fromJson(base).createdAt, isNull);
+  });
 }

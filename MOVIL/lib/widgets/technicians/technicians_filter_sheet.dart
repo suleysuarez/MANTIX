@@ -12,22 +12,26 @@ const _availabilityLabels = {true: 'Disponible', false: 'No disponible'};
 String accountLabel(bool active) => _accountLabels[active]!;
 String availabilityLabel(bool available) => _availabilityLabels[available]!;
 
+/// Filtros y orden elegidos en la hoja.
+typedef TechnicianFilterResult = ({TechnicianFilters filters, TechnicianOrder order});
+
 /// Hoja de filtros de técnicos: especialidad, cuenta, disponibilidad y carga, todos con
-/// multiselección. Devuelve los filtros al aplicar (conserva la búsqueda y la tarjeta de resumen
-/// de [initial]) y `null` si se cierra sin aplicar. [specialties] son las que existen hoy, con su
-/// nombre visible.
-Future<TechnicianFilters?> showTechniciansFilterSheet(BuildContext context, {required TechnicianFilters initial, required List<String> specialties}) => showModalBottomSheet<TechnicianFilters>(
+/// multiselección, y el orden de la lista. Devuelve lo elegido al aplicar (conserva la búsqueda y
+/// la tarjeta de resumen de [initial]) y `null` si se cierra sin aplicar. [specialties] son las que
+/// existen hoy, con su nombre visible.
+Future<TechnicianFilterResult?> showTechniciansFilterSheet(BuildContext context, {required TechnicianFilters initial, required List<String> specialties, required TechnicianOrder order}) => showModalBottomSheet<TechnicianFilterResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (_) => _TechniciansFilterSheet(initial: initial, specialties: specialties),
+      builder: (_) => _TechniciansFilterSheet(initial: initial, specialties: specialties, order: order),
     );
 
 class _TechniciansFilterSheet extends StatefulWidget {
-  const _TechniciansFilterSheet({required this.initial, required this.specialties});
+  const _TechniciansFilterSheet({required this.initial, required this.specialties, required this.order});
 
+  final TechnicianOrder order;
   final TechnicianFilters initial;
   final List<String> specialties;
 
@@ -41,6 +45,7 @@ class _TechniciansFilterSheetState extends State<_TechniciansFilterSheet> {
   late Set<bool> _accounts = {...widget.initial.accounts};
   late Set<bool> _availability = {...widget.initial.availability};
   late Set<LoadBucket> _loads = {...widget.initial.loads};
+  late TechnicianOrder _order = widget.order;
 
   /// Abre la multiselección de un grupo y guarda lo elegido.
   Future<void> _pick<T>(String title, List<FilterOption<T>> options, Set<T> selected, ValueChanged<Set<T>> onPicked) async {
@@ -63,8 +68,9 @@ class _TechniciansFilterSheetState extends State<_TechniciansFilterSheet> {
         _accounts = {};
         _availability = {};
         _loads = {};
+        _order = TechnicianOrder.load;
       }),
-      onApply: () => Navigator.pop(context, widget.initial.copyWith(specialties: _specialties, accounts: _accounts, availability: _availability, loads: _loads)),
+      onApply: () => Navigator.pop(context, (filters: widget.initial.copyWith(specialties: _specialties, accounts: _accounts, availability: _availability, loads: _loads), order: _order)),
       children: [
         FilterTile(
           label: 'Especialidad',
@@ -89,6 +95,13 @@ class _TechniciansFilterSheetState extends State<_TechniciansFilterSheet> {
           icon: Icons.stacked_bar_chart_rounded,
           summary: _summary(loadOptions, _loads),
           onTap: () => _pick<LoadBucket>('Carga de tickets', loadOptions, _loads, (value) => _loads = value),
+        ),
+        FilterDropdown<TechnicianOrder>(
+          label: 'Ordenar por',
+          icon: Icons.sort_rounded,
+          value: _order,
+          items: [for (final option in TechnicianOrder.values) DropdownMenuItem(value: option, child: Text(orderLabel(option), overflow: TextOverflow.ellipsis))],
+          onChanged: (value) => setState(() => _order = value ?? _order),
         ),
       ],
     );

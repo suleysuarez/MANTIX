@@ -18,6 +18,11 @@ class InventoryItemCreateRequested extends InventoryEvent {
   const InventoryItemCreateRequested(this.payload);
   final Map<String, Object?> payload;
 }
+class InventoryItemUpdateRequested extends InventoryEvent {
+  const InventoryItemUpdateRequested(this.itemId, this.payload);
+  final int itemId;
+  final Map<String, Object?> payload;
+}
 class InventoryMovementRequested extends InventoryEvent {
   const InventoryMovementRequested({required this.itemId, required this.kind, required this.quantity, this.notes});
   final int itemId;
