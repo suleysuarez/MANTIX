@@ -43,6 +43,8 @@ class MantixDrawer extends StatelessWidget {
 
   static const _navItems = <_NavItem>[
     _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
+    // Quien ve todos los tickets trabaja desde Tickets; la bandeja es para quien solo ve los asignados.
+    _NavItem('Mi bandeja', Icons.assignment_ind_outlined, '/inicio/bandeja', 'tickets:ver_asignados', [], 'tickets:ver_todos'),
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
     _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
     // Quien ve todas las solicitudes trabaja desde «Solicitudes pendientes»; «Mis solicitudes» es para quien solo ve las suyas.

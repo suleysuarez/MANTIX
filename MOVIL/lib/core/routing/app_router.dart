@@ -9,6 +9,7 @@ import '../../pages/auth/pending_screen.dart';
 import '../../pages/auth/unavailable_screen.dart';
 import '../../pages/auth/splash_screen.dart';
 import '../../pages/dev/components_gallery_screen.dart';
+import '../../pages/home/assigned_inbox_screen.dart';
 import '../../pages/home/home_placeholder_screen.dart';
 import '../../pages/home/dashboard_screen.dart';
 import '../../pages/home/module_placeholder_screen.dart';
@@ -84,6 +85,7 @@ const _routePermissions = {
   SettingsScreen.path: 'configuracion:ver',
   TechniciansScreen.path: 'tecnicos:ver',
   MaintenanceScreen.path: 'mantenimiento:ver',
+  '/inicio/bandeja': 'tickets:ver_asignados',
 };
 
 /// Hace que `go_router` reevalúe `redirect` cada vez que el [Stream] emite.
@@ -117,6 +119,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: HomeDestination.profile.path, builder: (_, _) => const ProfileScreen()),
       GoRoute(path: HomeDestination.globalDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.globalDashboard)),
       GoRoute(path: HomeDestination.ownDashboard.path, builder: (_, _) => const DashboardScreen(destination: HomeDestination.ownDashboard)),
+      GoRoute(path: HomeDestination.assignedInbox.path, builder: (_, _) => const AssignedInboxScreen()),
       GoRoute(path: EquipmentScreen.path, builder: (_, _) => const EquipmentScreen()),
       GoRoute(path: InventoryScreen.path, builder: (_, _) => const InventoryScreen()),
       GoRoute(path: TicketRoutes.list, builder: (_, _) => const TicketsScreen()),
@@ -141,7 +144,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
         // Un id que no es número no abre el detalle: vuelve al inicio.
         redirect: (_, state) => int.tryParse(state.pathParameters['id'] ?? '') == null ? HomeDestination.myRequests.path : null,
       ),
-      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests && d != HomeDestination.globalDashboard && d != HomeDestination.ownDashboard && d != HomeDestination.reports))
+      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests && d != HomeDestination.assignedInbox && d != HomeDestination.globalDashboard && d != HomeDestination.ownDashboard && d != HomeDestination.reports))
         GoRoute(path: destination.path, builder: (_, _) => HomePlaceholderScreen(destination: destination)),
     ],
   );

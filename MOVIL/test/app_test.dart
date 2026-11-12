@@ -117,6 +117,9 @@ void main() {
     await tester.pumpWidget(appWith(body: me(['TECNICO'], ['tickets:ver_asignados'])));
     await tester.pumpAndSettle();
 
+    // La bandeja ya es la pantalla real: cerrar sesión está en el menú lateral.
+    tester.firstState<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Cerrar sesión'));
     await tester.pumpAndSettle();
 
