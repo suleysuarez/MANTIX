@@ -114,51 +114,65 @@ class _InventoryViewState extends State<_InventoryView> {
       body: BlocBuilder<InventoryBloc, InventoryState>(builder: (context, state) => RefreshIndicator(
         onRefresh: () async => context.read<InventoryBloc>().add(const InventoryStarted()),
         child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 18, 16, 28), children: [
-          Row(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Container(width: 4, height: 34, decoration: BoxDecoration(color: AppColors.mustard, borderRadius: BorderRadius.circular(4))),
+            const SizedBox(width: 9),
             const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('INVENTARIO', style: TextStyle(color: AppColors.navy, fontSize: 23, fontWeight: FontWeight.w900)),
+              Text('Inventario', style: TextStyle(color: AppColors.navy, fontSize: 23, fontWeight: FontWeight.w900, height: 1)),
               SizedBox(height: 4),
-              Text('Controla existencias, costos y reposición de insumos.', style: TextStyle(color: AppColors.slate, fontSize: 12)),
+              Text('Controla qué hay, qué se gasta y qué toca reponer', style: TextStyle(color: AppColors.slate, fontSize: 10.5)),
             ])),
-            if (widget.profile.can('inventario:crear'))
-              FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Nuevo ítem'),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(horizontal: 10))),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _StockValue(overview: state.overview),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _Metric(title: 'Por reponer', value: state.overview?.lowStock.toString() ?? '–', icon: Icons.inventory_2_outlined, mustard: true)),
+            const SizedBox(width: 6),
+            Expanded(child: _Metric(title: 'Agotados', value: state.overview?.outOfStock.toString() ?? '–', icon: Icons.warning_rounded)),
+            const SizedBox(width: 6),
+            Expanded(child: _Metric(title: 'Consumo del mes', value: state.overview?.consumptionUnits.toString() ?? '–', icon: Icons.bar_chart_rounded)),
+          ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _Metric(title: 'Por reponer', value: state.overview?.lowStock.toString() ?? '–', icon: Icons.inventory_outlined, mustard: true)),
-            const SizedBox(width: 8),
-            Expanded(child: _Metric(title: 'Agotados', value: state.overview?.outOfStock.toString() ?? '–', icon: Icons.remove_shopping_cart_outlined)),
-            const SizedBox(width: 8),
-            Expanded(child: _Metric(title: 'Consumo · 30 días', value: state.overview?.consumptionUnits.toString() ?? '–', icon: Icons.trending_down_rounded)),
+            if (widget.profile.can('inventario:crear'))
+              Expanded(child: FilledButton.icon(onPressed: _create, icon: const Icon(Icons.add_rounded, size: 17), label: const Text('Nuevo ítem'),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: AppColors.white, minimumSize: const Size(0, 42), shape: const StadiumBorder()))),
           ]),
-          const SizedBox(height: 18),
+          const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: TextField(
+            Expanded(child: SizedBox(height: 42, child: TextField(
               controller: _search,
               onChanged: (value) { _debounce?.cancel(); _debounce = Timer(const Duration(milliseconds: 350), () => _applyQuery(search: value)); },
               onSubmitted: (value) { _debounce?.cancel(); _applyQuery(search: value); },
-              decoration: InputDecoration(hintText: 'Buscar por SKU, nombre o proveedor…', prefixIcon: const Icon(Icons.search_rounded, color: AppColors.steel),
+              decoration: InputDecoration(hintText: 'Buscar por SKU, nombre…', prefixIcon: const Icon(Icons.search_rounded, color: AppColors.steel, size: 19),
                 suffixIcon: _search.text.isEmpty ? null : IconButton(onPressed: () { _search.clear(); _applyQuery(search: ''); }, icon: const Icon(Icons.close_rounded))),
-            )),
+            ))),
             const SizedBox(width: 8),
-            IconButton.filledTonal(tooltip: 'Filtros', onPressed: () => _filters(state), style: IconButton.styleFrom(backgroundColor: AppColors.skyLight.withValues(alpha: .55), foregroundColor: AppColors.navy), icon: const Icon(Icons.tune_rounded)),
-          ]),
-          if (state.category != null || state.status != null) ...[
-            const SizedBox(height: 8),
-            Wrap(spacing: 6, children: [
-              if (state.category != null) InputChip(label: Text(state.category!), onDeleted: () => _applyQuery(category: null, status: state.status, clearCategory: true)),
-              if (state.status != null) InputChip(label: Text(_statusLabel(state.status!)), onDeleted: () => _applyQuery(category: state.category, status: null, clearStatus: true)),
-            ]),
-          ],
-          const SizedBox(height: 16),
-          Row(children: [
-            const Expanded(child: Text('INSUMOS', style: TextStyle(color: AppColors.navy, fontSize: 15, fontWeight: FontWeight.w900))),
-            Text('${state.total} registros', style: const TextStyle(color: AppColors.slate, fontSize: 11)),
+            IconButton.filledTonal(tooltip: 'Filtros', onPressed: () => _filters(state), style: IconButton.styleFrom(backgroundColor: AppColors.skyLight.withValues(alpha: .55), foregroundColor: AppColors.navy), icon: const Icon(Icons.filter_alt_rounded)),
           ]),
           const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .28), borderRadius: BorderRadius.circular(13)),
+            child: Row(children: [
+              const Icon(Icons.tune_rounded, color: AppColors.steel, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Categorías', style: TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800))),
+              DropdownButtonHideUnderline(child: DropdownButton<String?>(
+                value: state.category,
+                borderRadius: BorderRadius.circular(12),
+                isDense: true,
+                items: [const DropdownMenuItem<String?>(value: null, child: Text('Todas')), for (final option in state.options.where((o) => o.kind == 'category')) DropdownMenuItem<String?>(value: option.value, child: Text(option.label))],
+                onChanged: (value) => _applyQuery(category: value, status: state.status, clearCategory: value == null),
+              )),
+            ]),
+          ),
+          if (state.status != null) ...[
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerLeft, child: InputChip(label: Text(_statusLabel(state.status!)), onDeleted: () => _applyQuery(category: state.category, status: null, clearStatus: true))),
+          ],
+          const SizedBox(height: 10),
           if (state.loading && state.items.isEmpty)
             const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator(color: AppColors.steel)))
           else if (state.failure != null && state.items.isEmpty)
