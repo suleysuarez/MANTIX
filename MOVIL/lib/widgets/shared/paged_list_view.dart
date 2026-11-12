@@ -17,8 +17,7 @@ class PagedListView<T> extends StatefulWidget {
     required this.empty,
     this.header,
     this.onPage,
-    this.onPageSize,
-  });
+    });
 
   final PagedListState<T> value;
   final Widget Function(BuildContext context, T item) itemBuilder;
@@ -36,7 +35,6 @@ class PagedListView<T> extends StatefulWidget {
   final ValueChanged<int>? onPage;
 
   /// Si se da junto con [onPage], el paginador ofrece cambiar el tamaño de página.
-  final ValueChanged<int>? onPageSize;
 
   @override
   State<PagedListView<T>> createState() => _PagedListViewState<T>();
@@ -97,7 +95,7 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
               index -= 1;
             }
             if (index < state.items.length) return widget.itemBuilder(context, state.items[index]);
-            return _Footer(state: state, onLoadMore: widget.onLoadMore, onPage: widget.onPage, onPageSize: widget.onPageSize);
+            return _Footer(state: state, onLoadMore: widget.onLoadMore, onPage: widget.onPage);
           },
         ),
       ),
@@ -120,12 +118,11 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.state, required this.onLoadMore, this.onPage, this.onPageSize});
+  const _Footer({required this.state, required this.onLoadMore, this.onPage});
 
   final PagedListState<dynamic> state;
   final VoidCallback onLoadMore;
   final ValueChanged<int>? onPage;
-  final ValueChanged<int>? onPageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +132,7 @@ class _Footer extends StatelessWidget {
       return Column(children: [
         if (failure != null) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(failure.message, textAlign: TextAlign.center)),
         if (info != null)
-          Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage!, onPageSize: onPageSize),
+          Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage!),
         const SizedBox(height: AppSpacing.xl),
       ]);
     }

@@ -276,7 +276,7 @@ void main() {
       expect(find.textContaining('1 de 1'), findsNothing);
     });
 
-    testWidgets('reparte en páginas, deja elegir el tamaño y vuelve a la página 1', (tester) async {
+    testWidgets('reparte en páginas de 20 sin ofrecer elegir el tamaño', (tester) async {
       techniciansHandler = (_) => pagedResponse(many(25));
       workloadHandler = (_) => jsonResponse(200, workloadJson({}));
       await open(tester, size: const Size(1000, 6000));
@@ -289,12 +289,12 @@ void main() {
       expect(cardNames(tester), hasLength(5));
       expect(selectedPage(tester), 2);
 
-      await scrollTo(tester, find.text('20 por página'));
-      await tester.tap(find.text('20 por página'));
+      expect(find.textContaining('por página'), findsNothing, reason: 'ya no se elige el tamaño de página');
+
+      await scrollTo(tester, find.byTooltip('Página anterior'));
+      await tester.tap(find.byTooltip('Página anterior'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('10 por página').last);
-      await tester.pumpAndSettle();
-      expect(cardNames(tester), hasLength(10));
+      expect(cardNames(tester), hasLength(20));
       expect(selectedPage(tester), 1);
       expect(adapter.requests.where((r) => r.path == '/technicians'), hasLength(1), reason: 'paginar no vuelve a pedir');
     });

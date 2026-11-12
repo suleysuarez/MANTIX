@@ -45,7 +45,7 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
   Timer? _timer;
   String _search = '';
   UsersFilters _filters = const UsersFilters();
-  int _pageSize = 20;
+  final int _pageSize = 20;
 
   @override
   bool get wantKeepAlive => true;
@@ -128,7 +128,6 @@ class _UsersTabState extends State<UsersTab> with AutomaticKeepAliveClientMixin 
               _Results(
                 filtered: _filtered,
                 pageSize: _pageSize,
-                onPageSize: (size) => setState(() => _pageSize = size),
                 onClearFilters: _clearAll,
                 onOpen: widget.onOpen,
                 now: widget.now,
@@ -203,11 +202,10 @@ class _ActiveFilterChips extends StatelessWidget {
 
 /// La lista con sus estados (cargando, error, vacío, datos) y el paginador.
 class _Results extends StatelessWidget {
-  const _Results({required this.filtered, required this.pageSize, required this.onPageSize, required this.onClearFilters, required this.onPage, this.onOpen, this.now});
+  const _Results({required this.filtered, required this.pageSize, required this.onClearFilters, required this.onPage, this.onOpen, this.now});
 
   final bool filtered;
   final int pageSize;
-  final ValueChanged<int> onPageSize;
   final VoidCallback onClearFilters;
   final ValueChanged<int> onPage;
   final ValueChanged<ManagedUser>? onOpen;
@@ -235,7 +233,7 @@ class _Results extends StatelessWidget {
             if (state.loadingPage) const Padding(padding: EdgeInsets.only(bottom: 6), child: LinearProgressIndicator(minHeight: 2)),
             for (final user in state.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: UserCard(user: user, now: time, onTap: onOpen == null ? null : () => onOpen!(user))),
             const SizedBox(height: AppSpacing.md),
-            Paginator(page: state.page, totalPages: state.totalPages, total: state.total, pageSize: pageSize, loading: state.loadingPage, onPage: onPage, onPageSize: onPageSize),
+            Paginator(page: state.page, totalPages: state.totalPages, total: state.total, pageSize: pageSize, loading: state.loadingPage, onPage: onPage),
           ]);
         },
       );

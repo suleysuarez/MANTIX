@@ -47,7 +47,7 @@ class _SchedulesTabState extends State<SchedulesTab> {
   Timer? _timer;
   String _search = '';
   SchedulesFilters _filters = const SchedulesFilters();
-  int _pageSize = 20;
+  final int _pageSize = 20;
 
   @override
   void dispose() {
@@ -115,7 +115,6 @@ class _SchedulesTabState extends State<SchedulesTab> {
                     filtered: _filtered,
                     pageSize: _pageSize,
                     now: widget.now ?? DateTime.now(),
-                    onPageSize: (size) => setState(() => _pageSize = size),
                     onClearFilters: _clearAll,
                     onOpen: widget.onOpen,
                     onPage: (page) {
@@ -189,12 +188,11 @@ class _ActiveFilterChips extends StatelessWidget {
 
 /// La lista con sus estados (cargando, error, vacío, datos) y el paginador.
 class _Results extends StatelessWidget {
-  const _Results({required this.filtered, required this.pageSize, required this.now, required this.onPageSize, required this.onClearFilters, required this.onPage, required this.onOpen});
+  const _Results({required this.filtered, required this.pageSize, required this.now, required this.onClearFilters, required this.onPage, required this.onOpen});
 
   final bool filtered;
   final int pageSize;
   final DateTime now;
-  final ValueChanged<int> onPageSize;
   final VoidCallback onClearFilters;
   final ValueChanged<int> onPage;
   final ValueChanged<MaintenanceSchedule> onOpen;
@@ -220,7 +218,7 @@ class _Results extends StatelessWidget {
             if (state.loadingPage) const Padding(padding: EdgeInsets.only(bottom: 6), child: LinearProgressIndicator(minHeight: 2)),
             for (final schedule in state.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: ScheduleCard(schedule: schedule, now: now, onTap: () => onOpen(schedule))),
             const SizedBox(height: AppSpacing.md),
-            Paginator(page: state.page, totalPages: state.totalPages, total: state.total, pageSize: pageSize, loading: state.loadingPage, onPage: onPage, onPageSize: onPageSize),
+            Paginator(page: state.page, totalPages: state.totalPages, total: state.total, pageSize: pageSize, loading: state.loadingPage, onPage: onPage),
           ]);
         },
       );
