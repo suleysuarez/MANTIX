@@ -1,6 +1,6 @@
 # Backend de la app móvil
 
-API FastAPI que consume la app Flutter. Autenticación nativa con correo y contraseña; los códigos de verificación y de recuperación llegan por correo.
+API FastAPI que consume la app Flutter. Autenticación nativa con correo y contraseña. Crear una cuenta (`/mobile-auth/register`) **no pide verificar el correo**: la cuenta queda lista, sin roles, hasta que un administrador la apruebe, y el primer registro de un sistema vacío es administrador. Los códigos por correo (SMTP o Brevo, abajo) solo los usan los endpoints de verificación y recuperación de contraseña, que la app ya no ofrece.
 
 ## Correo por API HTTPS (Brevo)
 

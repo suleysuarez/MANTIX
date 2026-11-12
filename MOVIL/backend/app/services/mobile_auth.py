@@ -224,30 +224,18 @@ class MobileAuthService:
         first_name: str,
         last_name: str | None = None,
     ) -> None:
+        """Create the account and nothing else: no code, no e-mail.
+
+        The address is not proven, so the account starts without any role (the first one on a
+        fresh system becomes administrator) and an administrator must approve it. A taken
+        address is always a conflict: an existing account is never taken over.
+        """
         email = self._normalize_email(email)
         full_name = " ".join(
             part for part in (first_name.strip(), (last_name or "").strip()) if part
         )
         full_name = full_name[:255] or "Usuario"
-        existing_user = await self._user_by_email(email)
-        if existing_user is not None:
-            # A previous attempt may have persisted the account before the
-            # transactional email provider failed. Let that unverified mobile
-            # account request a fresh code instead of trapping it as a duplicate.
-            if (
-                existing_user.password_hash is not None
-                and existing_user.email_verified_at is None
-                and existing_user.clerk_user_id is None
-            ):
-                # The latest registration wins: whoever pre-registered this address
-                # must not keep a password that the mailbox owner verifies later, and
-                # a code sent for the previous password cannot complete this one.
-                existing_user.password_hash = _passwords.hash(password)
-                existing_user.full_name = full_name
-                await self._invalidate_code(existing_user, "verify")
-                await self.session.commit()
-                await self._issue_code(existing_user, "verify")
-                return
+        if await self._user_by_email(email) is not None:
             raise ConflictError(
                 "Ya existe una cuenta con este correo.", code="user_email_taken"
             )
@@ -257,18 +245,19 @@ class MobileAuthService:
             password_hash=_passwords.hash(password),
             is_active=True,
             clerk_user_id=None,
-            email_verified_at=None,
+            email_verified_at=datetime.now(UTC),
         )
         self.session.add(user)
         try:
             await self.session.flush()
+            if await self._assign_bootstrap_admin(user):
+                await self.session.flush()
             await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
             raise ConflictError(
                 "Ya existe una cuenta con este correo.", code="user_email_taken"
             ) from exc
-        await self._issue_code(user, "verify")
 
     async def resend_verification(self, email: str) -> None:
         user = await self._user_by_email(self._normalize_email(email))
@@ -314,11 +303,6 @@ class MobileAuthService:
         ):
             raise ForbiddenError(
                 "Correo o contraseña incorrectos.", code="auth_invalid_credentials"
-            )
-        if user.email_verified_at is None:
-            raise ForbiddenError(
-                "Verifica tu correo antes de iniciar sesión.",
-                code="auth_email_not_verified",
             )
         if not user.is_active:
             raise ForbiddenError("La cuenta está desactivada.", code="user_inactive")

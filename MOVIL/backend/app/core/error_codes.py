@@ -162,7 +162,6 @@ ERROR_CODES: dict[str, ErrorCodeInfo] = {
             "role_escalation_forbidden": "No puedes conceder ni quitar permisos o roles que tú no tienes.",
             "profile_email_locked": "El correo no se modifica desde el perfil.",
             "user_inactive": "El usuario local está inactivo.",
-            "auth_email_not_verified": "El correo debe verificarse antes de iniciar sesión.",
             "auth_email_already_verified": "El correo ya fue verificado.",
             "auth_code_invalid": "El código no es válido o ha vencido.",
             "auth_code_attempts_exceeded": "Se superó el número de intentos del código.",

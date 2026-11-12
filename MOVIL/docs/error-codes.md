@@ -103,7 +103,6 @@ Toda respuesta de error tiene el mismo cuerpo:
 | `auth_code_attempts_exceeded` | Se superó el número de intentos del código. |
 | `auth_code_invalid` | El código no es válido o ha vencido. |
 | `auth_email_already_verified` | El correo ya fue verificado. |
-| `auth_email_not_verified` | El correo debe verificarse antes de iniciar sesión. |
 | `auth_invalid_credentials` | El correo o la contraseña no son correctos. |
 | `cannot_change_own_roles` | No puedes cambiar tus propios roles. |
 | `export_forbidden` | No tienes permiso para exportar esto. |

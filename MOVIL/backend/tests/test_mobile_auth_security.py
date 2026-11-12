@@ -1,4 +1,4 @@
-"""Registration, code-key and login-timing hardening of MobileAuthService.
+"""Registration without e-mail verification, code-key and login-timing hardening of MobileAuthService.
 
 Needs TEST_DATABASE_URL pointing to a disposable local `*_test` database
 (see tests/conftest.py). Delivery is always faked.
@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ConflictError, ForbiddenError
 from app.models.auth import Role, User, UserRole
 from app.schemas.mobile_auth import MobileRegisterRequest, MobileVerifyEmailRequest
 from app.services import mobile_auth
@@ -68,72 +68,74 @@ async def user_row(session: AsyncSession) -> User:
     return (await session.execute(select(User).where(User.email == EMAIL))).scalar_one()
 
 
-async def test_registering_does_not_grant_a_role_before_the_email_is_verified(
-    db_session, admin_role
-):
+async def test_the_first_account_becomes_administrator(db_session, admin_role):
     await build(db_session, RecordingSender()).register(
         email=EMAIL, password=PASSWORD_OWNER, first_name="Ana"
-    )
-
-    assert await role_assignments(db_session) == 0
-
-
-async def test_the_first_verified_account_still_becomes_admin(db_session, admin_role):
-    sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
-    await service.verify_email(
-        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
     )
 
     assert await role_assignments(db_session) == 1
 
 
-async def test_a_later_registration_replaces_the_password_set_by_a_pre_registration(
+async def test_later_accounts_get_no_role_until_an_administrator_approves_them(
     db_session, admin_role
 ):
-    sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana")
+    service = build(db_session, RecordingSender())
     await service.register(
-        email=EMAIL, password=PASSWORD_OWNER, first_name="Ana"
-    )  # the mailbox owner
+        email="admin@example.com", password=PASSWORD_OWNER, first_name="Admin"
+    )
+    await service.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
 
-    hash_ = (await user_row(db_session)).password_hash
-    assert mobile_auth._passwords.verify(PASSWORD_OWNER, hash_)
-    assert not mobile_auth._passwords.verify(PASSWORD_ATTACKER, hash_)
+    assert await role_assignments(db_session) == 1  # only the first one
 
 
-async def test_a_code_sent_for_the_previous_registration_cannot_verify_the_new_one(
+async def test_registering_creates_a_ready_account_and_sends_no_email(
     db_session, admin_role
 ):
     sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana")
-    stale_code = sender.last_code()
-    # Blocked by the send limit: no new code, but the old one must be dead anyway.
-    blocked = MobileAuthService(
-        db_session, service.settings, sender=sender, limiter=CodeEmailLimiter()
+    await build(db_session, sender).register(
+        email=EMAIL, password=PASSWORD_OWNER, first_name="Ana"
     )
-    blocked.limiter.allow(EMAIL)
-    await blocked.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
 
-    with pytest.raises(ForbiddenError):
-        await service.verify_email(
-            email=EMAIL, code=stale_code, password=PASSWORD_OWNER
+    account = await user_row(db_session)
+    assert account.is_active and account.email_verified_at is not None
+    assert sender.sent == []
+
+
+async def test_registering_an_existing_email_is_a_conflict_and_keeps_the_account(
+    db_session, admin_role
+):
+    service = build(db_session, RecordingSender())
+    await service.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
+
+    with pytest.raises(ConflictError) as error:
+        await service.register(
+            email=EMAIL, password=PASSWORD_ATTACKER, first_name="Otra"
         )
 
+    assert error.value.code == "user_email_taken"
+    account = await user_row(db_session)
+    assert mobile_auth._passwords.verify(PASSWORD_OWNER, account.password_hash)
+    assert not mobile_auth._passwords.verify(PASSWORD_ATTACKER, account.password_hash)
+    assert account.full_name == "Ana"
 
-async def test_the_fresh_code_verifies_the_new_registration(db_session, admin_role):
-    sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana")
-    await service.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
-    await service.verify_email(
-        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
+
+async def test_an_account_left_unverified_by_the_old_flow_can_sign_in(db_session):
+    db_session.add(
+        User(
+            email=EMAIL,
+            full_name="Ana",
+            is_active=True,
+            password_hash=mobile_auth._passwords.hash(PASSWORD_OWNER),
+            email_verified_at=None,
+        )
+    )
+    await db_session.commit()
+
+    session = await build(db_session, RecordingSender()).login(
+        email=EMAIL, password=PASSWORD_OWNER
     )
 
-    assert (await user_row(db_session)).email_verified_at is not None
+    assert session["access_token"].startswith("mjwt.")
 
 
 async def test_the_code_hash_does_not_use_the_raw_token_signing_key(db_session):
@@ -183,41 +185,6 @@ async def test_login_with_a_wrong_password_gives_the_same_error(db_session):
     assert error.value.code == "auth_invalid_credentials"
 
 
-async def test_the_password_sent_with_the_code_wins_even_if_the_attacker_registers_last(
-    db_session, admin_role
-):
-    sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana")
-    await service.register(email=EMAIL, password=PASSWORD_OWNER, first_name="Ana")
-    await service.register(
-        email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana"
-    )  # the attacker goes last
-    # The mailbox owner verifies the code that reached the mailbox, with their own password.
-    await service.verify_email(
-        email=EMAIL, code=sender.last_code(), password=PASSWORD_OWNER
-    )
-
-    hash_ = (await user_row(db_session)).password_hash
-    assert mobile_auth._passwords.verify(PASSWORD_OWNER, hash_)
-    assert not mobile_auth._passwords.verify(PASSWORD_ATTACKER, hash_)
-    with pytest.raises(ForbiddenError):
-        await service.login(email=EMAIL, password=PASSWORD_ATTACKER)
-
-
-async def test_a_wrong_code_does_not_change_the_stored_password(db_session, admin_role):
-    sender = RecordingSender()
-    service = build(db_session, sender)
-    await service.register(email=EMAIL, password=PASSWORD_ATTACKER, first_name="Ana")
-    before = (await user_row(db_session)).password_hash
-    wrong = "000000" if sender.last_code() != "000000" else "000001"
-
-    with pytest.raises(ForbiddenError):
-        await service.verify_email(email=EMAIL, code=wrong, password=PASSWORD_OWNER)
-
-    assert (await user_row(db_session)).password_hash == before
-
-
 def test_verify_email_requires_a_strong_password():
     ok = {"email": EMAIL, "code": "123456", "password": PASSWORD_OWNER}
     assert MobileVerifyEmailRequest(**ok).password == PASSWORD_OWNER
@@ -249,17 +216,6 @@ async def test_registering_without_a_last_name_stores_only_the_first_name(
         email=EMAIL, password=PASSWORD_OWNER, first_name="Ana"
     )
     assert (await user_row(db_session)).full_name == "Ana"
-
-
-async def test_a_later_registration_replaces_the_name_too(db_session, admin_role):
-    service = build(db_session, RecordingSender())
-    await service.register(
-        email=EMAIL, password=PASSWORD_ATTACKER, first_name="Otra", last_name="Persona"
-    )
-    await service.register(
-        email=EMAIL, password=PASSWORD_OWNER, first_name="Ana", last_name="Pérez"
-    )
-    assert (await user_row(db_session)).full_name == "Ana Pérez"
 
 
 def test_register_request_validates_the_names():
