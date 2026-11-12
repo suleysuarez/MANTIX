@@ -38,6 +38,7 @@ void main() {
     adapter = FakeAdapter((options) => switch (options.path) {
           '/technicians' => techniciansHandler(options),
           '/dashboard/workload' => workloadHandler(options),
+          '/maintenance/queue/summary' => jsonResponse(200, {'pending_total': 4, 'unassigned': 2}),
           '/dashboard/technicians' => performanceHandler(options),
           '/maintenance/requests' => ticketsHandler(options),
           _ => errorResponse(404),
@@ -73,12 +74,11 @@ void main() {
 
       expect(find.textContaining('PERSONAL', findRichText: true), findsOneWidget);
       expect(find.textContaining('BANDEJA DE TRIAJE'), findsNothing, reason: 'la etiqueta de la maqueta era de otra pantalla');
-      for (final label in ['TOTAL TÉCNICOS', 'DISPONIBLES', 'CON TICKETS ACTIVOS', 'NO DISPONIBLES', 'RESUELTOS']) {
+      for (final label in ['TÉCNICOS DISPONIBLES', 'SIN CARGA', 'CON SOBRECARGA', 'TICKETS SIN ASIGNAR']) {
         expect(find.text(label), findsWidgets, reason: label);
       }
       expect(find.text('4 tickets abiertos'), findsOneWidget);
-      expect(find.text('38'), findsOneWidget, reason: 'resueltos del equipo');
-      expect(find.text('Últimos 30 días'), findsOneWidget);
+      expect(find.text('2'), findsWidgets, reason: 'tickets sin asignar en la bandeja');
       expect(find.text('4 técnicos registrados'), findsOneWidget);
       expect(cardNames(tester), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
     });
@@ -93,17 +93,11 @@ void main() {
       expect(find.text('Cuenta inactiva'), findsOneWidget);
     });
 
-    testWidgets('la tarifa por hora solo se enseña a quien gestiona técnicos', (tester) async {
-      await open(tester);
+    testWidgets('no expone tarifas por técnico en la interfaz móvil', (tester) async {
+      await open(tester, permissions: _manager);
       expect(find.text('TARIFA POR HORA'), findsNothing);
       expect(find.text(r'$35,00'), findsNothing);
-    });
-
-    testWidgets('quien gestiona técnicos ve la tarifa con coma, y «—» si no hay', (tester) async {
-      await open(tester, permissions: _manager);
-      expect(find.text('TARIFA POR HORA'), findsNWidgets(4));
-      expect(find.text(r'$35,00'), findsOneWidget);
-      expect(find.text(r'$40,00'), findsOneWidget);
+      expect(find.text(r'$40,00'), findsNothing);
     });
 
     testWidgets('la vista de tabla muestra las mismas personas con abiertos y resueltos', (tester) async {
@@ -127,7 +121,7 @@ void main() {
       await open(tester);
 
       expect(cardNames(tester), hasLength(4));
-      expect(find.text('Carga no disponible'), findsOneWidget);
+      expect(find.text('—'), findsWidgets);
       expect(find.text('La carga de tickets no está disponible.'), findsOneWidget);
 
       workloadHandler = (_) => jsonResponse(200, workloadJson({2: (3, 15)}));

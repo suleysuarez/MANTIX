@@ -334,6 +334,8 @@ void main() {
       }
       expect(find.text('Equipo en curso'), findsOneWidget);
       expect(find.text('Equipo nuevo'), findsOneWidget);
+      expect(find.byType(Paginator), findsNothing, reason: 'Kanban no pagina');
+      expect(lastQuery()['size'], 500, reason: 'Kanban carga la página máxima del API');
       final horizontal = tester.widgetList<Scrollable>(find.byType(Scrollable)).where((s) => s.axisDirection == AxisDirection.right || s.axisDirection == AxisDirection.left);
       // El único desplazamiento horizontal posible es el de los campos de texto y el carrusel
       // de atención prioritaria; el tablero no añade ninguno.

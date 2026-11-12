@@ -80,7 +80,7 @@ class TechnicianCard extends StatelessWidget {
               ]),
               const SizedBox(height: AppSpacing.md),
               Row(children: [
-                Expanded(child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS')),
+                Expanded(flex: 2, child: _Stat(icon: Icons.folder_open_rounded, value: _count(workload, (w) => w.openOf(technician.id)), label: 'ABIERTOS', prominent: true)),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: _Stat(icon: Icons.task_alt_rounded, value: _count(workload, (w) => w.resolvedOf(technician.id)), label: 'RESUELTOS')),
               ]),
@@ -111,11 +111,12 @@ class TechnicianCard extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.value, required this.label});
+  const _Stat({required this.icon, required this.value, required this.label, this.prominent = false});
 
   final IconData icon;
   final String value;
   final String label;
+  final bool prominent;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +134,7 @@ class _Stat extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(value, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
+            Text(value, style: (prominent ? theme.textTheme.headlineSmall : theme.textTheme.titleMedium)?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
             FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(label, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3))),
           ]),
         ),

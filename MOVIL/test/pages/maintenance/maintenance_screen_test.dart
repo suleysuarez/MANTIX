@@ -390,6 +390,7 @@ void main() {
 
       expect(find.text('Datos del plan'), findsOneWidget);
       expect(find.textContaining('No pudimos cargar el historial.'), findsOneWidget);
+      expect(find.textContaining('Plan creado el'), findsOneWidget, reason: 'la creación se conserva aunque falle la carga del resto del historial');
 
       historyHandler = (_) => jsonResponse(200, historyJson());
       final before = adapter.requests.length;
