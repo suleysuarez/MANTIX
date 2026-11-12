@@ -1,17 +1,23 @@
 """SMTP sender, configuration checks and logging. No real SMTP connection is opened."""
 
+import json
 import logging
 import smtplib
 import ssl
 from typing import ClassVar
 
+import httpx
 import pytest
 
 from app.core.config import Settings
 from app.services.email_sender import (
+    BrevoEmailSender,
+    EmailDeliveryError,
     EmailConfigurationError,
     SmtpEmailSender,
+    build_email_sender,
     log_mail_startup_notice,
+    mail_api_configuration_problem,
     mask_email,
     render_auth_code_email,
     smtp_configuration_problem,
@@ -19,6 +25,7 @@ from app.services.email_sender import (
 from app.services.mobile_auth import MobileAuthService
 
 SMTP_PASSWORD = "Zq9-fake-app-password"
+API_KEY = "xkeysib-fake-0123456789"
 CODE = "482916"
 RECIPIENT = "ana.perez@example.com"
 SENDER = "mantix.demo@example.org"
@@ -211,3 +218,101 @@ def test_startup_with_complete_settings_only_gives_the_demo_notice_and_no_secret
 def test_mask_email_hides_the_local_part():
     assert mask_email("ana.perez@example.com") == "a***@example.com"
     assert mask_email("sin-arroba") == "***"
+
+
+# -- Brevo HTTPS API (used when BREVO_API_KEY is set) --------------------------------
+
+
+def api_settings(**overrides: str) -> Settings:
+    return make_settings(BREVO_API_KEY=API_KEY, **overrides)
+
+
+def api_transport(status: int = 201, seen: list | None = None) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(request)
+        return httpx.Response(status, json={"messageId": "<x@y>", "echo": RECIPIENT})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_the_api_sender_posts_the_message_with_the_key_and_the_verified_sender():
+    seen: list[httpx.Request] = []
+    sender = BrevoEmailSender(api_settings(), transport=api_transport(seen=seen))
+
+    await sender.send(to=RECIPIENT, subject="Asunto", text="texto", html="<p>h</p>")
+
+    (request,) = seen
+    assert request.method == "POST"
+    assert str(request.url) == "https://api.brevo.com/v3/smtp/email"
+    assert request.headers["api-key"] == API_KEY
+    body = json.loads(request.content)
+    assert body["sender"] == {"email": SENDER}
+    assert body["to"] == [{"email": RECIPIENT}]
+    assert body["subject"] == "Asunto"
+    assert body["textContent"] == "texto" and body["htmlContent"] == "<p>h</p>"
+
+
+async def test_email_from_wins_over_smtp_from_and_keeps_the_display_name():
+    seen: list[httpx.Request] = []
+    settings = api_settings(EMAIL_FROM="Mantix <verificado@example.org>")
+    await BrevoEmailSender(settings, transport=api_transport(seen=seen)).send(
+        to=RECIPIENT, subject="s", text="t", html="h"
+    )
+    assert json.loads(seen[0].content)["sender"] == {
+        "name": "Mantix",
+        "email": "verificado@example.org",
+    }
+
+
+async def test_an_error_status_raises_with_only_the_status_and_no_reply_body():
+    sender = BrevoEmailSender(api_settings(), transport=api_transport(status=401))
+    with pytest.raises(EmailDeliveryError) as error:
+        await sender.send(to=RECIPIENT, subject="s", text="t", html="h")
+    assert error.value.http_status == 401
+    assert RECIPIENT not in str(error.value) and API_KEY not in str(error.value)
+
+
+async def test_the_api_sender_without_a_sender_fails_before_any_request():
+    seen: list[httpx.Request] = []
+    settings = make_settings(BREVO_API_KEY=API_KEY, SMTP_FROM="")
+    with pytest.raises(EmailConfigurationError) as error:
+        await BrevoEmailSender(settings, transport=api_transport(seen=seen)).send(
+            to=RECIPIENT, subject="s", text="t", html="h"
+        )
+    assert "EMAIL_FROM" in str(error.value)
+    assert seen == []
+
+
+def test_the_api_key_decides_which_transport_is_used():
+    assert isinstance(build_email_sender(make_settings()), SmtpEmailSender)
+    assert isinstance(build_email_sender(api_settings()), BrevoEmailSender)
+    assert make_settings(BREVO_API_KEY="").email_api_key is None
+
+
+def test_the_api_configuration_problem_names_the_variables_only():
+    assert mail_api_configuration_problem(api_settings()) is None
+    assert "BREVO_API_KEY" in (mail_api_configuration_problem(make_settings()) or "")
+
+
+async def test_a_failed_api_delivery_logs_the_status_and_no_secrets(caplog):
+    settings = api_settings()
+    service = MobileAuthService(
+        None,  # type: ignore[arg-type]
+        settings,
+        sender=BrevoEmailSender(settings, transport=api_transport(status=403)),
+    )
+    with caplog.at_level(logging.DEBUG):
+        await service._send_code(RECIPIENT, CODE, "verify")  # must not raise
+
+    assert "EmailDeliveryError" in caplog.text and "http_status=403" in caplog.text
+    for secret in (API_KEY, CODE, RECIPIENT):
+        assert secret not in caplog.text
+
+
+def test_startup_with_the_api_does_not_give_the_smtp_demo_notice(caplog):
+    with caplog.at_level(logging.DEBUG):
+        log_mail_startup_notice(api_settings())
+    assert "Brevo" in caplog.text
+    assert "desarrollo o demostración" not in caplog.text
+    assert API_KEY not in caplog.text and SENDER not in caplog.text

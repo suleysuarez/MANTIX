@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     smtp_username: str | None = Field(default=None, validation_alias="SMTP_USERNAME")
     smtp_password: str | None = Field(default=None, validation_alias="SMTP_PASSWORD")
     smtp_from: str | None = Field(default=None, validation_alias="SMTP_FROM")
+    # Codes by HTTPS API (Brevo). Free hosting plans such as Render's block outbound SMTP, so
+    # when `BREVO_API_KEY` is set the codes go through the API and SMTP is not used.
+    # `EMAIL_FROM` is the sender verified in Brevo; it falls back to `SMTP_FROM`.
+    email_api_key: str | None = Field(default=None, validation_alias="BREVO_API_KEY")
+    email_from: str | None = Field(default=None, validation_alias="EMAIL_FROM")
     auth_verification_expire_minutes: int = Field(
         default=10, ge=3, le=60, validation_alias="AUTH_VERIFICATION_EXPIRE_MINUTES"
     )
@@ -65,6 +70,8 @@ class Settings(BaseSettings):
         "smtp_username",
         "smtp_password",
         "smtp_from",
+        "email_api_key",
+        "email_from",
         mode="before",
     )
     @classmethod
