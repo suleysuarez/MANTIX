@@ -77,9 +77,9 @@ void main() {
       for (final label in ['TÉCNICOS DISPONIBLES', 'SIN CARGA', 'CON SOBRECARGA', 'TICKETS SIN ASIGNAR']) {
         expect(find.text(label), findsWidgets, reason: label);
       }
-      expect(find.text('4 tickets abiertos'), findsOneWidget);
+      expect(find.text('4 tickets abiertos'), findsNothing, reason: 'la carga global no es uno de los KPI operativos');
       expect(find.text('2'), findsWidgets, reason: 'tickets sin asignar en la bandeja');
-      expect(find.text('4 técnicos registrados'), findsOneWidget);
+      expect(find.text('4 técnicos registrados'), findsNothing, reason: 'evita el conteo sin valor operativo');
       expect(cardNames(tester), ['Marta Demo', 'Suley Suárez', 'Ana Demo', 'Luis Demo']);
     });
 
@@ -389,11 +389,13 @@ void main() {
         expect(find.text('Ficha del técnico'), findsOneWidget);
         expect(tester.takeException(), isNull);
         // La ficha entera, de arriba abajo: las secciones se construyen al desplazarse.
-        for (var i = 0; i < 6; i++) {
-          await tester.drag(find.byType(ListView).last, const Offset(0, -350));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
-        }
+        await tester.scrollUntilVisible(
+          find.textContaining('Tickets abiertos ('),
+          250,
+          scrollable: find.byType(ListView).last,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
         expect(find.textContaining('Tickets abiertos ('), findsOneWidget);
       });
 
