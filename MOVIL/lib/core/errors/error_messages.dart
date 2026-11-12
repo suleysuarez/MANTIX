@@ -17,6 +17,10 @@ const Map<String, String> messagesByErrorCode = {
   'technician_not_found': 'Ese técnico ya no existe.',
   'technician_profile_exists': 'Ese usuario ya tiene un perfil de técnico.',
   'no_active_assignment': 'Este ticket no tiene un técnico asignado.',
+  // Mantenimiento preventivo
+  'schedule_not_found': 'Ese plan de mantenimiento ya no existe.',
+  'schedule_equipment_unavailable': 'No se puede programar mantenimiento para un equipo en ese estado.',
+  'schedule_technician_inactive': 'Ese técnico está inactivo y no puede recibir planes de mantenimiento.',
   // Equipos
   'equipment_not_found': 'Ese equipo ya no existe.',
   'equipment_identifier_taken': 'Ya existe un equipo con esa etiqueta o número de serie.',

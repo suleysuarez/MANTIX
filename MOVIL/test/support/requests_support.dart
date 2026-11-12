@@ -13,6 +13,7 @@ import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
+import 'package:mantix/repositories/maintenance/maintenance_repository.dart';
 import 'package:mantix/repositories/technicians/technicians_repository.dart';
 import 'package:mantix/repositories/users/users_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
@@ -149,6 +150,7 @@ Future<GoRouter> pumpScreen(
         RepositoryProvider(create: (_) => QueueRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => UsersRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => TechniciansRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => MaintenanceRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => EquipmentRepository(dioWith(adapter))),
       ],
       child: MultiBlocProvider(
