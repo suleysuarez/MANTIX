@@ -28,7 +28,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     if (showLoading) emit(state.copyWith(loading: true, clearFailure: true));
     try {
       final values = await Future.wait<Object>([
-        _repository.health(), _repository.categories(), _repository.organization(), _repository.priorities(),
+        repository.health(), repository.categories(), repository.organization(), repository.priorities(),
       ]);
       emit(state.copyWith(loading: false, health: values[0] as SystemHealth, categories: values[1] as List<CategoryAdmin>,
         organization: values[2] as OrganizationSettings, priorities: values[3] as List<PriorityAdmin>, clearFailure: true));
@@ -36,15 +36,15 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   }
 
   Future<void> _onOrganizationSave(OrganizationSaveRequested event, Emitter<SettingsState> emit) async =>
-      _mutate(emit, 'Datos de la organización guardados.', () => _repository.saveOrganization(event.companyName));
+      _mutate(emit, 'Datos de la organización guardados.', () => repository.saveOrganization(event.companyName));
   Future<void> _onCategoryCreate(CategoryCreateRequested event, Emitter<SettingsState> emit) async =>
-      _mutate(emit, 'Categoría creada.', () => _repository.createCategory(code: event.code, name: event.name));
+      _mutate(emit, 'Categoría creada.', () => repository.createCategory(code: event.code, name: event.name));
   Future<void> _onCategoryUpdate(CategoryUpdateRequested event, Emitter<SettingsState> emit) async =>
-      _mutate(emit, 'Categoría actualizada.', () => _repository.updateCategory(event.id, name: event.name, isActive: event.isActive));
+      _mutate(emit, 'Categoría actualizada.', () => repository.updateCategory(event.id, name: event.name, isActive: event.isActive));
   Future<void> _onCategoryDelete(CategoryDeleteRequested event, Emitter<SettingsState> emit) async =>
-      _mutate(emit, 'Categoría eliminada.', () => _repository.deleteCategory(event.id));
+      _mutate(emit, 'Categoría eliminada.', () => repository.deleteCategory(event.id));
   Future<void> _onPriorityUpdate(PriorityUpdateRequested event, Emitter<SettingsState> emit) async =>
-      _mutate(emit, 'Prioridad actualizada.', () => _repository.updatePriority(event.id, name: event.name, level: event.level, slaHours: event.slaHours, clearSla: event.clearSla, isActive: event.isActive));
+      _mutate(emit, 'Prioridad actualizada.', () => repository.updatePriority(event.id, name: event.name, level: event.level, slaHours: event.slaHours, clearSla: event.clearSla, isActive: event.isActive));
 
   Future<void> _mutate(Emitter<SettingsState> emit, String success, Future<void> Function() action) async {
     if (state.saving) return;

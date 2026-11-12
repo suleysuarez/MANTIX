@@ -409,7 +409,7 @@ class _PriorityRow extends StatelessWidget {
         ])),
         if (canEdit) ...[
           IconButton(tooltip: 'Editar prioridad', visualDensity: VisualDensity.compact, onPressed: () => _edit(context), icon: const Icon(Icons.edit_outlined, size: 17, color: AppColors.steel)),
-          Switch.adaptive(value: priority.isActive, activeColor: AppColors.mustard, onChanged: (v) => context.read<SettingsBloc>().add(PriorityUpdateRequested(id: priority.id, isActive: v))),
+          Switch.adaptive(value: priority.isActive, activeThumbColor: AppColors.mustard, onChanged: (v) => context.read<SettingsBloc>().add(PriorityUpdateRequested(id: priority.id, isActive: v))),
         ] else Text(priority.isActive ? 'Activa' : 'Inactiva', style: const TextStyle(color: AppColors.steel, fontSize: 10)),
       ]));
   }
