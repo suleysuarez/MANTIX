@@ -418,12 +418,12 @@ void main() {
 
     Future<void> openMenuFor(WidgetTester tester, String target) async {
       // En pantallas estrechas el tablero queda más abajo dentro del ListView y la
-      // tarjeta puede no estar construida todavía. Primero se lleva al viewport.
-      await tester.scrollUntilVisible(
-        find.byType(TicketKanbanCard).first,
-        240,
-        scrollable: find.byType(Scrollable).first,
-      );
+      // tarjeta puede no estar construida todavía (el ListView es perezoso). Se desplaza hasta que
+      // exista el menú; un `.first` sobre algo aún no construido lanzaría «No element».
+      for (var i = 0; i < 30 && find.byTooltip('Mover a…').evaluate().isEmpty; i++) {
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -240));
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       final moveMenu = find.byTooltip('Mover a…').first;
       await tester.ensureVisible(moveMenu);
