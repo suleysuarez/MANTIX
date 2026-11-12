@@ -18,6 +18,7 @@ import 'package:mantix/repositories/reports/reports_repository.dart';
 import 'package:mantix/repositories/technicians/technicians_repository.dart';
 import 'package:mantix/repositories/users/users_repository.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
+import 'package:mantix/repositories/settings/settings_repository.dart';
 
 import 'support/fakes.dart';
 
@@ -56,6 +57,7 @@ Widget appWith({String? token = 'token-0', required Object body, void Function(F
     techniciansRepository: TechniciansRepository(dio),
     maintenanceRepository: MaintenanceRepository(dio),
     reportsRepository: ReportsRepository(dio),
+    settingsRepository: SettingsRepository(dio),
     mobileAuthRepository: MobileAuthRepository(dio, NativeAuthProvider()),
     dashboardRepository: DashboardRepository(dio),
     equipmentRepository: EquipmentRepository(dio),
