@@ -22,10 +22,10 @@ class TicketStats extends StatelessWidget {
     ];
     return Column(children: [
       for (var row = 0; row < tiles.length; row += 2) ...[
-        if (row > 0) const SizedBox(height: 10),
+        if (row > 0) const SizedBox(height: AppSpacing.sm),
         Row(children: [
           Expanded(child: _StatTile(tiles[row])),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(child: _StatTile(tiles[row + 1])),
         ]),
       ],
@@ -49,20 +49,20 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(color: Colors.white, borderRadius: AppRadius.lgAll, border: Border.all(color: AppColors.skyLight.withValues(alpha: .5))),
       child: Row(children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(color: stat.colors.background, borderRadius: AppRadius.smAll),
-          child: Icon(stat.icon, size: 18, color: stat.colors.foreground),
+          child: Icon(stat.icon, size: 16, color: stat.colors.foreground),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(stat.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.slate, fontWeight: FontWeight.w800, letterSpacing: .4)),
-            Text(stat.value, style: theme.textTheme.titleLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
+            Text(stat.value, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900, height: 1.1)),
           ]),
         ),
       ]),

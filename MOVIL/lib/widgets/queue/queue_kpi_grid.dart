@@ -39,7 +39,7 @@ class QueueKpiGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: AppSpacing.sm,
         mainAxisSpacing: AppSpacing.sm,
-        mainAxisExtent: 116 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6),
+        mainAxisExtent: 102 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6),
       ),
       children: cards,
     );
@@ -78,7 +78,7 @@ class _KpiCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(AppSpacing.sm + 2),
               child: label == null
                   ? const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Skeleton(width: 80, height: 10), Spacer(), Skeleton(width: 60, height: 26), SizedBox(height: 8), Skeleton(width: 100, height: 10)])
                   : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -93,7 +93,7 @@ class _KpiCard extends StatelessWidget {
                         Expanded(child: Text(label!, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: 0.4))),
                       ]),
                       const Spacer(),
-                      FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value!, style: theme.textTheme.headlineSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
+                      FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value!, style: theme.textTheme.titleLarge?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900))),
                       Text(caption!, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)),
                     ]),
             ),
