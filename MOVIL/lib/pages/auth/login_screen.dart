@@ -7,7 +7,7 @@ import '../../widgets/shared/glass_card.dart';
 import '../../widgets/auth/auth_shell.dart';
 import '../../repositories/auth/mobile_auth_repository.dart';
 
-enum _AuthMode { login, register, verify, forgot, reset }
+enum _AuthMode { login, register }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,13 +23,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
-  final _code = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _busy = false;
   bool _obscure = true;
   bool _obscureConfirm = true;
-  // Solo en memoria y solo mientras dura la verificación: se envía junto al código.
-  String? _pendingPassword;
   String? _message;
   bool _isError = false;
 
@@ -40,28 +37,21 @@ class _LoginScreenState extends State<LoginScreen> {
     _email.dispose();
     _password.dispose();
     _confirmPassword.dispose();
-    _code.dispose();
     super.dispose();
   }
 
   String get _title => switch (_mode) {
     _AuthMode.login => 'Bienvenido de nuevo',
     _AuthMode.register => 'Crea tu cuenta',
-    _AuthMode.verify => 'Verifica tu correo',
-    _AuthMode.forgot => 'Recupera tu cuenta',
-    _AuthMode.reset => 'Nueva contraseña',
   };
 
   String get _button => switch (_mode) {
     _AuthMode.login => 'Iniciar sesión',
     _AuthMode.register => 'Crear cuenta',
-    _AuthMode.verify => 'Verificar y continuar',
-    _AuthMode.forgot => 'Enviar código',
-    _AuthMode.reset => 'Guardar contraseña',
   };
 
   void _setMode(_AuthMode mode) {
-    setState(() { _mode = mode; _message = null; _code.clear(); _password.clear(); _confirmPassword.clear(); _pendingPassword = null; });
+    setState(() { _mode = mode; _message = null; _password.clear(); _confirmPassword.clear(); });
   }
 
   String _errorText(Object error) {
@@ -96,29 +86,13 @@ class _LoginScreenState extends State<LoginScreen> {
         case _AuthMode.register:
           final password = _password.text;
           await auth.register(email: email, password: password, firstName: _firstName.text.trim(), lastName: _lastName.text.trim());
-          _setMode(_AuthMode.verify);
-          _pendingPassword = password;
-          _showMessage('Te enviamos un código de 6 dígitos a tu correo.');
-          break;
-        case _AuthMode.verify:
-          final password = _pendingPassword;
-          if (password == null) {
-            _setMode(_AuthMode.register);
-            _showMessage('Escribe de nuevo tu correo y tu contraseña para continuar.', error: true);
-            break;
+          // La cuenta ya está lista (no hay ningún código que verificar): se entra directamente.
+          try {
+            await auth.login(email: email, password: password);
+          } catch (_) {
+            _setMode(_AuthMode.login);
+            _showMessage('Tu cuenta se creó. Inicia sesión para continuar.');
           }
-          await auth.verifyEmail(email: email, code: _code.text.trim(), password: password);
-          _pendingPassword = null;
-          break;
-        case _AuthMode.forgot:
-          await auth.requestPasswordReset(email);
-          _setMode(_AuthMode.reset);
-          _showMessage('Si la cuenta existe, recibirás un código para restablecer la contraseña.');
-          break;
-        case _AuthMode.reset:
-          await auth.resetPassword(email: email, code: _code.text.trim(), newPassword: _password.text);
-          _setMode(_AuthMode.login);
-          _showMessage('Contraseña actualizada. Ya puedes iniciar sesión.');
           break;
       }
     } catch (error) {
@@ -178,12 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (_mode != _AuthMode.register) ...[
                   const SizedBox(height: 8),
                   Text(
-                    switch (_mode) {
-                      _AuthMode.login => 'Ingresa con tu correo y contraseña.',
-                      _AuthMode.verify => 'Escribe el código que enviamos a tu correo.',
-                      _AuthMode.forgot => 'Te enviaremos un código si tu cuenta está registrada.',
-                      _ => 'Ingresa el código recibido y tu nueva contraseña.',
-                    },
+                    'Ingresa con tu correo y contraseña.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
                   ),
@@ -197,18 +166,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ]),
                   const SizedBox(height: 10),
                 ],
-                if (_mode != _AuthMode.verify && _mode != _AuthMode.reset) ...[
+                ...[
                   TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: _decoration('Correo electrónico', icon: Icons.email_outlined, required: _mode == _AuthMode.register), validator: _validateEmail),
                   SizedBox(height: _mode == _AuthMode.register ? 10 : 12),
                 ],
-                if (_mode == _AuthMode.verify || _mode == _AuthMode.reset) ...[
-                  if (_email.text.isEmpty)
-                    TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: _decoration('Correo electrónico'), validator: _validateEmail),
-                  const SizedBox(height: 12),
-                  TextFormField(controller: _code, keyboardType: TextInputType.number, maxLength: 6, decoration: _decoration('Código de 6 dígitos', icon: Icons.pin_outlined), validator: (v) => (v == null || !RegExp(r'^\d{6}$').hasMatch(v.trim())) ? 'Ingresa el código de 6 dígitos.' : null),
-                  const SizedBox(height: 4),
-                ],
-                if (_mode == _AuthMode.login || _mode == _AuthMode.register || _mode == _AuthMode.reset) ...[
+                ...[
                   TextFormField(controller: _password, obscureText: _obscure, decoration: _decoration('Contraseña', icon: Icons.lock_outline, required: _mode == _AuthMode.register).copyWith(suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: Colors.white), onPressed: () => setState(() => _obscure = !_obscure))), validator: _mode == _AuthMode.login ? (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña.' : null : _validatePassword),
                   if (_mode == _AuthMode.register) ...[
                     const SizedBox(height: 10),
@@ -239,20 +201,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(_button),
                 ),
                 SizedBox(height: _mode == _AuthMode.register ? 4 : 12),
-                if (_mode == _AuthMode.login) ...[
-                  TextButton(onPressed: () => _setMode(_AuthMode.forgot), child: const Text('¿Olvidaste tu contraseña?')),
-                  TextButton(onPressed: () => _setMode(_AuthMode.register), child: const Text('Crear una cuenta')),
-                ] else if (_mode == _AuthMode.register) ...[
+                if (_mode == _AuthMode.login)
+                  TextButton(onPressed: () => _setMode(_AuthMode.register), child: const Text('Crear una cuenta'))
+                else
                   TextButton(onPressed: () => _setMode(_AuthMode.login), child: const Text('Ya tengo una cuenta')),
-                ] else if (_mode == _AuthMode.verify) ...[
-                  TextButton(onPressed: _busy ? null : () async {
-                    try { await context.read<MobileAuthRepository>().resendVerification(_email.text.trim()); _showMessage('Si la cuenta necesita verificación, enviaremos otro código.'); }
-                    catch (error) { _showMessage(_errorText(error), error: true); }
-                  }, child: const Text('Reenviar código')),
-                  TextButton(onPressed: _busy ? null : () => _setMode(_AuthMode.register), child: const Text('Volver al registro')),
-                ] else ...[
-                  TextButton(onPressed: () => _setMode(_AuthMode.login), child: const Text('Volver a iniciar sesión')),
-                ],
               ],
             ),
           ),
