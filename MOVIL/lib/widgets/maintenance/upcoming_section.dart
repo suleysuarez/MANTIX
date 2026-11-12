@@ -9,7 +9,7 @@ import 'maintenance_cards.dart';
 /// «Próximos mantenimientos»: los primeros [limit] servicios (los vencidos primero) y el enlace
 /// «Ver todos» a la lista de planes. Maneja cargando, vacío y error con reintento.
 class UpcomingSection extends StatelessWidget {
-  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.onRangeChanged, this.limit = 3});
+  const UpcomingSection({super.key, required this.state, required this.onOpen, required this.onSeeAll, required this.onRetry, this.onRangeChanged, this.title = 'Próximos mantenimientos', this.limit = 3});
 
   final UpcomingMaintenanceState state;
   final ValueChanged<CalendarEvent> onOpen;
@@ -18,6 +18,9 @@ class UpcomingSection extends StatelessWidget {
 
   /// Si no se pasa, no se muestran los chips del rango.
   final ValueChanged<UpcomingRange>? onRangeChanged;
+
+  /// El título de la sección; en el panel del técnico es «Mis mantenimientos».
+  final String title;
   final int limit;
 
   @override
@@ -28,7 +31,7 @@ class UpcomingSection extends StatelessWidget {
       Row(children: [
         const Icon(Icons.schedule_rounded, color: AppColors.navy),
         const SizedBox(width: AppSpacing.sm),
-        Expanded(child: Semantics(header: true, child: Text('Próximos mantenimientos', maxLines: 2, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)))),
+        Expanded(child: Semantics(header: true, child: Text(title, maxLines: 2, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)))),
         TextButton(
           onPressed: onSeeAll,
           style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
