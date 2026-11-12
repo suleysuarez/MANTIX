@@ -213,6 +213,13 @@ class _History extends StatelessWidget {
     final theme = Theme.of(context);
     final history = state.history;
     return DetailSection(icon: Icons.history_rounded, title: 'Historial', children: [
+      if (createdAt != null)
+        _Entry(
+          icon: Icons.add_circle_outline_rounded,
+          title: 'Plan creado el ${formatDate(createdAt!)}',
+          detail: 'Se registró el mantenimiento preventivo por primera vez.',
+          tone: plannedTone,
+        ),
       if (history == null && state.historyStatus == PlanBlockStatus.loading)
         Semantics(label: 'Cargando el historial', child: const Column(children: [Skeleton(height: 44), SizedBox(height: AppSpacing.sm), Skeleton(height: 44)]))
       else if (history == null)
@@ -220,13 +227,6 @@ class _History extends StatelessWidget {
       else if (history.runs.isEmpty && history.reschedules.isEmpty && createdAt == null)
         Text('Este plan aún no tiene servicios hechos ni cambios de fecha.', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.steel))
       else ...[
-        if (createdAt != null)
-          _Entry(
-            icon: Icons.add_circle_outline_rounded,
-            title: 'Plan creado el ${formatDate(createdAt!)}',
-            detail: 'Se registró el mantenimiento preventivo por primera vez.',
-            tone: plannedTone,
-          ),
         for (final run in history.runs)
           _Entry(
             icon: Icons.check_circle_outline_rounded,
