@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/users/user_models.dart';
 import '../shared/empty_state.dart';
+import '../shared/paginator.dart';
 import '../shared/skeleton.dart';
 import 'user_cards.dart';
 import 'users_tones.dart';
@@ -27,6 +28,10 @@ class PendingTab extends StatefulWidget {
 class _PendingTabState extends State<PendingTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
+
+  /// El servidor entrega todos los pendientes de una vez: se reparten aquí, de 10 en 10.
+  static const _pageSize = 10;
+  int _page = 1;
 
   Future<void> _refresh(BuildContext context) {
     final done = Completer<void>();
@@ -64,6 +69,9 @@ class _PendingTabState extends State<PendingTab> with AutomaticKeepAliveClientMi
       return [const EmptyState(icon: Icons.how_to_reg_outlined, title: 'No hay nadie esperando un rol', message: 'Cuando alguien nuevo inicie sesión sin un rol asignado, aparecerá aquí.')];
     }
     final theme = Theme.of(context);
+    // Al asignar un rol la lista se acorta: la página nunca queda más allá de la última.
+    final totalPages = (state.users.length / _pageSize).ceil();
+    final page = _page.clamp(1, totalPages);
     return [
       Container(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -85,7 +93,9 @@ class _PendingTabState extends State<PendingTab> with AutomaticKeepAliveClientMi
           ]),
         ),
       const SizedBox(height: AppSpacing.md),
-      for (final user in state.users) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.md), child: PendingUserCard(user: user, action: widget.actionFor?.call(context, user))),
+      for (final user in state.users.skip((page - 1) * _pageSize).take(_pageSize)) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.md), child: PendingUserCard(user: user, action: widget.actionFor?.call(context, user))),
+      Paginator(page: page, pageSize: _pageSize, total: state.users.length, totalPages: totalPages, onPage: (value) => setState(() => _page = value)),
+      const SizedBox(height: AppSpacing.md),
       // Solo quien puede asignar roles ve qué hacer con ellas.
       if (widget.actionFor != null)
         Container(
