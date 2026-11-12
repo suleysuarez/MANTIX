@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../bloc/maintenance/schedule_actions_bloc.dart';
 import '../../bloc/maintenance/schedule_detail_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/maintenance_calendar.dart';
@@ -10,39 +11,104 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/maintenance/maintenance_models.dart';
 import '../../repositories/maintenance/maintenance_repository.dart';
 import '../shared/app_chip.dart';
+import '../shared/confirm_dialog.dart';
 import '../shared/detail_parts.dart';
 import '../shared/mantix_sheet.dart';
 import '../shared/skeleton.dart';
+import 'complete_dialog.dart';
 import 'maintenance_tones.dart';
 
 /// La ficha de un plan en una hoja inferior arrastrable: sus datos y su historial (servicios hechos
 /// y cambios de fecha). El plan y el historial cargan y fallan por separado, cada uno con su
-/// reintento. [now] decide si el plan está vencido (se inyecta para probarlo).
-Future<void> showScheduleDetail(BuildContext context, {required int scheduleId, DateTime? now}) {
+/// reintento. [now] decide si el plan está vencido (se inyecta para probarlo). Con [actions] y
+/// [canEdit] (`mantenimiento:editar`) salen «Marcar como hecho» y desactivar o activar el plan: si
+/// la acción sale bien la hoja se cierra y el aviso lo da la pantalla; si falla, el motivo sale
+/// dentro.
+Future<void> showScheduleDetail(BuildContext context, {required int scheduleId, DateTime? now, ScheduleActionsBloc? actions, bool canEdit = false}) {
   final repository = context.read<MaintenanceRepository>();
   return showMantixSheet<void>(
     context,
     title: 'Plan de mantenimiento',
     builder: (sheetContext, controller) => BlocProvider(
       create: (_) => ScheduleDetailBloc(repository: repository, scheduleId: scheduleId)..add(const ScheduleDetailRequested()),
-      child: _ScheduleDetail(controller: controller, now: now ?? DateTime.now()),
+      child: _ScheduleDetail(controller: controller, now: now ?? DateTime.now(), actions: canEdit ? actions : null),
     ),
   );
 }
 
-class _ScheduleDetail extends StatelessWidget {
-  const _ScheduleDetail({required this.controller, required this.now});
+class _ScheduleDetail extends StatefulWidget {
+  const _ScheduleDetail({required this.controller, required this.now, required this.actions});
 
   final ScrollController controller;
   final DateTime now;
+  final ScheduleActionsBloc? actions;
 
   @override
-  Widget build(BuildContext context) => BlocBuilder<ScheduleDetailBloc, ScheduleDetailState>(
+  State<_ScheduleDetail> createState() => _ScheduleDetailState();
+}
+
+class _ScheduleDetailState extends State<_ScheduleDetail> {
+  /// Esta hoja pidió una acción y espera su resultado (la pantalla comparte el bloc).
+  bool _waiting = false;
+  String? _error;
+
+  Future<void> _complete(MaintenanceSchedule plan) async {
+    final hours = await showCompleteDialog(context, title: plan.title);
+    if (hours == null || !mounted) return;
+    _send(ScheduleCompleteRequested(plan, actualHours: hours));
+  }
+
+  /// Desactivar pide confirmación y explica el alcance; activar de nuevo no la pide.
+  Future<void> _toggle(MaintenanceSchedule plan) async {
+    if (plan.isActive) {
+      final ok = await showConfirmDialog(
+        context,
+        title: '¿Desactivar el plan «${plan.title}»?',
+        message: 'El plan quedará inactivo: dejará de verse en el calendario y en los próximos mantenimientos, y no se podrá marcar como hecho. Puedes activarlo de nuevo cuando quieras.',
+        confirmLabel: 'Desactivar plan',
+        destructive: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    _send(ScheduleActiveChangeRequested(plan, active: !plan.isActive));
+  }
+
+  void _send(ScheduleActionsEvent event) {
+    setState(() => _error = null);
+    _waiting = true;
+    widget.actions!.add(event);
+  }
+
+  void _onOutcome(BuildContext context, ScheduleActionsState state) {
+    final outcome = state.outcome;
+    if (outcome == null || !_waiting) return;
+    _waiting = false;
+    if (outcome.kind == ScheduleOutcomeKind.succeeded) {
+      Navigator.of(context).maybePop();
+    } else {
+      setState(() => _error = outcome.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = widget.actions;
+    if (actions == null) return _content(context, busy: false);
+    return BlocConsumer<ScheduleActionsBloc, ScheduleActionsState>(
+      bloc: actions,
+      listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
+      listener: _onOutcome,
+      builder: (context, state) => _content(context, busy: state.busy),
+    );
+  }
+
+  Widget _content(BuildContext context, {required bool busy}) => BlocBuilder<ScheduleDetailBloc, ScheduleDetailState>(
         builder: (context, state) {
           final bloc = context.read<ScheduleDetailBloc>();
           final plan = state.plan;
+          final theme = Theme.of(context);
           return ListView(
-            controller: controller,
+            controller: widget.controller,
             padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
             children: [
               if (plan == null && state.planStatus == PlanBlockStatus.loading)
@@ -50,9 +116,41 @@ class _ScheduleDetail extends StatelessWidget {
               else if (plan == null)
                 _BlockError(message: 'No pudimos cargar el plan. ${state.planFailure?.message ?? ''}'.trim(), onRetry: () => bloc.add(const SchedulePlanRetried()))
               else ...[
-                _Header(plan: plan, now: now),
+                _Header(plan: plan, now: widget.now),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: AppRadius.mdAll),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.error_outline_rounded, size: 18, color: theme.colorScheme.onErrorContainer),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(child: Text(_error!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer, height: 1.3))),
+                    ]),
+                  ),
+                ],
+                if (widget.actions != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  // Un plan inactivo no se puede marcar como hecho (el servidor lo rechaza).
+                  if (plan.isActive) ...[
+                    FilledButton.icon(
+                      onPressed: busy ? null : () => _complete(plan),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                      label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Marcar como hecho', maxLines: 1)),
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), backgroundColor: AppColors.navy, foregroundColor: AppColors.mustard),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : () => _toggle(plan),
+                    icon: Icon(plan.isActive ? Icons.block_rounded : Icons.check_circle_outline_rounded, size: 18),
+                    label: FittedBox(fit: BoxFit.scaleDown, child: Text(plan.isActive ? 'Desactivar plan' : 'Activar plan', maxLines: 1)),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: plan.isActive ? theme.colorScheme.error : AppColors.steel),
+                  ),
+                  if (busy) const Padding(padding: EdgeInsets.only(top: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3)),
+                ],
                 const SizedBox(height: AppSpacing.md),
-                _Data(plan: plan, now: now),
+                _Data(plan: plan, now: widget.now),
               ],
               const SizedBox(height: AppSpacing.md),
               _History(state: state, onRetry: () => bloc.add(const ScheduleHistoryRetried())),
