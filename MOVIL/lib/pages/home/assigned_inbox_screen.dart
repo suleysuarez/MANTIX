@@ -22,6 +22,7 @@ import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/maintenance/schedule_detail_sheet.dart';
 import '../../widgets/maintenance/upcoming_section.dart';
 import '../../widgets/shared/empty_state.dart';
+import '../../widgets/shared/paginator.dart';
 import '../../widgets/shared/skeleton.dart';
 import '../../widgets/tickets/ticket_cards.dart';
 import '../../widgets/tickets/ticket_detail_sheet.dart';
@@ -43,13 +44,15 @@ class AssignedInboxScreen extends StatefulWidget {
 }
 
 class _AssignedInboxScreenState extends State<AssignedInboxScreen> {
-  /// Cuántos tickets se enseñan aquí; el resto está en «Ver todos».
-  static const _shownTickets = 5;
+  /// Tickets por página (los pide así al servidor) y mantenimientos por página (se reparten aquí).
+  static const _ticketsPerPage = 10;
+  static const _maintenancePerPage = 5;
 
   late final AssignedTicketsBloc _tickets;
   late final AssignedSummaryBloc _summary;
   late final UpcomingMaintenanceBloc _upcoming;
   late final bool _canMaintenance;
+  int _maintenancePage = 1;
 
   DateTime get _now => (widget.clock ?? DateTime.now)();
 
@@ -59,7 +62,7 @@ class _AssignedInboxScreenState extends State<AssignedInboxScreen> {
     final auth = context.read<AuthBloc>().state;
     _canMaintenance = auth is Authenticated && auth.profile.can('mantenimiento:ver');
     final requests = context.read<RequestsRepository>();
-    _tickets = AssignedTicketsBloc(repository: requests)..add(const PagedStarted());
+    _tickets = AssignedTicketsBloc(repository: requests, pageSize: _ticketsPerPage)..add(const PagedStarted());
     _summary = AssignedSummaryBloc(repository: requests)..add(const AssignedSummaryRequested());
     _upcoming = UpcomingMaintenanceBloc(repository: context.read<MaintenanceRepository>(), clock: widget.clock);
     if (_canMaintenance) _upcoming.add(const UpcomingRequested());
@@ -109,7 +112,7 @@ class _AssignedInboxScreenState extends State<AssignedInboxScreen> {
               const SizedBox(height: AppSpacing.md),
               _Kpis(canMaintenance: _canMaintenance),
               const SizedBox(height: AppSpacing.lg),
-              _TicketsSection(shown: _shownTickets, onRetry: _tickets.refresh),
+              _TicketsSection(onRetry: _tickets.refresh),
               if (_canMaintenance) ...[
                 const SizedBox(height: AppSpacing.lg),
                 BlocBuilder<UpcomingMaintenanceBloc, UpcomingMaintenanceState>(
@@ -119,7 +122,13 @@ class _AssignedInboxScreenState extends State<AssignedInboxScreen> {
                     onOpen: (event) => showScheduleDetail(context, scheduleId: event.scheduleId, now: _now),
                     onSeeAll: () => context.go(MaintenanceScreen.path),
                     onRetry: () => _upcoming.add(const UpcomingRequested()),
-                    onRangeChanged: (range) => _upcoming.add(UpcomingRangeChanged(range)),
+                    onRangeChanged: (range) {
+                      setState(() => _maintenancePage = 1);
+                      _upcoming.add(UpcomingRangeChanged(range));
+                    },
+                    limit: _maintenancePerPage,
+                    page: _maintenancePage,
+                    onPage: (page) => setState(() => _maintenancePage = page),
                   ),
                 ),
               ],
@@ -173,11 +182,11 @@ class _Kpis extends StatelessWidget {
       );
 }
 
-/// «Mis tickets»: los primeros abiertos, con cargando, vacío y error con reintento.
+/// «Mis tickets»: los abiertos, de 10 en 10 con el paginador numerado (cada página sustituye a la
+/// anterior), y cargando, vacío y error con reintento.
 class _TicketsSection extends StatelessWidget {
-  const _TicketsSection({required this.shown, required this.onRetry});
+  const _TicketsSection({required this.onRetry});
 
-  final int shown;
   final Future<void> Function() onRetry;
 
   @override
@@ -185,9 +194,6 @@ class _TicketsSection extends StatelessWidget {
     final theme = Theme.of(context);
     return BlocBuilder<AssignedTicketsBloc, PagedListState<TicketListItem>>(
       builder: (context, state) {
-        final total = state.info?.total ?? state.items.length;
-        // Lo que de verdad se ve: puede haber menos cargados que el máximo a enseñar.
-        final visible = state.items.length < shown ? state.items.length : shown;
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             const Icon(Icons.confirmation_number_outlined, color: AppColors.navy),
@@ -207,8 +213,9 @@ class _TicketsSection extends StatelessWidget {
           else if (state.items.isEmpty)
             const EmptyState(icon: Icons.task_alt_rounded, title: 'No tienes tickets asignados', message: 'Cuando te asignen uno aparecerá aquí.')
           else ...[
-            for (final item in state.items.take(shown)) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: TicketListCard(item: item, onTap: () => showTicketDetail(context, item.id))),
-            if (total > visible) Padding(padding: const EdgeInsets.only(top: AppSpacing.xs), child: Center(child: Text('Mostrando $visible de $total', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)))),
+            for (final item in state.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: TicketListCard(item: item, onTap: () => showTicketDetail(context, item.id))),
+            if (state.loadMoreFailure != null) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(state.loadMoreFailure!.message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+            if (state.info case final info?) Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: (page) => context.read<AssignedTicketsBloc>().add(PagedPageSelected(page))),
           ],
         ]);
       },
