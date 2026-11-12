@@ -346,6 +346,43 @@ Hecha en código y pruebas en la rama `feat/mobile-technicians` (sale de `feat/m
 
 **Ramas:** `feat/mobile-technicians` sale de `feat/mobile-users-roles`, que a su vez sale de `feat/mobile-ui-polish` (ver «Usuarios y roles»). Nada se ha subido ni fusionado.
 
+## Mantenimientos
+
+Hecha en código y pruebas en la rama `feat/mobile-maintenance` (sale de `feat/mobile-technicians`). Ruta `/mantenimiento` (`/modulos/mantenimiento` redirige a ella), con su elemento en el menú; exige `mantenimiento:ver` (la ruta lo comprueba; la autorización real es del backend). Quien solo ve lo asignado (el Técnico) recibe únicamente sus planes.
+
+- **Qué muestra:** encabezado claro (icono del calendario con reloj, línea mostaza, título y explicación) y el conmutador **Calendario / Lista** (el seleccionado en navy).
+  - **Calendario:** el mes con flechas, la semana de lunes a domingo y los días de otros meses en gris. Hoy va en un círculo navy; cada día con servicios lleva un fondo suave y un punto por tipo (azul programado, mostaza vencido, verde hecho), con una leyenda debajo. Tocar un día muestra sus servicios debajo y tocarlo otra vez los oculta. «Ir a hoy» sale solo cuando se mira otro mes.
+  - **Próximos mantenimientos:** hasta 3 tarjetas (vencidos primero) con icono, título, etiqueta del equipo, fecha, estado y flecha; «Ver todos» lleva a la lista. Mira 30 días atrás y 30 adelante, sin lo ya hecho.
+  - **Lista:** todos los planes por páginas (20 por defecto, tamaño elegible) con búsqueda por título o equipo, filtros en hoja (estado, técnico —solo con `tecnicos:ver`— y orden) y un chip por cada filtro que se quita.
+  - **Ficha del plan** en hoja inferior: equipo, próximo servicio, cada cuánto se repite, recordatorio, técnico, horas estimadas, descripción e historial (servicios hechos, a tiempo o con retraso, y cambios de fecha con su motivo). El plan y el historial cargan y se reintentan por separado.
+  - Estados de cargando (esqueleto), vacío, error con reintento y tirar para refrescar en cada bloque. Si falla el calendario, los próximos siguen, y al revés.
+- **De dónde sale cada dato:** `GET /maintenance/calendar?start&end` (`mantenimiento:ver`; el servidor admite 62 días como máximo y la cuadrícula del mes tiene 42), `GET /maintenance/schedules` (`mantenimiento:ver`; `search`, `technician_id`, `overdue`, `is_active`, `sort` por `next_due_at`, `title` o `created_at`, paginado por cabeceras), `GET /maintenance/schedules/{id}` y `/history`. Los inactivos no entran al calendario.
+- **Acciones** (cada botón sale solo con su permiso efectivo de `/auth/me`, nunca por el nombre del rol):
+  - **Programar mantenimiento** (`POST /maintenance/schedules`, `mantenimiento:crear`): botón mostaza en el encabezado y formulario en hoja inferior con equipo\*, título\*, descripción, cada cuántos días\* (30 por defecto), recordar en (días de antelación)\* (3), primer servicio\* (propone mañana a las 9:00) y horas estimadas; el técnico responsable solo se ofrece con `tecnicos:ver` (sin técnico, el recordatorio le llega a quien programa). El botón se oculta si falta `equipos:ver`, porque el equipo se busca con `GET /equipment`.
+  - **Marcar como hecho** (`POST …/{id}/complete`, `mantenimiento:editar`): pide las horas reales, que son opcionales; la próxima fecha avanza un intervalo.
+  - **Desactivar o activar el plan** (`PATCH …/{id}` con `is_active`, `mantenimiento:editar`): desactivar pide confirmación y explica que el plan deja de verse en el calendario y en los próximos y que no se podrá marcar como hecho; activar no la pide. Un plan inactivo solo ofrece «Activar plan», porque el servidor rechaza completarlo (422).
+  - Si una acción sale bien, la ficha o el formulario se cierran, la pantalla avisa y el calendario, los próximos y la lista se recargan solos; si falla, el motivo sale dentro de la hoja con lo escrito conservado.
+- **Validaciones antes de pedir nada** (las de la web): equipo elegido, título de 3 a 200 caracteres, descripción sin ser solo espacios (hasta 2000), intervalo entero de 1 a 3650, recordatorio entero de 0 a 365 que no supere el intervalo, primer servicio no anterior a ahora y horas mayores que 0, hasta 999 y con dos decimales (coma o punto). Cada error sale bajo su campo cuando se toca o se intenta programar.
+- **Errores por `code`:** `schedule_not_found` (404), `schedule_equipment_unavailable` y `schedule_technician_inactive` (409), `equipment_not_found` y los 403 genéricos; el 422 del servidor llega por campo.
+- **Arquitectura:** `MaintenanceRepository` (`lib/repositories/maintenance/`, avisa de cada cambio por un `Stream`); Blocs en `bloc/maintenance/`: `MaintenanceCalendarBloc` (descarta una respuesta que llega tarde de otro mes), `UpcomingMaintenanceBloc`, `SchedulesListBloc`, `ScheduleDetailBloc` y `ScheduleActionsBloc`; `EquipmentSearchBloc` en `bloc/equipment/`. La cuadrícula del calendario y las reglas del formulario están portadas de la web (`core/format/maintenance_calendar.dart` y `maintenance_format.dart`). Modelos en `models/maintenance/`; widgets en `widgets/maintenance/`. Sin paquetes nuevos: el calendario es de widgets propios y la fecha y hora usan los selectores de Material.
+- **Colores:** todos de `AppColors` y `StatusColors`; lo vencido va en mostaza con texto navy (no en rojo) y el nombre del estado siempre va escrito.
+
+**Verificación:** 1210 pruebas (bloc, repositorio, formato y widget; incluyen las de 320×568 y 360×640 con texto a 1,3 sin overflow), `flutter analyze` sin avisos. **No se ha visto en un teléfono ni se ha corrido `flutter build apk --debug` en esta rama:** la revisión a ojo la hace la persona dueña del proyecto. Comprobar a mano: el aspecto del calendario (tamaño de las celdas al tocar, fondos y puntos), el fondo degradado, el formulario con el teclado abierto, el selector de fecha y hora (cambiar de día, no solo aceptar el propuesto), la ficha con sus botones y el aviso que sale tras cada acción.
+
+**Diferencias con las imágenes:** «Pendiente» es **«Vencido»** (la API no tiene ese estado); «Planta Principal» y «Planta Norte» son la **etiqueta del equipo** (la API no trae ubicación); el «Este campo es obligatorio» no sale al abrir el formulario vacío, sino al tocar el campo o al intentar programar. Se añadieron la leyenda de los puntos y «Ir a hoy».
+
+**Fuera de esta versión (decidido):** editar un plan y reprogramar su fecha, aunque `PATCH /maintenance/schedules/{id}` lo admite (`next_due_at` con `reschedule_reason`).
+
+**Pendientes de backend de esta pantalla** (no se tocó `MOVIL/backend` ni `WEB/backend`):
+
+- Ni los planes ni el calendario traen la ubicación del equipo; solo etiqueta, marca y modelo.
+- No existe un estado «pendiente»: la API distingue programado, vencido, hecho a tiempo, hecho con retraso e inactivo.
+- El calendario admite como máximo 62 días por petición, así que no hay vista de año ni de rangos largos.
+- Elegir el equipo del formulario exige `equipos:ver` (`GET /equipment`); un buscador de equipos propio del módulo evitaría ese permiso ajeno.
+- `GET /maintenance/overview` (mezcla preventivo y correctivo, cumplimiento semanal, costos) existe y la web lo usa, pero la app no lo muestra.
+
+**Ramas:** `feat/mobile-maintenance` sale de `feat/mobile-technicians`, que sale de `feat/mobile-users-roles` y esta de `feat/mobile-ui-polish` (ver «Usuarios y roles»). Nada se ha subido ni fusionado.
+
 ## Notificaciones y encabezado de los módulos
 
 Todos los módulos con menú (dashboard, equipos, solicitudes, bandeja, reportes y los módulos aún sin construir) comparten `MantixAppBar` y `MantixDrawer`: la «M» a la izquierda, la campana de notificaciones, el avatar (abre el perfil) y el menú por permisos.
