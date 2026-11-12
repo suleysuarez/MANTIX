@@ -76,59 +76,64 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
       if (!categories.any((item) => item.value == _category)) _category = categories.first.value!;
       if (!units.any((item) => item.value == _unit)) _unit = units.first.value!;
       return Padding(
-        padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.viewInsetsOf(context).bottom + 14),
+        padding: EdgeInsets.fromLTRB(12, 5, 12, MediaQuery.viewInsetsOf(context).bottom + 10),
         child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .82,
+          height: MediaQuery.sizeOf(context).height * .86,
           child: Column(children: [
             Row(children: [
-              Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .55), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.inventory_2_outlined, color: AppColors.steel)),
-              const SizedBox(width: 12),
+              Container(width: 4, height: 34, decoration: BoxDecoration(color: AppColors.mustard, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 9),
+              const Icon(Icons.inventory_2_outlined, color: AppColors.steel, size: 27),
+              const SizedBox(width: 8),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Nuevo ítem', style: TextStyle(color: AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900)),
-                Text('Registra un insumo y define sus existencias.', style: TextStyle(color: AppColors.slate, fontSize: 11.5)),
+                Text('Nuevo ítem', style: TextStyle(color: AppColors.navy, fontSize: 20, fontWeight: FontWeight.w900, height: 1)),
+                SizedBox(height: 3),
+                Text('Agrega un nuevo insumo al inventario', style: TextStyle(color: AppColors.slate, fontSize: 10.5)),
               ])),
               IconButton(tooltip: 'Cerrar', onPressed: state.saving ? null : () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: AppColors.steel)),
             ]),
-            const SizedBox(height: 12),
-            Expanded(child: Form(key: _form, child: ListView(children: [
-              _field('Código (SKU) *', _sku, validator: _skuValidator, hint: 'Ej. CAB-USB-01'),
-              const SizedBox(height: 10),
-              _dropdown('Categoría *', _category, categories, (value) => setState(() => _category = value!)),
-              const SizedBox(height: 10),
-              _field('Nombre *', _name, validator: (value) => value == null || value.trim().length < 3 ? 'Escribe al menos 3 caracteres.' : null),
-              const SizedBox(height: 10),
-              _field('Descripción', _description, required: false, maxLines: 2),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: _dropdown('Unidad *', _unit, units, (value) => setState(() => _unit = value!))),
-                const SizedBox(width: 10),
-                Expanded(child: _field('Costo unitario', _cost, keyboard: const TextInputType.numberWithOptions(decimal: true), validator: _moneyValidator)),
-              ]),
-              const SizedBox(height: 14),
-              _section('CONTROL DE EXISTENCIAS'),
-              Row(children: [
-                Expanded(child: _field('Stock inicial', _initial, keyboard: TextInputType.number, validator: _integerValidator)),
-                const SizedBox(width: 10),
-                Expanded(child: _field('Stock mínimo *', _minimum, keyboard: TextInputType.number, validator: (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : _integerValidator(value))),
-              ]),
-              const SizedBox(height: 10),
-              _field('Stock máximo', _maximum, required: false, keyboard: TextInputType.number, validator: _integerValidator),
-              const SizedBox(height: 14),
-              _section('UBICACIÓN Y PROVEEDOR'),
-              _field('Ubicación', _location, required: false, hint: 'Ej. Almacén principal'),
-              const SizedBox(height: 10),
-              _field('Proveedor', _supplier, required: false, hint: 'Nombre del proveedor'),
-              const SizedBox(height: 8),
-            ]))),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            Expanded(child: Form(key: _form, child: ListView(
+              padding: const EdgeInsets.only(bottom: 8),
+              children: [
+                _field('Código (SKU) *', _sku, icon: Icons.barcode_reader, validator: _skuValidator, hint: 'Escanea o ingresa el código', suffix: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.steel, size: 18)),
+                const SizedBox(height: 7),
+                _dropdown('Categoría *', _category, categories, (value) => setState(() => _category = value!), icon: Icons.grid_view_rounded),
+                const SizedBox(height: 7),
+                _field('Nombre *', _name, icon: Icons.sell_outlined, validator: (value) => value == null || value.trim().length < 3 ? 'Escribe al menos 3 caracteres.' : null, hint: 'Ingresa el nombre del ítem'),
+                const SizedBox(height: 7),
+                _field('Descripción', _description, icon: Icons.article_outlined, required: false, maxLines: 2, hint: 'Describe el ítem (opcional)'),
+                const SizedBox(height: 7),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: _dropdown('Unidad *', _unit, units, (value) => setState(() => _unit = value!), icon: Icons.inventory_2_outlined)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _field('Costo unitario', _cost, icon: Icons.attach_money_rounded, keyboard: const TextInputType.numberWithOptions(decimal: true), validator: _moneyValidator, hint: '0.00')),
+                ]),
+                const SizedBox(height: 7),
+                _field('Stock inicial', _initial, icon: Icons.inventory_outlined, keyboard: TextInputType.number, validator: _integerValidator, hint: '0'),
+                const SizedBox(height: 7),
+                _field('Stock mínimo *', _minimum, icon: Icons.warning_amber_rounded, keyboard: TextInputType.number, validator: (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : _integerValidator(value), hint: '0'),
+                const SizedBox(height: 7),
+                _field('Stock máximo', _maximum, icon: Icons.bar_chart_rounded, required: false, keyboard: TextInputType.number, validator: _integerValidator, hint: '0'),
+                const SizedBox(height: 7),
+                _field('Ubicación', _location, icon: Icons.location_on_outlined, required: false, hint: 'Selecciona una ubicación'),
+                const SizedBox(height: 7),
+                _field('Proveedor', _supplier, icon: Icons.people_alt_outlined, required: false, hint: 'Selecciona un proveedor'),
+              ],
+            ))),
+            const SizedBox(height: 8),
             Row(children: [
-              Expanded(child: OutlinedButton(onPressed: state.saving ? null : () => Navigator.pop(context), child: const Text('Cancelar'))),
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: FilledButton.icon(
+              Expanded(child: OutlinedButton(
+                onPressed: state.saving ? null : () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42), foregroundColor: AppColors.steel, side: const BorderSide(color: AppColors.sky), shape: const StadiumBorder()),
+                child: const Text('Cancelar'),
+              )),
+              const SizedBox(width: 8),
+              Expanded(flex: 1, child: FilledButton.icon(
                 onPressed: state.saving ? null : _submit,
-                icon: state.saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy)) : const Icon(Icons.add_rounded, size: 18),
+                icon: state.saving ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy)) : const Icon(Icons.save_rounded, size: 16),
                 label: Text(state.saving ? 'Guardando…' : 'Crear ítem'),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy, minimumSize: const Size(0, 42), shape: const StadiumBorder()),
               )),
             ]),
           ]),
@@ -137,28 +142,32 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
     }),
   );
 
-  Widget _section(String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(children: [
-      Container(width: 4, height: 15, decoration: BoxDecoration(color: AppColors.mustard, borderRadius: BorderRadius.circular(4))),
-      const SizedBox(width: 7),
-      Text(value, style: const TextStyle(color: AppColors.steel, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: .5)),
-    ]),
+  Widget _field(String label, TextEditingController controller, {required IconData icon, String? Function(String?)? validator, bool required = true, int maxLines = 1, TextInputType? keyboard, String? hint, Widget? suffix}) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(padding: const EdgeInsets.only(top: 23, right: 8), child: Icon(icon, color: AppColors.steel, size: 18)),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 10.5, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        TextFormField(controller: controller, maxLines: maxLines, keyboardType: keyboard,
+          style: const TextStyle(fontSize: 10.5, color: AppColors.navy),
+          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(fontSize: 9.5, color: AppColors.slate), suffixIcon: suffix, suffixIconConstraints: const BoxConstraints(minWidth: 30, minHeight: 30), isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+          validator: validator ?? (required ? (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : null : null)),
+      ])),
+    ],
   );
 
-  Widget _field(String label, TextEditingController controller, {String? Function(String?)? validator, bool required = true, int maxLines = 1, TextInputType? keyboard, String? hint}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 5),
-    TextFormField(controller: controller, maxLines: maxLines, keyboardType: keyboard,
-      decoration: InputDecoration(hintText: hint, isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-      validator: validator ?? (required ? (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio.' : null : null)),
-  ]);
-
-  Widget _dropdown(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 5),
-    DropdownButtonFormField<String>(initialValue: value, isExpanded: true, decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)), items: items, onChanged: onChanged),
-  ]);
+  Widget _dropdown(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String?> onChanged, {required IconData icon}) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(padding: const EdgeInsets.only(top: 23, right: 8), child: Icon(icon, color: AppColors.steel, size: 18)),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 10.5, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        DropdownButtonFormField<String>(initialValue: value, isExpanded: true, style: const TextStyle(fontSize: 10.5, color: AppColors.navy), decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)), items: items, onChanged: onChanged),
+      ])),
+    ],
+  );
 
   String? _skuValidator(String? value) {
     final text = value?.trim().toUpperCase() ?? '';
