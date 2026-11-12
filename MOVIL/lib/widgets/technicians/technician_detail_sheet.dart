@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../bloc/technicians/technician_actions_bloc.dart';
 import '../../bloc/technicians/technician_detail_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/queue_format.dart' show formatHours, formatPct, periodLabel;
@@ -11,11 +12,13 @@ import '../../models/technicians/technician_models.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../repositories/technicians/technicians_repository.dart';
 import '../shared/app_chip.dart';
+import '../shared/confirm_dialog.dart';
 import '../shared/detail_parts.dart';
 import '../shared/mantix_sheet.dart';
 import '../shared/skeleton.dart';
 import '../tickets/ticket_cards.dart';
 import '../tickets/ticket_detail_sheet.dart';
+import 'technician_form_sheet.dart';
 import 'technician_tones.dart';
 import 'technician_views.dart';
 
@@ -23,8 +26,10 @@ import 'technician_views.dart';
 /// del periodo y sus tickets abiertos. Los indicadores y los tickets cargan y fallan por
 /// separado. [workload] es la carga que ya tiene la lista (`null` si no está disponible).
 /// [showRate] enseña la tarifa (solo a quien gestiona técnicos) y [showTickets] la lista de
-/// tickets (solo a quien puede ver tickets).
-Future<void> showTechnicianDetail(BuildContext context, {required Technician technician, required Workload? workload, bool showRate = false, bool showTickets = true}) => showMantixSheet<void>(
+/// tickets (solo a quien puede ver tickets). Con [actions] (solo para quien tiene
+/// `tecnicos:editar`) salen «Editar perfil» y el cambio de disponibilidad: si la acción sale
+/// bien la hoja se cierra y el aviso lo da la pantalla; si falla, el motivo sale dentro.
+Future<void> showTechnicianDetail(BuildContext context, {required Technician technician, required Workload? workload, bool showRate = false, bool showTickets = true, TechnicianActionsBloc? actions}) => showMantixSheet<void>(
       context,
       title: 'Ficha del técnico',
       builder: (sheetContext, controller) => BlocProvider(
@@ -34,25 +39,90 @@ Future<void> showTechnicianDetail(BuildContext context, {required Technician tec
           technicianId: technician.id,
           withTickets: showTickets,
         )..add(const TechnicianDetailRequested()),
-        child: _TechnicianDetail(technician: technician, workload: workload, controller: controller, showRate: showRate, showTickets: showTickets),
+        child: _TechnicianDetail(technician: technician, workload: workload, controller: controller, showRate: showRate, showTickets: showTickets, actions: actions),
       ),
     );
 
-class _TechnicianDetail extends StatelessWidget {
-  const _TechnicianDetail({required this.technician, required this.workload, required this.controller, required this.showRate, required this.showTickets});
+class _TechnicianDetail extends StatefulWidget {
+  const _TechnicianDetail({required this.technician, required this.workload, required this.controller, required this.showRate, required this.showTickets, required this.actions});
 
   final Technician technician;
   final Workload? workload;
   final ScrollController controller;
   final bool showRate;
   final bool showTickets;
+  final TechnicianActionsBloc? actions;
+
+  @override
+  State<_TechnicianDetail> createState() => _TechnicianDetailState();
+}
+
+class _TechnicianDetailState extends State<_TechnicianDetail> {
+  /// Esta hoja pidió el cambio de disponibilidad y espera su resultado.
+  bool _waiting = false;
+  String? _error;
+
+  Technician get technician => widget.technician;
+  Workload? get workload => widget.workload;
+  ScrollController get controller => widget.controller;
+  bool get showRate => widget.showRate;
+  bool get showTickets => widget.showTickets;
+
+  Future<void> _edit() async {
+    final saved = await showTechnicianForm(context, actions: widget.actions!, technician: technician);
+    if (saved == true && mounted) await Navigator.of(context).maybePop();
+  }
+
+  /// Marcar como no disponible pide confirmación y avisa de los tickets que siguen asignados.
+  Future<void> _toggleAvailability() async {
+    if (technician.isAvailable) {
+      final open = workload?.openOf(technician.id) ?? 0;
+      final ok = await showConfirmDialog(
+        context,
+        title: '¿Marcar a ${technician.fullName} como no disponible?',
+        message: [
+          'Aparecerá como no disponible para el equipo. Puedes volver a marcarlo como disponible cuando quieras.',
+          if (open > 0) 'Tiene $open ${open == 1 ? 'ticket abierto' : 'tickets abiertos'}: ${open == 1 ? 'seguirá asignado' : 'seguirán asignados'} a esta persona.',
+        ].join(' '),
+        confirmLabel: 'Marcar no disponible',
+        destructive: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    setState(() => _error = null);
+    _waiting = true;
+    widget.actions!.add(TechnicianAvailabilityRequested(technician, available: !technician.isAvailable));
+  }
+
+  void _onOutcome(BuildContext context, TechnicianActionsState state) {
+    final outcome = state.outcome;
+    if (outcome == null || !_waiting) return;
+    _waiting = false;
+    if (outcome.kind == TechnicianOutcomeKind.succeeded) {
+      Navigator.of(context).maybePop();
+    } else {
+      setState(() => _error = outcome.message);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final actions = widget.actions;
+    if (actions == null) return _content(context, busy: false);
+    return BlocConsumer<TechnicianActionsBloc, TechnicianActionsState>(
+      bloc: actions,
+      listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
+      listener: _onOutcome,
+      builder: (context, state) => _content(context, busy: state.busy),
+    );
+  }
+
+  Widget _content(BuildContext context, {required bool busy}) {
     final theme = Theme.of(context);
     final tags = specialties(technician);
     final loads = workload;
     final created = technician.createdAt;
+    final open = loads?.openOf(technician.id) ?? 0;
     return ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
@@ -66,6 +136,51 @@ class _TechnicianDetail extends StatelessWidget {
             if (!technician.isActive) const AppChip(label: 'Cuenta inactiva', colors: inactiveTone, semanticPrefix: 'Cuenta'),
           ],
         ),
+        if (_error != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: AppRadius.mdAll),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.error_outline_rounded, size: 18, color: theme.colorScheme.onErrorContainer),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text(_error!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer, height: 1.3))),
+            ]),
+          ),
+        ],
+        if (widget.actions != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          if (technician.isAvailable && open > 0)
+            Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .28), borderRadius: AppRadius.mdAll),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.navy),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Tiene $open ${open == 1 ? 'ticket abierto' : 'tickets abiertos'}: ${open == 1 ? 'seguirá asignado' : 'seguirán asignados'} a esta persona aunque la marques como no disponible.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: AppColors.navy, height: 1.3),
+                  ),
+                ),
+              ]),
+            ),
+          FilledButton.icon(
+            onPressed: busy ? null : _edit,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Editar perfil', maxLines: 1)),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), backgroundColor: AppColors.navy, foregroundColor: AppColors.mustard),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: busy ? null : _toggleAvailability,
+            icon: Icon(technician.isAvailable ? Icons.do_not_disturb_on_outlined : Icons.check_circle_outline_rounded, size: 18),
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text(technician.isAvailable ? 'Marcar como no disponible' : 'Marcar como disponible', maxLines: 1)),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: AppColors.steel),
+          ),
+          if (busy) const Padding(padding: EdgeInsets.only(top: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3)),
+        ],
         const SizedBox(height: AppSpacing.md),
         DetailSection(icon: Icons.info_outline_rounded, title: 'Datos', children: [
           DetailField('Correo', technician.email.isEmpty ? 'Sin registrar' : technician.email),

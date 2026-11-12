@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/technicians/technician_actions_bloc.dart';
 import '../../bloc/technicians/technicians_list_bloc.dart';
 import '../../core/format/technicians_format.dart';
 import '../../core/theme/app_colors.dart';
@@ -19,6 +20,7 @@ import '../../widgets/shared/multi_select_sheet.dart' show FilterButton;
 import '../../widgets/shared/paginator.dart';
 import '../../widgets/shared/skeleton.dart';
 import '../../widgets/technicians/technician_detail_sheet.dart';
+import '../../widgets/technicians/technician_form_sheet.dart';
 import '../../widgets/technicians/technician_views.dart';
 import '../../widgets/technicians/technicians_filter_sheet.dart';
 import '../../widgets/technicians/technicians_header.dart';
@@ -40,7 +42,13 @@ class TechniciansScreen extends StatefulWidget {
 class _TechniciansScreenState extends State<TechniciansScreen> {
   static const _debounce = Duration(milliseconds: 350);
 
+  /// Cuánto tiempo se resalta un técnico recién registrado.
+  static const _highlightFor = Duration(seconds: 4);
+
   late final TechniciansListBloc _list;
+  late final TechnicianActionsBloc _actions;
+  int? _highlightId;
+  Timer? _highlightTimer;
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   Timer? _timer;
@@ -49,15 +57,19 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
   @override
   void initState() {
     super.initState();
-    _list = TechniciansListBloc(repository: context.read<TechniciansRepository>())..add(const TechniciansRequested());
+    final repository = context.read<TechniciansRepository>();
+    _list = TechniciansListBloc(repository: repository)..add(const TechniciansRequested());
+    _actions = TechnicianActionsBloc(repository: repository);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _highlightTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     unawaited(_list.close());
+    unawaited(_actions.close());
     super.dispose();
   }
 
@@ -87,6 +99,27 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     if (result != null && mounted) _list.add(TechniciansFiltersChanged(result));
   }
 
+  /// El resultado de cada acción en un aviso: navy si salió bien, rojo si no. Lo que ni se pidió
+  /// (un dato no válido) ya se explica dentro de la hoja. Un técnico recién registrado vuelve la
+  /// lista a la página 1 sin filtros, sale de primero y se resalta unos segundos.
+  void _onOutcome(BuildContext context, TechnicianActionsState state) {
+    final outcome = state.outcome!;
+    if (outcome.kind == TechnicianOutcomeKind.blocked) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(outcome.message), backgroundColor: outcome.isError ? AppColors.error : AppColors.navy));
+    final created = outcome.created ? outcome.technician : null;
+    if (created == null) return;
+    _timer?.cancel();
+    _searchController.clear();
+    _list.add(TechnicianCreatedShown(created));
+    _highlightTimer?.cancel();
+    setState(() => _highlightId = created.id);
+    _highlightTimer = Timer(_highlightFor, () {
+      if (mounted) setState(() => _highlightId = null);
+    });
+  }
+
   Future<void> _refresh() {
     final done = Completer<void>();
     _list.add(TechniciansRequested(done: done));
@@ -103,9 +136,16 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     // La tarifa solo llega a quien gestiona técnicos; a los demás ni se les enseña el campo.
     final showRate = profile.can('tecnicos:editar');
     final showTickets = profile.can('tickets:ver');
+    final canEdit = profile.can('tecnicos:editar');
+    // Registrar exige además buscar al usuario, que el servidor guarda tras `equipos:asignar`.
+    final canCreate = profile.can('tecnicos:crear') && profile.can('equipos:asignar');
     return BlocProvider.value(
       value: _list,
-      child: Scaffold(
+      child: BlocListener<TechnicianActionsBloc, TechnicianActionsState>(
+        bloc: _actions,
+        listenWhen: (previous, current) => current.outcome != null && previous.outcome != current.outcome,
+        listener: _onOutcome,
+        child: Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: MantixAppBar(profile: profile),
         drawer: MantixDrawer(profile: profile, selectedPath: TechniciansScreen.path),
@@ -118,7 +158,7 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               children: [
-                const TechniciansHeader(),
+                TechniciansHeader(action: canCreate ? _RegisterButton(onPressed: () => showTechnicianForm(context, actions: _actions)) : null),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -149,8 +189,9 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
                         state: state,
                         table: _table,
                         showRate: showRate,
+                        highlightId: _highlightId,
                         onClearFilters: _clearAll,
-                        onOpen: (technician) => showTechnicianDetail(context, technician: technician, workload: state.workload, showRate: showRate, showTickets: showTickets),
+                        onOpen: (technician) => showTechnicianDetail(context, technician: technician, workload: state.workload, showRate: showRate, showTickets: showTickets, actions: canEdit ? _actions : null),
                         onPage: (page) {
                           _list.add(TechniciansPageChanged(page));
                           if (_scrollController.hasClients) _scrollController.jumpTo(0);
@@ -164,9 +205,25 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
             ),
           ),
         ),
+        ),
       ),
     );
   }
+}
+
+/// «Registrar técnico» del encabezado: mostaza con texto navy.
+class _RegisterButton extends StatelessWidget {
+  const _RegisterButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
+        label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Registrar técnico', maxLines: 1)),
+        style: FilledButton.styleFrom(backgroundColor: AppColors.mustard, foregroundColor: AppColors.navy, minimumSize: const Size(0, 48), textStyle: const TextStyle(fontWeight: FontWeight.w800)),
+      );
 }
 
 /// Aviso de que la carga no llegó: la lista sigue, las cifras de tickets no.
@@ -310,11 +367,12 @@ class _ViewToggle extends StatelessWidget {
 
 /// La lista con sus estados (cargando, vacío, datos) y el paginador.
 class _Results extends StatelessWidget {
-  const _Results({required this.state, required this.table, required this.showRate, required this.onClearFilters, required this.onOpen, required this.onPage, required this.onPageSize});
+  const _Results({required this.state, required this.table, required this.showRate, required this.highlightId, required this.onClearFilters, required this.onOpen, required this.onPage, required this.onPageSize});
 
   final TechniciansListState state;
   final bool table;
   final bool showRate;
+  final int? highlightId;
   final VoidCallback onClearFilters;
   final ValueChanged<Technician> onOpen;
   final ValueChanged<int> onPage;
@@ -355,12 +413,12 @@ class _Results extends StatelessWidget {
       ]),
       const SizedBox(height: AppSpacing.sm),
       if (table)
-        TechniciansTable(technicians: items, workload: state.workload, onOpen: onOpen)
+        TechniciansTable(technicians: items, workload: state.workload, onOpen: onOpen, highlightedId: highlightId)
       else
         for (final technician in items)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: TechnicianCard(technician: technician, workload: state.workload, showRate: showRate, onTap: () => onOpen(technician)),
+            child: TechnicianCard(technician: technician, workload: state.workload, showRate: showRate, highlighted: technician.id == highlightId, onTap: () => onOpen(technician)),
           ),
       const SizedBox(height: AppSpacing.md),
       Paginator(page: state.page, totalPages: state.totalPages, total: filtered.length, pageSize: state.pageSize, onPage: onPage, onPageSize: onPageSize),
