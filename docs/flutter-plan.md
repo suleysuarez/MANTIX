@@ -300,6 +300,9 @@ Hecha en código y pruebas en la rama `feat/mobile-users-roles` (sale de `feat/m
 
 **Fuera de esta versión (decidido):** **crear usuario**, restablecer contraseña y crear, editar o borrar roles.
 
+**Ajuste de interfaz** (según la maqueta): las tres pestañas son píldoras (la elegida en mostaza, «Pendientes» con su número) y el encabezado cambia con la pestaña (icono en caja azul claro, línea mostaza, título y explicación). Las cifras son tres tarjetas con icono (total, activos e inactivos; «Sin ingresar» salió de las cifras). La tarjeta de usuario lleva el rol con su icono a la izquierda y el estado a la derecha, y el último acceso quedó solo en la ficha. En Pendientes cada persona lleva el chip «Pendiente de asignación» y el botón «Asignar rol» debajo de su tarjeta, con una ayuda al final solo para quien puede asignar. Las tarjetas de rol llevan su icono (por código, solo decora) y cuántas personas lo tienen. Diferencias con la maqueta: no hay **«Crear rol»** (crear roles sigue fuera de esta versión), no se muestra la **fecha de solicitud** del pendiente (`GET /admin/users/pending` no la trae), las tarjetas de rol no llevan flecha (no hay detalle del rol) y se mantiene el paginador del proyecto en vez de «1 de 1». Los textos «Define y administra los roles» y «permisos» se cambiaron porque la app solo consulta.
+
+
 **Verificación:** 865 pruebas (bloc, repositorio y widget; incluye cada flujo y cada error, y que el servidor reciba la petición correcta), `flutter analyze` sin avisos, sin overflow a 320×568 y 360×640 con texto a 1,3 y `flutter build apk --debug`. La revisión a ojo en el teléfono, y contra un backend real, la hace la persona dueña del proyecto.
 
 **Pendientes de backend de esta pantalla** (no se tocó `MOVIL/backend`):
@@ -310,6 +313,7 @@ Hecha en código y pruebas en la rama `feat/mobile-users-roles` (sale de `feat/m
 - `GET /admin/roles` solo da `id`, `code` y `name`; la descripción y el conteo completos piden `usuarios:asignar` (`/admin/roles/manage`).
 - `PATCH /admin/users/{id}` con un campo en `null` para borrarlo es lo que usa la web y lo que espera la app, pero **no se ha probado contra el backend real**.
 - `GET /admin/users` no tiene filtro «sin rol» (se obtiene de la pestaña Pendientes).
+- **El último acceso se registra al iniciar sesión en el móvil (resuelto, ver cambio 11 de «Cambios de API solo en MOVIL/backend»).** Antes `last_login_at` solo lo escribía el flujo de Clerk y quien entraba solo por la app se veía como «Pendiente de primer ingreso» y «Último acceso: Nunca». Las cuentas que ya habían entrado siguen vacías hasta su próximo inicio de sesión.
 
 **Ramas:** `feat/mobile-users-roles` sale de `feat/mobile-ui-polish`, que tampoco se ha subido ni tiene PR (ajustes de la bandeja, el paginador, Equipos y el banner del dashboard). Orden de integración propuesto: 1) `feat/mobile-ui-polish`; 2) `feat/mobile-users-roles` (que ya incluye lo anterior). Nada se ha subido ni fusionado.
 
@@ -462,6 +466,9 @@ Rama `feat/api-mobile-needs`, desde `develop` (los cambios 7 a 10 los pide la pa
 | 8 | `GET /maintenance/requests?category=hardware,network`: `category` admite lista separada por coma como `status` y `priority` (máx. 20 → 422 `filter_too_many_values`); un valor sigue igual | `api/routes/maintenance.py`; `services/maintenance.py` · `list_requests`; `repositories/maintenance.py` · `list_requests(categories=…)`; `core/filters.py` · `split_filter_list` | `2d2a9a4` |
 | 9 | `GET /technicians?is_active=true`: solo técnicos cuya cuenta de usuario está activa (los que se pueden asignar); sin el parámetro, todos como antes | `api/routes/technician.py` · `list_technicians`; `services/technician.py` · `TechnicianService.list`; `repositories/technician.py` · `TechnicianRepository.list` | `2d2a9a4` |
 | 10 | `GET /maintenance/categories?search=&page=&size=`: búsqueda por nombre y páginas con las cabeceras de paginación; sin parámetros devuelve todo el catálogo activo como antes (tamaño por defecto 200) | `api/routes/queue.py` · `list_categories`; `services/queue.py` · `QueueService.categories`; `repositories/queue.py` · `QueueRepository.active_categories` | `2d2a9a4` |
+| 11 | **El último acceso (`last_login_at`) se registra al iniciar sesión en el móvil** y deja de leerse del flujo de Clerk. `login` y `verify-email` llaman a `record_login`: sellan `last_login_at` como mucho una vez cada 30 minutos y dejan la entrada de auditoría `auth.login`, en la misma transacción. Se quitó `_touch_login` de `ClerkAuthService` (el servicio de Clerk ya no escribe el acceso). Sin migraciones: la columna ya existía | `services/login_tracking.py` · `record_login`; `services/mobile_auth.py` · `MobileAuthService._record_login`, `login`, `verify_email`; `services/auth.py` · `ClerkAuthService.resolve_local_user` | `aaa39dd` |
+
+**Pruebas del cambio 11:** escritas en `tests/test_login_tracking.py` (con dobles, sin base de datos) y ajustadas en `tests/test_clerk_auth.py`, pero **no se han ejecutado**: las reglas del proyecto prohíben correr `pytest` mientras no haya una base de pruebas aislada. `ruff` y la compilación sí pasan. Correrlas con `TEST_DATABASE_URL` apuntando a una base local `*_test` antes de integrar.
 
 **Códigos de error nuevos** (en `core/error_codes.py` y `docs/error-codes.md`): `invalid_date_range` (422), `filter_too_many_values` (422) y `equipment_type_name_taken` (409). Documentos regenerados: `docs/api-reference.md` y `docs/error-codes.md` (ambos verificados por tests).
 

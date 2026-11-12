@@ -22,6 +22,8 @@ from sqlalchemy.orm import selectinload
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.models.auth import AuthEmailCode, Role, User, UserRole
+from app.repositories.audit import AuditRepository
+from app.services.audit import AuditService
 from app.services.auth import user_response
 from app.services.code_email_limiter import CodeEmailLimiter, code_email_limiter
 from app.services.email_sender import (
@@ -31,6 +33,7 @@ from app.services.email_sender import (
     mask_email,
     render_auth_code_email,
 )
+from app.services.login_tracking import record_login
 
 logger = logging.getLogger("mantix.mail")
 _passwords = PasswordHash.recommended()
@@ -50,11 +53,17 @@ class MobileAuthService:
         settings: Settings,
         sender: EmailSender | None = None,
         limiter: CodeEmailLimiter | None = None,
+        audit: AuditService | None = None,
     ):
         self.session = session
         self.settings = settings
+        self.audit = audit or AuditService(AuditRepository(session))
         self.sender: EmailSender = sender or SmtpEmailSender(settings)
         self.limiter = limiter or code_email_limiter
+
+    async def _record_login(self, user: User) -> None:
+        """Stamp the user's last access: the native sign-in is where a session starts."""
+        await record_login(user, commit=self.session.commit, audit=self.audit)
 
     @staticmethod
     def _normalize_email(email: str) -> str:
@@ -288,6 +297,7 @@ class MobileAuthService:
         user.email_verified_at = datetime.now(UTC)
         await self._assign_bootstrap_admin(user)
         await self.session.commit()
+        await self._record_login(user)
         return await self._session_response(user.id)
 
     async def login(self, *, email: str, password: str) -> dict:
@@ -313,6 +323,7 @@ class MobileAuthService:
             raise ForbiddenError("La cuenta está desactivada.", code="user_inactive")
         if await self._assign_bootstrap_admin(user):
             await self.session.commit()
+        await self._record_login(user)
         return await self._session_response(user.id)
 
     async def forgot_password(self, email: str) -> None:

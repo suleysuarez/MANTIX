@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/pages/users/users_screen.dart';
+import 'package:mantix/widgets/users/users_tab_pills.dart';
 import 'package:mantix/widgets/users/user_cards.dart';
 
 import '../../support/fakes.dart';
@@ -248,7 +249,7 @@ void main() {
 
   group('asignar rol a un pendiente', () {
     Future<void> toPending(WidgetTester tester) async {
-      await tester.tap(find.descendant(of: find.byType(TabBar), matching: find.text('Pendientes')));
+      await tester.tap(find.descendant(of: find.byType(UsersTabPills), matching: find.text('Pendientes')));
       await tester.pumpAndSettle();
     }
 
