@@ -15,10 +15,11 @@ Map<String, Object?> technicianJson({
   bool available = true,
   bool active = true,
   String? rate,
+  int? userId,
 }) =>
     {
       'id': id,
-      'user_id': id + 100,
+      'user_id': userId ?? id + 100,
       'full_name': name,
       'email': email ?? 'tech$id@demo.mantix.co',
       'employee_code': code,

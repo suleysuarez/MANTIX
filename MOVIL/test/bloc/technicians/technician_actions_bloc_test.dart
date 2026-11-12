@@ -269,6 +269,100 @@ void main() {
     );
   });
 
+  group('cuenta de usuario', () {
+    TechnicianActionsBloc buildAs(int me) => TechnicianActionsBloc(repository: TechniciansRepository(dioWith(adapter)), currentUserId: me);
+    Technician account({bool active = true, int? userId}) => Technician.fromJson(technicianJson(id: 5, name: 'Luis Demo', active: active, userId: userId));
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'desactiva la cuenta del técnico y avisa en español',
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => ranWith(TechnicianOutcomeKind.succeeded),
+      verify: (bloc) {
+        expect(adapter.requests.single.method, 'POST');
+        expect(adapter.requests.single.path, '/admin/users/105/deactivate');
+        expect(bloc.state.outcome!.message, 'La cuenta de Luis Demo fue desactivada.');
+        expect(bloc.state.outcome!.created, isFalse);
+      },
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'activa una cuenta inactiva',
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(active: false), active: true)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => ranWith(TechnicianOutcomeKind.succeeded),
+      verify: (bloc) {
+        expect(adapter.requests.single.path, '/admin/users/105/activate');
+        expect(bloc.state.outcome!.message, 'La cuenta de Luis Demo fue activada.');
+      },
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'nadie desactiva su propia cuenta y no se pide nada',
+      build: () => buildAs(105),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => blockedWith('No puedes desactivar tu propia cuenta.'),
+      verify: (_) => expect(adapter.requests, isEmpty),
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'si la cuenta ya está así no pide nada',
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: true)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => blockedWith('La cuenta de Luis Demo ya está activa.'),
+      verify: (_) => expect(adapter.requests, isEmpty),
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'un técnico sin cuenta conocida no pide nada',
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(Technician.fromJson({'id': 5, 'full_name': 'Luis Demo'}), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => blockedWith('No encontramos la cuenta de Luis Demo.'),
+      verify: (_) => expect(adapter.requests, isEmpty),
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      '409: no se puede dejar al sistema sin administradores',
+      setUp: () => handler = (_) => errorResponse(409, code: 'last_admin_protected'),
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => ranWith(TechnicianOutcomeKind.failed),
+      verify: (bloc) {
+        expect(bloc.state.outcome!.failure, isA<ConflictFailure>());
+        expect(bloc.state.outcome!.message, 'No se pudo desactivar a Luis Demo: ${messagesByErrorCode['last_admin_protected']}');
+      },
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      '403: sin permiso para cambiar el estado de la cuenta',
+      setUp: () => handler = (_) => errorResponse(403, code: 'forbidden'),
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => ranWith(TechnicianOutcomeKind.failed),
+      verify: (bloc) {
+        expect(bloc.state.outcome!.failure, isA<ForbiddenFailure>());
+        expect(bloc.state.outcome!.message, contains('No tienes permiso'));
+      },
+    );
+
+    blocTest<TechnicianActionsBloc, TechnicianActionsState>(
+      'sin red',
+      setUp: () => handler = (options) => throw DioException.connectionError(requestOptions: options, reason: 'sin red'),
+      build: () => buildAs(1),
+      act: (bloc) => bloc.add(TechnicianAccountChangeRequested(account(), active: false)),
+      wait: const Duration(milliseconds: 50),
+      expect: () => ranWith(TechnicianOutcomeKind.failed),
+      verify: (bloc) => expect(bloc.state.outcome!.failure, isA<NetworkFailure>()),
+    );
+  });
+
   test('mientras hay una acción en curso no empieza otra', () async {
     final bloc = build();
     addTearDown(bloc.close);

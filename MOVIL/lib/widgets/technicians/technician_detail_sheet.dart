@@ -26,10 +26,12 @@ import 'technician_views.dart';
 /// del periodo y sus tickets abiertos. Los indicadores y los tickets cargan y fallan por
 /// separado. [workload] es la carga que ya tiene la lista (`null` si no está disponible).
 /// [showRate] enseña la tarifa (solo a quien gestiona técnicos) y [showTickets] la lista de
-/// tickets (solo a quien puede ver tickets). Con [actions] (solo para quien tiene
-/// `tecnicos:editar`) salen «Editar perfil» y el cambio de disponibilidad: si la acción sale
-/// bien la hoja se cierra y el aviso lo da la pantalla; si falla, el motivo sale dentro.
-Future<void> showTechnicianDetail(BuildContext context, {required Technician technician, required Workload? workload, bool showRate = false, bool showTickets = true, TechnicianActionsBloc? actions}) => showMantixSheet<void>(
+/// tickets (solo a quien puede ver tickets). Con [actions] salen los botones que permitan los
+/// permisos: [canEdit] (`tecnicos:editar`) da «Editar perfil» y el cambio de disponibilidad, y
+/// [canChangeAccount] (`usuarios:cambiar_estado`) da activar o desactivar la cuenta (nunca la
+/// propia, que es la de [currentUserId]). Si la acción sale bien la hoja se cierra y el aviso lo
+/// da la pantalla; si falla, el motivo sale dentro.
+Future<void> showTechnicianDetail(BuildContext context, {required Technician technician, required Workload? workload, bool showRate = false, bool showTickets = true, TechnicianActionsBloc? actions, bool canEdit = false, bool canChangeAccount = false, int? currentUserId}) => showMantixSheet<void>(
       context,
       title: 'Ficha del técnico',
       builder: (sheetContext, controller) => BlocProvider(
@@ -39,12 +41,12 @@ Future<void> showTechnicianDetail(BuildContext context, {required Technician tec
           technicianId: technician.id,
           withTickets: showTickets,
         )..add(const TechnicianDetailRequested()),
-        child: _TechnicianDetail(technician: technician, workload: workload, controller: controller, showRate: showRate, showTickets: showTickets, actions: actions),
+        child: _TechnicianDetail(technician: technician, workload: workload, controller: controller, showRate: showRate, showTickets: showTickets, actions: actions, canEdit: canEdit && actions != null, canChangeAccount: canChangeAccount && actions != null, currentUserId: currentUserId),
       ),
     );
 
 class _TechnicianDetail extends StatefulWidget {
-  const _TechnicianDetail({required this.technician, required this.workload, required this.controller, required this.showRate, required this.showTickets, required this.actions});
+  const _TechnicianDetail({required this.technician, required this.workload, required this.controller, required this.showRate, required this.showTickets, required this.actions, required this.canEdit, required this.canChangeAccount, required this.currentUserId});
 
   final Technician technician;
   final Workload? workload;
@@ -52,6 +54,9 @@ class _TechnicianDetail extends StatefulWidget {
   final bool showRate;
   final bool showTickets;
   final TechnicianActionsBloc? actions;
+  final bool canEdit;
+  final bool canChangeAccount;
+  final int? currentUserId;
 
   @override
   State<_TechnicianDetail> createState() => _TechnicianDetailState();
@@ -94,6 +99,28 @@ class _TechnicianDetailState extends State<_TechnicianDetail> {
     widget.actions!.add(TechnicianAvailabilityRequested(technician, available: !technician.isAvailable));
   }
 
+  /// Desactivar la cuenta pide confirmación y explica el alcance: la persona no podrá entrar a
+  /// Mantix con ningún rol. Activarla de nuevo no la pide.
+  Future<void> _toggleAccount() async {
+    if (technician.isActive) {
+      final open = workload?.openOf(technician.id) ?? 0;
+      final ok = await showConfirmDialog(
+        context,
+        title: '¿Desactivar la cuenta de ${technician.fullName}?',
+        message: [
+          'No podrá iniciar sesión en Mantix, ni como técnico ni con ningún otro rol, y no se le podrán asignar tickets. Puedes reactivarla cuando quieras.',
+          if (open > 0) 'Tiene $open ${open == 1 ? 'ticket abierto' : 'tickets abiertos'}: ${open == 1 ? 'seguirá asignado' : 'seguirán asignados'} a esta persona hasta que los reasignes.',
+        ].join(' '),
+        confirmLabel: 'Desactivar cuenta',
+        destructive: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    setState(() => _error = null);
+    _waiting = true;
+    widget.actions!.add(TechnicianAccountChangeRequested(technician, active: !technician.isActive));
+  }
+
   void _onOutcome(BuildContext context, TechnicianActionsState state) {
     final outcome = state.outcome;
     if (outcome == null || !_waiting) return;
@@ -123,6 +150,9 @@ class _TechnicianDetailState extends State<_TechnicianDetail> {
     final loads = workload;
     final created = technician.createdAt;
     final open = loads?.openOf(technician.id) ?? 0;
+    // Nadie desactiva su propia cuenta desde aquí; sí puede activarla otra persona.
+    final isMe = technician.userId != null && technician.userId == widget.currentUserId;
+    final showAccount = widget.canChangeAccount && !(isMe && technician.isActive);
     return ListView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
@@ -148,8 +178,10 @@ class _TechnicianDetailState extends State<_TechnicianDetail> {
             ]),
           ),
         ],
-        if (widget.actions != null) ...[
+        if (widget.canEdit || showAccount) ...[
           const SizedBox(height: AppSpacing.md),
+        ],
+        if (widget.canEdit) ...[
           if (technician.isAvailable && open > 0)
             Container(
               margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -179,8 +211,18 @@ class _TechnicianDetailState extends State<_TechnicianDetail> {
             label: FittedBox(fit: BoxFit.scaleDown, child: Text(technician.isAvailable ? 'Marcar como no disponible' : 'Marcar como disponible', maxLines: 1)),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: AppColors.steel),
           ),
-          if (busy) const Padding(padding: EdgeInsets.only(top: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3)),
         ],
+        if (showAccount) ...[
+          if (widget.canEdit) const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: busy ? null : _toggleAccount,
+            icon: Icon(technician.isActive ? Icons.block_rounded : Icons.check_circle_outline_rounded, size: 18),
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text(technician.isActive ? 'Desactivar cuenta' : 'Activar cuenta', maxLines: 1)),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), foregroundColor: technician.isActive ? theme.colorScheme.error : AppColors.steel),
+          ),
+        ] else if (isMe && widget.canChangeAccount)
+          Padding(padding: const EdgeInsets.only(top: AppSpacing.sm), child: Text('No puedes desactivar tu propia cuenta.', textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate))),
+        if (busy && (widget.canEdit || showAccount)) const Padding(padding: EdgeInsets.only(top: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3)),
         const SizedBox(height: AppSpacing.md),
         DetailSection(icon: Icons.info_outline_rounded, title: 'Datos', children: [
           DetailField('Correo', technician.email.isEmpty ? 'Sin registrar' : technician.email),

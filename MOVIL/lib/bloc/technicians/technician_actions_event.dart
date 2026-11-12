@@ -23,6 +23,14 @@ class TechnicianEditRequested extends TechnicianActionsEvent {
   final String? rate;
 }
 
+/// Activar o desactivar la cuenta de usuario de [technician].
+class TechnicianAccountChangeRequested extends TechnicianActionsEvent {
+  const TechnicianAccountChangeRequested(this.technician, {required this.active});
+
+  final Technician technician;
+  final bool active;
+}
+
 /// Marcar a [technician] como disponible o no disponible.
 class TechnicianAvailabilityRequested extends TechnicianActionsEvent {
   const TechnicianAvailabilityRequested(this.technician, {required this.available});

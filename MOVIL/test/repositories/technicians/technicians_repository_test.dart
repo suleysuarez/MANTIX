@@ -150,6 +150,41 @@ void main() {
     });
   });
 
+  group('setAccountActive', () {
+    test('desactiva con POST al endpoint de usuarios y avisa', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, {'id': 105}));
+      final repository = repo(adapter);
+      final changes = <void>[];
+      final subscription = repository.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+
+      await repository.setAccountActive(105, active: false);
+      await pumpEventQueue();
+
+      expect(adapter.requests.single.method, 'POST');
+      expect(adapter.requests.single.path, '/admin/users/105/deactivate');
+      expect(changes, hasLength(1));
+    });
+
+    test('activa con el endpoint contrario', () async {
+      final adapter = FakeAdapter((_) => jsonResponse(200, {'id': 105}));
+      await repo(adapter).setAccountActive(105, active: true);
+      expect(adapter.requests.single.path, '/admin/users/105/activate');
+    });
+
+    test('un error del servidor llega traducido y no avisa de cambios', () async {
+      final adapter = FakeAdapter((_) => errorResponse(409, code: 'last_admin_protected'));
+      final repository = repo(adapter);
+      final changes = <void>[];
+      final subscription = repository.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+
+      await expectLater(repository.setAccountActive(105, active: false), throwsA(isA<ConflictFailure>()));
+      await pumpEventQueue();
+      expect(changes, isEmpty);
+    });
+  });
+
   group('update', () {
     test('solo viaja lo que se pasa; null borra el dato', () async {
       final adapter = FakeAdapter((_) => jsonResponse(200, technicianJson()));

@@ -13,6 +13,7 @@ import '../../support/technicians_support.dart';
 const _viewOnly = {'tecnicos:ver', 'dashboard:ver', 'tickets:ver'};
 const _editor = {..._viewOnly, 'tecnicos:editar'};
 const _supervisor = {..._editor, 'tecnicos:crear', 'equipos:asignar'};
+const _admin = {..._supervisor, 'usuarios:cambiar_estado'};
 
 void main() {
   late FakeAdapter adapter;
@@ -315,6 +316,82 @@ void main() {
     });
   });
 
+  group('desactivar la cuenta', () {
+    testWidgets('sin usuarios:cambiar_estado no hay botón', (tester) async {
+      await openDetail(tester, 'Luis Demo', permissions: _supervisor);
+      expect(find.text('Desactivar cuenta'), findsNothing);
+      expect(find.text('Activar cuenta'), findsNothing);
+    });
+
+    testWidgets('con solo ese permiso se ofrece, aunque no pueda editar el perfil', (tester) async {
+      await openDetail(tester, 'Luis Demo', permissions: {..._viewOnly, 'usuarios:cambiar_estado'});
+      expect(find.text('Desactivar cuenta'), findsOneWidget);
+      expect(find.text('Editar perfil'), findsNothing);
+      expect(find.text('Marcar como no disponible'), findsNothing);
+    });
+
+    testWidgets('pide confirmación, explica el alcance y avisa de los tickets abiertos', (tester) async {
+      await openDetail(tester, 'Luis Demo', permissions: _admin);
+      await tester.tap(find.text('Desactivar cuenta'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('¿Desactivar la cuenta de Luis Demo?'), findsOneWidget);
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.textContaining('ni como técnico ni con ningún otro rol')), findsOneWidget);
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.textContaining('Tiene 3 tickets abiertos: seguirán asignados a esta persona hasta que los reasignes.')), findsOneWidget);
+
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Cancelar')));
+      await tester.pumpAndSettle();
+      expect(writes(), isEmpty);
+      expect(find.text('Ficha del técnico'), findsOneWidget);
+    });
+
+    testWidgets('al confirmar manda la desactivación, cierra la ficha y avisa', (tester) async {
+      writeHandler = (_) => jsonResponse(200, {'id': 102});
+      await openDetail(tester, 'Luis Demo', permissions: _admin);
+      await tester.tap(find.text('Desactivar cuenta'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Desactivar cuenta')));
+      await tester.pumpAndSettle();
+
+      expect(writes().single.method, 'POST');
+      expect(writes().single.path, '/admin/users/102/deactivate');
+      expect(find.text('Ficha del técnico'), findsNothing);
+      expect(find.text('La cuenta de Luis Demo fue desactivada.'), findsOneWidget);
+    });
+
+    testWidgets('una cuenta inactiva se reactiva sin confirmación', (tester) async {
+      technicians = [technicianJson(id: 6, name: 'Inactivo Demo', active: false)];
+      writeHandler = (_) => jsonResponse(200, {'id': 106});
+      await openDetail(tester, 'Inactivo Demo', permissions: _admin);
+      await tester.tap(find.text('Activar cuenta'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(writes().single.path, '/admin/users/106/activate');
+      expect(find.text('La cuenta de Inactivo Demo fue activada.'), findsOneWidget);
+    });
+
+    testWidgets('la propia cuenta no se puede desactivar y lo dice', (tester) async {
+      technicians = [technicianJson(id: 6, name: 'Ana Pérez', userId: 1)];
+      await openDetail(tester, 'Ana Pérez', permissions: _admin);
+      expect(find.text('Desactivar cuenta'), findsNothing);
+      expect(find.text('No puedes desactivar tu propia cuenta.'), findsOneWidget);
+    });
+
+    testWidgets('409: el último administrador no se puede desactivar y el motivo sale en la ficha', (tester) async {
+      writeHandler = (_) => errorResponse(409, code: 'last_admin_protected');
+      await openDetail(tester, 'Luis Demo', permissions: _admin);
+      await tester.tap(find.text('Desactivar cuenta'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Desactivar cuenta')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ficha del técnico'), findsOneWidget);
+      expect(find.textContaining('No se pudo desactivar a Luis Demo:'), findsWidgets);
+      expect(find.textContaining('detalle interno'), findsNothing);
+    });
+  });
+
   group('sin overflow en pantallas pequeñas con texto 1,3', () {
     for (final size in const [Size(320, 568), Size(360, 640)]) {
       final label = '${size.width.toInt()}×${size.height.toInt()}';
@@ -344,6 +421,21 @@ void main() {
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
         }
+      });
+
+      testWidgets('la ficha con el botón de la cuenta y su confirmación en $label', (tester) async {
+        await open(tester, permissions: _admin, size: size, textScale: 1.3);
+        await tester.ensureVisible(find.text('Luis Demo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Luis Demo'));
+        await tester.pumpAndSettle();
+        await reveal(tester, find.text('Desactivar cuenta'));
+        await tester.tap(find.text('Desactivar cuenta'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Cancelar')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
       });
 
       testWidgets('la ficha con sus acciones y el formulario de edición en $label', (tester) async {

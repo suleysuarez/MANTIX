@@ -59,7 +59,9 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     super.initState();
     final repository = context.read<TechniciansRepository>();
     _list = TechniciansListBloc(repository: repository)..add(const TechniciansRequested());
-    _actions = TechnicianActionsBloc(repository: repository);
+    // Quien usa la app no puede desactivar su propia cuenta.
+    final auth = context.read<AuthBloc>().state;
+    _actions = TechnicianActionsBloc(repository: repository, currentUserId: auth is Authenticated ? auth.profile.id : null);
   }
 
   @override
@@ -137,6 +139,7 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
     final showRate = profile.can('tecnicos:editar');
     final showTickets = profile.can('tickets:ver');
     final canEdit = profile.can('tecnicos:editar');
+    final canChangeAccount = profile.can('usuarios:cambiar_estado');
     // Registrar exige además buscar al usuario, que el servidor guarda tras `equipos:asignar`.
     final canCreate = profile.can('tecnicos:crear') && profile.can('equipos:asignar');
     return BlocProvider.value(
@@ -191,7 +194,7 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
                         showRate: showRate,
                         highlightId: _highlightId,
                         onClearFilters: _clearAll,
-                        onOpen: (technician) => showTechnicianDetail(context, technician: technician, workload: state.workload, showRate: showRate, showTickets: showTickets, actions: canEdit ? _actions : null),
+                        onOpen: (technician) => showTechnicianDetail(context, technician: technician, workload: state.workload, showRate: showRate, showTickets: showTickets, actions: canEdit || canChangeAccount ? _actions : null, canEdit: canEdit, canChangeAccount: canChangeAccount, currentUserId: profile.id),
                         onPage: (page) {
                           _list.add(TechniciansPageChanged(page));
                           if (_scrollController.hasClients) _scrollController.jumpTo(0);

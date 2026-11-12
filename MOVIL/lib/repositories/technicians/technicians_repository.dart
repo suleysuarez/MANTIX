@@ -73,6 +73,14 @@ class TechniciansRepository {
         return PerformanceReport.fromJson(response.data!);
       });
 
+  /// Activa o desactiva la **cuenta de usuario** del técnico (requiere `usuarios:cambiar_estado`):
+  /// el perfil de técnico no tiene un estado propio, su `is_active` es el de la cuenta. Con la
+  /// cuenta desactivada la persona no puede iniciar sesión y no se le pueden asignar tickets.
+  Future<void> setAccountActive(int userId, {required bool active}) => _guard(() async {
+        await _dio.post<Object?>('/admin/users/$userId/${active ? 'activate' : 'deactivate'}');
+        _changes.add(null);
+      });
+
   static String? _rate(double? value) => value?.toStringAsFixed(2);
 
   /// Abre un perfil de técnico al usuario [userId] (requiere `tecnicos:crear`). Un usuario que
