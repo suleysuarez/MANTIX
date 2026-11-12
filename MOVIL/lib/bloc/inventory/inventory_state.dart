@@ -30,14 +30,14 @@ class InventoryState extends Equatable {
     PageInfo? pageInfo, bool clearPageInfo = false, InventoryOverview? overview, int? page,
     int? pageSize, String? search, String? category, bool clearCategory = false,
     String? status, bool clearStatus = false, Failure? failure, bool clearFailure = false,
-    InventoryItem? createdItem, bool clearCreated = false, String? notice,
+    InventoryItem? createdItem, bool clearCreated = false, String? notice, bool clearNotice = false,
   }) => InventoryState(
     loading: loading ?? this.loading, saving: saving ?? this.saving, items: items ?? this.items,
     options: options ?? this.options, pageInfo: clearPageInfo ? null : (pageInfo ?? this.pageInfo),
     overview: overview ?? this.overview, page: page ?? this.page, pageSize: pageSize ?? this.pageSize,
     search: search ?? this.search, category: clearCategory ? null : (category ?? this.category),
     status: clearStatus ? null : (status ?? this.status), failure: clearFailure ? null : (failure ?? this.failure),
-    createdItem: clearCreated ? null : (createdItem ?? this.createdItem), notice: notice ?? this.notice,
+    createdItem: clearCreated ? null : (createdItem ?? this.createdItem), notice: clearNotice ? null : (notice ?? this.notice),
   );
 
   @override

@@ -63,7 +63,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   }
 
   Future<void> _onCreateItem(InventoryItemCreateRequested event, Emitter<InventoryState> emit) async {
-    emit(state.copyWith(saving: true, clearFailure: true, clearCreated: true));
+    emit(state.copyWith(saving: true, clearFailure: true, clearCreated: true, clearNotice: true));
     try {
       final item = await repository.createItem(event.payload);
       emit(state.copyWith(saving: false, createdItem: item, notice: 'Ítem creado correctamente.'));
@@ -74,7 +74,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   }
 
   Future<void> _onMovement(InventoryMovementRequested event, Emitter<InventoryState> emit) async {
-    emit(state.copyWith(saving: true, clearFailure: true));
+    emit(state.copyWith(saving: true, clearFailure: true, clearNotice: true));
     try {
       await repository.registerMovement(event.itemId, kind: event.kind, quantity: event.quantity, notes: event.notes);
       emit(state.copyWith(saving: false, notice: event.kind == 'out' ? 'Consumo registrado.' : 'Entrada registrada.'));
