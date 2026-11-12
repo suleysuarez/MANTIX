@@ -38,13 +38,14 @@ class SettingsRepository {
     await _dio.post<Object?>('/settings/categories', data: {'code': code, 'name': name});
   });
   Future<void> updateCategory(int id, {String? name, bool? isActive}) => _guard(() async {
-    await _dio.patch<Object?>('/settings/categories/$id', data: {if (name != null) 'name': name, if (isActive != null) 'is_active': isActive});
+    await _dio.patch<Object?>('/settings/categories/$id', data: {'name': ?name, 'is_active': ?isActive});
   });
   Future<void> deleteCategory(int id) => _guard(() async { await _dio.delete<Object?>('/settings/categories/$id'); });
   Future<void> updatePriority(int id, {String? name, int? level, int? slaHours, bool clearSla = false, bool? isActive}) => _guard(() async {
     await _dio.patch<Object?>('/priorities/$id', data: {
-      if (name != null) 'name': name, if (level != null) 'level': level,
-      if (slaHours != null || clearSla) 'sla_hours': clearSla ? null : slaHours, if (isActive != null) 'is_active': isActive,
+      'name': ?name, 'level': ?level,
+      if (clearSla) 'sla_hours': null else 'sla_hours': ?slaHours,
+      'is_active': ?isActive,
     });
   });
 }

@@ -6,13 +6,13 @@ import 'package:equatable/equatable.dart';
 import '../../core/errors/failure.dart';
 import '../../core/errors/failure_mapper.dart';
 import '../../models/settings/settings_models.dart';
-import '../../repositories/settings/settings_repository.dart';
+import '../../repositories/settings/settingsrepository.dart';
 
 part 'settings_event.dart';
 part 'settings_state.dart';
 
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
-  SettingsBloc({required SettingsRepository repository}) : _repository = repository, super(const SettingsState()) {
+  SettingsBloc({required this.repository}) : super(const SettingsState()) {
     on<SettingsStarted>((event, emit) => _load(emit));
     on<SettingsRefreshRequested>((event, emit) async { try { await _load(emit); } finally { if (event.done != null && !event.done!.isCompleted) event.done!.complete(); } });
     on<OrganizationSaveRequested>(_onOrganizationSave);
@@ -22,7 +22,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<PriorityUpdateRequested>(_onPriorityUpdate);
   }
 
-  final SettingsRepository _repository;
+  final SettingsRepository repository;
 
   Future<void> _load(Emitter<SettingsState> emit, {bool showLoading = true}) async {
     if (showLoading) emit(state.copyWith(loading: true, clearFailure: true));

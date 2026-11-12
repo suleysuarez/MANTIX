@@ -377,7 +377,7 @@ class _CategoryRow extends StatelessWidget {
       ])),
       if (canEdit) ...[
         IconButton(tooltip: 'Renombrar', visualDensity: VisualDensity.compact, onPressed: () => _rename(context), icon: const Icon(Icons.edit_outlined, size: 17, color: AppColors.steel)),
-        Switch.adaptive(value: category.isActive, activeColor: AppColors.mustard, onChanged: (v) => context.read<SettingsBloc>().add(CategoryUpdateRequested(id: category.id, isActive: v))),
+        Switch.adaptive(value: category.isActive, activeThumbColor: AppColors.mustard, onChanged: (v) => context.read<SettingsBloc>().add(CategoryUpdateRequested(id: category.id, isActive: v))),
       ] else Text(category.isActive ? 'Activa' : 'Inactiva', style: const TextStyle(color: AppColors.steel, fontSize: 10)),
     ]));
   Future<void> _rename(BuildContext context) async {
