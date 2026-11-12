@@ -9,6 +9,7 @@ import 'package:mantix/services/api_client.dart';
 import 'package:mantix/repositories/auth/mobile_auth_repository.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/inventory/inventory_repository.dart';
+import 'package:mantix/repositories/profile/profile_repository.dart';
 import 'package:mantix/repositories/home/dashboard_repository.dart';
 import 'package:mantix/repositories/notifications/notifications_repository.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
@@ -62,6 +63,7 @@ Widget appWith({String? token = 'token-0', required Object body, void Function(F
     dashboardRepository: DashboardRepository(dio),
     equipmentRepository: EquipmentRepository(dio),
     inventoryRepository: InventoryRepository(dio),
+    profileRepository: ProfileRepository(dio),
     notificationsRepository: NotificationsRepository(dio),
   );
 }
@@ -101,7 +103,11 @@ void main() {
     await tester.pumpWidget(appWith(body: me(['X'], ['tickets:ver'])));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ana Pérez'), findsOneWidget);
+    expect(find.text('Ana Pérez'), findsWidgets, reason: 'en el encabezado y en «Mis datos»');
+    // Los permisos están plegados: se abren para verlos.
+    await tester.scrollUntilVisible(find.textContaining('Mis permisos'), 200);
+    await tester.tap(find.textContaining('Mis permisos'));
+    await tester.pumpAndSettle();
     expect(find.text('tickets:ver'), findsOneWidget);
   });
 
