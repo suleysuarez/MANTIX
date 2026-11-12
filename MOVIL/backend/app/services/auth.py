@@ -1,5 +1,3 @@
-from datetime import UTC, datetime, timedelta
-
 from sqlalchemy.exc import IntegrityError
 
 from app.core.clerk import (
@@ -15,9 +13,6 @@ from app.repositories.auth import AuthRepository
 from app.schemas.auth import PermissionResponse, RoleResponse, UserResponse
 from app.services.audit import AuditService
 
-#: A new session is recorded when the previous one started longer ago than this.
-SESSION_GAP = timedelta(minutes=30)
-
 
 class ClerkAuthService:
     def __init__(
@@ -30,26 +25,10 @@ class ClerkAuthService:
         self.settings = settings
         self.audit = audit
 
-    async def _touch_login(self, user: User) -> None:
-        """Note the start of a session (at most once per `SESSION_GAP`), with an audit entry."""
-        now = datetime.now(UTC)
-        if user.last_login_at is not None and now - user.last_login_at < SESSION_GAP:
-            return
-        user.last_login_at = now
-        if self.audit is not None:
-            self.audit.record(
-                user_id=user.id,
-                action="auth.login",
-                entity_type="user",
-                entity_id=user.id,
-            )
-        await self.repository.commit()
-
     async def resolve_local_user(self, identity: VerifiedClerkIdentity) -> User:
         user = await self.repository.get_user_by_clerk_id(identity.user_id)
         if user is not None:
             user = self._require_active(user)
-            await self._touch_login(user)
             if not user.roles:
                 assigned = await self._assign_bootstrap_admin(user)
                 if assigned:
@@ -95,7 +74,6 @@ class ClerkAuthService:
                         "Clerk identity is already linked to another local user",
                         code="account_email_linked_to_other",
                     ) from exc
-            await self._touch_login(user)
             return user
 
         return await self._provision_first_or_pending(profile)
