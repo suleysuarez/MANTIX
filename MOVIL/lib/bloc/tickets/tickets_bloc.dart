@@ -21,8 +21,34 @@ class TicketsBloc extends PagedBloc<TicketListItem> {
   late final StreamSubscription<void> _changes;
 
   @override
-  Future<PagedResult<TicketListItem>> fetch(int page) =>
-      _repository.listRequests(page: page, status: status, search: search, dateFrom: dateFrom, dateTo: dateTo, priorities: priorities, equipmentIds: equipmentIds, size: pageSize);
+  Future<PagedResult<TicketListItem>> fetch(int page) async {
+    Future<PagedResult<TicketListItem>> request(int requestedPage) => _repository.listRequests(
+          page: requestedPage,
+          status: status,
+          search: search,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          priorities: priorities,
+          equipmentIds: equipmentIds,
+          size: pageSize,
+        );
+
+    final first = await request(page);
+    // Kanban no tiene paginador: consume todas las páginas del servidor en una sola carga.
+    if (pageSize < 500 || page != 1 || first.info?.nextPage == null) return first;
+    final items = [...first.items];
+    var info = first.info;
+    while (info?.nextPage != null) {
+      final next = await request(info!.nextPage!);
+      items.addAll(next.items);
+      if (next.info == null) {
+        info = null;
+        break;
+      }
+      info = next.info;
+    }
+    return PagedResult(items: items, info: info);
+  }
 
   @override
   Future<void> close() async {

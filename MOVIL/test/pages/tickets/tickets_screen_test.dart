@@ -326,6 +326,23 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('Kanban carga también las páginas siguientes sin mostrar paginador', (tester) async {
+      listHandler = (options) {
+        final page = options.queryParameters['page'] as int;
+        return pagedResponse(
+          [ticketJson(id: page == 1 ? 1 : 501, title: page == 1 ? 'Primer ticket' : 'Ticket 501')],
+          page: page,
+          totalPages: 2,
+          total: 501,
+        );
+      };
+      await openBoard(tester);
+
+      expect(find.text('Ticket 501'), findsOneWidget);
+      expect(listRequests().where((r) => r.queryParameters['size'] == 500), hasLength(2));
+      expect(find.byType(Paginator), findsNothing);
+    });
+
     testWidgets('muestra un estado debajo de otro con su contador y sin desplazamiento horizontal', (tester) async {
       await openBoard(tester);
 
