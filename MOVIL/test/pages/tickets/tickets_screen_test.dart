@@ -9,6 +9,7 @@ import 'package:mantix/models/requests/request_models.dart';
 import 'package:mantix/pages/tickets/tickets_screen.dart';
 import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
+import 'package:mantix/widgets/shared/paginator.dart';
 import 'package:mantix/widgets/tickets/ticket_cards.dart';
 
 import '../../support/paginator_support.dart';

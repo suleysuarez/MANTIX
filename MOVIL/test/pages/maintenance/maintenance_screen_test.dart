@@ -418,7 +418,8 @@ void main() {
 
       expect(find.textContaining('Sin asignar'), findsOneWidget);
       expect(find.text('—'), findsOneWidget);
-      expect(find.text('Este plan aún no tiene servicios hechos ni cambios de fecha.'), findsOneWidget);
+      expect(find.textContaining('Plan creado el'), findsOneWidget);
+      expect(find.text('Este plan aún no tiene servicios hechos ni cambios de fecha.'), findsNothing);
     });
 
     testWidgets('las fechas salen en español', (tester) async {

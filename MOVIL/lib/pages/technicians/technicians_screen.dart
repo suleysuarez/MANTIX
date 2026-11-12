@@ -136,7 +136,7 @@ class _TechniciansScreenState extends State<TechniciansScreen> {
       return const Scaffold(body: Center(child: Text('No encontramos los datos de tu sesión.')));
     }
     // La tarifa solo llega a quien gestiona técnicos; a los demás ni se les enseña el campo.
-    final showRate = profile.can('tecnicos:editar');
+    const showRate = false; // La tarifa por técnico no se expone en la app móvil.
     final showTickets = profile.can('tickets:ver');
     final canEdit = profile.can('tecnicos:editar');
     final canChangeAccount = profile.can('usuarios:cambiar_estado');

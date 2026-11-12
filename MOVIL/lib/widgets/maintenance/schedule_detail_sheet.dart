@@ -153,7 +153,7 @@ class _ScheduleDetailState extends State<_ScheduleDetail> {
                 _Data(plan: plan, now: widget.now),
               ],
               const SizedBox(height: AppSpacing.md),
-              _History(state: state, onRetry: () => bloc.add(const ScheduleHistoryRetried())),
+              _History(state: state, createdAt: plan?.createdAt, onRetry: () => bloc.add(const ScheduleHistoryRetried())),
             ],
           );
         },
@@ -202,9 +202,10 @@ class _Data extends StatelessWidget {
 }
 
 class _History extends StatelessWidget {
-  const _History({required this.state, required this.onRetry});
+  const _History({required this.state, required this.createdAt, required this.onRetry});
 
   final ScheduleDetailState state;
+  final DateTime? createdAt;
   final VoidCallback onRetry;
 
   @override
@@ -216,9 +217,16 @@ class _History extends StatelessWidget {
         Semantics(label: 'Cargando el historial', child: const Column(children: [Skeleton(height: 44), SizedBox(height: AppSpacing.sm), Skeleton(height: 44)]))
       else if (history == null)
         _BlockError(message: 'No pudimos cargar el historial. ${state.historyFailure?.message ?? ''}'.trim(), onRetry: onRetry)
-      else if (history.runs.isEmpty && history.reschedules.isEmpty)
+      else if (history.runs.isEmpty && history.reschedules.isEmpty && createdAt == null)
         Text('Este plan aún no tiene servicios hechos ni cambios de fecha.', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.steel))
       else ...[
+        if (createdAt != null)
+          _Entry(
+            icon: Icons.add_circle_outline_rounded,
+            title: 'Plan creado el ${formatDate(createdAt!)}',
+            detail: 'Se registró el mantenimiento preventivo por primera vez.',
+            tone: plannedTone,
+          ),
         for (final run in history.runs)
           _Entry(
             icon: Icons.check_circle_outline_rounded,

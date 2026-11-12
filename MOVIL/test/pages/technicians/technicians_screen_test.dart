@@ -186,14 +186,12 @@ void main() {
       expect(cardNames(tester), hasLength(4));
     });
 
-    testWidgets('tocar una cifra filtra por ese estado y «Total» lo quita', (tester) async {
+    testWidgets('los KPI resumen capacidad y demanda sin alterar la lista', (tester) async {
       await open(tester);
-      await tester.tap(find.text('CON TICKETS ACTIVOS'));
-      await tester.pumpAndSettle();
-      expect(cardNames(tester), ['Ana Demo', 'Luis Demo']);
-
-      await tester.tap(find.text('TOTAL TÉCNICOS'));
-      await tester.pumpAndSettle();
+      expect(find.text('TÉCNICOS DISPONIBLES'), findsOneWidget);
+      expect(find.text('SIN CARGA'), findsOneWidget);
+      expect(find.text('CON SOBRECARGA'), findsOneWidget);
+      expect(find.text('TICKETS SIN ASIGNAR'), findsOneWidget);
       expect(cardNames(tester), hasLength(4));
     });
 

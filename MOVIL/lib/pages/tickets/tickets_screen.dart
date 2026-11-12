@@ -241,7 +241,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
             ));
         },
         child: BlocProvider(
-          key: ValueKey('$_statusCsv|${_priorities.join(',')}|${_equipments.keys.join(',')}|$_search|$_dates|$_pageSize|$_generation'),
+          key: ValueKey('$_statusCsv|${_priorities.join(',')}|${_equipments.keys.join(',')}|$_search|$_dates|$_pageSize|$_generation|$_kanban'),
           create: (context) => TicketsBloc(
             repository: _repository,
             status: _statusCsv,

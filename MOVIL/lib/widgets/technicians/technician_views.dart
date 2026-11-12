@@ -153,7 +153,8 @@ class TechniciansTable extends StatelessWidget {
   final int? highlightedId;
 
   static const _statusWidth = 96.0;
-  static const _numberWidth = 44.0;
+  static const _numberWidth = 42.0;
+  static const _metricGap = 12.0;
   static const _arrowWidth = 20.0;
 
   @override
@@ -172,6 +173,7 @@ class TechniciansTable extends StatelessWidget {
             Expanded(child: Text('TÉCNICO', maxLines: 1, overflow: TextOverflow.ellipsis, style: head)),
             SizedBox(width: _statusWidth, child: fitted('ESTADO')),
             SizedBox(width: _numberWidth, child: fitted('ABIERTOS')),
+            const SizedBox(width: _metricGap),
             SizedBox(width: _numberWidth, child: fitted('RESUELTOS')),
             const SizedBox(width: _arrowWidth),
           ]),
@@ -230,6 +232,7 @@ class _Row extends StatelessWidget {
                   child: FittedBox(fit: BoxFit.scaleDown, child: TechnicianStatusChip(technician: technician, workload: workload)),
                 ),
                 SizedBox(width: TechniciansTable._numberWidth, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text(open, style: number)))),
+                const SizedBox(width: TechniciansTable._metricGap),
                 SizedBox(width: TechniciansTable._numberWidth, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text(resolved, style: number)))),
                 const SizedBox(width: TechniciansTable._arrowWidth, child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.slate)),
               ]),

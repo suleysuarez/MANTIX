@@ -33,6 +33,7 @@ void main() {
     failing = {};
     adapter = FakeAdapter((options) {
       if (options.path == '/maintenance/requests/workflow') return jsonResponse(200, _workflow);
+      if (options.method == 'POST' && options.path.endsWith('/assignment')) return jsonResponse(200, {});
       final status = options.queryParameters['status'] as String;
       if (failing.contains(status)) return errorResponse(500);
       final page = options.queryParameters['page'] as int;
@@ -289,4 +290,19 @@ void main() {
 
     await done.future.timeout(const Duration(seconds: 2));
   });
+  test('se actualiza cuando un ticket se asigna desde otra pantalla', () async {
+    final repository = RequestsRepository(dioWith(adapter));
+    final bloc = RequestBoardBloc(repository: repository)..add(const RequestBoardStarted());
+    addTearDown(bloc.close);
+    await bloc.stream.firstWhere(settled);
+
+    final ticket = server['submitted']!.removeAt(0);
+    server['assigned']!.add({...ticket, 'status': 'assigned'});
+    await repository.assignTechnician(1, technicianId: 4);
+
+    await bloc.stream.firstWhere((state) => settled(state) && state.column('assigned')!.items.any((item) => item.id == 1));
+    expect(bloc.state.column('submitted')!.total, 11);
+    expect(bloc.state.column('assigned')!.total, 1);
+  });
+
 }
