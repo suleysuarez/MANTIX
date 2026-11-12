@@ -157,7 +157,7 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
   Widget _dropdown(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String?> onChanged) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w800)),
     const SizedBox(height: 5),
-    DropdownButtonFormField<String>(value: value, isExpanded: true, decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)), items: items, onChanged: onChanged),
+    DropdownButtonFormField<String>(initialValue: value, isExpanded: true, decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)), items: items, onChanged: onChanged),
   ]);
 
   String? _skuValidator(String? value) {
@@ -200,15 +200,18 @@ class _InventoryMovementSheetState extends State<InventoryMovementSheet> {
   Widget build(BuildContext context) => BlocListener<InventoryBloc, InventoryState>(
     listenWhen: (a, b) => _submitted && a.saving && !b.saving,
     listener: (context, state) {
-      if (state.failure == null) Navigator.pop(context);
-      else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.failure!.message)));
+      if (state.failure == null) {
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.failure!.message)));
+      }
     },
     child: Padding(
       padding: EdgeInsets.fromLTRB(18, 8, 18, MediaQuery.viewInsetsOf(context).bottom + 18),
       child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(widget.kind == 'out' ? 'Registrar consumo' : 'Registrar entrada', style: const TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text(widget.item.name + ' · Stock actual: ' + widget.item.stock.toString() + ' ' + widget.item.unit, style: const TextStyle(color: AppColors.slate, fontSize: 12)),
+        Text('${widget.item.name} · Stock actual: ${widget.item.stock} ${widget.item.unit}', style: const TextStyle(color: AppColors.slate, fontSize: 12)),
         const SizedBox(height: 14),
         TextFormField(controller: _quantity, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Cantidad'), validator: (value) {
           final amount = int.tryParse(value ?? '');

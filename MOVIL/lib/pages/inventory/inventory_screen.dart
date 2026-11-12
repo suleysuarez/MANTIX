@@ -63,13 +63,13 @@ class _InventoryViewState extends State<_InventoryView> {
           const Text('Filtros de inventario', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.navy)),
           const SizedBox(height: 14),
           DropdownButtonFormField<String?>(
-            value: category, decoration: const InputDecoration(labelText: 'Categoría'),
+            initialValue: category, decoration: const InputDecoration(labelText: 'Categoría'),
             items: [const DropdownMenuItem<String?>(value: null, child: Text('Todas')), for (final option in categories) DropdownMenuItem<String?>(value: option.value, child: Text(option.label))],
             onChanged: (value) => setSheet(() => category = value),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String?>(
-            value: status, decoration: const InputDecoration(labelText: 'Disponibilidad'),
+            initialValue: status, decoration: const InputDecoration(labelText: 'Disponibilidad'),
             items: const [
               DropdownMenuItem<String?>(value: null, child: Text('Todos los estados')),
               DropdownMenuItem<String?>(value: 'ok', child: Text('En stock')),
@@ -233,7 +233,7 @@ class _ItemCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.navy, fontSize: 13, fontWeight: FontWeight.w800)),
-            Text('SKU: ' + item.sku, style: const TextStyle(color: AppColors.slate, fontSize: 10.5)),
+            Text('SKU: ${item.sku}', style: const TextStyle(color: AppColors.slate, fontSize: 10.5)),
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(item.stock.toString(), style: const TextStyle(color: AppColors.navy, fontSize: 20, fontWeight: FontWeight.w900)),

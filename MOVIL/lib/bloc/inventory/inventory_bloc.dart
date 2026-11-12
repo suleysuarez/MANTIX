@@ -5,13 +5,13 @@ import '../../core/errors/failure.dart';
 import '../../core/errors/failure_mapper.dart';
 import '../../models/inventory/inventory_models.dart';
 import '../../models/page_info.dart';
-import '../../repositories/inventory/inventory_repository.dart';
+import '../../repositories/inventory/inventoryrepository.dart';
 
 part 'inventory_event.dart';
 part 'inventory_state.dart';
 
 class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
-  InventoryBloc({required InventoryRepository repository}) : _repository = repository, super(const InventoryState()) {
+  InventoryBloc({required this.repository}) : super(const InventoryState()) {
     on<InventoryStarted>(_onStarted);
     on<InventoryQueryChanged>(_onQueryChanged);
     on<InventoryPageChanged>(_onPageChanged);
@@ -19,7 +19,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<InventoryMovementRequested>(_onMovement);
   }
 
-  final InventoryRepository _repository;
+  final InventoryRepository repository;
 
   Future<void> _onStarted(InventoryStarted event, Emitter<InventoryState> emit) async {
     emit(state.copyWith(loading: true, clearFailure: true));

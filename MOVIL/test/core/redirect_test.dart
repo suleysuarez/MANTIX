@@ -8,6 +8,7 @@ import 'package:mantix/pages/queue/pending_requests_screen.dart';
 import 'package:mantix/pages/maintenance/maintenance_screen.dart';
 import 'package:mantix/pages/technicians/technicians_screen.dart';
 import 'package:mantix/pages/users/users_screen.dart';
+import 'package:mantix/pages/inventory/inventory_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
