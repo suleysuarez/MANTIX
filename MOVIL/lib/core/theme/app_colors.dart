@@ -8,7 +8,7 @@ abstract final class AppColors {
   static const Color steel = Color(0xFF3E5C76);
   static const Color slate = Color(0xFF778DA9);
   static const Color grey = Color(0xFFCED4DA);
-  static const Color mustard = Color(0xFFE4B363);
+  static const Color mustard = Color(0xFFF5B324);
   static const Color navy = Color(0xFF0B172A);
   static const Color white = Color(0xFFFFFFFF);
   static const Color error = Color(0xFFBA1A1A);
