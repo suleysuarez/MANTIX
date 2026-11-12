@@ -16,6 +16,7 @@ import '../../pages/profile/profile_screen.dart';
 import '../../pages/equipment/equipment_screen.dart';
 import '../../pages/queue/pending_requests_screen.dart';
 import '../../pages/maintenance/maintenance_screen.dart';
+import '../../pages/reports/reports_screen.dart';
 import '../../pages/technicians/technicians_screen.dart';
 import '../../pages/users/users_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
@@ -118,6 +119,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: UsersScreen.path, builder: (_, _) => const UsersScreen()),
       GoRoute(path: TechniciansScreen.path, builder: (_, _) => const TechniciansScreen()),
       GoRoute(path: MaintenanceScreen.path, builder: (_, _) => const MaintenanceScreen()),
+      GoRoute(path: ReportsScreen.path, builder: (_, _) => const ReportsScreen()),
       GoRoute(path: '/modulos/mantenimiento', redirect: (_, _) => MaintenanceScreen.path),
       // Las tres entradas de antes llevaban a «próximamente»; ahora todo está en una pantalla.
       for (final legacy in const ['usuarios', 'roles', 'usuarios-pendientes']) GoRoute(path: '/modulos/$legacy', redirect: (_, _) => UsersScreen.path),
@@ -132,7 +134,7 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
         // Un id que no es número no abre el detalle: vuelve al inicio.
         redirect: (_, state) => int.tryParse(state.pathParameters['id'] ?? '') == null ? HomeDestination.myRequests.path : null,
       ),
-      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests && d != HomeDestination.globalDashboard && d != HomeDestination.ownDashboard))
+      for (final destination in HomeDestination.values.where((d) => d != HomeDestination.profile && d != HomeDestination.myRequests && d != HomeDestination.globalDashboard && d != HomeDestination.ownDashboard && d != HomeDestination.reports))
         GoRoute(path: destination.path, builder: (_, _) => HomePlaceholderScreen(destination: destination)),
     ],
   );
