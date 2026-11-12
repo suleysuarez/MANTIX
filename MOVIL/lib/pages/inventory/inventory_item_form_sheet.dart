@@ -142,15 +142,6 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
     }),
   );
 
-  Widget _section(String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(children: [
-      Container(width: 4, height: 15, decoration: BoxDecoration(color: AppColors.mustard, borderRadius: BorderRadius.circular(4))),
-      const SizedBox(width: 7),
-      Text(value, style: const TextStyle(color: AppColors.steel, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: .5)),
-    ]),
-  );
-
   Widget _field(String label, TextEditingController controller, {required IconData icon, String? Function(String?)? validator, bool required = true, int maxLines = 1, TextInputType? keyboard, String? hint, Widget? suffix}) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
