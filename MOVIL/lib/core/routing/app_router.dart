@@ -15,6 +15,7 @@ import '../../pages/home/module_placeholder_screen.dart';
 import '../../pages/profile/profile_screen.dart';
 import '../../pages/equipment/equipment_screen.dart';
 import '../../pages/queue/pending_requests_screen.dart';
+import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/technicians/technicians_screen.dart';
 import '../../pages/users/users_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
@@ -77,6 +78,7 @@ const _routePermissions = {
   PendingRequestsScreen.path: 'solicitudes:ver_todos',
   UsersScreen.path: 'usuarios:ver',
   TechniciansScreen.path: 'tecnicos:ver',
+  MaintenanceScreen.path: 'mantenimiento:ver',
 };
 
 /// Hace que `go_router` reevalúe `redirect` cada vez que el [Stream] emite.
@@ -115,6 +117,8 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: PendingRequestsScreen.path, builder: (_, _) => const PendingRequestsScreen()),
       GoRoute(path: UsersScreen.path, builder: (_, _) => const UsersScreen()),
       GoRoute(path: TechniciansScreen.path, builder: (_, _) => const TechniciansScreen()),
+      GoRoute(path: MaintenanceScreen.path, builder: (_, _) => const MaintenanceScreen()),
+      GoRoute(path: '/modulos/mantenimiento', redirect: (_, _) => MaintenanceScreen.path),
       // Las tres entradas de antes llevaban a «próximamente»; ahora todo está en una pantalla.
       for (final legacy in const ['usuarios', 'roles', 'usuarios-pendientes']) GoRoute(path: '/modulos/$legacy', redirect: (_, _) => UsersScreen.path),
       GoRoute(path: '/modulos/tecnicos', redirect: (_, _) => TechniciansScreen.path),

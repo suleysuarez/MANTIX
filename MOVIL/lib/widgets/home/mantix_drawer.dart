@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../pages/queue/pending_requests_screen.dart';
+import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/users/users_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
@@ -47,7 +48,7 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Mis solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver'], 'solicitudes:ver_todos'),
     _NavItem('Solicitudes pendientes', Icons.move_to_inbox_outlined, PendingRequestsScreen.path, 'solicitudes:ver_todos'),
     _NavItem('Técnicos', Icons.engineering_outlined, '/tecnicos', 'tecnicos:ver'),
-    _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
+    _NavItem('Mantenimiento', Icons.event_repeat_rounded, MaintenanceScreen.path, 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
     _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
     // Usuarios, pendientes y roles viven en una sola pantalla con tres pestañas.
