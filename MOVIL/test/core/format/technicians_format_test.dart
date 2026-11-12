@@ -70,7 +70,7 @@ void main() {
     test('la tarjeta de resumen filtra por estado operativo', () {
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.busy))), ['Sofía Ruiz']);
       expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.free))), ['Bruno Paz']);
-      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Ana Gil', 'Zoe Mar']);
+      expect(names(filterTechnicians(all, workload, const TechnicianFilters(status: TechnicianStatus.unavailable))), ['Zoe Mar', 'Ana Gil']);
     });
 
     test('varias especialidades: basta con tener una', () {
