@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../pages/queue/pending_requests_screen.dart';
 import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/users/users_screen.dart';
+import '../../pages/settings/settings_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
@@ -53,7 +54,7 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
     // Usuarios, pendientes y roles viven en una sola pantalla con tres pestañas.
     _NavItem('Usuarios y roles', Icons.manage_accounts_outlined, UsersScreen.path, 'usuarios:ver'),
-    _NavItem('Configuración', Icons.settings_outlined, '/modulos/configuracion', 'configuracion:ver'),
+    _NavItem('Configuración', Icons.settings_outlined, SettingsScreen.path, 'configuracion:ver'),
   ];
 
   static String _roleLabel(UserProfile profile) {

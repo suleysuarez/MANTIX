@@ -18,6 +18,7 @@ import 'repositories/queue/queue_repository.dart';
 import 'repositories/notifications/notifications_repository.dart';
 import 'repositories/catalogs/catalogs_repository.dart';
 import 'repositories/requests/requests_repository.dart';
+import 'repositories/settings/settings_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,5 +47,6 @@ Future<void> main() async {
     techniciansRepository: TechniciansRepository(dio),
     maintenanceRepository: MaintenanceRepository(dio),
     reportsRepository: ReportsRepository(dio),
+    settingsRepository: SettingsRepository(dio),
   ));
 }

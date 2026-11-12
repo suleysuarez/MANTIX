@@ -20,6 +20,7 @@ import '../../pages/maintenance/maintenance_screen.dart';
 import '../../pages/reports/reports_screen.dart';
 import '../../pages/technicians/technicians_screen.dart';
 import '../../pages/users/users_screen.dart';
+import '../../pages/settings/settings_screen.dart';
 import '../../pages/requests/my_requests_screen.dart';
 import '../../pages/requests/request_detail_screen.dart';
 import '../../pages/tickets/tickets_screen.dart';
@@ -80,6 +81,7 @@ const _routePermissions = {
   InventoryScreen.path: 'inventario:ver',
   PendingRequestsScreen.path: 'solicitudes:ver_todos',
   UsersScreen.path: 'usuarios:ver',
+  SettingsScreen.path: 'configuracion:ver',
   TechniciansScreen.path: 'tecnicos:ver',
   MaintenanceScreen.path: 'mantenimiento:ver',
 };
@@ -120,12 +122,14 @@ GoRouter createAppRouter({required AuthBloc authBloc, required Listenable refres
       GoRoute(path: TicketRoutes.list, builder: (_, _) => const TicketsScreen()),
       GoRoute(path: PendingRequestsScreen.path, builder: (_, _) => const PendingRequestsScreen()),
       GoRoute(path: UsersScreen.path, builder: (_, _) => const UsersScreen()),
+      GoRoute(path: SettingsScreen.path, builder: (_, _) => const SettingsScreen()),
       GoRoute(path: TechniciansScreen.path, builder: (_, _) => const TechniciansScreen()),
       GoRoute(path: MaintenanceScreen.path, builder: (_, _) => const MaintenanceScreen()),
       GoRoute(path: ReportsScreen.path, builder: (_, _) => const ReportsScreen()),
       GoRoute(path: '/modulos/mantenimiento', redirect: (_, _) => MaintenanceScreen.path),
       // Las tres entradas de antes llevaban a «próximamente»; ahora todo está en una pantalla.
       for (final legacy in const ['usuarios', 'roles', 'usuarios-pendientes']) GoRoute(path: '/modulos/$legacy', redirect: (_, _) => UsersScreen.path),
+      GoRoute(path: '/modulos/configuracion', redirect: (_, _) => SettingsScreen.path),
       GoRoute(path: '/modulos/tecnicos', redirect: (_, _) => TechniciansScreen.path),
       GoRoute(path: '/modulos/:module', builder: (_, state) => ModulePlaceholderScreen(module: state.pathParameters['module'] ?? '')),
       // Solo en debug: no existe en las compilaciones de producción.

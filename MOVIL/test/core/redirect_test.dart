@@ -9,6 +9,7 @@ import 'package:mantix/pages/maintenance/maintenance_screen.dart';
 import 'package:mantix/pages/technicians/technicians_screen.dart';
 import 'package:mantix/pages/users/users_screen.dart';
 import 'package:mantix/pages/inventory/inventory_screen.dart';
+import 'package:mantix/pages/settings/settings_screen.dart';
 
 UserProfile profile({List<String> roles = const ['ROL'], Set<String> permissions = const {}}) => UserProfile(
       id: 1,
@@ -108,5 +109,10 @@ void main() {
     const path = InventoryScreen.path;
     expect(redirect(signedIn(profile(permissions: const {'inventario:ver', 'tickets:ver_asignados'})), path), isNull);
     expect(redirect(signedIn(profile(permissions: const {'inventario:crear', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path);
+  });
+  test('Configuración exige configuracion:ver y vuelve al inicio si falta el permiso', () {
+    const path = SettingsScreen.path;
+    expect(redirect(signedIn(profile(permissions: const {'configuracion:ver', 'tickets:ver_asignados'})), path), isNull);
+    expect(redirect(signedIn(profile(permissions: const {'configuracion:editar', 'tickets:ver_asignados'})), path), HomeDestination.assignedInbox.path);
   });
 }
