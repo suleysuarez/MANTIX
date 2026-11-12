@@ -11,6 +11,8 @@ import 'package:mantix/bloc/auth/permissions_cubit.dart';
 import 'package:mantix/bloc/notifications/notifications_bloc.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
+import 'package:mantix/repositories/profile/profile_repository.dart';
+import 'package:mantix/services/device_services.dart';
 import 'package:mantix/repositories/equipment/equipment_repository.dart';
 import 'package:mantix/repositories/queue/queue_repository.dart';
 import 'package:mantix/repositories/maintenance/maintenance_repository.dart';
@@ -154,6 +156,8 @@ Future<GoRouter> pumpScreen(
         RepositoryProvider(create: (_) => MaintenanceRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => ReportsRepository(dioWith(adapter))),
         RepositoryProvider(create: (_) => EquipmentRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => ProfileRepository(dioWith(adapter))),
+        RepositoryProvider(create: (_) => DeviceServices()),
       ],
       child: MultiBlocProvider(
         providers: [

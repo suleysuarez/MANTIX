@@ -9,6 +9,7 @@ import 'services/api_client.dart';
 import 'repositories/auth/mobile_auth_repository.dart';
 import 'repositories/equipment/equipment_repository.dart';
 import 'repositories/inventory/inventory_repository.dart';
+import 'repositories/profile/profile_repository.dart';
 import 'repositories/home/dashboard_repository.dart';
 import 'repositories/users/users_repository.dart';
 import 'repositories/maintenance/maintenance_repository.dart';
@@ -41,6 +42,7 @@ Future<void> main() async {
     dashboardRepository: DashboardRepository(dio),
     equipmentRepository: EquipmentRepository(dio),
     inventoryRepository: InventoryRepository(dio),
+    profileRepository: ProfileRepository(dio),
     notificationsRepository: NotificationsRepository(dio),
     queueRepository: QueueRepository(dio),
     usersRepository: UsersRepository(dio),

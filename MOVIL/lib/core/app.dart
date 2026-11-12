@@ -12,6 +12,7 @@ import '../repositories/auth/mobile_auth_repository.dart';
 import '../repositories/catalogs/catalogs_repository.dart';
 import '../repositories/equipment/equipment_repository.dart';
 import '../repositories/inventory/inventory_repository.dart';
+import '../repositories/profile/profile_repository.dart';
 import '../repositories/home/dashboard_repository.dart';
 import '../repositories/queue/queue_repository.dart';
 import '../repositories/notifications/notifications_repository.dart';
@@ -33,6 +34,7 @@ class MantixApp extends StatefulWidget {
     required this.dashboardRepository,
     required this.equipmentRepository,
     required this.inventoryRepository,
+    required this.profileRepository,
     required this.notificationsRepository,
     required this.queueRepository,
     required this.usersRepository,
@@ -50,6 +52,7 @@ class MantixApp extends StatefulWidget {
   final DashboardRepository dashboardRepository;
   final EquipmentRepository equipmentRepository;
   final InventoryRepository inventoryRepository;
+  final ProfileRepository profileRepository;
   final NotificationsRepository notificationsRepository;
   final QueueRepository queueRepository;
   final UsersRepository usersRepository;
@@ -87,6 +90,7 @@ class _MantixAppState extends State<MantixApp> {
         RepositoryProvider.value(value: widget.dashboardRepository),
         RepositoryProvider.value(value: widget.equipmentRepository),
         RepositoryProvider.value(value: widget.inventoryRepository),
+        RepositoryProvider.value(value: widget.profileRepository),
         RepositoryProvider.value(value: widget.notificationsRepository),
         RepositoryProvider.value(value: widget.queueRepository),
         RepositoryProvider.value(value: widget.usersRepository),
