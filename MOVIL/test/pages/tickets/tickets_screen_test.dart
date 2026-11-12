@@ -11,6 +11,7 @@ import 'package:mantix/repositories/requests/requests_repository.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
 import 'package:mantix/widgets/tickets/ticket_cards.dart';
 
+import '../../support/paginator_support.dart';
 import '../../support/fakes.dart';
 import '../../support/requests_support.dart';
 
@@ -250,7 +251,8 @@ void main() {
         return pagedResponse([ticketJson(id: page, title: 'Ticket de la página $page')], page: page, totalPages: 3, total: 41);
       };
       await pump(tester);
-      expect(find.text('1-1 de 41'), findsOneWidget);
+      expect(selectedPage(tester), 1);
+      expect(find.textContaining(' de 41'), findsNothing, reason: 'ya no se escribe el rango');
       await tester.scrollUntilVisible(find.byTooltip('Página siguiente'), 300, scrollable: find.byType(Scrollable).first);
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();

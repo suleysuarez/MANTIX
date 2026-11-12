@@ -135,7 +135,7 @@ class _Footer extends StatelessWidget {
       return Column(children: [
         if (failure != null) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(failure.message, textAlign: TextAlign.center)),
         if (info != null)
-          Paginator(page: info.page, pageSize: info.pageSize, shown: state.items.length, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage!, onPageSize: onPageSize),
+          Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: onPage!, onPageSize: onPageSize),
         const SizedBox(height: AppSpacing.xl),
       ]);
     }

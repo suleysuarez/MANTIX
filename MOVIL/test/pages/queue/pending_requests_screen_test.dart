@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/pages/queue/pending_requests_screen.dart';
 import 'package:mantix/widgets/queue/queue_board.dart';
+import 'package:mantix/widgets/queue/queue_header.dart';
 import 'package:mantix/widgets/queue/queue_card.dart';
-import 'package:mantix/widgets/queue/queue_kpi_strip.dart';
+import 'package:mantix/widgets/queue/queue_kpi_grid.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
 import 'package:mantix/widgets/shared/multi_select_sheet.dart';
 
@@ -85,7 +87,7 @@ void main() {
     testWidgets('muestra el encabezado, las cifras, el pulso y las columnas con sus tarjetas', (tester) async {
       await open(tester);
 
-      expect(find.text('BANDEJA DE TRIAJE'), findsOneWidget);
+      expect(find.text('BANDEJA DE TRIAJE'), findsNothing, reason: 'el encabezado ya no lleva esa etiqueta');
       expect(find.textContaining('PENDIENTES', findRichText: true), findsOneWidget);
       expect(find.textContaining('Arrastra una tarjeta a otra columna'), findsOneWidget);
       expect(find.byType(Image), findsWidgets);
@@ -101,6 +103,7 @@ void main() {
       // Pulso de la cola.
       expect(find.text('PULSO DE LA COLA'), findsOneWidget);
       expect(find.text('Decisiones de los últimos 30 días'), findsOneWidget);
+
       expect(find.text('6,5 h'), findsOneWidget);
       expect(find.text('mediana 4,2 h · n = 8'), findsOneWidget);
       expect(find.text('▲ 30%'), findsOneWidget);
@@ -112,32 +115,73 @@ void main() {
 
       // Tablero.
       expect(find.text('Solicitudes por estado'), findsOneWidget);
-      expect(find.text('3 columnas visibles'), findsOneWidget);
+      expect(find.textContaining('columnas visibles'), findsNothing, reason: 'ya no se cuenta cuántas columnas hay');
       expect(find.text('Recibidas'), findsOneWidget);
       expect(find.text('Clasificadas'), findsOneWidget);
       expect(find.text('Asignadas'), findsOneWidget);
       expect(find.byType(QueueCard), findsNWidgets(3));
       expect(find.text('La laptop no enciende'), findsNWidgets(2));
-      expect(find.text('Equipo #12'), findsNWidgets(3));
-      expect(find.text('Sin solicitudes en esta columna.'), findsOneWidget, reason: 'Asignadas está vacía');
-      expect(find.text('Ver más (10 restantes)'), findsOneWidget, reason: '12 recibidas y 2 cargadas');
+      expect(find.textContaining('Equipo #'), findsNothing, reason: 'la tarjeta ya no muestra el equipo');
+      expect(find.text('Sin solicitudes'), findsOneWidget, reason: 'Asignadas está vacía');
+      expect(find.text('Ver 10 más'), findsOneWidget, reason: '12 recibidas y 2 cargadas');
     });
 
-    testWidgets('una tarjeta antigua muestra su espera en el tono de alerta y los nombres del servidor', (tester) async {
+    testWidgets('el periodo del pulso sale de la respuesta del servidor, no de un texto fijo', (tester) async {
+      summaryHandler = (_) => jsonResponse(200, {...summaryJson, 'period': '7d'});
+      await open(tester);
+      expect(find.text('Decisiones de los últimos 7 días'), findsOneWidget);
+      expect(find.textContaining('30 días'), findsNothing);
+    });
+
+    testWidgets('si el servidor no dice el periodo no se escribe uno', (tester) async {
+      summaryHandler = (_) => jsonResponse(200, {...summaryJson}..remove('period'));
+      await open(tester);
+      expect(find.text('Decisiones recientes'), findsOneWidget);
+    });
+
+    testWidgets('la tarjeta muestra solo el nombre del ticket y cuánto lleva esperando', (tester) async {
       await open(tester);
 
       final card = find.byType(QueueCard).first;
-      expect(find.descendant(of: card, matching: find.text('TCK-0001')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.text('Crítica')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.text('Red')), findsOneWidget);
-      expect(find.descendant(of: card, matching: find.textContaining(' d')), findsWidgets, reason: 'su espera, en días');
+      expect(find.descendant(of: card, matching: find.text('La laptop no enciende')), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.textContaining(' d')), findsOneWidget, reason: 'su espera, en días');
+      // Nada más: ni número, ni equipo, ni prioridad, ni categoría.
+      expect(find.descendant(of: card, matching: find.byType(Text)), findsNWidgets(2));
+      expect(find.descendant(of: card, matching: find.text('TCK-0001')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Crítica')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Red')), findsNothing);
+    });
+
+    testWidgets('cada columna lleva su nombre y cuántas hay en la misma línea, sin color propio', (tester) async {
+      await open(tester);
+
+      final title = tester.getRect(find.text('Recibidas'));
+      final count = tester.getRect(find.descendant(of: find.ancestor(of: find.text('Recibidas'), matching: find.byType(Row)).first, matching: find.text('12')));
+      expect((title.center.dy - count.center.dy).abs(), lessThan(4), reason: 'misma línea');
+      expect(count.left, greaterThanOrEqualTo(title.right - 1), reason: 'a la derecha del nombre');
+    });
+
+    testWidgets('las cifras no llevan mostaza', (tester) async {
+      await open(tester);
+
+      final kpi = find.byType(QueueKpiGrid);
+      final mustard = find.descendant(
+        of: kpi,
+        matching: find.byWidgetPredicate((w) {
+          if (w is! Container) return false;
+          final decoration = w.decoration;
+          return decoration is BoxDecoration && decoration.color != null && decoration.color!.toARGB32() == AppColors.mustard.withValues(alpha: decoration.color!.a).toARGB32();
+        }),
+      );
+      expect(mustard, findsNothing);
+      expect(find.descendant(of: kpi, matching: find.byWidgetPredicate((w) => w is Container && w.color == AppColors.mustard)), findsNothing);
     });
 
     testWidgets('«Ver más» pide la página siguiente de esa columna', (tester) async {
       await open(tester);
       adapter.requests.clear();
 
-      await tester.tap(find.text('Ver más (10 restantes)'));
+      await tester.tap(find.text('Ver 10 más'));
       await tester.pumpAndSettle();
 
       final call = adapter.requests.singleWhere((r) => r.path == '/maintenance/requests');
@@ -159,14 +203,47 @@ void main() {
       expect(adapter.requests.where((r) => r.path == '/maintenance/requests'), hasLength(3));
     });
 
-    testWidgets('la flecha de las cifras avanza una tarjeta', (tester) async {
+    testWidgets('las cuatro cifras miden lo mismo y la bandeja no se desplaza hacia la derecha', (tester) async {
       await open(tester, size: const Size(360, 800));
 
-      expect(find.byTooltip('Ver más cifras'), findsOneWidget);
-      await tester.tap(find.byTooltip('Ver más cifras'));
-      await tester.pumpAndSettle();
-      expect(find.byType(QueueKpiStrip), findsOneWidget);
+      final cards = find.byWidgetPredicate((widget) => widget.runtimeType.toString() == '_KpiCard');
+      expect(cards, findsNWidgets(4));
+      final sizes = {for (final element in cards.evaluate()) element.size};
+      expect(sizes, hasLength(1), reason: 'todas del mismo tamaño');
+      expect(find.byTooltip('Ver más cifras'), findsNothing);
+      expect(find.byType(QueueKpiGrid), findsOneWidget);
+
+      // (El campo de búsqueda lleva su propio desplazamiento interno; aquí importan las cifras y el tablero.)
+      final sideways = find.byWidgetPredicate((widget) => widget is Scrollable && widget.axis == Axis.horizontal);
+      expect(find.descendant(of: find.byType(QueueKpiGrid), matching: sideways), findsNothing, reason: 'las cifras no se desplazan de lado');
+      final page = find.descendant(of: find.byType(RefreshIndicator), matching: find.byType(Scrollable)).first;
+      await tester.scrollUntilVisible(find.text('Solicitudes por estado'), 300, scrollable: page);
+      expect(find.descendant(of: find.byType(QueueBoard), matching: sideways), findsNothing, reason: 'el tablero no se desplaza de lado');
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('las tres columnas se reparten el ancho y miden lo mismo', (tester) async {
+      await open(tester, size: const Size(360, 800));
+
+      final page = find.descendant(of: find.byType(RefreshIndicator), matching: find.byType(Scrollable)).first;
+      await tester.scrollUntilVisible(find.text('Solicitudes por estado'), 300, scrollable: page);
+      await tester.pumpAndSettle();
+      final columns = find.byType(QueueColumn);
+      expect(columns, findsNWidgets(3));
+      final widths = {for (final element in columns.evaluate()) element.size!.width};
+      expect(widths, hasLength(1), reason: 'columnas del mismo ancho');
+      final left = tester.getRect(columns.first);
+      final right = tester.getRect(columns.last);
+      expect(left.left, lessThan(12));
+      expect(360 - right.right, lessThan(12), reason: 'llegan hasta el margen de la pantalla');
+    });
+
+    testWidgets('el encabezado ocupa todo el ancho de la pantalla', (tester) async {
+      await open(tester, size: const Size(360, 800));
+
+      final rect = tester.getRect(find.byType(QueueHeader));
+      expect(rect.left, 0);
+      expect(rect.width, 360);
     });
   });
 

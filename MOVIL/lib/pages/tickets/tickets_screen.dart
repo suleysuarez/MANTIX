@@ -516,7 +516,7 @@ class _TicketResults extends StatelessWidget {
           Padding(padding: const EdgeInsets.only(top: 8), child: Text(pageFailure!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         if (info != null) ...[
           const SizedBox(height: 8),
-          Paginator(page: info!.page, pageSize: info!.pageSize, shown: items.length, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
+          Paginator(page: info!.page, pageSize: info!.pageSize, total: info!.total, totalPages: info!.totalPages, loading: loadingPage, onPage: onPage, onPageSize: onPageSize),
         ],
       ],
     );

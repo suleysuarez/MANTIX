@@ -24,12 +24,15 @@ class _IconBox extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(color: EquipmentColors.info.background, borderRadius: BorderRadius.circular(size * 0.3)),
-        child: Icon(equipmentCategoryIcon(item.typeCode), color: EquipmentColors.info.foreground, size: size * 0.52),
-      );
+  Widget build(BuildContext context) {
+    // Icono de la categoría en los colores de la marca; el estado lo dice el chip.
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .5), borderRadius: BorderRadius.circular(size * 0.3)),
+      child: Icon(equipmentCategoryIcon(item.typeCode), color: AppColors.steel, size: size * 0.52),
+    );
+  }
 }
 
 class _TagChip extends StatelessWidget {
@@ -40,8 +43,8 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFE2E8F0))),
-        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF334155), fontSize: 10.5, fontWeight: FontWeight.w700, fontFamily: 'monospace')),
+        decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .35), borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.skyLight)),
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.navy, fontSize: 10.5, fontWeight: FontWeight.w700, fontFamily: 'monospace')),
       );
 }
 
@@ -54,7 +57,7 @@ class _Location extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.place_outlined, size: 13, color: AppColors.slate),
         const SizedBox(width: 3),
-        Flexible(child: Text(item.locationName ?? 'Sin ubicación', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10.5))),
+        Flexible(child: Text(item.locationName ?? 'Sin ubicación', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.steel, fontSize: 10.5))),
       ]);
 }
 
@@ -78,11 +81,6 @@ class EquipmentTable extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
-          Container(
-            color: const Color(0xFFF4F8FC),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: const Text('EQUIPO Y MODELO · ESTADO', style: TextStyle(color: AppColors.slate, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-          ),
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const Divider(height: 1, color: Color(0xFFEEF3F8)),
             _TableRow(item: items[i], highlighted: items[i].id == highlightId, onTap: () => onOpen(items[i])),
@@ -115,7 +113,7 @@ class _TableRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${item.brand} ${item.model}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF153A60), fontSize: 13.5, fontWeight: FontWeight.w800, height: 1.2)),
+              Text('${item.brand} ${item.model}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.navy, fontSize: 13.5, fontWeight: FontWeight.w800, height: 1.2)),
               const SizedBox(height: 2),
               Text(_subtitle(item), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 11.5)),
               const SizedBox(height: 6),
@@ -130,7 +128,7 @@ class _TableRow extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          const Padding(padding: EdgeInsets.only(top: 8), child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.slate)),
+          const Padding(padding: EdgeInsets.only(top: 8), child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.steel)),
         ]),
       ),
     );
@@ -172,7 +170,7 @@ class _GridTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = equipmentStatusMeta(item.status);
     return Material(
-      color: highlighted ? const Color(0xFFFBF1DC) : Colors.white,
+      color: highlighted ? AppColors.mustard.withValues(alpha: .22) : AppColors.white,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         borderRadius: BorderRadius.circular(17),
@@ -181,7 +179,7 @@ class _GridTile extends StatelessWidget {
           padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: highlighted ? AppColors.mustard : const Color(0xFFE5EEF6), width: highlighted ? 2 : 1),
+            border: Border.all(color: highlighted ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .8), width: highlighted ? 2 : 1),
             boxShadow: const [BoxShadow(color: Color(0x0C0B1F3A), blurRadius: 12, offset: Offset(0, 4))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -191,7 +189,7 @@ class _GridTile extends StatelessWidget {
               Expanded(child: Align(alignment: Alignment.centerRight, child: AppChip(label: status.label, colors: status.colors, semanticPrefix: 'Estado'))),
             ]),
             const SizedBox(height: 8),
-            Text('${item.brand} ${item.model}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF153A60), fontSize: 13, fontWeight: FontWeight.w800, height: 1.2)),
+            Text('${item.brand} ${item.model}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.navy, fontSize: 13, fontWeight: FontWeight.w800, height: 1.2)),
             const SizedBox(height: 3),
             Text(_subtitle(item), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.slate, fontSize: 10.5)),
             const Spacer(),

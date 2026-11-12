@@ -6,6 +6,7 @@ import 'package:mantix/bloc/catalogs/technician_search_bloc.dart';
 import 'package:mantix/bloc/paged/paged_bloc.dart';
 import 'package:mantix/core/errors/failure.dart';
 import 'package:mantix/repositories/catalogs/catalogs_repository.dart';
+import 'package:mantix/repositories/technicians/technicians_repository.dart';
 
 import '../../support/fakes.dart';
 import '../../support/requests_support.dart';
@@ -79,14 +80,14 @@ void main() {
   });
 
   group('TechnicianSearchBloc', () {
-    test('descarta los técnicos con la cuenta inactiva y conserva el total del servidor', () async {
+    test('descarta los técnicos con la cuenta inactiva que mande un servidor sin el filtro', () async {
       handler = (_) => pagedResponse([technician(1, 'Luis'), technician(2, 'Ana', active: false), technician(3, 'Marta')], total: 3);
-      final bloc = TechnicianSearchBloc(repository: repository())..add(const PagedStarted());
+      final bloc = TechnicianSearchBloc(repository: TechniciansRepository(dioWith(adapter)))..add(const PagedStarted());
       addTearDown(bloc.close);
       await bloc.stream.firstWhere((state) => state.status == PagedStatus.success);
 
       expect(bloc.state.items.map((t) => t.fullName), ['Luis', 'Marta']);
-      expect(bloc.state.info?.total, 3, reason: 'el total es el del servidor, que no filtra por cuenta activa');
+      expect(bloc.state.info?.total, 3, reason: 'el total es el del servidor');
     });
 
     test('pide al servidor la búsqueda, el tamaño de página y las páginas siguientes', () async {
@@ -94,11 +95,12 @@ void main() {
         final page = options.queryParameters['page'] as int;
         return pagedResponse([technician(page, 'Técnico $page')], page: page, totalPages: 2, total: 2);
       };
-      final bloc = TechnicianSearchBloc(repository: repository(), search: 'tec', pageSize: 5)..add(const PagedStarted());
+      final bloc = TechnicianSearchBloc(repository: TechniciansRepository(dioWith(adapter)), search: 'tec', pageSize: 5)..add(const PagedStarted());
       addTearDown(bloc.close);
       await bloc.stream.firstWhere((state) => state.status == PagedStatus.success);
       expect(adapter.requests.single.queryParameters, containsPair('search', 'tec'));
       expect(adapter.requests.single.queryParameters, containsPair('size', 5));
+      expect(adapter.requests.single.queryParameters, containsPair('is_active', true), reason: 'solo se piden los de cuenta activa');
 
       bloc.add(const PagedLoadMoreRequested());
       await bloc.stream.firstWhere((state) => state.items.length == 2);
@@ -107,7 +109,7 @@ void main() {
 
     test('sin permiso para ver técnicos termina en error', () async {
       handler = (_) => errorResponse(403, code: 'forbidden');
-      final bloc = TechnicianSearchBloc(repository: repository())..add(const PagedStarted());
+      final bloc = TechnicianSearchBloc(repository: TechniciansRepository(dioWith(adapter)))..add(const PagedStarted());
       addTearDown(bloc.close);
       await bloc.stream.firstWhere((state) => state.status == PagedStatus.failure);
 

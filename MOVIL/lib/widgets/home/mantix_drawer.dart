@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../pages/queue/pending_requests_screen.dart';
+import '../../pages/maintenance/maintenance_screen.dart';
+import '../../pages/users/users_screen.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/routing/home_resolver.dart';
 import '../../core/theme/app_colors.dart';
@@ -17,12 +19,15 @@ String initialsOf(String name) {
 }
 
 class _NavItem {
-  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const []]);
+  const _NavItem(this.label, this.icon, this.path, [this.permission, this.anyPermissions = const [], this.hiddenWith]);
   final String label;
   final IconData icon;
   final String path;
   final String? permission;
   final List<String> anyPermissions;
+
+  /// Permiso con el que este elemento sobra (lo reemplaza otra pantalla más completa).
+  final String? hiddenWith;
 }
 
 /// Menú lateral. Solo muestra los módulos para los que el usuario tiene permiso (se
@@ -39,15 +44,15 @@ class MantixDrawer extends StatelessWidget {
     _NavItem('Dashboard', Icons.home_rounded, '/inicio/dashboard-global'),
     _NavItem('Equipos', Icons.desktop_windows_rounded, '/modulos/equipos', 'equipos:ver'),
     _NavItem('Tickets', Icons.confirmation_number_outlined, '/modulos/tickets', 'tickets:ver'),
-    _NavItem('Solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver', 'solicitudes:ver_todos']),
+    // Quien ve todas las solicitudes trabaja desde «Solicitudes pendientes»; «Mis solicitudes» es para quien solo ve las suyas.
+    _NavItem('Mis solicitudes', Icons.inbox_outlined, '/inicio/solicitudes', null, ['solicitudes:ver'], 'solicitudes:ver_todos'),
     _NavItem('Solicitudes pendientes', Icons.move_to_inbox_outlined, PendingRequestsScreen.path, 'solicitudes:ver_todos'),
-    _NavItem('Técnicos', Icons.engineering_outlined, '/modulos/tecnicos', 'tecnicos:ver'),
-    _NavItem('Mantenimiento', Icons.event_repeat_rounded, '/modulos/mantenimiento', 'mantenimiento:ver'),
+    _NavItem('Técnicos', Icons.engineering_outlined, '/tecnicos', 'tecnicos:ver'),
+    _NavItem('Mantenimiento', Icons.event_repeat_rounded, MaintenanceScreen.path, 'mantenimiento:ver'),
     _NavItem('Inventario', Icons.inventory_2_outlined, '/modulos/inventario', 'inventario:ver'),
     _NavItem('Reportes', Icons.analytics_rounded, '/inicio/reportes', 'reportes:ver'),
-    _NavItem('Usuarios', Icons.manage_accounts_outlined, '/modulos/usuarios', 'usuarios:ver'),
-    _NavItem('Roles y permisos', Icons.admin_panel_settings_outlined, '/modulos/roles', 'usuarios:asignar'),
-    _NavItem('Usuarios pendientes', Icons.how_to_reg_outlined, '/modulos/usuarios-pendientes', 'usuarios:asignar'),
+    // Usuarios, pendientes y roles viven en una sola pantalla con tres pestañas.
+    _NavItem('Usuarios y roles', Icons.manage_accounts_outlined, UsersScreen.path, 'usuarios:ver'),
     _NavItem('Configuración', Icons.settings_outlined, '/modulos/configuracion', 'configuracion:ver'),
   ];
 
@@ -70,9 +75,10 @@ class MantixDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final allowed = _navItems.where((item) =>
-      (item.permission == null && item.anyPermissions.isEmpty) ||
+      (item.hiddenWith == null || !profile.can(item.hiddenWith!)) &&
+      ((item.permission == null && item.anyPermissions.isEmpty) ||
       (item.permission != null && profile.can(item.permission!)) ||
-      item.anyPermissions.any(profile.can),
+      item.anyPermissions.any(profile.can)),
     ).toList();
     final homePath = resolveHome(profile.permissions).path;
     return Drawer(

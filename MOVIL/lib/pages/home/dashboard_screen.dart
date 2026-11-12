@@ -131,10 +131,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: AppColors.steel,
             child: ListView(
               controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+              padding: EdgeInsets.zero,
               children: [
+                // El banner ocupa todo el ancho; el resto de la pantalla conserva sus márgenes.
                 _WelcomeHero(name: profile.fullName),
-                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _PeriodPicker(value: _period, onChanged: (value) {
                   setState(() => _period = value);
                   _load();
@@ -166,7 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _SectionCard(
                   title: isGlobal ? 'Rendimiento del equipo técnico' : 'Mi rendimiento',
                   subtitle: _periodLabel(),
-                  trailing: isGlobal && profile.can('tecnicos:ver') ? const _SectionLink(label: 'Ver técnicos', path: '/modulos/tecnicos') : null,
+                  trailing: isGlobal && profile.can('tecnicos:ver') ? const _SectionLink(label: 'Ver técnicos', path: '/tecnicos') : null,
                   child: _TechnicianPerformance(items: _technicians),
                 ),
                 const SizedBox(height: 14),
@@ -178,6 +181,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 18),
                 Center(
                   child: Text('MANTIX  •  Sistema inteligente de mantenimiento', style: TextStyle(color: AppColors.slate.withValues(alpha: 0.8), fontSize: 10)),
+                ),
+                  ]),
                 ),
               ],
             ),
@@ -274,15 +279,15 @@ class _WelcomeHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final words = name.trim().split(RegExp(r'\s+'));
     final firstName = words.first.isEmpty ? 'USUARIO' : words.first;
+    const radius = BorderRadius.vertical(bottom: Radius.circular(22));
     return Container(
       height: 176,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: AuthTokens.glassBorder.withValues(alpha: 0.28)),
-        boxShadow: const [BoxShadow(color: Color(0x40050B1A), blurRadius: 20, offset: Offset(0, 8))],
+      decoration: const BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [BoxShadow(color: Color(0x40050B1A), blurRadius: 20, offset: Offset(0, 8))],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: radius,
         child: Stack(
           children: [
             Positioned.fill(
@@ -301,7 +306,7 @@ class _WelcomeHero extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(17),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

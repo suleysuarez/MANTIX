@@ -91,12 +91,14 @@ class QueueSummary extends Equatable {
     required this.decisions,
     this.oldestWaitHours,
     this.medianWaitHours,
+    this.period,
   });
 
   factory QueueSummary.fromJson(Map<String, Object?> json) {
     List<QueueCount> counts(Object? raw) => raw is List ? [for (final item in raw) QueueCount.fromJson((item as Map).cast<String, Object?>())] : const [];
     Map<String, Object?> map(Object? raw) => raw is Map ? raw.cast<String, Object?>() : const {};
     return QueueSummary(
+      period: json['period'] as String?,
       pendingTotal: _int(json['pending_total']),
       unassigned: _int(json['unassigned']),
       oldestWaitHours: _double(json['oldest_wait_hours']),
@@ -107,6 +109,9 @@ class QueueSummary extends Equatable {
       decisions: QueueDecisions.fromJson(map(json['decisions'])),
     );
   }
+
+  /// Periodo de las decisiones (`7d`, `30d` o `12m`), tal como lo devuelve el servidor.
+  final String? period;
 
   /// Solicitudes en cola (recibidas, clasificadas y asignadas sin iniciar).
   final int pendingTotal;
@@ -123,5 +128,5 @@ class QueueSummary extends Equatable {
   final QueueDecisions decisions;
 
   @override
-  List<Object?> get props => [pendingTotal, unassigned, oldestWaitHours, medianWaitHours, byPriority, byCategory, triageTime, decisions];
+  List<Object?> get props => [period, pendingTotal, unassigned, oldestWaitHours, medianWaitHours, byPriority, byCategory, triageTime, decisions];
 }

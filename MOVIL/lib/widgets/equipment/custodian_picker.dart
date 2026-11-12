@@ -18,9 +18,10 @@ class CustodianChoice {
   final bool cleared;
 }
 
-/// Hoja inferior para buscar a quien quedará a cargo del equipo (por nombre o correo).
-/// Devuelve `null` si se cierra sin elegir.
-Future<CustodianChoice?> showCustodianPicker(BuildContext context, {CustodianCandidate? selected}) {
+/// Hoja inferior para buscar un usuario activo por nombre o correo; por defecto, quien quedará a
+/// cargo del equipo. [title] cambia el encabezado y [allowClear] en `false` quita la opción de
+/// dejarlo vacío. Devuelve `null` si se cierra sin elegir.
+Future<CustodianChoice?> showCustodianPicker(BuildContext context, {CustodianCandidate? selected, String title = 'Responsable del equipo', bool allowClear = true}) {
   final repository = context.read<EquipmentRepository>();
   return showModalBottomSheet<CustodianChoice>(
     context: context,
@@ -30,15 +31,17 @@ Future<CustodianChoice?> showCustodianPicker(BuildContext context, {CustodianCan
     backgroundColor: Colors.white,
     builder: (_) => BlocProvider(
       create: (_) => CustodianSearchBloc(repository: repository)..add(const CustodianSearched('')),
-      child: _CustodianSheet(selected: selected),
+      child: _CustodianSheet(selected: selected, title: title, allowClear: allowClear),
     ),
   );
 }
 
 class _CustodianSheet extends StatefulWidget {
-  const _CustodianSheet({this.selected});
+  const _CustodianSheet({this.selected, required this.title, required this.allowClear});
 
   final CustodianCandidate? selected;
+  final String title;
+  final bool allowClear;
 
   @override
   State<_CustodianSheet> createState() => _CustodianSheetState();
@@ -66,9 +69,9 @@ class _CustodianSheetState extends State<_CustodianSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.8),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-              child: Text('Responsable del equipo', style: TextStyle(color: Color(0xFF0B1F3A), fontSize: 18, fontWeight: FontWeight.w800)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Text(widget.title, style: const TextStyle(color: Color(0xFF0B1F3A), fontSize: 18, fontWeight: FontWeight.w800)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -80,7 +83,7 @@ class _CustodianSheetState extends State<_CustodianSheet> {
                 decoration: const InputDecoration(hintText: 'Buscar por nombre o correo…', counterText: '', prefixIcon: Icon(Icons.search_rounded)),
               ),
             ),
-            if (widget.selected != null)
+            if (widget.allowClear && widget.selected != null)
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(

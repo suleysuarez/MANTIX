@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/bloc/paged/paged_bloc.dart';
 import 'package:mantix/core/errors/failure.dart';
+import 'package:mantix/core/theme/app_colors.dart';
 import 'package:mantix/core/theme/app_theme.dart';
 import 'package:mantix/models/page_info.dart';
 import 'package:mantix/widgets/shared/date_range_dialog.dart';
@@ -41,43 +42,56 @@ class _Numbers extends PagedBloc<int> {
   }
 }
 
-Paginator paginator({int page = 1, int pageSize = 5, int shown = 5, int total = 23, int totalPages = 5, ValueChanged<int>? onPage, ValueChanged<int>? onPageSize}) =>
-    Paginator(page: page, pageSize: pageSize, shown: shown, total: total, totalPages: totalPages, onPage: onPage ?? (_) {}, onPageSize: onPageSize);
+Paginator paginator({int page = 1, int pageSize = 5, int total = 23, int totalPages = 5, ValueChanged<int>? onPage, ValueChanged<int>? onPageSize}) =>
+    Paginator(page: page, pageSize: pageSize, total: total, totalPages: totalPages, onPage: onPage ?? (_) {}, onPageSize: onPageSize);
 
 void main() {
   group('Paginator', () {
-    test('pageRangeLabel', () {
-      expect(pageRangeLabel(page: 1, pageSize: 5, shown: 5, total: 23), '1-5 de 23');
-      expect(pageRangeLabel(page: 5, pageSize: 5, shown: 3, total: 23), '21-23 de 23');
-      expect(pageRangeLabel(page: 1, pageSize: 5, shown: 0, total: 0), '0 de 0');
+    testWidgets('no escribe el rango «1-5 de 23» ni dibuja un cuadro de fondo: solo flechas y números', (tester) async {
+      await pumpSized(tester, paginator(onPageSize: (_) {}));
+
+      expect(find.textContaining(' de 23'), findsNothing);
+      // Lo único con sombra o borde es el aro de la página actual (un círculo): ningún cuadro.
+      final boxes = find.descendant(
+        of: find.byType(Paginator),
+        matching: find.byWidgetPredicate((w) {
+          if (w is! Container) return false;
+          final d = w.decoration;
+          return d is BoxDecoration && d.shape == BoxShape.rectangle && (d.border != null || d.boxShadow != null || d.color != null);
+        }),
+      );
+      expect(boxes, findsNothing, reason: 'sin cuadro de fondo alrededor de los números');
     });
 
     testWidgets('en la primera página no hay «anterior» y sí «siguiente»', (tester) async {
       await pumpSized(tester, paginator(onPageSize: (_) {}));
-      expect(find.text('1-5 de 23'), findsOneWidget);
       expect(find.byTooltip('Página anterior'), findsNothing);
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
     });
 
     testWidgets('en la última página no hay «siguiente» y sí «anterior»', (tester) async {
-      await pumpSized(tester, paginator(page: 5, shown: 3));
-      expect(find.text('21-23 de 23'), findsOneWidget);
+      await pumpSized(tester, paginator(page: 5));
       expect(find.byTooltip('Página siguiente'), findsNothing);
       expect(find.byTooltip('Página anterior'), findsOneWidget);
     });
 
     testWidgets('con una sola página no hay flechas, «1 / 1» ni selector con pocos elementos', (tester) async {
-      await pumpSized(tester, paginator(shown: 3, total: 3, totalPages: 1, onPageSize: (_) {}));
-      expect(find.text('1-3 de 3'), findsOneWidget);
+      await pumpSized(tester, paginator(total: 3, totalPages: 1, onPageSize: (_) {}));
+      expect(find.textContaining(' de 3'), findsNothing);
       expect(find.byTooltip('Página anterior'), findsNothing);
       expect(find.byTooltip('Página siguiente'), findsNothing);
       expect(find.textContaining('/'), findsNothing);
       expect(find.byType(DropdownButton<int>), findsNothing);
+
+      // Los números siguen ahí, con la única página en el círculo mostaza.
+      expect(find.text('1'), findsOneWidget);
+      final selected = find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard && (w.decoration! as BoxDecoration).shape == BoxShape.circle);
+      expect(selected, findsOneWidget);
     });
 
     testWidgets('el selector de tamaño aparece si el total supera 5 y avisa del cambio', (tester) async {
       int? chosen;
-      await pumpSized(tester, paginator(shown: 5, total: 6, totalPages: 2, onPageSize: (size) => chosen = size));
+      await pumpSized(tester, paginator(total: 6, totalPages: 2, onPageSize: (size) => chosen = size));
       await tester.tap(find.byType(DropdownButton<int>));
       await tester.pumpAndSettle();
       for (final size in pageSizeOptions) {
@@ -101,7 +115,7 @@ void main() {
       expect(pages, [3, 1]);
 
       pages.clear();
-      await pumpSized(tester, Paginator(page: 2, pageSize: 5, shown: 5, total: 23, totalPages: 5, loading: true, onPage: pages.add));
+      await pumpSized(tester, Paginator(page: 2, pageSize: 5, total: 23, totalPages: 5, loading: true, onPage: pages.add));
       await tester.tap(find.byTooltip('Página siguiente'));
       expect(pages, isEmpty);
     });
@@ -112,6 +126,90 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    test('visiblePages: todas si caben y, si no, «…» y siempre la primera y la última', () {
+      expect(visiblePages(page: 1, totalPages: 3, slots: 7), [1, 2, 3]);
+      expect(visiblePages(page: 1, totalPages: 7, slots: 7), [1, 2, 3, 4, 5, 6, 7]);
+      // Como en el diseño: «1 2 3 4 5 … 99».
+      expect(visiblePages(page: 5, totalPages: 99, slots: 7), [1, 2, 3, 4, 5, null, 99]);
+      expect(visiblePages(page: 1, totalPages: 99, slots: 7), [1, 2, 3, 4, 5, null, 99]);
+      expect(visiblePages(page: 10, totalPages: 99, slots: 7), [1, null, 9, 10, 11, null, 99]);
+      expect(visiblePages(page: 95, totalPages: 99, slots: 7), [1, null, 95, 96, 97, 98, 99]);
+      expect(visiblePages(page: 99, totalPages: 99, slots: 7), [1, null, 95, 96, 97, 98, 99]);
+      // Con poco sitio, siempre al menos cinco huecos.
+      expect(visiblePages(page: 2, totalPages: 20, slots: 4), [1, 2, 3, null, 20]);
+      expect(visiblePages(page: 9, totalPages: 20, slots: 5), [1, null, 9, null, 20]);
+    });
+
+    test('visiblePages nunca repite una página ni se pasa del total', () {
+      for (final slots in [5, 6, 7]) {
+        for (var total = 1; total <= 30; total++) {
+          for (var page = 1; page <= total; page++) {
+            final pages = visiblePages(page: page, totalPages: total, slots: slots).whereType<int>().toList();
+            expect(pages.toSet().length, pages.length, reason: 'sin repetidas ($page de $total, $slots huecos)');
+            expect(pages, contains(page), reason: 'la actual siempre se ve');
+            expect(pages.first, 1);
+            expect(pages.last, total);
+            expect(pages, everyElement(inInclusiveRange(1, total)));
+            expect(visiblePages(page: page, totalPages: total, slots: slots).length, lessThanOrEqualTo(slots < 5 ? 5 : slots));
+          }
+        }
+      }
+    });
+
+    testWidgets('con muchas páginas muestra «1 2 3 4 5 … 99» y la última se puede tocar', (tester) async {
+      final pages = <int>[];
+      await pumpSized(tester, paginator(page: 5, totalPages: 99, total: 990, onPage: pages.add), size: const Size(420, 640));
+
+      for (final n in [1, 2, 3, 4, 5, 99]) {
+        expect(find.text('$n'), findsOneWidget, reason: 'página $n');
+      }
+      expect(find.text('…'), findsOneWidget);
+      expect(find.text('6'), findsNothing);
+      await tester.tap(find.text('99'));
+      expect(pages, [99]);
+    });
+
+    testWidgets('la píldora ocupa todo el ancho y la página actual va en un círculo mostaza', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpSized(tester, Padding(padding: const EdgeInsets.all(16), child: paginator(page: 2, totalPages: 7)));
+
+      final pill = tester.getRect(find.byType(Paginator).first);
+      expect(pill.width, 360 - 32, reason: 'ancho completo');
+      expect(find.bySemanticsLabel('Página 2'), findsOneWidget, reason: 'cada número se anuncia como botón');
+      final selected = find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).color == AppColors.mustard && (w.decoration! as BoxDecoration).shape == BoxShape.circle);
+      expect(selected, findsOneWidget);
+      expect(find.descendant(of: selected, matching: find.text('2')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('tocar un número va a esa página; la página actual no hace nada', (tester) async {
+      final pages = <int>[];
+      await pumpSized(tester, paginator(page: 2, totalPages: 5, onPage: pages.add));
+
+      await tester.tap(find.text('4'));
+      await tester.tap(find.text('2'));
+      expect(pages, [4]);
+    });
+
+    testWidgets('en una pantalla estrecha caben menos números y la actual sigue visible', (tester) async {
+      await pumpSized(tester, paginator(page: 9, totalPages: 20), size: const Size(320, 568), textScale: 1.3);
+
+      expect(find.text('9'), findsOneWidget);
+      final numbers = [for (var n = 1; n <= 20; n++) if (find.text('$n').evaluate().isNotEmpty) n];
+      expect(numbers.length, inInclusiveRange(3, 5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('en la primera página la flecha de la izquierda no existe y en la última la de la derecha tampoco', (tester) async {
+      await pumpSized(tester, paginator(page: 1, totalPages: 3));
+      expect(find.byTooltip('Página anterior'), findsNothing);
+      expect(find.byTooltip('Página siguiente'), findsOneWidget);
+
+      await pumpSized(tester, paginator(page: 3, totalPages: 3));
+      expect(find.byTooltip('Página anterior'), findsOneWidget);
+      expect(find.byTooltip('Página siguiente'), findsNothing);
+    });
   });
 
   group('Filtro multiselección', () {

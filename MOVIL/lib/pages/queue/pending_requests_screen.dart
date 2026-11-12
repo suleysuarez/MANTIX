@@ -15,6 +15,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/queue/queue_filters.dart';
 import '../../models/requests/request_models.dart';
 import '../../repositories/catalogs/catalogs_repository.dart';
+import '../../repositories/technicians/technicians_repository.dart';
 import '../../repositories/queue/queue_repository.dart';
 import '../../repositories/requests/requests_repository.dart';
 import '../../widgets/home/mantix_app_bar.dart';
@@ -22,7 +23,7 @@ import '../../widgets/home/mantix_drawer.dart';
 import '../../widgets/queue/queue_board.dart';
 import '../../widgets/queue/queue_filter_sheet.dart';
 import '../../widgets/queue/queue_header.dart';
-import '../../widgets/queue/queue_kpi_strip.dart';
+import '../../widgets/queue/queue_kpi_grid.dart';
 import '../../widgets/queue/queue_pulse_card.dart';
 import '../../widgets/queue/queue_reject_sheet.dart';
 import '../../widgets/shared/empty_state.dart';
@@ -161,7 +162,7 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
       technicians: _technicians,
       categories: _categories.state.categories,
       priorities: _priorities.state.priorities,
-      catalogs: _catalogs,
+      techniciansRepository: context.read<TechniciansRepository>(),
     );
     if (result == null || !mounted) return;
     setState(() => _technicians = result.technicians);
@@ -196,15 +197,18 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
           child: ListView(
             controller: _pageController,
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xxl),
+            padding: EdgeInsets.zero,
             children: [
+              // El encabezado ocupa todo el ancho; lo demás conserva sus márgenes.
               const QueueHeader(),
-              const SizedBox(height: AppSpacing.md),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               _SearchRow(controller: _searchController, onFilters: _showFilters),
               _ActiveFilters(technicians: _technicians, searchController: _searchController),
               const SizedBox(height: AppSpacing.md),
               BlocBuilder<QueueSummaryBloc, QueueSummaryState>(
-                builder: (context, state) => QueueKpiStrip(summary: state.summary, unavailable: state.unavailable, onRetry: () => _summary.add(const QueueSummaryRequested())),
+                builder: (context, state) => QueueKpiGrid(summary: state.summary, unavailable: state.unavailable, onRetry: () => _summary.add(const QueueSummaryRequested())),
               ),
               const SizedBox(height: AppSpacing.md),
               BlocBuilder<PrioritiesCubit, PrioritiesState>(
@@ -220,8 +224,13 @@ class _PendingRequestsScreenState extends State<PendingRequestsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              _BoardSection(onClearFilters: _clearAll, onMove: _requestMove, pageController: _pageController),
+                ]),
+              ),
+              // Las tres columnas se reparten el ancho: un margen menor les da más sitio.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, AppSpacing.lg, 8, AppSpacing.xxl),
+                child: _BoardSection(onClearFilters: _clearAll, onMove: _requestMove, pageController: _pageController),
+              ),
             ],
           ),
         ),
@@ -319,15 +328,11 @@ class _BoardSection extends StatelessWidget {
     return BlocBuilder<RequestBoardBloc, RequestBoardState>(
       builder: (context, state) {
         final board = context.read<RequestBoardBloc>();
-        final priorities = context.watch<PrioritiesCubit>().state.priorities;
-        final names = context.watch<CategoryNamesCubit>().state.names;
-        final count = state.columns.length;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Con letra grande y pantalla estrecha el contador pasa a la línea de abajo.
-          Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: AppSpacing.sm, runSpacing: 2, children: [
-            Text('Solicitudes por estado', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
-            if (count > 0) Text(count == 1 ? '1 columna visible' : '$count columnas visibles', style: theme.textTheme.bodySmall?.copyWith(color: AppColors.slate)),
-          ]),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Text('Solicitudes por estado', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w900)),
+          ),
           const SizedBox(height: AppSpacing.md),
           switch (state.workflowPhase) {
             WorkflowPhase.loading => const _BoardSkeleton(),
@@ -349,8 +354,6 @@ class _BoardSection extends StatelessWidget {
                 columns: state.columns,
                 workflow: state.workflow,
                 now: DateTime.now(),
-                priorities: priorities,
-                categoryNames: names,
                 statusLabel: (status) => statusMeta(status).label,
                 onMore: (status) => board.add(RequestBoardMoreRequested(status)),
                 onRetry: (status) => board.add(RequestBoardColumnRetried(status)),

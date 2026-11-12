@@ -8,7 +8,9 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../models/catalogs/catalog_models.dart';
 import '../../models/requests/request_models.dart';
+import '../../models/technicians/technician_models.dart';
 import '../../repositories/catalogs/catalogs_repository.dart';
+import '../../repositories/technicians/technicians_repository.dart';
 import '../shared/error_state.dart';
 import '../shared/mantix_sheet.dart';
 import '../shared/search_picker_sheet.dart';
@@ -147,28 +149,28 @@ class _ClassifyBodyState extends State<_ClassifyBody> {
 /// Hoja para pasar un ticket a «Asignado»: se busca un técnico **activo** y se confirma.
 /// Devuelve la elección o `null` si se cierra sin confirmar.
 Future<TicketMoveInput?> showAssignSheet(BuildContext context, {required TicketListItem ticket, String? title}) {
-  final catalogs = context.read<CatalogsRepository>();
+  final technicians = context.read<TechniciansRepository>();
   return showMantixSheet<TicketMoveInput>(
     context,
     title: title ?? 'Pasar a «Asignado»',
     initialHeight: .85,
-    builder: (sheetContext, controller) => _AssignBody(ticket: ticket, controller: controller, catalogs: catalogs),
+    builder: (sheetContext, controller) => _AssignBody(ticket: ticket, controller: controller, technicians: technicians),
   );
 }
 
 class _AssignBody extends StatefulWidget {
-  const _AssignBody({required this.ticket, required this.controller, required this.catalogs});
+  const _AssignBody({required this.ticket, required this.controller, required this.technicians});
 
   final TicketListItem ticket;
   final ScrollController controller;
-  final CatalogsRepository catalogs;
+  final TechniciansRepository technicians;
 
   @override
   State<_AssignBody> createState() => _AssignBodyState();
 }
 
 class _AssignBodyState extends State<_AssignBody> {
-  TechnicianOption? _selected;
+  Technician? _selected;
 
   @override
   Widget build(BuildContext context) {
@@ -182,11 +184,11 @@ class _AssignBodyState extends State<_AssignBody> {
         ),
       ),
       Expanded(
-        child: SearchPicker<TechnicianOption>(
+        child: SearchPicker<Technician>(
           controller: widget.controller,
           hint: 'Nombre, correo o especialidad',
           emptyTitle: 'No hay técnicos activos con ese criterio',
-          createBloc: (search) => TechnicianSearchBloc(repository: widget.catalogs, search: search),
+          createBloc: (search) => TechnicianSearchBloc(repository: widget.technicians, search: search),
           itemBuilder: (context, technician, select) => _TechnicianTile(technician: technician, selected: _selected?.id == technician.id, onTap: () => setState(() => _selected = technician)),
         ),
       ),
@@ -202,7 +204,7 @@ class _AssignBodyState extends State<_AssignBody> {
 class _TechnicianTile extends StatelessWidget {
   const _TechnicianTile({required this.technician, required this.selected, required this.onTap});
 
-  final TechnicianOption technician;
+  final Technician technician;
   final bool selected;
   final VoidCallback onTap;
 

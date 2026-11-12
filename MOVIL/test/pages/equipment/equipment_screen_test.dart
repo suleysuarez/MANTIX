@@ -18,6 +18,7 @@ import 'package:mantix/widgets/equipment/equipment_list_views.dart';
 import 'package:mantix/widgets/shared/filter_widgets.dart';
 
 import '../../models/equipment/equipment_models_test.dart' show equipmentItemJson;
+import '../../support/paginator_support.dart';
 import '../../support/device_fakes.dart';
 import '../../support/fakes.dart';
 import '../../support/header_support.dart';
@@ -159,16 +160,29 @@ void main() {
     for (final value in ['38', '31', '3', '4']) {
       expect(find.text(value), findsOneWidget, reason: value);
     }
-    for (final badge in ['Total', '81,6% tasa', 'En curso', 'Crítico']) {
-      expect(find.text(badge), findsOneWidget, reason: badge);
+    for (final title in ['Total', 'Operativos · 81,6%', 'En mantenimiento', 'Fuera de servicio']) {
+      expect(find.text(title), findsWidgets, reason: title);
     }
+  });
+
+  testWidgets('los contadores son compactos: cuatro tarjetas bajas del mismo tamaño en dos filas', (tester) async {
+    await pumpScreen(tester);
+
+    final keys = ['summary-all', 'summary-operational', 'summary-maintenance', 'summary-offline'];
+    final sizes = [for (final key in keys) tester.getSize(find.byKey(Key(key)))];
+    expect(sizes.toSet(), hasLength(1), reason: 'todas del mismo tamaño');
+    expect(sizes.first.height, lessThan(80), reason: 'antes medían unos 126');
+    expect(tester.getTopLeft(find.byKey(const Key('summary-maintenance'))).dy, greaterThan(tester.getTopLeft(find.byKey(const Key('summary-all'))).dy));
+    // Sin descripción ni enlace de acción dentro de cada tarjeta.
+    expect(find.text('Equipos registrados en inventario'), findsNothing);
+    expect(find.text('Filtrar operativos'), findsNothing);
   });
 
   testWidgets('la tabla muestra cada equipo con su descripción o serie, etiqueta, ubicación y estado', (tester) async {
     await pumpScreen(tester);
 
     expect(find.byType(EquipmentTable), findsOneWidget);
-    expect(find.text('EQUIPO Y MODELO · ESTADO'), findsOneWidget);
+    expect(find.text('EQUIPO Y MODELO · ESTADO'), findsNothing, reason: 'la tabla ya no lleva ese encabezado');
     expect(find.text('Dell Latitude 5420'), findsOneWidget);
     expect(find.text('Equipo de demostración'), findsOneWidget);
     expect(find.text('DEMO-007'), findsOneWidget);
@@ -178,7 +192,8 @@ void main() {
     expect(find.text('HP LaserJet Pro'), findsOneWidget);
     expect(find.text('Serie: sin registrar'), findsOneWidget);
     expect(find.text('Sin ubicación'), findsOneWidget);
-    expect(find.text('En mantenimiento'), findsOneWidget);
+    // El mismo nombre sale en la tarjeta resumen: aquí importa el chip de la fila.
+    expect(find.descendant(of: find.byType(EquipmentTable), matching: find.text('En mantenimiento')), findsOneWidget);
   });
 
   testWidgets('se puede cambiar entre tabla y cuadrícula', (tester) async {
@@ -207,20 +222,20 @@ void main() {
   testWidgets('tocar una tarjeta filtra por sus estados y el botón de filtros cuenta los activos', (tester) async {
     await pumpScreen(tester);
 
-    await tester.tap(find.text('Filtrar operativos'));
+    await tester.tap(find.byKey(const Key('summary-operational')));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'assigned,in_storage');
     expect(find.byTooltip('Filtros (2 activos)'), findsOneWidget);
 
-    await tester.tap(find.text('Ver equipos en mantenimiento'));
+    await tester.tap(find.byKey(const Key('summary-maintenance')));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'in_repair');
 
-    await tester.tap(find.text('Revisar estos equipos'));
+    await tester.tap(find.byKey(const Key('summary-offline')));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'lost,retired,disposed');
 
-    await tester.tap(find.text('Ver todo'));
+    await tester.tap(find.byKey(const Key('summary-all')));
     await tester.pumpAndSettle();
     expect(lastQuery().keys, isNot(contains('status')));
   });
@@ -293,7 +308,7 @@ void main() {
     await pumpScreen(tester);
     expect(find.text('Dell Latitude 5420'), findsOneWidget);
 
-    await tester.tap(find.text('Ver equipos en mantenimiento'));
+    await tester.tap(find.byKey(const Key('summary-maintenance')));
     await tester.pumpAndSettle();
 
     expect(find.text('HP LaserJet Pro'), findsOneWidget);
@@ -307,7 +322,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(lastQuery()['page'], 2);
 
-    await tester.tap(find.text('Filtrar operativos'));
+    await tester.tap(find.byKey(const Key('summary-operational')));
     await tester.pumpAndSettle();
 
     expect(lastQuery()['page'], 1);
@@ -316,7 +331,7 @@ void main() {
 
   testWidgets('«Limpiar» en la hoja quita categorías, estados y fechas al aplicar', (tester) async {
     await pumpScreen(tester);
-    await tester.tap(find.text('Filtrar operativos'));
+    await tester.tap(find.byKey(const Key('summary-operational')));
     await tester.pumpAndSettle();
     expect(lastQuery()['status'], 'assigned,in_storage');
 
@@ -348,11 +363,12 @@ void main() {
   });
 
   group('paginación', () {
-    testWidgets('muestra el rango, el total y los botones de página', (tester) async {
+    testWidgets('muestra la página actual y los botones de página, sin el texto del rango', (tester) async {
       listHandler = (options) => pagedByQuery(options);
       await pumpScreen(tester);
 
-      expect(find.text('1-10 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 1);
+      expect(find.textContaining(' de 25'), findsNothing, reason: 'ya no se escribe el rango');
       expect(find.byType(DropdownButton<int>), findsOneWidget);
       expect(find.byTooltip('Página anterior'), findsNothing, reason: 'en la página 1 no hay «anterior»');
       expect(find.byTooltip('Página siguiente'), findsOneWidget);
@@ -366,13 +382,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(lastQuery()['page'], 2);
-      expect(find.text('11-20 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 2);
       expect(find.text('EQ-11'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
       expect(lastQuery()['page'], 3);
-      expect(find.text('21-25 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 3);
     });
 
     testWidgets('en la primera página no hay «anterior» y en la última no hay «siguiente»', (tester) async {
@@ -385,7 +401,7 @@ void main() {
       expect(find.byTooltip('Página anterior'), findsOneWidget);
       await tester.tap(find.byTooltip('Página siguiente'));
       await tester.pumpAndSettle();
-      expect(find.text('21-25 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 3);
       expect(find.byTooltip('Página siguiente'), findsNothing, reason: 'en la última no hay «siguiente»');
     });
 
@@ -398,7 +414,7 @@ void main() {
 
       expect(lastQuery()['size'], 10);
       expect(lastQuery()['page'], 2);
-      expect(find.text('11-20 de 25'), findsOneWidget);
+      expect(selectedPage(tester), 2);
 
       await tester.tap(find.byType(DropdownButton<int>));
       await tester.pumpAndSettle();
@@ -543,7 +559,7 @@ void main() {
 
     testWidgets('limpia los filtros para que el equipo nuevo se vea', (tester) async {
       await pumpScreen(tester);
-      await tester.tap(find.text('Filtrar operativos'));
+      await tester.tap(find.byKey(const Key('summary-operational')));
       await tester.pumpAndSettle();
       expect(lastQuery()['status'], 'assigned,in_storage');
 
@@ -675,7 +691,7 @@ void main() {
 
       testWidgets('la hoja de filtros con filtros activos en $name', (tester) async {
         await pumpScreen(tester, size: size, textScale: 1.3);
-        await tapVisible(tester, find.text('Filtrar operativos'));
+        await tapVisible(tester, find.byKey(const Key('summary-operational')));
         await tapVisible(tester, find.byTooltip('Filtros (2 activos)'));
         expect(find.text('Limpiar'), findsOneWidget);
         expect(tester.takeException(), isNull);

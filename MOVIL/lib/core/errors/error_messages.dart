@@ -15,7 +15,12 @@ const Map<String, String> messagesByErrorCode = {
   'invalid_transition': 'Ese cambio de estado no está permitido desde el estado actual del ticket.',
   'technician_inactive': 'Ese técnico está inactivo y no puede recibir tickets.',
   'technician_not_found': 'Ese técnico ya no existe.',
+  'technician_profile_exists': 'Ese usuario ya tiene un perfil de técnico.',
   'no_active_assignment': 'Este ticket no tiene un técnico asignado.',
+  // Mantenimiento preventivo
+  'schedule_not_found': 'Ese plan de mantenimiento ya no existe.',
+  'schedule_equipment_unavailable': 'No se puede programar mantenimiento para un equipo en ese estado.',
+  'schedule_technician_inactive': 'Ese técnico está inactivo y no puede recibir planes de mantenimiento.',
   // Equipos
   'equipment_not_found': 'Ese equipo ya no existe.',
   'equipment_identifier_taken': 'Ya existe un equipo con esa etiqueta o número de serie.',
@@ -39,4 +44,11 @@ const Map<String, String> messagesByErrorCode = {
   'auth_code_invalid': 'El código no es válido o ha vencido.',
   'auth_code_attempts_exceeded': 'Superaste los intentos. Solicita un nuevo código.',
   'user_account_disabled': 'Esa cuenta está desactivada.',
+  // Usuarios y roles
+  'user_not_found': 'Ese usuario ya no existe o está inactivo.',
+  'role_not_found': 'Uno de los roles ya no existe o está inactivo.',
+  'user_employee_code_taken': 'Ya existe un usuario con ese código de empleado.',
+  'cannot_deactivate_self': 'No puedes desactivar tu propia cuenta.',
+  'cannot_revoke_own_admin': 'No puedes quitarte tu propio rol de administrador.',
+  'last_admin_protected': 'No se puede dejar al sistema sin administradores activos.',
 };
