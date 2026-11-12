@@ -338,7 +338,8 @@ void main() {
       };
       await openBoard(tester);
 
-      expect(find.text('Ticket 501'), findsOneWidget);
+      expect(find.text('Ticket 501'), findsNWidgets(2), reason: 'el número y el título coinciden en esta tarjeta');
+      expect(find.byType(TicketKanbanCard), findsNWidgets(2));
       expect(listRequests().where((r) => r.queryParameters['size'] == 500), hasLength(2));
       expect(find.byType(Paginator), findsNothing);
     });
@@ -416,6 +417,11 @@ void main() {
     });
 
     Future<void> openMenuFor(WidgetTester tester, String target) async {
+      await tester.scrollUntilVisible(
+        find.byTooltip('Mover a…'),
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.byTooltip('Mover a…').first);
       await tester.pumpAndSettle();
       await tester.tap(find.descendant(of: find.byType(PopupMenuItem<String>), matching: find.text(target)));
