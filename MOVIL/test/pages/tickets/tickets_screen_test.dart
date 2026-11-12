@@ -417,6 +417,14 @@ void main() {
     });
 
     Future<void> openMenuFor(WidgetTester tester, String target) async {
+      // En pantallas estrechas el tablero queda más abajo dentro del ListView y la
+      // tarjeta puede no estar construida todavía. Primero se lleva al viewport.
+      await tester.scrollUntilVisible(
+        find.byType(TicketKanbanCard).first,
+        240,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       final moveMenu = find.byTooltip('Mover a…').first;
       await tester.ensureVisible(moveMenu);
       await tester.pumpAndSettle();
