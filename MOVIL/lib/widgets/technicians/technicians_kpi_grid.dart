@@ -38,37 +38,28 @@ class TechniciansKpiGrid extends StatelessWidget {
   }
 }
 
-/// Una cifra con su nombre, una nota y un icono. Con [onTap] es un botón; [selected] la marca
-/// con el borde mostaza.
+/// Una cifra informativa con su nombre, una nota y un icono.
 class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, required this.caption, required this.icon, required this.tone, this.selected = false, this.onTap});
+  const _KpiCard({required this.label, required this.value, required this.caption, required this.icon, required this.tone});
 
   final String label;
   final String value;
   final String caption;
   final IconData icon;
   final ChipColors tone;
-  final bool selected;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final marked = selected && onTap != null;
     return Semantics(
-      button: onTap != null,
-      selected: marked,
       label: '$label: $value. $caption',
       excludeSemantics: true,
       child: Material(
         color: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: marked ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .7), width: marked ? 2 : 1)),
-        child: InkWell(
-          borderRadius: AppRadius.lgAll,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: AppColors.skyLight.withValues(alpha: .7))),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: AppColors.steel, fontWeight: FontWeight.w800, letterSpacing: .3)),
@@ -83,8 +74,7 @@ class _KpiCard extends StatelessWidget {
                 decoration: BoxDecoration(color: tone.background, borderRadius: AppRadius.smAll),
                 child: Icon(icon, size: 18, color: tone.foreground),
               ),
-            ]),
-          ),
+          ]),
         ),
       ),
     );
