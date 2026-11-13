@@ -78,9 +78,9 @@ class _InfoNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .35), borderRadius: AppRadius.mdAll),
+        decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .2), borderRadius: AppRadius.mdAll),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.info_rounded, size: 20, color: AppColors.steel),
+          const Icon(Icons.info_rounded, size: 20, color: AppColors.navy),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.navy, height: 1.3))),
         ]),

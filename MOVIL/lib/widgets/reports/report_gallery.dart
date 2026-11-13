@@ -41,8 +41,8 @@ class _ReportRow extends StatelessWidget {
       label: report.description.isEmpty ? report.title : '${report.title}. ${report.description}',
       excludeSemantics: true,
       child: Material(
-        color: selected ? AppColors.mustard.withValues(alpha: .14) : AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: selected ? AppColors.mustard : AppColors.skyLight.withValues(alpha: .8), width: selected ? 2 : 1)),
+        color: selected ? AppColors.mustard.withValues(alpha: .24) : AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: selected ? AppColors.mustard : AppColors.mustard.withValues(alpha: .35), width: selected ? 2.5 : 1)),
         child: InkWell(
           borderRadius: AppRadius.lgAll,
           onTap: onTap,
@@ -52,7 +52,7 @@ class _ReportRow extends StatelessWidget {
               Container(
                 width: 46,
                 height: 46,
-                decoration: BoxDecoration(color: selected ? AppColors.mustard.withValues(alpha: .35) : AppColors.skyLight.withValues(alpha: .5), borderRadius: AppRadius.mdAll),
+                decoration: BoxDecoration(color: selected ? AppColors.mustard : AppColors.mustard.withValues(alpha: .22), borderRadius: AppRadius.mdAll),
                 child: Icon(reportIcon(report.key), color: AppColors.navy, size: 25),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -66,7 +66,7 @@ class _ReportRow extends StatelessWidget {
                 ]),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Icon(selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.navy : AppColors.slate),
+              Icon(selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.mustard : AppColors.slate),
             ]),
           ),
         ),

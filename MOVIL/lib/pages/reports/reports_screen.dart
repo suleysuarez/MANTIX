@@ -227,7 +227,7 @@ class _ReportWorkspaceState extends State<_ReportWorkspace> {
                 // Los filtros y el formato del reporte elegido, juntos en una tarjeta.
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(color: AppColors.skyLight.withValues(alpha: .28), borderRadius: AppRadius.lgAll),
+                  decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .16), borderRadius: AppRadius.lgAll, border: Border.all(color: AppColors.mustard.withValues(alpha: .5))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Row(children: [
                       FilterButton(count: active, onPressed: _openFilters),

@@ -24,13 +24,14 @@ class ReportsKpis extends StatelessWidget {
   final int? exports;
   final DateTime now;
 
-  static const _valueSize = 20.0;
-  static const _labelSize = 10.5;
+  static const _valueSize = 16.0;
+  static const _labelSize = 10.0;
+  static const _iconBox = 28.0;
   static const _lineHeight = 1.25;
 
   static double heightFor(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
-    return AppSpacing.sm * 2 + 34 + AppSpacing.xs + scaler.scale(_valueSize * _lineHeight) + scaler.scale(_labelSize * _lineHeight) * 2 + 2;
+    return AppSpacing.sm * 2 + _iconBox + AppSpacing.xs + scaler.scale(_valueSize * _lineHeight) + scaler.scale(_labelSize * _lineHeight) * 2 + 2;
   }
 
   @override
@@ -68,18 +69,18 @@ class _Card extends StatelessWidget {
       label: '$label: $value',
       excludeSemantics: true,
       child: Material(
-        color: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: AppColors.skyLight.withValues(alpha: .7))),
+        color: AppColors.mustard.withValues(alpha: .16),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: AppColors.mustard.withValues(alpha: .7), width: 1.5)),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: AppSpacing.sm),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.mustard.withValues(alpha: .28), shape: BoxShape.circle), child: Icon(icon, size: 19, color: AppColors.navy)),
+            Container(width: ReportsKpis._iconBox, height: ReportsKpis._iconBox, decoration: const BoxDecoration(color: AppColors.mustard, shape: BoxShape.circle), child: Icon(icon, size: 16, color: AppColors.navy)),
             const SizedBox(height: AppSpacing.xs),
             FittedBox(fit: BoxFit.scaleDown, child: Text(value, maxLines: 1, style: const TextStyle(color: AppColors.navy, fontSize: ReportsKpis._valueSize, fontWeight: FontWeight.w900, height: ReportsKpis._lineHeight))),
             // Siempre dos líneas de alto para el nombre: las tres tarjetas miden lo mismo.
             SizedBox(
               height: scaler.scale(ReportsKpis._labelSize * ReportsKpis._lineHeight) * 2,
-              child: Align(alignment: Alignment.topCenter, child: Text(label, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.steel, fontSize: ReportsKpis._labelSize, fontWeight: FontWeight.w700, height: ReportsKpis._lineHeight))),
+              child: Align(alignment: Alignment.topCenter, child: Text(label, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.navy, fontSize: ReportsKpis._labelSize, fontWeight: FontWeight.w700, height: ReportsKpis._lineHeight))),
             ),
           ]),
         ),

@@ -5,7 +5,7 @@ import '../../core/theme/app_colors.dart';
 /// Las dos vistas de la pantalla de reportes.
 enum ReportsTab { generate, history }
 
-/// «Generar reporte» e «Historial» como píldoras: la elegida va en navy con texto blanco.
+/// «Generar reporte» e «Historial» como píldoras: la elegida va rellena de mostaza.
 class ReportsTabs extends StatelessWidget {
   const ReportsTabs({super.key, required this.selected, required this.onChanged});
 
@@ -34,15 +34,15 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.white : AppColors.steel;
+    final foreground = AppColors.navy;
     return Semantics(
       button: true,
       selected: selected,
       label: label,
       excludeSemantics: true,
       child: Material(
-        color: selected ? AppColors.navy : AppColors.white,
-        shape: StadiumBorder(side: BorderSide(color: selected ? AppColors.navy : AppColors.skyLight)),
+        color: selected ? AppColors.mustard : AppColors.white,
+        shape: StadiumBorder(side: BorderSide(color: AppColors.mustard, width: selected ? 2 : 1.5)),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,

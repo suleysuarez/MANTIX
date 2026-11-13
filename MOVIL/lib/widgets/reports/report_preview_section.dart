@@ -8,9 +8,9 @@ import '../../core/theme/app_tokens.dart';
 import '../../models/reports/report_models.dart';
 import '../shared/skeleton.dart';
 
-/// La vista previa del reporte con los filtros puestos: cuántos registros hay, el aviso de lo que
-/// se exportará, el comparativo si se pidió y las primeras filas como tarjetas. Cada tarjeta enseña
-/// sus dos primeras columnas y despliega el resto.
+/// La vista previa del reporte con los filtros puestos, en pocas líneas: cuántos registros se
+/// exportarán (con el aviso si son muchos o ninguno) y el comparativo si se pidió. No lista filas:
+/// el detalle está en el archivo exportado.
 class ReportPreviewSection extends StatelessWidget {
   const ReportPreviewSection({super.key, required this.state, required this.maxRows, required this.onRetry});
 
@@ -20,7 +20,6 @@ class ReportPreviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final preview = state.preview;
     if (state.status == PreviewStatus.invalid) {
       return _Notice(icon: Icons.event_busy_outlined, text: state.rangeError ?? 'Revisa el rango de fechas.', tone: CountTone.error);
@@ -41,12 +40,6 @@ class ReportPreviewSection extends StatelessWidget {
       if (state.loading) const Padding(padding: EdgeInsets.only(bottom: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3, color: AppColors.mustard, backgroundColor: AppColors.skyLight)),
       _Notice(icon: switch (count.tone) { CountTone.ok => Icons.check_circle_outline, CountTone.warn => Icons.hourglass_bottom_rounded, CountTone.error => Icons.info_outline }, text: count.text, tone: count.tone),
       if (preview.comparison != null) ...[const SizedBox(height: AppSpacing.sm), _ComparisonCard(comparison: preview.comparison!)],
-      if (preview.rows.isNotEmpty) ...[
-        const SizedBox(height: AppSpacing.lg),
-        Semantics(header: true, child: Text('Vista previa · primeras ${preview.rows.length} de ${preview.totalRows}', style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800))),
-        const SizedBox(height: AppSpacing.sm),
-        for (final row in preview.rows) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: _RowCard(columns: preview.columns, row: row)),
-      ],
     ]);
   }
 }
@@ -109,65 +102,12 @@ class _ComparisonCard extends StatelessWidget {
   }
 }
 
-class _RowCard extends StatelessWidget {
-  const _RowCard({required this.columns, required this.row});
-
-  final List<PreviewColumn> columns;
-  final Map<String, String> row;
-
-  String _value(PreviewColumn column) {
-    final value = row[column.key] ?? '';
-    return value.isEmpty ? '—' : value;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    if (columns.isEmpty) return const SizedBox.shrink();
-    final rest = columns.skip(2).toList();
-    return Material(
-      color: AppColors.white,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll, side: BorderSide(color: AppColors.skyLight.withValues(alpha: .6))),
-      child: Theme(
-        data: theme.copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          childrenPadding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
-          expandedCrossAxisAlignment: CrossAxisAlignment.start,
-          enabled: rest.isNotEmpty,
-          title: Text(_value(columns.first), maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.navy, fontWeight: FontWeight.w800)),
-          subtitle: columns.length > 1 ? Text('${columns[1].header}: ${_value(columns[1])}', maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.steel)) : null,
-          children: [
-            for (final column in rest)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Text.rich(TextSpan(children: [
-                  TextSpan(text: '${column.header}: ', style: const TextStyle(color: AppColors.slate, fontWeight: FontWeight.w700)),
-                  TextSpan(text: _value(column), style: const TextStyle(color: AppColors.navy)),
-                ])),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _PreviewSkeleton extends StatelessWidget {
   const _PreviewSkeleton();
 
   @override
   Widget build(BuildContext context) => Semantics(
         label: 'Cargando vista previa',
-        child: const Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Skeleton(height: 52, radius: AppRadius.md),
-          SizedBox(height: AppSpacing.lg),
-          Skeleton(height: 64, radius: AppRadius.lg),
-          SizedBox(height: AppSpacing.sm),
-          Skeleton(height: 64, radius: AppRadius.lg),
-          SizedBox(height: AppSpacing.sm),
-          Skeleton(height: 64, radius: AppRadius.lg),
-        ]),
+        child: const Skeleton(height: 52, radius: AppRadius.md),
       );
 }

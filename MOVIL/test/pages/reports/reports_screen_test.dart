@@ -180,17 +180,13 @@ void main() {
   });
 
   group('vista previa', () {
-    testWidgets('muestra las filas como tarjetas y despliega el resto de columnas', (tester) async {
+    testWidgets('es corta: dice cuántos registros se exportarán y no lista filas', (tester) async {
       await open(tester);
 
-      expect(find.textContaining('Vista previa · primeras 3 de 3'), findsOneWidget);
-      expect(find.text('TCK-001'), findsOneWidget);
-      expect(find.text('Título: Ticket 1'), findsOneWidget);
-      expect(find.text('Estado: '), findsNothing, reason: 'la tercera columna está plegada');
-
-      await tester.tap(find.text('TCK-001'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Estado: En proceso', findRichText: true), findsOneWidget);
+      expect(find.text('Se exportarán 3 registros.'), findsOneWidget);
+      expect(find.textContaining('Vista previa · primeras'), findsNothing);
+      expect(find.text('TCK-001'), findsNothing);
+      expect(find.byType(ExpansionTile), findsNothing);
     });
 
     testWidgets('sin registros avisa y no deja exportar', (tester) async {
