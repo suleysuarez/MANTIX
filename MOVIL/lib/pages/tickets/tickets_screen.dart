@@ -303,7 +303,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                         ],
                         if (loaded) ...[
                           const SizedBox(height: AppSpacing.md),
-                          TicketAttention(items: state.items, onOpen: (item) => showTicketDetail(context, item.id)),
+                          TicketAttention(items: state.items, onOpen: (item) => showTicketDetail(context, item.id, canAct: item.canAct)),
                         ],
                         const SizedBox(height: AppSpacing.md),
                         _ViewToggle(kanban: _kanban, onChanged: (value) => setState(() => _kanban = value)),
@@ -326,7 +326,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                               info: state.info,
                               loadingPage: state.loadingMore,
                               pageFailure: state.loadMoreFailure?.message,
-                              onOpen: (item) => showTicketDetail(context, item.id),
+                              onOpen: (item) => showTicketDetail(context, item.id, canAct: item.canAct),
                               onPage: (page) {
                                 context.read<TicketsBloc>().add(PagedPageSelected(page));
                                 if (_scrollController.hasClients) _scrollController.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);

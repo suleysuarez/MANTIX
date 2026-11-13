@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/requests/request_detail_bloc.dart';
 import '../../core/format/formatters.dart';
 import '../../core/format/ticket_meta.dart';
@@ -14,25 +15,38 @@ import '../shared/error_state.dart';
 import '../shared/mantix_sheet.dart';
 import '../shared/skeleton.dart';
 import '../shared/timeline.dart';
+import 'ticket_actions.dart';
 
 /// Detalle de un ticket en una hoja inferior arrastrable (la pantalla de fondo, con su
 /// encabezado, sigue visible): datos, historial de estados con el momento de creación, y
-/// adjuntos. Solo lectura.
-Future<void> showTicketDetail(BuildContext context, int ticketId) => showMantixSheet<void>(
-      context,
-      title: 'Detalle del ticket',
-      builder: (sheetContext, controller) => BlocProvider(
-        create: (_) => RequestDetailBloc(repository: context.read<RequestsRepository>(), requestId: ticketId)
+/// adjuntos. Es de lectura, salvo que [canAct] sea cierto (el ticket es de quien lo abre) y la
+/// cuenta tenga `tickets:cambiar_estado`: entonces ofrece iniciar, poner en espera y resolver.
+Future<void> showTicketDetail(BuildContext context, int ticketId, {bool canAct = false}) {
+  final profile = context.read<AuthBloc>().state.profile;
+  final withActions = canAct && (profile?.can('tickets:cambiar_estado') ?? false);
+  return showMantixSheet<void>(
+    context,
+    title: 'Detalle del ticket',
+    builder: (sheetContext, controller) => BlocProvider(
+      create: (_) {
+        final bloc = RequestDetailBloc(repository: context.read<RequestsRepository>(), requestId: ticketId)
           ..add(const RequestDetailRequested())
-          ..add(const RequestAttachmentsRequested()),
-        child: TicketDetailBody(controller: controller),
-      ),
-    );
+          ..add(const RequestAttachmentsRequested());
+        if (withActions) bloc.add(const RequestWorkflowRequested());
+        return bloc;
+      },
+      child: TicketDetailBody(controller: controller, withActions: withActions),
+    ),
+  );
+}
 
 class TicketDetailBody extends StatelessWidget {
-  const TicketDetailBody({super.key, this.controller, this.onRefresh});
+  const TicketDetailBody({super.key, this.controller, this.onRefresh, this.withActions = false});
 
   final ScrollController? controller;
+
+  /// Muestra las acciones del técnico (el detalle ya cargó el flujo de estados).
+  final bool withActions;
 
   /// Si se da, la lista se puede recargar tirando hacia abajo (la pantalla por ruta lo usa; la
   /// hoja no, porque tirar hacia abajo ahí la arrastra).
@@ -41,7 +55,15 @@ class TicketDetailBody extends StatelessWidget {
   Widget _scrollable(Widget list) => onRefresh == null ? list : RefreshIndicator(onRefresh: onRefresh!, child: list);
 
   @override
-  Widget build(BuildContext context) => BlocBuilder<RequestDetailBloc, RequestDetailState>(
+  Widget build(BuildContext context) => BlocConsumer<RequestDetailBloc, RequestDetailState>(
+        listenWhen: (previous, current) => previous.changeSerial != current.changeSerial,
+        listener: (context, state) {
+          final failure = state.changeFailure;
+          final text = failure != null ? failure.message : 'Ticket actualizado: ${statusMeta(state.changedTo ?? '').label}.';
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(text)));
+        },
         builder: (context, state) {
           final ticket = state.ticket;
           if (ticket == null) {
@@ -66,6 +88,13 @@ class TicketDetailBody extends StatelessWidget {
                 chips: [StatusChip(ticket.status), PriorityChip(ticket.priority)],
               ),
               const SizedBox(height: AppSpacing.md),
+              if (withActions)
+                TicketActions(
+                  ticket: ticket,
+                  workflow: state.workflow,
+                  changing: state.changing,
+                  onChange: (target, {notes, resolutionSummary}) => context.read<RequestDetailBloc>().add(RequestStatusChangeRequested(target, notes: notes, resolutionSummary: resolutionSummary)),
+                ),
               DetailSection(icon: Icons.info_outline_rounded, title: 'Datos del ticket', children: [
                 DetailField('Equipo', ticket.equipment.label),
                 DetailField('Técnico asignado', ticket.technicianName ?? 'Sin asignar'),

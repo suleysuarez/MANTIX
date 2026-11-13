@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantix/core/errors/failure.dart';
@@ -140,6 +142,95 @@ void main() {
 
       expect(bloc.state.ticket, isNotNull);
       expect(bloc.state.failure, isNull);
+    });
+  });
+
+  group('RequestDetailBloc: cambiar el estado', () {
+    const workflow = [
+      WorkflowStatus(status: 'in_progress', order: 4, allowedTargets: ['waiting', 'resolved'], requires: [], canEnter: true),
+      WorkflowStatus(status: 'resolved', order: 6, allowedTargets: ['closed'], requires: ['resolution_summary'], canEnter: true),
+    ];
+
+    test('carga el flujo de estados; si falla, sigue sin acciones y sin error', () async {
+      when(() => repository.workflow()).thenAnswer((_) async => workflow);
+      final bloc = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(bloc.close);
+
+      bloc.add(const RequestWorkflowRequested());
+      await bloc.stream.firstWhere((s) => s.workflow.isNotEmpty);
+      expect(bloc.state.workflow, workflow);
+
+      when(() => repository.workflow()).thenThrow(const NetworkFailure());
+      final failing = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(failing.close);
+      failing.add(const RequestWorkflowRequested());
+      await Future<void>.delayed(Duration.zero);
+      expect(failing.state.workflow, isEmpty);
+      expect(failing.state.changeFailure, isNull);
+    });
+
+    test('el flujo que llega después del ticket no lo borra', () async {
+      final slowWorkflow = Completer<List<WorkflowStatus>>();
+      when(() => repository.getRequest(7)).thenAnswer((_) async => detail());
+      when(() => repository.workflow()).thenAnswer((_) => slowWorkflow.future);
+      final bloc = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(bloc.close);
+
+      bloc.add(const RequestWorkflowRequested());
+      bloc.add(const RequestDetailRequested());
+      await bloc.stream.firstWhere((s) => s.ticket != null);
+      slowWorkflow.complete(workflow);
+      await bloc.stream.firstWhere((s) => s.workflow.isNotEmpty);
+
+      expect(bloc.state.ticket, isNotNull, reason: 'el ticket cargado sigue ahí');
+      expect(bloc.state.status, LoadStatus.success);
+      expect(bloc.state.workflow, workflow);
+    });
+
+    test('resolver manda la resolución, recarga el ticket y avisa a qué estado pasó', () async {
+      when(() => repository.transitionStatus(7, 'resolved', notes: null, resolutionSummary: 'Cambié la fuente')).thenAnswer((_) async {});
+      when(() => repository.getRequest(7)).thenAnswer((_) async => TicketDetail.fromJson(detailJson(id: 7, status: 'resolved')));
+      final bloc = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(bloc.close);
+
+      bloc.add(const RequestStatusChangeRequested('resolved', resolutionSummary: 'Cambié la fuente'));
+      await bloc.stream.firstWhere((s) => s.changeSerial == 1);
+
+      verify(() => repository.transitionStatus(7, 'resolved', notes: null, resolutionSummary: 'Cambié la fuente')).called(1);
+      expect(bloc.state.changing, isFalse);
+      expect(bloc.state.changedTo, 'resolved');
+      expect(bloc.state.changeFailure, isNull);
+      expect(bloc.state.ticket?.status, 'resolved');
+    });
+
+    test('si el servidor lo rechaza avisa con el motivo y no cambia el ticket', () async {
+      when(() => repository.getRequest(7)).thenAnswer((_) async => detail());
+      when(() => repository.transitionStatus(7, 'in_progress', notes: null, resolutionSummary: null)).thenThrow(const ConflictFailure(message: 'El ticket ya cambió de estado.'));
+      final bloc = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(bloc.close);
+      bloc.add(const RequestDetailRequested());
+      await bloc.stream.firstWhere((s) => s.ticket != null);
+
+      bloc.add(const RequestStatusChangeRequested('in_progress'));
+      await bloc.stream.firstWhere((s) => s.changeSerial == 1);
+
+      expect(bloc.state.changeFailure?.message, 'El ticket ya cambió de estado.');
+      expect(bloc.state.changedTo, isNull);
+      expect(bloc.state.changing, isFalse);
+      expect(bloc.state.ticket?.status, 'assigned', reason: 'el ticket sigue como estaba');
+    });
+
+    test('si el cambio salió bien pero recargar falla, avisa igual de que salió bien', () async {
+      when(() => repository.transitionStatus(7, 'waiting', notes: 'Falta el repuesto', resolutionSummary: null)).thenAnswer((_) async {});
+      when(() => repository.getRequest(7)).thenThrow(const NetworkFailure());
+      final bloc = RequestDetailBloc(repository: repository, requestId: 7);
+      addTearDown(bloc.close);
+
+      bloc.add(const RequestStatusChangeRequested('waiting', notes: 'Falta el repuesto'));
+      await bloc.stream.firstWhere((s) => s.changeSerial == 1);
+
+      expect(bloc.state.changedTo, 'waiting');
+      expect(bloc.state.changeFailure, isNull);
     });
   });
 

@@ -213,7 +213,7 @@ class _TicketsSection extends StatelessWidget {
           else if (state.items.isEmpty)
             const EmptyState(icon: Icons.task_alt_rounded, title: 'No tienes tickets asignados', message: 'Cuando te asignen uno aparecerá aquí.')
           else ...[
-            for (final item in state.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: TicketListCard(item: item, onTap: () => showTicketDetail(context, item.id))),
+            for (final item in state.items) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: TicketListCard(item: item, onTap: () => showTicketDetail(context, item.id, canAct: item.canAct))),
             if (state.loadMoreFailure != null) Padding(padding: const EdgeInsets.only(bottom: AppSpacing.sm), child: Text(state.loadMoreFailure!.message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.error, fontSize: 12))),
             if (state.info case final info?) Paginator(page: info.page, pageSize: info.pageSize, total: info.total, totalPages: info.totalPages, loading: state.loadingMore, onPage: (page) => context.read<AssignedTicketsBloc>().add(PagedPageSelected(page))),
           ],

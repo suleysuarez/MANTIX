@@ -11,6 +11,17 @@ import '../../support/requests_support.dart';
 
 const _technician = {'tickets:ver', 'tickets:ver_asignados', 'mantenimiento:ver'};
 const _withoutMaintenance = {'tickets:ver', 'tickets:ver_asignados'};
+const _canChange = {'tickets:ver', 'tickets:ver_asignados', 'mantenimiento:ver', 'tickets:cambiar_estado'};
+
+/// El flujo de estados que el servidor le da a un técnico: puede entrar a En proceso, En espera y
+/// Resuelto (que pide la resolución), pero no a Cancelado.
+const _workflow = [
+  {'status': 'assigned', 'order': 3, 'allowed_targets': ['in_progress', 'cancelled'], 'requires': ['technician'], 'can_enter': false, 'in_queue': true},
+  {'status': 'in_progress', 'order': 4, 'allowed_targets': ['waiting', 'resolved', 'cancelled'], 'requires': <String>[], 'can_enter': true, 'in_queue': false},
+  {'status': 'waiting', 'order': 5, 'allowed_targets': ['in_progress', 'cancelled'], 'requires': <String>[], 'can_enter': true, 'in_queue': false},
+  {'status': 'resolved', 'order': 6, 'allowed_targets': ['closed', 'in_progress'], 'requires': ['resolution_summary'], 'can_enter': true, 'in_queue': false},
+  {'status': 'cancelled', 'order': 8, 'allowed_targets': <String>[], 'requires': ['reason'], 'can_enter': false, 'in_queue': false},
+];
 
 String _utc(DateTime local) => local.toUtc().toIso8601String();
 
@@ -18,9 +29,11 @@ void main() {
   late FakeAdapter adapter;
   late ResponseBody Function(RequestOptions) ticketsHandler;
   late ResponseBody Function(RequestOptions) calendarHandler;
+  late String detailStatus;
   final today = DateTime(2026, 10, 25, 10);
 
   setUp(() {
+    detailStatus = 'in_progress';
     ticketsHandler = (options) {
       final query = options.queryParameters;
       if (query['size'] == 1) {
@@ -41,7 +54,12 @@ void main() {
       if (path == '/maintenance/requests') return ticketsHandler(options);
       if (path == '/maintenance/calendar') return calendarHandler(options);
       if (path.endsWith('/attachments')) return jsonResponse(200, <Object?>[]);
-      if (path.startsWith('/maintenance/requests/')) return jsonResponse(200, detailJson(id: 1));
+      if (path == '/maintenance/requests/workflow') return jsonResponse(200, _workflow);
+      if (path.endsWith('/status')) {
+        detailStatus = 'resolved';
+        return jsonResponse(200, detailJson(id: 1, status: 'resolved'));
+      }
+      if (path.startsWith('/maintenance/requests/')) return jsonResponse(200, detailJson(id: 1, status: detailStatus));
       return errorResponse(404);
     });
   });
@@ -121,6 +139,76 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Detalle del ticket'), findsOneWidget);
+  });
+
+  group('resolver desde el detalle', () {
+    void ownTickets() => ticketsHandler = (options) => options.queryParameters['size'] == 1
+        ? pagedResponse([ticketJson()], total: 1)
+        : pagedResponse([ticketJson(id: 1, status: 'in_progress', title: 'La laptop no enciende', canAct: true)], total: 1);
+
+    testWidgets('el técnico con permiso ve las acciones, escribe cómo se resolvió y el ticket pasa a Resuelto', (tester) async {
+      ownTickets();
+      await open(tester, permissions: _canChange);
+
+      await tester.tap(find.text('La laptop no enciende'));
+      await tester.pumpAndSettle();
+      expect(find.text('Acciones'), findsOneWidget);
+      expect(find.text('Poner en espera'), findsOneWidget);
+      expect(find.text('Cancelar ticket'), findsNothing, reason: 'cancelar no es del técnico');
+
+      await tester.tap(find.text('Resolver ticket'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Cambié la fuente de poder');
+      await tester.tap(find.widgetWithText(FilledButton, 'Resolver'));
+      await tester.pumpAndSettle();
+
+      final change = adapter.requests.singleWhere((r) => r.path == '/maintenance/requests/1/status');
+      expect(change.method, 'POST');
+      expect(change.data, {'status': 'resolved', 'resolution_summary': 'Cambié la fuente de poder'});
+      expect(find.text('Ticket actualizado: Resuelto.'), findsOneWidget);
+      expect(find.text('Cambié la fuente de poder'), findsNothing, reason: 'el diálogo se cerró');
+      expect(find.text('Resolver ticket'), findsNothing, reason: 'ya está resuelto: no se ofrece de nuevo');
+    });
+
+    testWidgets('si el servidor lo rechaza muestra el motivo y deja los botones', (tester) async {
+      ownTickets();
+      final base = adapter;
+      adapter = FakeAdapter((options) => options.path.endsWith('/status') ? errorResponse(409, code: 'ticket_invalid_transition') : base.handler(options));
+      await open(tester, permissions: _canChange);
+
+      await tester.tap(find.text('La laptop no enciende'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Poner en espera'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Confirmar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('Ticket actualizado'), findsNothing);
+      expect(find.text('Resolver ticket'), findsOneWidget);
+    });
+
+    testWidgets('sin tickets:cambiar_estado el detalle es solo de lectura', (tester) async {
+      ownTickets();
+      await open(tester);
+
+      await tester.tap(find.text('La laptop no enciende'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detalle del ticket'), findsOneWidget);
+      expect(find.text('Acciones'), findsNothing);
+      expect(adapter.requests.where((r) => r.path == '/maintenance/requests/workflow'), isEmpty, reason: 'ni siquiera se pide el flujo');
+    });
+
+    testWidgets('un ticket que no es suyo (can_act falso) tampoco ofrece acciones', (tester) async {
+      await open(tester, permissions: _canChange);
+
+      await tester.tap(find.text('La laptop no enciende'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detalle del ticket'), findsOneWidget);
+      expect(find.text('Acciones'), findsNothing);
+    });
   });
 
   testWidgets('los tickets se paginan de 10 en 10 y cada página sustituye a la anterior', (tester) async {
